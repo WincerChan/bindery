@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Bindery · 书库{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>把 TXT 变成真正的书</h1>
+    <p>按章节自动切分，写入元数据，直接加入你的本地 EPUB 书库。</p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>导入 TXT</h2>
+    <p>支持自动识别书名、作者与简介，也可手动补充。</p>
+  </div>
+  <form
+    class="upload-form"
+    action="/upload"
+    method="post"
+    enctype="multipart/form-data"
+    hx-post="/upload"
+    hx-encoding="multipart/form-data"
+    hx-target="#library"
+    hx-swap="afterbegin"
+  >
+    <div class="field">
+      <label>TXT 文件</label>
+      <input type="file" name="txt_file" accept=".txt" required />
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label>书名</label>
+        <input type="text" name="title" placeholder="留空则自动解析" />
+      </div>
+      <div class="field">
+        <label>作者</label>
+        <input type="text" name="author" placeholder="留空则自动解析" />
+      </div>
+      <div class="field">
+        <label>语言</label>
+        <input type="text" name="language" value="zh-CN" />
+      </div>
+      <div class="field">
+        <label>星级</label>
+        <input type="number" name="rating" min="0" max="5" step="1" placeholder="0-5" />
+      </div>
+    </div>
+
+    <details class="more-fields">
+      <summary>更多元数据</summary>
+      <div class="form-grid">
+        <div class="field">
+          <label>出版社</label>
+          <input type="text" name="publisher" />
+        </div>
+        <div class="field">
+          <label>标签</label>
+          <input type="text" name="tags" placeholder="例如：科幻, 太空歌剧" />
+        </div>
+        <div class="field">
+          <label>发表时间</label>
+          <input type="text" name="published" placeholder="例如：2024-08-01" />
+        </div>
+        <div class="field">
+          <label>ISBN</label>
+          <input type="text" name="isbn" />
+        </div>
+      </div>
+      <div class="field">
+        <label>内容简介</label>
+        <textarea name="description" rows="3"></textarea>
+      </div>
+    </details>
+
+    <div class="actions">
+      <button class="btn" type="submit">生成 EPUB</button>
+    </div>
+  </form>
+</section>
+
+<section class="library">
+  <div class="panel-header">
+    <h2>书库</h2>
+    <p>已生成 {{ books | length }} 本。</p>
+  </div>
+  <div id="library" class="library-grid">
+    {% for book in books %}
+      {% include "partials/book_card.html" %}
+    {% else %}
+      <div class="empty">还没有书籍。上传第一本 TXT 吧。</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,386 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600&display=swap');
+
+:root {
+  color-scheme: light;
+  --ink: #1d1c1a;
+  --muted: #5b5852;
+  --paper: #f8f4ef;
+  --sand: #efe7db;
+  --accent: #c2542d;
+  --accent-2: #1a5b4d;
+  --border: #d7cfc2;
+  --shadow: 0 16px 45px rgba(33, 24, 10, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(194, 84, 45, 0.12), transparent 45%),
+    radial-gradient(circle at 20% 0%, rgba(26, 91, 77, 0.12), transparent 40%),
+    linear-gradient(135deg, #fff9f1 0%, #f3ebe0 48%, #f7f1e7 100%);
+  min-height: 100vh;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px clamp(20px, 4vw, 60px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fffaf4;
+  font-family: "Fraunces", serif;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow);
+}
+
+.brand-title {
+  font-family: "Fraunces", serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.brand-sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.site-nav .nav-link {
+  text-decoration: none;
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  padding-bottom: 4px;
+}
+
+.site-nav .nav-link:hover {
+  border-color: var(--accent);
+}
+
+.page {
+  padding: 0 clamp(20px, 4vw, 60px) 60px;
+  display: grid;
+  gap: 28px;
+}
+
+.hero {
+  background: #fff;
+  border-radius: 26px;
+  padding: 36px;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.hero h1 {
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  margin: 0 0 12px;
+}
+
+.hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.panel {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.panel-header.inline {
+  margin-bottom: 16px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  font-size: 1.4rem;
+}
+
+.panel-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.upload-form,
+.edit-form {
+  display: grid;
+  gap: 20px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.field input,
+.field textarea,
+.field select {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 0.95rem;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.more-fields {
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  padding: 12px 16px;
+  background: #fff;
+}
+
+.more-fields summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent-2);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fffaf4;
+  border: none;
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:hover {
+  filter: brightness(1.05);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.book-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 14px;
+  box-shadow: 0 12px 30px rgba(23, 18, 10, 0.08);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.rating {
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+.meta {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.meta span {
+  display: inline-block;
+  width: 4em;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 20px;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  color: var(--muted);
+}
+
+.meta-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.meta-grid span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.meta-description {
+  margin-top: 16px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+}
+
+.meta-description h3 {
+  margin-top: 0;
+}
+
+.toc {
+  display: grid;
+  gap: 10px;
+}
+
+.toc-item {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.toc-item:hover {
+  border-color: var(--accent);
+}
+
+.toc-type {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.reader {
+  background: #fff;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.reader-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.reader-meta {
+  flex: 1;
+  text-align: center;
+}
+
+.reader-title {
+  font-family: "Fraunces", serif;
+  font-size: 1.4rem;
+}
+
+.reader-section {
+  color: var(--muted);
+}
+
+.reader-body {
+  font-family: "Noto Serif SC", serif;
+  font-size: 1.05rem;
+  line-height: 2;
+  padding-top: 10px;
+}
+
+.reader-body p {
+  margin: 0 0 1.2em;
+}
+
+@media (max-width: 720px) {
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .reader-meta {
+    text-align: left;
+  }
+}

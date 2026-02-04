@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}{{ book.title }} · Bindery{% endblock %}
+
+{% block content %}
+<section class="panel">
+  {% include "partials/meta_view.html" %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>目录</h2>
+    <p>共 {{ sections | length }} 节。</p>
+  </div>
+  <div class="toc">
+    {% for section in sections %}
+      <a class="toc-item" href="/book/{{ book_id }}/preview/{{ loop.index0 }}">
+        <span class="toc-type">{{ section.type }}</span>
+        <span class="toc-title">{{ section.title }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>操作</h2>
+    <p>下载或预览完整 EPUB。</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/book/{{ book_id }}/download">下载 EPUB</a>
+    <a class="btn ghost" href="/book/{{ book_id }}/preview">开始预览</a>
+  </div>
+</section>
+{% endblock %}

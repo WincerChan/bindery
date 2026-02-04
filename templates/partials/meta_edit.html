@@ -1,0 +1,56 @@
+<div class="meta-panel" id="meta-panel">
+  <div class="panel-header inline">
+    <h2>编辑元数据</h2>
+    <a class="btn ghost" href="/book/{{ book_id }}">取消</a>
+  </div>
+  <form
+    class="edit-form"
+    action="/book/{{ book_id }}/edit"
+    method="post"
+    hx-post="/book/{{ book_id }}/edit"
+    hx-target="#meta-panel"
+    hx-swap="innerHTML"
+  >
+    <div class="form-grid">
+      <div class="field">
+        <label>书名</label>
+        <input type="text" name="title" value="{{ book.title }}" required />
+      </div>
+      <div class="field">
+        <label>作者</label>
+        <input type="text" name="author" value="{{ book.author or '' }}" />
+      </div>
+      <div class="field">
+        <label>语言</label>
+        <input type="text" name="language" value="{{ book.language }}" />
+      </div>
+      <div class="field">
+        <label>星级</label>
+        <input type="number" name="rating" min="0" max="5" step="1" value="{{ book.rating if book.rating is not none else '' }}" />
+      </div>
+      <div class="field">
+        <label>出版社</label>
+        <input type="text" name="publisher" value="{{ book.publisher or '' }}" />
+      </div>
+      <div class="field">
+        <label>标签</label>
+        <input type="text" name="tags" value="{{ book.tags | join(', ') if book.tags else '' }}" />
+      </div>
+      <div class="field">
+        <label>发表时间</label>
+        <input type="text" name="published" value="{{ book.published or '' }}" />
+      </div>
+      <div class="field">
+        <label>ISBN</label>
+        <input type="text" name="isbn" value="{{ book.isbn or '' }}" />
+      </div>
+    </div>
+    <div class="field">
+      <label>内容简介</label>
+      <textarea name="description" rows="4">{{ book.description or '' }}</textarea>
+    </div>
+    <div class="actions">
+      <button class="btn" type="submit">保存</button>
+    </div>
+  </form>
+</div>

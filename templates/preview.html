@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}{{ book.title }} · 预览{% endblock %}
+
+{% block content %}
+<section class="reader">
+  <div class="reader-header">
+    <div>
+      <a class="btn ghost" href="/book/{{ book.book_id }}">返回详情</a>
+    </div>
+    <div class="reader-meta">
+      <div class="reader-title">{{ book.title }}</div>
+      <div class="reader-section">{{ section.title }}</div>
+    </div>
+    <div class="reader-nav">
+      {% if prev_idx is not none %}
+        <a class="btn ghost" href="/book/{{ book.book_id }}/preview/{{ prev_idx }}">上一节</a>
+      {% endif %}
+      {% if next_idx is not none %}
+        <a class="btn" href="/book/{{ book.book_id }}/preview/{{ next_idx }}">下一节</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <article class="reader-body">
+    {% if section.lines %}
+      {% for line in section.lines %}
+        {% if line %}<p>{{ line }}</p>{% endif %}
+      {% endfor %}
+    {% else %}
+      <p class="empty">这一节没有正文内容。</p>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

@@ -1,0 +1,25 @@
+[project]
+name = "bindery"
+version = "0.1.0"
+description = "TXT to EPUB library service"
+requires-python = ">=3.12"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Bindery" }]
+dependencies = [
+  "fastapi",
+  "jinja2",
+  "uvicorn",
+  "python-multipart",
+  "ebooklib",
+]
+
+[project.urls]
+Homepage = "https://example.invalid"
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
