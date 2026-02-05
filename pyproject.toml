@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "TXT to EPUB library service"
 requires-python = ">=3.12"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "Bindery" }]
 dependencies = [
   "fastapi",
@@ -12,6 +12,7 @@ dependencies = [
   "uvicorn",
   "python-multipart",
   "ebooklib",
+  "argon2-cffi",
 ]
 
 [project.urls]
@@ -23,3 +24,6 @@ package = true
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["bindery"]

@@ -1,0 +1,16 @@
+{% if preview %}
+  <div class="preview-grid">
+    <div><span>卷数量</span>{{ preview.volumes }}</div>
+    <div><span>章数量</span>{{ preview.chapters }}</div>
+  </div>
+  <div class="preview-toc">
+    <h4>TOC 预览</h4>
+    <ul>
+      {% for item in preview.toc %}
+        <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% else %}
+  <div class="empty">尚未运行测试。</div>
+{% endif %}

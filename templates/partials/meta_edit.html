@@ -29,6 +29,14 @@
         <input type="number" name="rating" min="0" max="5" step="1" value="{{ book.rating if book.rating is not none else '' }}" />
       </div>
       <div class="field">
+        <label>系列</label>
+        <input type="text" name="series" value="{{ book.series or '' }}" />
+      </div>
+      <div class="field">
+        <label>Identifier</label>
+        <input type="text" name="identifier" value="{{ book.identifier or '' }}" />
+      </div>
+      <div class="field">
         <label>出版社</label>
         <input type="text" name="publisher" value="{{ book.publisher or '' }}" />
       </div>
@@ -50,7 +58,7 @@
       <textarea name="description" rows="4">{{ book.description or '' }}</textarea>
     </div>
     <div class="actions">
-      <button class="btn" type="submit">保存</button>
+      <button class="btn" type="submit">保存并写回</button>
     </div>
   </form>
 </div>

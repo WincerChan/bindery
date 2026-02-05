@@ -3,33 +3,86 @@
 {% block title %}{{ book.title }} · Bindery{% endblock %}
 
 {% block content %}
-<section class="panel">
-  {% include "partials/meta_view.html" %}
+<section class="panel book-hero">
+  <div class="book-cover">
+    {% if book.cover_url %}
+      <img src="{{ book.cover_url }}" alt="{{ book.title }}" />
+    {% else %}
+      <div class="cover-placeholder large">{{ book.title[:1] }}</div>
+    {% endif %}
+  </div>
+  <div class="book-info">
+    {% include "partials/meta_view.html" %}
+    <div class="actions">
+      <a class="btn" href="/book/{{ book_id }}/download">下载 EPUB</a>
+      <a class="btn ghost" href="/book/{{ book_id }}/preview">开始预览</a>
+      <form class="inline-form" action="/book/{{ book_id }}/archive" method="post">
+        <button class="btn" type="submit">归档</button>
+      </form>
+    </div>
+  </div>
 </section>
 
 <section class="panel">
   <div class="panel-header">
-    <h2>目录</h2>
-    <p>共 {{ sections | length }} 节。</p>
+    <h2>封面管理</h2>
+    <p>上传、从 URL 获取或从 EPUB 提取封面。</p>
   </div>
-  <div class="toc">
-    {% for section in sections %}
-      <a class="toc-item" href="/book/{{ book_id }}/preview/{{ loop.index0 }}">
-        <span class="toc-type">{{ section.type }}</span>
-        <span class="toc-title">{{ section.title }}</span>
-      </a>
-    {% endfor %}
+  <div class="form-grid">
+    <form class="field" action="/book/{{ book_id }}/cover/upload" method="post" enctype="multipart/form-data">
+      <label>上传封面</label>
+      <input type="file" name="cover" accept="image/*" required />
+      <button class="btn ghost" type="submit">上传并写回</button>
+    </form>
+    <form class="field" action="/book/{{ book_id }}/cover/url" method="post">
+      <label>封面 URL</label>
+      <input type="url" name="cover_url" placeholder="https://..." required />
+      <button class="btn ghost" type="submit">抓取并写回</button>
+    </form>
+    <form class="field" action="/book/{{ book_id }}/cover/extract" method="post">
+      <label>从 EPUB 提取</label>
+      <div class="small">会覆盖当前封面</div>
+      <button class="btn ghost" type="submit">提取并写回</button>
+    </form>
   </div>
 </section>
 
+{% if book.can_regenerate %}
+  <section class="panel">
+    <div class="panel-header">
+      <h2>重新生成</h2>
+      <p>切换规则模板重新切章与生成 EPUB。</p>
+    </div>
+    <form class="actions" action="/book/{{ book_id }}/regenerate" method="post">
+      <select name="rule_template">
+        {% for rule in rules %}
+          <option value="{{ rule.rule_id }}" {% if book.rule_template == rule.rule_id %}selected{% endif %}>
+            {{ rule.name }} · v{{ rule.version }}
+          </option>
+        {% endfor %}
+      </select>
+      <button class="btn" type="submit">重新生成 EPUB</button>
+    </form>
+  </section>
+{% endif %}
+
 <section class="panel">
   <div class="panel-header">
-    <h2>操作</h2>
-    <p>下载或预览完整 EPUB。</p>
+    <h2>预览</h2>
+    <p>在阅读器中检查切章质量。</p>
   </div>
   <div class="actions">
-    <a class="btn" href="/book/{{ book_id }}/download">下载 EPUB</a>
-    <a class="btn ghost" href="/book/{{ book_id }}/preview">开始预览</a>
+    <a class="btn ghost" href="/book/{{ book_id }}/preview">打开阅读器</a>
   </div>
+</section>
+
+<section class="panel danger-zone">
+  <div class="panel-header">
+    <h2>危险操作</h2>
+    <p>删除会移除所有文件且不可恢复。</p>
+  </div>
+  <form class="inline-form" action="/book/{{ book_id }}/delete" method="post" onsubmit="return confirm('确定要永久删除这本书吗？');">
+    <button class="btn danger" type="submit">永久删除</button>
+  </form>
 </section>
 {% endblock %}

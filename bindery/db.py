@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+import os
+import sqlite3
+from pathlib import Path
+from typing import Optional
+
+from .models import Job
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_FILENAME = "bindery.db"
+
+
+def db_path() -> Path:
+    env = os.getenv("BINDERY_DB_PATH")
+    return Path(env) if env else BASE_DIR / DB_FILENAME
+
+
+def connect() -> sqlite3.Connection:
+    path = db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
+    conn = connect()
+    with conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                last_seen TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS jobs (
+                id TEXT PRIMARY KEY,
+                book_id TEXT,
+                action TEXT NOT NULL,
+                status TEXT NOT NULL,
+                stage TEXT,
+                message TEXT,
+                log TEXT,
+                rule_template TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_book ON jobs(book_id)")
+    conn.close()
+
+
+def create_session(session_id: str, created_at: str) -> None:
+    conn = connect()
+    with conn:
+        conn.execute(
+            "INSERT INTO sessions(session_id, created_at, last_seen) VALUES (?, ?, ?)",
+            (session_id, created_at, created_at),
+        )
+    conn.close()
+
+
+def touch_session(session_id: str, now: str) -> None:
+    conn = connect()
+    with conn:
+        conn.execute("UPDATE sessions SET last_seen = ? WHERE session_id = ?", (now, session_id))
+    conn.close()
+
+
+def delete_session(session_id: str) -> None:
+    conn = connect()
+    with conn:
+        conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+    conn.close()
+
+
+def get_session(session_id: str) -> Optional[dict]:
+    conn = connect()
+    row = conn.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_job(job: Job) -> None:
+    conn = connect()
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO jobs(id, book_id, action, status, stage, message, log, rule_template, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                job.id,
+                job.book_id,
+                job.action,
+                job.status,
+                job.stage,
+                job.message,
+                job.log,
+                job.rule_template,
+                job.created_at,
+                job.updated_at,
+            ),
+        )
+    conn.close()
+
+
+def update_job(job_id: str, **fields: object) -> None:
+    if not fields:
+        return
+    columns = ", ".join(f"{key} = ?" for key in fields)
+    values = list(fields.values())
+    values.append(job_id)
+    conn = connect()
+    with conn:
+        conn.execute(f"UPDATE jobs SET {columns} WHERE id = ?", values)
+    conn.close()
+
+
+def get_job(job_id: str) -> Optional[Job]:
+    conn = connect()
+    row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    conn.close()
+    return _row_to_job(row) if row else None
+
+
+def list_jobs(status: Optional[str] = None) -> list[Job]:
+    conn = connect()
+    if status:
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC", (status,)
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return [_row_to_job(row) for row in rows]
+
+
+def _row_to_job(row: sqlite3.Row) -> Job:
+    return Job(
+        id=row["id"],
+        book_id=row["book_id"],
+        action=row["action"],
+        status=row["status"],
+        stage=row["stage"],
+        message=row["message"],
+        log=row["log"],
+        rule_template=row["rule_template"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )

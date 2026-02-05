@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}任务 · Bindery{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>任务队列</h2>
+    <p>查看转换与写回的进度。</p>
+  </div>
+  <div class="jobs-grid">
+    {% for status, jobs in groups.items() %}
+      <div class="job-column">
+        <h3>{% if status == 'running' %}进行中{% elif status == 'success' %}成功{% else %}失败{% endif %}</h3>
+        {% for job in jobs %}
+          <article class="job-card">
+            <div class="job-header">
+              <div class="job-action">{{ job.action }}</div>
+              <div class="job-status">{{ job.status }}</div>
+            </div>
+            <div class="job-meta">
+              <div><span>阶段</span>{{ job.stage or "—" }}</div>
+              <div><span>规则</span>{{ job.rule_template or "default" }}</div>
+              <div><span>时间</span>{{ job.created_at }}</div>
+            </div>
+            {% if job.message %}
+              <div class="job-message">{{ job.message }}</div>
+            {% endif %}
+            {% if job.log %}
+              <details class="job-log">
+                <summary>展开详细日志</summary>
+                <pre>{{ job.log }}</pre>
+              </details>
+            {% endif %}
+            <div class="job-actions">
+              {% if job.book_id %}
+                <a class="btn ghost" href="/book/{{ job.book_id }}">打开产物</a>
+              {% endif %}
+              {% if job.status == 'failed' and job.book_id %}
+                <form action="/jobs/{{ job.id }}/retry" method="post">
+                  <button class="btn" type="submit">一键重试</button>
+                </form>
+              {% endif %}
+            </div>
+          </article>
+        {% else %}
+          <div class="empty">暂无任务</div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

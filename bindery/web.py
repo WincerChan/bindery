@@ -2,27 +2,49 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import tempfile
+import traceback
+import urllib.request
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .epub import build_epub
-from .models import Book, Metadata, Volume
+from .auth import SESSION_COOKIE, configured_hash, is_authenticated, sign_in, sign_out, verify_password
+from .db import create_job, get_job, init_db, list_jobs, update_job
+from .epub import (
+    build_epub,
+    extract_cover,
+    extract_epub_metadata,
+    list_epub_sections,
+    load_epub_item,
+    update_epub_metadata,
+)
+from .models import Book, Job, Metadata, Volume
 from .parsing import decode_text, parse_book
+from .rules import get_rule, load_rule_templates
 from .storage import (
+    archive_book,
+    archive_book_dir,
+    cover_path,
+    delete_book as delete_book_data,
     ensure_book_exists,
     epub_path,
     library_dir,
+    list_archived_books,
+    list_books,
     load_book,
     load_metadata,
-    list_books,
     new_book_id,
+    read_source_text,
     save_book,
+    save_cover_bytes,
     save_metadata,
+    source_path,
     write_source_text,
 )
 
@@ -35,6 +57,30 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    init_db()
+    load_rule_templates()
+    print(f"[bindery] password hash configured: {bool(configured_hash())}")
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/static") or path.startswith("/login"):
+        return await call_next(request)
+    session_id = request.cookies.get(SESSION_COOKIE)
+    if not is_authenticated(session_id):
+        next_url = request.url.path
+        redirect_url = f"/login?next={next_url}"
+        if request.headers.get("HX-Request") == "true":
+            response = HTMLResponse("", status_code=401)
+            response.headers["HX-Redirect"] = redirect_url
+            return response
+        return RedirectResponse(url=redirect_url, status_code=303)
+    return await call_next(request)
 
 
 def _now_iso() -> str:
@@ -62,6 +108,11 @@ def _parse_rating(raw: str) -> Optional[int]:
     return max(0, min(5, value))
 
 
+def _safe_filename(value: str) -> str:
+    cleaned = re.sub(r"[^0-9a-zA-Z\u4e00-\u9fff]+", "_", value).strip("_")
+    return cleaned or "book"
+
+
 def _book_sections(book: Book) -> list[dict]:
     sections: list[dict] = []
     if book.intro:
@@ -72,6 +123,63 @@ def _book_sections(book: Book) -> list[dict]:
         else:
             sections.append({"title": item.title, "lines": list(item.lines), "type": "章"})
     return sections
+
+
+def _toc_preview(book: Book, limit: int = 10) -> list[str]:
+    titles: list[str] = []
+    for item in book.spine:
+        if isinstance(item, Volume):
+            titles.append(item.title)
+        else:
+            titles.append(item.title)
+        if len(titles) >= limit:
+            break
+    return titles
+
+
+def _status_view(meta: Metadata) -> tuple[str, str]:
+    if meta.status == "failed":
+        return "转换失败", "failed"
+    if meta.status == "dirty":
+        return "待写回", "pending"
+    if meta.epub_updated_at and meta.updated_at and meta.epub_updated_at >= meta.updated_at:
+        return "已写回元数据", "ok"
+    return "待写回", "pending"
+
+
+def _book_view(meta: Metadata, base: Path) -> dict:
+    status_label, status_class = _status_view(meta)
+    source_type = meta.source_type or "txt"
+    can_regenerate = source_type != "epub" and source_path(base, meta.book_id).exists()
+    data = {
+        "book_id": meta.book_id,
+        "title": meta.title,
+        "author": meta.author,
+        "language": meta.language,
+        "description": meta.description,
+        "series": meta.series,
+        "identifier": meta.identifier,
+        "publisher": meta.publisher,
+        "tags": list(meta.tags),
+        "published": meta.published,
+        "isbn": meta.isbn,
+        "rating": meta.rating,
+        "status": meta.status,
+        "status_label": status_label,
+        "status_class": status_class,
+        "epub_updated_at": meta.epub_updated_at,
+        "archived": meta.archived,
+        "cover_file": meta.cover_file,
+        "rule_template": meta.rule_template,
+        "source_type": source_type,
+        "can_regenerate": can_regenerate,
+        "created_at": meta.created_at,
+        "updated_at": meta.updated_at,
+        "path": str(base / meta.book_id),
+    }
+    if meta.cover_file and not meta.archived:
+        data["cover_url"] = f"/book/{meta.book_id}/cover"
+    return data
 
 
 def _require_book(base: Path, book_id: str) -> None:
@@ -88,98 +196,629 @@ def _build_metadata(
     author: str,
     language: str,
     description: str,
+    series: str,
+    identifier: str,
     publisher: str,
     tags: str,
     published: str,
     isbn: str,
     rating: str,
+    rule_template: str,
 ) -> Metadata:
+    now = _now_iso()
     meta_title = title.strip() if title.strip() else (book.title or "未命名")
     meta_author = author.strip() if author.strip() else (book.author or None)
     meta_language = language.strip() if language.strip() else "zh-CN"
     meta_description = description.strip() if description.strip() else (book.intro or None)
+    meta_series = series.strip() if series.strip() else None
+    meta_identifier = identifier.strip() if identifier.strip() else None
     meta_publisher = publisher.strip() if publisher.strip() else None
     meta_tags = _parse_tags(tags)
     meta_published = published.strip() if published.strip() else None
     meta_isbn = isbn.strip() if isbn.strip() else None
     meta_rating = _parse_rating(rating)
 
-    now = _now_iso()
     return Metadata(
         book_id=book_id,
         title=meta_title,
         author=meta_author,
         language=meta_language,
         description=meta_description,
+        source_type="txt",
+        series=meta_series,
+        identifier=meta_identifier,
         publisher=meta_publisher,
         tags=meta_tags,
         published=meta_published,
         isbn=meta_isbn,
         rating=meta_rating,
+        status="dirty",
+        epub_updated_at=None,
+        archived=False,
+        cover_file=None,
+        rule_template=rule_template,
         created_at=now,
         updated_at=now,
     )
 
 
+def _build_metadata_from_epub(
+    book_id: str,
+    extracted: dict,
+    title: str,
+    author: str,
+    language: str,
+    description: str,
+    series: str,
+    identifier: str,
+    publisher: str,
+    tags: str,
+    published: str,
+    isbn: str,
+    rating: str,
+) -> Metadata:
+    now = _now_iso()
+
+    def pick(value: str, fallback: Optional[str]) -> Optional[str]:
+        return value.strip() if value.strip() else fallback
+
+    meta_title = pick(title, extracted.get("title")) or "未命名"
+    meta_author = pick(author, extracted.get("author"))
+    meta_language = pick(language, extracted.get("language")) or "zh-CN"
+    meta_description = pick(description, extracted.get("description"))
+    meta_series = pick(series, extracted.get("series"))
+    meta_identifier = pick(identifier, extracted.get("identifier"))
+    meta_publisher = pick(publisher, extracted.get("publisher"))
+    meta_tags = _parse_tags(tags) if tags.strip() else list(extracted.get("tags") or [])
+    meta_published = pick(published, extracted.get("published"))
+    meta_isbn = pick(isbn, extracted.get("isbn"))
+    meta_rating = _parse_rating(rating) if rating.strip() else extracted.get("rating")
+
+    return Metadata(
+        book_id=book_id,
+        title=meta_title,
+        author=meta_author,
+        language=meta_language,
+        description=meta_description,
+        source_type="epub",
+        series=meta_series,
+        identifier=meta_identifier,
+        publisher=meta_publisher,
+        tags=meta_tags,
+        published=meta_published,
+        isbn=meta_isbn,
+        rating=meta_rating,
+        status="synced",
+        epub_updated_at=now,
+        archived=False,
+        cover_file=None,
+        rule_template=None,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def _update_meta_synced(meta: Metadata) -> None:
+    meta.status = "synced"
+    meta.epub_updated_at = _now_iso()
+    meta.updated_at = _now_iso()
+
+
+def _update_meta_failed(meta: Metadata) -> None:
+    meta.status = "failed"
+    meta.updated_at = _now_iso()
+
+
+def _create_job(action: str, book_id: Optional[str], rule_template: Optional[str]) -> Job:
+    now = _now_iso()
+    job = Job(
+        id=new_book_id(),
+        book_id=book_id,
+        action=action,
+        status="running",
+        stage="预处理",
+        message=None,
+        log=None,
+        rule_template=rule_template,
+        created_at=now,
+        updated_at=now,
+    )
+    create_job(job)
+    return job
+
+
+def _update_job(job_id: str, **fields: object) -> None:
+    fields["updated_at"] = _now_iso()
+    update_job(job_id, **fields)
+
+
+def _run_ingest(
+    job: Job,
+    base: Path,
+    text: str,
+    source_name: str,
+    title: str,
+    author: str,
+    language: str,
+    description: str,
+    series: str,
+    identifier: str,
+    publisher: str,
+    tags: str,
+    published: str,
+    isbn: str,
+    rating: str,
+    rule_template: str,
+    cover_bytes: Optional[bytes],
+    cover_name: Optional[str],
+) -> Metadata:
+    try:
+        rule = get_rule(rule_template)
+        _update_job(job.id, stage="预处理")
+        book = parse_book(text, source_name, rule.rules)
+        _update_job(job.id, stage="写元数据")
+
+        book_id = job.book_id or new_book_id()
+        job.book_id = book_id
+        meta = _build_metadata(
+            book_id,
+            book,
+            title,
+            author,
+            language,
+            description,
+            series,
+            identifier,
+            publisher,
+            tags,
+            published,
+            isbn,
+            rating,
+            rule_template,
+        )
+
+        save_book(book, base, book_id)
+        save_metadata(meta, base)
+        write_source_text(base, book_id, text)
+
+        cover_file = None
+        if cover_bytes:
+            cover_file = save_cover_bytes(base, book_id, cover_bytes, cover_name)
+            meta.cover_file = cover_file
+
+        cover_file = meta.cover_file
+        cover_path_obj = cover_path(base, book_id, cover_file) if cover_file else None
+
+        _update_job(job.id, stage="生成 EPUB")
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+        _update_meta_synced(meta)
+        save_metadata(meta, base)
+        _update_job(job.id, status="success", stage="完成", message="完成")
+        return meta
+    except Exception:
+        _update_job(job.id, status="failed", stage="失败", message="转换失败", log=traceback.format_exc())
+        raise
+
+
+def _run_epub_ingest(
+    job: Job,
+    base: Path,
+    epub_bytes: bytes,
+    filename: str,
+    title: str,
+    author: str,
+    language: str,
+    description: str,
+    series: str,
+    identifier: str,
+    publisher: str,
+    tags: str,
+    published: str,
+    isbn: str,
+    rating: str,
+    cover_bytes: Optional[bytes],
+    cover_name: Optional[str],
+) -> Metadata:
+    try:
+        _update_job(job.id, stage="导入 EPUB")
+        book_id = job.book_id or new_book_id()
+        job.book_id = book_id
+
+        epub_file = epub_path(base, book_id)
+        epub_file.parent.mkdir(parents=True, exist_ok=True)
+        epub_file.write_bytes(epub_bytes)
+
+        extracted = extract_epub_metadata(epub_file, Path(filename or "upload").stem)
+        meta = _build_metadata_from_epub(
+            book_id,
+            extracted,
+            title,
+            author,
+            language,
+            description,
+            series,
+            identifier,
+            publisher,
+            tags,
+            published,
+            isbn,
+            rating,
+        )
+
+        save_book(Book(title=meta.title, author=meta.author, intro=None), base, book_id)
+        save_metadata(meta, base)
+
+        if cover_bytes:
+            meta.cover_file = save_cover_bytes(base, book_id, cover_bytes, cover_name)
+        else:
+            extracted_cover = extract_cover(epub_file)
+            if extracted_cover:
+                cover_data, cover_filename = extracted_cover
+                meta.cover_file = save_cover_bytes(base, book_id, cover_data, cover_filename)
+
+        cover_path_obj = cover_path(base, book_id, meta.cover_file) if meta.cover_file else None
+        override_fields = [title, author, language, description, series, identifier, publisher, tags, published, isbn]
+        needs_rewrite = any(value.strip() for value in override_fields if isinstance(value, str))
+        if rating.strip() or cover_bytes:
+            needs_rewrite = True
+
+        if needs_rewrite:
+            _update_job(job.id, stage="写回 EPUB")
+            update_epub_metadata(epub_file, meta, cover_path_obj)
+
+        _update_meta_synced(meta)
+        save_metadata(meta, base)
+        _update_job(job.id, status="success", stage="完成", message="完成")
+        return meta
+    except Exception:
+        _update_job(job.id, status="failed", stage="失败", message="导入失败", log=traceback.format_exc())
+        raise
+
+
+def _run_regenerate(
+    job: Job,
+    base: Path,
+    book_id: str,
+    rule_template: str,
+) -> Metadata:
+    try:
+        _update_job(job.id, stage="预处理")
+        meta = load_metadata(base, book_id)
+        if meta.source_type == "epub":
+            raise ValueError("EPUB import cannot regenerate")
+        if not source_path(base, book_id).exists():
+            raise FileNotFoundError("Source missing")
+        text = read_source_text(base, book_id)
+        rule = get_rule(rule_template)
+        book = parse_book(text, book_id, rule.rules)
+        meta.rule_template = rule_template
+        meta.status = "dirty"
+        meta.updated_at = _now_iso()
+        save_book(book, base, book_id)
+        save_metadata(meta, base)
+
+        _update_job(job.id, stage="生成 EPUB")
+        cover_file = meta.cover_file
+        cover_path_obj = cover_path(base, book_id, cover_file) if cover_file else None
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+        _update_meta_synced(meta)
+        save_metadata(meta, base)
+        _update_job(job.id, status="success", stage="完成", message="完成")
+        return meta
+    except Exception:
+        meta = load_metadata(base, book_id)
+        _update_meta_failed(meta)
+        save_metadata(meta, base)
+        _update_job(job.id, status="failed", stage="失败", message="转换失败", log=traceback.format_exc())
+        raise
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "hash_configured": bool(configured_hash()),
+            "next": request.query_params.get("next", "/"),
+            "error": request.query_params.get("error"),
+        },
+    )
+
+
+@app.post("/login")
+async def login_post(request: Request, password: str = Form(""), next: str = Form("/")):
+    if not configured_hash():
+        return RedirectResponse(url="/login?error=未配置密码哈希", status_code=303)
+    if not verify_password(password):
+        return RedirectResponse(url="/login?error=密码错误", status_code=303)
+    session_id = sign_in()
+    response = RedirectResponse(url=next or "/", status_code=303)
+    response.set_cookie(SESSION_COOKIE, session_id, httponly=True, samesite="lax")
+    return response
+
+
+@app.post("/logout")
+async def logout(request: Request) -> RedirectResponse:
+    session_id = request.cookies.get(SESSION_COOKIE)
+    sign_out(session_id)
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie(SESSION_COOKIE)
+    return response
+
+
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request) -> HTMLResponse:
+async def index(request: Request, sort: str = "updated", q: str = "") -> HTMLResponse:
     base = library_dir()
     books = list_books(base)
-    return templates.TemplateResponse("index.html", {"request": request, "books": books})
+    if q:
+        q_lower = q.lower()
+        books = [
+            book
+            for book in books
+            if (book.title and q_lower in book.title.lower())
+            or (book.author and q_lower in book.author.lower())
+        ]
+    if sort == "created":
+        books.sort(key=lambda item: item.created_at, reverse=True)
+    else:
+        books.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
+    view_books = [_book_view(book, base) for book in books]
+    rules = load_rule_templates()
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, "books": view_books, "rules": rules, "sort": sort, "q": q},
+    )
+
+
+@app.get("/library", response_class=HTMLResponse)
+async def library_partial(request: Request, sort: str = "updated", q: str = "") -> HTMLResponse:
+    base = library_dir()
+    books = list_books(base)
+    if q:
+        q_lower = q.lower()
+        books = [
+            book
+            for book in books
+            if (book.title and q_lower in book.title.lower())
+            or (book.author and q_lower in book.author.lower())
+        ]
+    if sort == "created":
+        books.sort(key=lambda item: item.created_at, reverse=True)
+    else:
+        books.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
+    view_books = [_book_view(book, base) for book in books]
+    return templates.TemplateResponse(
+        "partials/library.html",
+        {"request": request, "books": view_books},
+    )
+
+
+@app.get("/archive", response_class=HTMLResponse)
+async def archive_view(request: Request) -> HTMLResponse:
+    base = library_dir()
+    books = [_book_view(book, archive_book_dir(base, book.book_id).parent) for book in list_archived_books(base)]
+    return templates.TemplateResponse(
+        "archive.html",
+        {"request": request, "books": books},
+    )
+
+
+@app.post("/upload/preview", response_class=HTMLResponse)
+async def upload_preview(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    rule_template: str = Form("default"),
+) -> HTMLResponse:
+    previews: list[dict] = []
+    rule = get_rule(rule_template)
+    base = library_dir()
+    for file in files:
+        data = await file.read()
+        if not data:
+            continue
+        text = decode_text(data)
+        if not text.strip():
+            continue
+        book = parse_book(text, Path(file.filename or "upload").stem, rule.rules)
+        preview = {
+            "filename": file.filename,
+            "format": "TXT",
+            "title": book.title,
+            "author": book.author,
+            "volumes": len(book.volumes),
+            "chapters": len(book.root_chapters) + sum(len(v.chapters) for v in book.volumes),
+            "toc": _toc_preview(book, 10),
+            "output": f"{_safe_filename(book.title)}.epub",
+            "path": str(base / "<自动ID>"),
+        }
+        previews.append(preview)
+    return templates.TemplateResponse(
+        "partials/upload_preview.html",
+        {"request": request, "previews": previews},
+    )
+
+
+@app.post("/upload/epub/preview", response_class=HTMLResponse)
+async def upload_epub_preview(
+    request: Request,
+    files: list[UploadFile] = File(...),
+) -> HTMLResponse:
+    previews: list[dict] = []
+    base = library_dir()
+    for file in files:
+        data = await file.read()
+        if not data:
+            continue
+        with tempfile.NamedTemporaryFile(suffix=".epub") as tmp:
+            tmp.write(data)
+            tmp.flush()
+            try:
+                meta = extract_epub_metadata(Path(tmp.name), Path(file.filename or "upload").stem)
+                sections = list_epub_sections(Path(tmp.name))
+            except Exception:
+                continue
+        preview = {
+            "filename": file.filename,
+            "format": "EPUB",
+            "title": meta.get("title"),
+            "author": meta.get("author"),
+            "volumes": 0,
+            "chapters": len(sections),
+            "toc": [section.title for section in sections[:10]],
+            "output": file.filename or "book.epub",
+            "path": str(base / "<自动ID>"),
+        }
+        previews.append(preview)
+    return templates.TemplateResponse(
+        "partials/upload_preview.html",
+        {"request": request, "previews": previews},
+    )
 
 
 @app.post("/upload", response_class=HTMLResponse)
 async def upload(
     request: Request,
-    txt_file: UploadFile = File(...),
+    files: list[UploadFile] = File(...),
     title: str = Form(""),
     author: str = Form(""),
     language: str = Form(""),
     description: str = Form(""),
+    series: str = Form(""),
+    identifier: str = Form(""),
     publisher: str = Form(""),
     tags: str = Form(""),
     published: str = Form(""),
     isbn: str = Form(""),
     rating: str = Form(""),
+    rule_template: str = Form("default"),
+    cover_file: Optional[UploadFile] = File(None),
 ) -> HTMLResponse:
-    data = await txt_file.read()
-    if not data:
+    if not files:
         raise HTTPException(status_code=400, detail="Empty file")
-    text = decode_text(data)
-    if not text.strip():
-        raise HTTPException(status_code=400, detail="Empty content")
 
-    source_name = Path(txt_file.filename or "upload").stem
-    book = parse_book(text, source_name)
+    cover_bytes = await cover_file.read() if cover_file else None
+    cover_name = cover_file.filename if cover_file else None
 
     base = library_dir()
-    book_id = new_book_id()
-    meta = _build_metadata(
-        book_id,
-        book,
-        title,
-        author,
-        language,
-        description,
-        publisher,
-        tags,
-        published,
-        isbn,
-        rating,
-    )
+    created_books: list[dict] = []
+    for txt_file in files:
+        data = await txt_file.read()
+        if not data:
+            continue
+        text = decode_text(data)
+        if not text.strip():
+            continue
 
-    save_book(book, base, book_id)
-    save_metadata(meta, base)
-    write_source_text(base, book_id, text)
-    build_epub(book, meta, epub_path(base, book_id))
+        source_name = Path(txt_file.filename or "upload").stem
+        book_id = new_book_id()
+        job = _create_job("upload", book_id, rule_template)
+        try:
+            meta = _run_ingest(
+                job,
+                base,
+                text,
+                source_name,
+                title,
+                author,
+                language,
+                description,
+                series,
+                identifier,
+                publisher,
+                tags,
+                published,
+                isbn,
+                rating,
+                rule_template,
+                cover_bytes,
+                cover_name,
+            )
+            created_books.append(_book_view(meta, base))
+        except Exception:
+            try:
+                meta = load_metadata(base, book_id)
+                _update_meta_failed(meta)
+                save_metadata(meta, base)
+            except Exception:
+                pass
 
     if _is_htmx(request):
         return templates.TemplateResponse(
-            "partials/book_card.html",
-            {"request": request, "book": meta},
+            "partials/library.html",
+            {"request": request, "books": created_books},
         )
 
-    return RedirectResponse(url=f"/book/{book_id}", status_code=303)
+    return RedirectResponse(url="/jobs", status_code=303)
+
+
+@app.post("/upload/epub", response_class=HTMLResponse)
+async def upload_epub(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    title: str = Form(""),
+    author: str = Form(""),
+    language: str = Form(""),
+    description: str = Form(""),
+    series: str = Form(""),
+    identifier: str = Form(""),
+    publisher: str = Form(""),
+    tags: str = Form(""),
+    published: str = Form(""),
+    isbn: str = Form(""),
+    rating: str = Form(""),
+    cover_file: Optional[UploadFile] = File(None),
+) -> HTMLResponse:
+    if not files:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    cover_bytes = await cover_file.read() if cover_file else None
+    cover_name = cover_file.filename if cover_file else None
+
+    base = library_dir()
+    created_books: list[dict] = []
+    for epub_file in files:
+        data = await epub_file.read()
+        if not data:
+            continue
+        book_id = new_book_id()
+        job = _create_job("upload-epub", book_id, None)
+        try:
+            meta = _run_epub_ingest(
+                job,
+                base,
+                data,
+                epub_file.filename or "upload.epub",
+                title,
+                author,
+                language,
+                description,
+                series,
+                identifier,
+                publisher,
+                tags,
+                published,
+                isbn,
+                rating,
+                cover_bytes,
+                cover_name,
+            )
+            created_books.append(_book_view(meta, base))
+        except Exception:
+            try:
+                meta = load_metadata(base, book_id)
+                _update_meta_failed(meta)
+                save_metadata(meta, base)
+            except Exception:
+                pass
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            "partials/library.html",
+            {"request": request, "books": created_books},
+        )
+
+    return RedirectResponse(url="/jobs", status_code=303)
 
 
 @app.get("/book/{book_id}", response_class=HTMLResponse)
@@ -189,9 +828,16 @@ async def book_detail(request: Request, book_id: str) -> HTMLResponse:
     meta = load_metadata(base, book_id)
     book = load_book(base, book_id)
     sections = _book_sections(book)
+    rules = load_rule_templates()
     return templates.TemplateResponse(
         "book.html",
-        {"request": request, "book": meta, "sections": sections, "book_id": book_id},
+        {
+            "request": request,
+            "book": _book_view(meta, base),
+            "sections": sections,
+            "book_id": book_id,
+            "rules": rules,
+        },
     )
 
 
@@ -205,12 +851,109 @@ async def download(book_id: str) -> FileResponse:
     return FileResponse(path=epub_file, filename=epub_file.name, media_type="application/epub+zip")
 
 
+@app.get("/book/{book_id}/cover")
+async def cover(book_id: str) -> FileResponse:
+    base = library_dir()
+    _require_book(base, book_id)
+    meta = load_metadata(base, book_id)
+    if not meta.cover_file:
+        raise HTTPException(status_code=404, detail="Cover missing")
+    path = cover_path(base, book_id, meta.cover_file)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Cover missing")
+    return FileResponse(path)
+
+
+@app.post("/book/{book_id}/cover/upload")
+async def upload_cover(request: Request, book_id: str, cover: UploadFile = File(...)) -> RedirectResponse:
+    base = library_dir()
+    _require_book(base, book_id)
+    data = await cover.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty cover")
+    meta = load_metadata(base, book_id)
+    meta.cover_file = save_cover_bytes(base, book_id, data, cover.filename)
+    meta.updated_at = _now_iso()
+    save_metadata(meta, base)
+
+    cover_path_obj = cover_path(base, book_id, meta.cover_file)
+    if meta.source_type == "epub":
+        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj)
+    else:
+        book = load_book(base, book_id)
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+    _update_meta_synced(meta)
+    save_metadata(meta, base)
+
+    if _is_htmx(request):
+        return RedirectResponse(url=f"/book/{book_id}", status_code=303)
+    return RedirectResponse(url=f"/book/{book_id}", status_code=303)
+
+
+@app.post("/book/{book_id}/cover/url")
+async def upload_cover_url(
+    request: Request,
+    book_id: str,
+    cover_url: str = Form(""),
+) -> RedirectResponse:
+    base = library_dir()
+    _require_book(base, book_id)
+    if not cover_url:
+        raise HTTPException(status_code=400, detail="Missing URL")
+    with urllib.request.urlopen(cover_url, timeout=10) as response:
+        data = response.read()
+        filename = Path(urllib.parse.urlparse(cover_url).path).name
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty cover")
+    meta = load_metadata(base, book_id)
+    meta.cover_file = save_cover_bytes(base, book_id, data, filename)
+    meta.updated_at = _now_iso()
+    save_metadata(meta, base)
+
+    cover_path_obj = cover_path(base, book_id, meta.cover_file)
+    if meta.source_type == "epub":
+        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj)
+    else:
+        book = load_book(base, book_id)
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+    _update_meta_synced(meta)
+    save_metadata(meta, base)
+    return RedirectResponse(url=f"/book/{book_id}", status_code=303)
+
+
+@app.post("/book/{book_id}/cover/extract")
+async def extract_cover_view(book_id: str) -> RedirectResponse:
+    base = library_dir()
+    _require_book(base, book_id)
+    epub_file = epub_path(base, book_id)
+    extracted = extract_cover(epub_file)
+    if not extracted:
+        raise HTTPException(status_code=404, detail="No cover in EPUB")
+    data, name = extracted
+    meta = load_metadata(base, book_id)
+    meta.cover_file = save_cover_bytes(base, book_id, data, name)
+    meta.updated_at = _now_iso()
+    save_metadata(meta, base)
+
+    cover_path_obj = cover_path(base, book_id, meta.cover_file)
+    if meta.source_type == "epub":
+        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj)
+    else:
+        book = load_book(base, book_id)
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+    _update_meta_synced(meta)
+    save_metadata(meta, base)
+    return RedirectResponse(url=f"/book/{book_id}", status_code=303)
+
+
 @app.get("/book/{book_id}/preview")
 async def preview_first(book_id: str) -> RedirectResponse:
     base = library_dir()
     _require_book(base, book_id)
-    book = load_book(base, book_id)
-    sections = _book_sections(book)
+    epub_file = epub_path(base, book_id)
+    if not epub_file.exists():
+        raise HTTPException(status_code=404, detail="EPUB missing")
+    sections = list_epub_sections(epub_file)
     if not sections:
         raise HTTPException(status_code=404, detail="No sections")
     return RedirectResponse(url=f"/book/{book_id}/preview/0", status_code=303)
@@ -221,8 +964,10 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
     base = library_dir()
     _require_book(base, book_id)
     meta = load_metadata(base, book_id)
-    book = load_book(base, book_id)
-    sections = _book_sections(book)
+    epub_file = epub_path(base, book_id)
+    if not epub_file.exists():
+        raise HTTPException(status_code=404, detail="EPUB missing")
+    sections = list_epub_sections(epub_file)
 
     if section_index < 0 or section_index >= len(sections):
         raise HTTPException(status_code=404, detail="Section not found")
@@ -235,13 +980,31 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
         "preview.html",
         {
             "request": request,
-            "book": meta,
-            "section": current,
+            "book": _book_view(meta, base),
+            "section": {
+                "title": current.title,
+                "content_url": f"/book/{book_id}/epub/{current.item_path}",
+            },
             "section_index": section_index,
             "prev_idx": prev_idx,
             "next_idx": next_idx,
         },
     )
+
+
+@app.get("/book/{book_id}/epub/{item_path:path}")
+async def epub_item(book_id: str, item_path: str) -> Response:
+    base = library_dir()
+    _require_book(base, book_id)
+    epub_file = epub_path(base, book_id)
+    if not epub_file.exists():
+        raise HTTPException(status_code=404, detail="EPUB missing")
+    item_path = urllib.parse.unquote(item_path)
+    try:
+        content, media_type = load_epub_item(epub_file, item_path, f"/book/{book_id}/epub/")
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return Response(content=content, media_type=media_type)
 
 
 @app.get("/book/{book_id}/edit", response_class=HTMLResponse)
@@ -254,7 +1017,7 @@ async def edit_metadata(request: Request, book_id: str) -> HTMLResponse:
         template,
         {
             "request": request,
-            "book": meta,
+            "book": _book_view(meta, base),
             "book_id": book_id,
         },
     )
@@ -268,6 +1031,8 @@ async def save_edit(
     author: str = Form(""),
     language: str = Form(""),
     description: str = Form(""),
+    series: str = Form(""),
+    identifier: str = Form(""),
     publisher: str = Form(""),
     tags: str = Form(""),
     published: str = Form(""),
@@ -283,20 +1048,143 @@ async def save_edit(
     meta.author = author.strip() or None
     meta.language = language.strip() or "zh-CN"
     meta.description = description.strip() or None
+    meta.series = series.strip() or None
+    meta.identifier = identifier.strip() or None
     meta.publisher = publisher.strip() or None
     meta.tags = _parse_tags(tags)
     meta.published = published.strip() or None
     meta.isbn = isbn.strip() or None
     meta.rating = _parse_rating(rating)
+    meta.status = "dirty"
     meta.updated_at = _now_iso()
 
     save_metadata(meta, base)
-    build_epub(book, meta, epub_path(base, book_id))
+    cover_file = meta.cover_file
+    cover_path_obj = cover_path(base, book_id, cover_file) if cover_file else None
+    if meta.source_type == "epub":
+        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj)
+    else:
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+    _update_meta_synced(meta)
+    save_metadata(meta, base)
 
     if _is_htmx(request):
         return templates.TemplateResponse(
             "partials/meta_view.html",
-            {"request": request, "book": meta, "book_id": book_id},
+            {"request": request, "book": _book_view(meta, base), "book_id": book_id},
         )
 
     return RedirectResponse(url=f"/book/{book_id}", status_code=303)
+
+
+@app.post("/book/{book_id}/regenerate")
+async def regenerate(book_id: str, rule_template: str = Form("default")) -> RedirectResponse:
+    base = library_dir()
+    _require_book(base, book_id)
+    meta = load_metadata(base, book_id)
+    if meta.source_type == "epub":
+        raise HTTPException(status_code=400, detail="EPUB 导入的书籍无法重新生成")
+    job = _create_job("regenerate", book_id, rule_template)
+    _run_regenerate(job, base, book_id, rule_template)
+    return RedirectResponse(url=f"/book/{book_id}", status_code=303)
+
+
+@app.post("/book/{book_id}/archive")
+async def archive_view(book_id: str) -> RedirectResponse:
+    base = library_dir()
+    _require_book(base, book_id)
+    meta = load_metadata(base, book_id)
+    meta.archived = True
+    meta.updated_at = _now_iso()
+    save_metadata(meta, base)
+    archive_book(base, book_id)
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/book/{book_id}/restore")
+async def restore_view(book_id: str) -> RedirectResponse:
+    base = library_dir()
+    src = archive_book_dir(base, book_id)
+    if not src.exists():
+        raise HTTPException(status_code=404, detail="Book not found")
+    dest = base / book_id
+    if dest.exists():
+        raise HTTPException(status_code=409, detail="Book exists")
+    src.replace(dest)
+    meta = load_metadata(base, book_id)
+    meta.archived = False
+    meta.updated_at = _now_iso()
+    save_metadata(meta, base)
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/book/{book_id}/delete")
+async def delete_book(request: Request, book_id: str) -> HTMLResponse:
+    base = library_dir()
+    if not BOOK_ID_RE.match(book_id):
+        raise HTTPException(status_code=404, detail="Invalid book id")
+    delete_book_data(base, book_id)
+    if _is_htmx(request):
+        return HTMLResponse("")
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.get("/jobs", response_class=HTMLResponse)
+async def jobs_view(request: Request) -> HTMLResponse:
+    jobs = list_jobs()
+    grouped = {
+        "running": [job for job in jobs if job.status == "running"],
+        "success": [job for job in jobs if job.status == "success"],
+        "failed": [job for job in jobs if job.status == "failed"],
+    }
+    return templates.TemplateResponse(
+        "jobs.html",
+        {"request": request, "groups": grouped},
+    )
+
+
+@app.post("/jobs/{job_id}/retry")
+async def retry_job(job_id: str, rule_template: str = Form("default")) -> RedirectResponse:
+    job = get_job(job_id)
+    if not job or not job.book_id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    base = library_dir()
+    meta = load_metadata(base, job.book_id)
+    if meta.source_type == "epub":
+        raise HTTPException(status_code=400, detail="EPUB 导入的书籍无法重试生成")
+    new_job = _create_job("retry", job.book_id, rule_template)
+    _run_regenerate(new_job, base, job.book_id, rule_template)
+    return RedirectResponse(url=f"/jobs", status_code=303)
+
+
+@app.get("/rules", response_class=HTMLResponse)
+async def rules_view(request: Request) -> HTMLResponse:
+    rules = load_rule_templates()
+    return templates.TemplateResponse(
+        "rules.html",
+        {"request": request, "rules": rules},
+    )
+
+
+@app.post("/rules/test", response_class=HTMLResponse)
+async def rules_test(
+    request: Request,
+    sample: str = Form(""),
+    rule_template: str = Form("default"),
+) -> HTMLResponse:
+    if not sample.strip():
+        return templates.TemplateResponse(
+            "partials/rules_preview.html",
+            {"request": request, "preview": None},
+        )
+    rule = get_rule(rule_template)
+    book = parse_book(sample, "sample", rule.rules)
+    preview = {
+        "volumes": len(book.volumes),
+        "chapters": len(book.root_chapters) + sum(len(v.chapters) for v in book.volumes),
+        "toc": _toc_preview(book, 15),
+    }
+    return templates.TemplateResponse(
+        "partials/rules_preview.html",
+        {"request": request, "preview": preview},
+    )

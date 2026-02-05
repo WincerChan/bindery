@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 .venv/
 .uv/
+.uv-cache/
 uv.lock
 library/
+bindery.db
+bindery.egg-info/
 .DS_Store

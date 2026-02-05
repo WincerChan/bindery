@@ -35,13 +35,35 @@ class Metadata:
     author: Optional[str]
     language: str
     description: Optional[str]
-    publisher: Optional[str]
+    source_type: str = "txt"
+    series: Optional[str] = None
+    identifier: Optional[str] = None
+    publisher: Optional[str] = None
     tags: list[str] = field(default_factory=list)
     published: Optional[str] = None
     isbn: Optional[str] = None
     rating: Optional[int] = None
+    status: str = "synced"
+    epub_updated_at: Optional[str] = None
+    archived: bool = False
+    cover_file: Optional[str] = None
+    rule_template: Optional[str] = None
     created_at: str = ""
     updated_at: str = ""
+
+
+@dataclass
+class Job:
+    id: str
+    book_id: Optional[str]
+    action: str
+    status: str
+    stage: Optional[str]
+    message: Optional[str]
+    log: Optional[str]
+    rule_template: Optional[str]
+    created_at: str
+    updated_at: str
 
 
 def chapter_to_dict(chapter: Chapter) -> dict:
@@ -163,11 +185,19 @@ def metadata_to_dict(meta: Metadata) -> dict:
         "author": meta.author,
         "language": meta.language,
         "description": meta.description,
+        "source_type": meta.source_type,
+        "series": meta.series,
+        "identifier": meta.identifier,
         "publisher": meta.publisher,
         "tags": list(meta.tags),
         "published": meta.published,
         "isbn": meta.isbn,
         "rating": meta.rating,
+        "status": meta.status,
+        "epub_updated_at": meta.epub_updated_at,
+        "archived": meta.archived,
+        "cover_file": meta.cover_file,
+        "rule_template": meta.rule_template,
         "created_at": meta.created_at,
         "updated_at": meta.updated_at,
     }
@@ -180,11 +210,19 @@ def metadata_from_dict(data: dict) -> Metadata:
         author=data.get("author"),
         language=data.get("language", "zh-CN"),
         description=data.get("description"),
+        source_type=data.get("source_type", "txt"),
+        series=data.get("series"),
+        identifier=data.get("identifier"),
         publisher=data.get("publisher"),
         tags=list(data.get("tags", [])),
         published=data.get("published"),
         isbn=data.get("isbn"),
         rating=data.get("rating"),
+        status=data.get("status", "synced"),
+        epub_updated_at=data.get("epub_updated_at"),
+        archived=bool(data.get("archived", False)),
+        cover_file=data.get("cover_file"),
+        rule_template=data.get("rule_template"),
         created_at=data.get("created_at", ""),
         updated_at=data.get("updated_at", ""),
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -14,44 +15,83 @@ LABEL_RE = re.compile(
 
 TITLE_ONLY_RE = re.compile(r"^《(.+)》$")
 
-CHAPTER_PATTERNS = [
-    re.compile(r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*章.*$"),
-    re.compile(r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*节.*$"),
-    re.compile(r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*回.*$"),
-    re.compile(r"^Chapter\s+\d+.*$", re.IGNORECASE),
-]
-
-VOLUME_PATTERNS = [
-    re.compile(r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*卷.*$"),
-    re.compile(r"^卷\s*[0-9一二三四五六七八九十百千万两零〇]+.*$"),
-    re.compile(r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*部.*$"),
-]
-
-SPECIAL_HEADINGS = [
-    "序章",
-    "序",
-    "楔子",
-    "引子",
-    "前言",
-    "前序",
-    "后记",
-    "后序",
-    "尾声",
-    "结语",
-    "终章",
-    "终卷",
-    "终篇",
-    "番外",
-    "番外篇",
-    "作者的话",
-    "完结感言",
-]
-
-SKIP_CANDIDATE_RE = re.compile(r"(http|www|QQ群|群|公众号|微信|下载|txt|整理|校对|打包|本书|电子书)")
 SENTENCE_END_RE = re.compile(r"[。！？]$")
 COMMA_RE = re.compile(r"[，,]")
-HEADING_MAX_LEN = 40
-HEADING_MAX_COMMAS = 1
+
+
+@dataclass(frozen=True)
+class RuleConfig:
+    rule_id: str
+    name: str
+    chapter_patterns: list[str]
+    volume_patterns: list[str]
+    special_headings: list[str]
+    heading_max_len: int = 40
+    heading_max_commas: int = 1
+    skip_candidate_re: str = r"(http|www|QQ群|群|公众号|微信|下载|txt|整理|校对|打包|本书|电子书)"
+
+
+@dataclass(frozen=True)
+class RuleSet:
+    config: RuleConfig
+    chapter_patterns: list[re.Pattern[str]]
+    volume_patterns: list[re.Pattern[str]]
+    special_headings: list[str]
+    heading_max_len: int
+    heading_max_commas: int
+    skip_candidate_re: re.Pattern[str]
+
+
+def build_rules(config: RuleConfig) -> RuleSet:
+    chapter_patterns = [re.compile(pattern) for pattern in config.chapter_patterns]
+    volume_patterns = [re.compile(pattern) for pattern in config.volume_patterns]
+    return RuleSet(
+        config=config,
+        chapter_patterns=chapter_patterns,
+        volume_patterns=volume_patterns,
+        special_headings=list(config.special_headings),
+        heading_max_len=config.heading_max_len,
+        heading_max_commas=config.heading_max_commas,
+        skip_candidate_re=re.compile(config.skip_candidate_re),
+    )
+
+
+DEFAULT_RULE_CONFIG = RuleConfig(
+    rule_id="default",
+    name="默认",
+    chapter_patterns=[
+        r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*章.*$",
+        r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*节.*$",
+        r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*回.*$",
+        r"(?i)^Chapter\s+\d+.*$",
+    ],
+    volume_patterns=[
+        r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*卷.*$",
+        r"^卷\s*[0-9一二三四五六七八九十百千万两零〇]+.*$",
+        r"^第\s*[0-9一二三四五六七八九十百千万两零〇]+\s*部.*$",
+    ],
+    special_headings=[
+        "序章",
+        "序",
+        "楔子",
+        "引子",
+        "前言",
+        "前序",
+        "后记",
+        "后序",
+        "尾声",
+        "结语",
+        "终章",
+        "终卷",
+        "终篇",
+        "番外",
+        "番外篇",
+        "作者的话",
+        "完结感言",
+    ],
+)
+
+DEFAULT_RULES = build_rules(DEFAULT_RULE_CONFIG)
 
 
 def decode_text(data: bytes) -> str:
@@ -68,11 +108,21 @@ def read_text(path: Path) -> str:
     return decode_text(data)
 
 
-def is_heading(line: str, prev_line: Optional[str] = None, next_line: Optional[str] = None) -> bool:
-    return classify_heading(line, prev_line, next_line) is not None
+def is_heading(
+    line: str,
+    prev_line: Optional[str] = None,
+    next_line: Optional[str] = None,
+    rules: RuleSet = DEFAULT_RULES,
+) -> bool:
+    return classify_heading(line, prev_line, next_line, rules) is not None
 
 
-def is_likely_heading_line(line: str, prev_line: Optional[str], next_line: Optional[str]) -> bool:
+def is_likely_heading_line(
+    line: str,
+    prev_line: Optional[str],
+    next_line: Optional[str],
+    rules: RuleSet,
+) -> bool:
     s = line.strip()
     if not s:
         return False
@@ -84,32 +134,37 @@ def is_likely_heading_line(line: str, prev_line: Optional[str], next_line: Optio
     if SENTENCE_END_RE.search(s) and not isolated:
         return False
 
-    if len(s) > HEADING_MAX_LEN and not isolated:
+    if len(s) > rules.heading_max_len and not isolated:
         return False
 
-    if len(COMMA_RE.findall(s)) > HEADING_MAX_COMMAS and not isolated:
+    if len(COMMA_RE.findall(s)) > rules.heading_max_commas and not isolated:
         return False
 
     return True
 
 
-def classify_heading(line: str, prev_line: Optional[str] = None, next_line: Optional[str] = None) -> Optional[str]:
+def classify_heading(
+    line: str,
+    prev_line: Optional[str] = None,
+    next_line: Optional[str] = None,
+    rules: RuleSet = DEFAULT_RULES,
+) -> Optional[str]:
     s = line.strip()
     if not s:
         return None
-    for pattern in CHAPTER_PATTERNS:
+    for pattern in rules.chapter_patterns:
         if pattern.match(s):
-            return "chapter" if is_likely_heading_line(line, prev_line, next_line) else None
-    for kw in SPECIAL_HEADINGS:
+            return "chapter" if is_likely_heading_line(line, prev_line, next_line, rules) else None
+    for kw in rules.special_headings:
         if s == kw or s.startswith(kw + " ") or s.startswith(kw + "：") or s.startswith(kw + ":"):
-            return "chapter" if is_likely_heading_line(line, prev_line, next_line) else None
-    for pattern in VOLUME_PATTERNS:
+            return "chapter" if is_likely_heading_line(line, prev_line, next_line, rules) else None
+    for pattern in rules.volume_patterns:
         if pattern.match(s):
-            return "volume" if is_likely_heading_line(line, prev_line, next_line) else None
+            return "volume" if is_likely_heading_line(line, prev_line, next_line, rules) else None
     return None
 
 
-def parse_metadata(lines: list[str]) -> tuple[Optional[str], Optional[str], Optional[str], set[int]]:
+def parse_metadata(lines: list[str], rules: RuleSet) -> tuple[Optional[str], Optional[str], Optional[str], set[int]]:
     title = None
     author = None
     intro_lines: list[str] = []
@@ -122,7 +177,7 @@ def parse_metadata(lines: list[str]) -> tuple[Optional[str], Optional[str], Opti
     for i, line in enumerate(lines):
         prev_line = lines[i - 1] if i > 0 else None
         next_line = lines[i + 1] if i + 1 < len(lines) else None
-        if is_heading(line, prev_line, next_line):
+        if is_heading(line, prev_line, next_line, rules):
             first_heading_idx = i
             break
 
@@ -140,7 +195,7 @@ def parse_metadata(lines: list[str]) -> tuple[Optional[str], Optional[str], Opti
             continue
 
         if in_intro:
-            if is_heading(raw, prev_line, next_line):
+            if is_heading(raw, prev_line, next_line, rules):
                 break
             intro_lines.append(s)
             skip_idx.add(i)
@@ -197,7 +252,7 @@ def parse_metadata(lines: list[str]) -> tuple[Optional[str], Optional[str], Opti
             continue
 
         non_empty_seen += 1
-        if non_empty_seen <= 6 and not SKIP_CANDIDATE_RE.search(s):
+        if non_empty_seen <= 6 and not rules.skip_candidate_re.search(s):
             candidates.append((i, s))
 
     if title is None and candidates:
@@ -222,9 +277,10 @@ def normalize_content_line(line: str) -> str:
     return s.replace("\u3000", "")
 
 
-def parse_book(text: str, source_name: str) -> Book:
+def parse_book(text: str, source_name: str, rules: Optional[RuleSet] = None) -> Book:
+    rules = rules or DEFAULT_RULES
     lines = text.splitlines()
-    title, author, intro, skip_idx = parse_metadata(lines)
+    title, author, intro, skip_idx = parse_metadata(lines, rules)
 
     body_lines = [line for idx, line in enumerate(lines) if idx not in skip_idx]
     while body_lines and not body_lines[0].strip():
@@ -253,7 +309,7 @@ def parse_book(text: str, source_name: str) -> Book:
     for idx, line in enumerate(body_lines):
         prev_line = body_lines[idx - 1] if idx > 0 else None
         next_line = body_lines[idx + 1] if idx + 1 < len(body_lines) else None
-        heading_type = classify_heading(line, prev_line, next_line)
+        heading_type = classify_heading(line, prev_line, next_line, rules)
         if heading_type == "volume":
             current_chapter = None
             current_volume = start_volume(line.strip())

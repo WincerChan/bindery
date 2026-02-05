@@ -23,13 +23,14 @@
   </div>
 
   <article class="reader-body">
-    {% if section.lines %}
-      {% for line in section.lines %}
-        {% if line %}<p>{{ line }}</p>{% endif %}
-      {% endfor %}
-    {% else %}
-      <p class="empty">这一节没有正文内容。</p>
-    {% endif %}
+    <iframe
+      class="reader-frame"
+      src="{{ section.content_url }}"
+      sandbox="allow-same-origin"
+      referrerpolicy="no-referrer"
+      loading="lazy"
+      title="{{ section.title }}"
+    ></iframe>
   </article>
 </section>
 {% endblock %}

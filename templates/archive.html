@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}归档 · Bindery{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>归档书籍</h2>
+    <p>已归档 {{ books | length }} 本。</p>
+  </div>
+  <div class="library-grid" data-view="grid">
+    {% for book in books %}
+      <article class="book-card archived">
+        <div class="card-cover">
+          <div class="cover-placeholder">{{ book.title[:1] }}</div>
+        </div>
+        <div class="card-body">
+          <div class="card-header">
+            <h3>{{ book.title }}</h3>
+          </div>
+          <div class="meta">
+            <div><span>作者</span>{{ book.author or "未知" }}</div>
+            <div><span>ID</span><code>{{ book.book_id }}</code></div>
+          </div>
+          <div class="card-actions">
+            <form action="/book/{{ book.book_id }}/restore" method="post">
+              <button class="btn" type="submit">恢复</button>
+            </form>
+            <form action="/book/{{ book.book_id }}/delete" method="post" onsubmit="return confirm('确定永久删除？');">
+              <button class="btn danger" type="submit">删除</button>
+            </form>
+          </div>
+        </div>
+      </article>
+    {% else %}
+      <div class="empty">归档为空。</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

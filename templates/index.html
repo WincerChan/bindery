@@ -6,37 +6,32 @@
 <section class="hero">
   <div>
     <h1>把 TXT 变成真正的书</h1>
-    <p>按章节自动切分，写入元数据，直接加入你的本地 EPUB 书库。</p>
+    <p>多文件拖拽导入，规则切章，写入元数据，再进入你的本地书库。</p>
   </div>
 </section>
 
-<section class="panel">
+<section class="panel" id="upload">
   <div class="panel-header">
-    <h2>导入 TXT</h2>
-    <p>支持自动识别书名、作者与简介，也可手动补充。</p>
+    <h2>上传与入库</h2>
+    <p>支持规则模板选择与预览。</p>
   </div>
-  <form
-    class="upload-form"
-    action="/upload"
-    method="post"
-    enctype="multipart/form-data"
-    hx-post="/upload"
-    hx-encoding="multipart/form-data"
-    hx-target="#library"
-    hx-swap="afterbegin"
-  >
-    <div class="field">
-      <label>TXT 文件</label>
-      <input type="file" name="txt_file" accept=".txt" required />
+  <form class="upload-form" id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+    <div class="dropzone" data-dropzone>
+      <input type="file" name="files" id="file-input" accept=".txt" multiple required />
+      <div>
+        <div class="dropzone-title">拖拽 TXT 到这里</div>
+        <div class="dropzone-sub">或点击选择多个文件</div>
+      </div>
     </div>
+
     <div class="form-grid">
       <div class="field">
-        <label>书名</label>
-        <input type="text" name="title" placeholder="留空则自动解析" />
-      </div>
-      <div class="field">
-        <label>作者</label>
-        <input type="text" name="author" placeholder="留空则自动解析" />
+        <label>规则模板</label>
+        <select name="rule_template">
+          {% for rule in rules %}
+            <option value="{{ rule.rule_id }}">{{ rule.name }} · v{{ rule.version }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="field">
         <label>语言</label>
@@ -44,13 +39,33 @@
       </div>
       <div class="field">
         <label>星级</label>
-        <input type="number" name="rating" min="0" max="5" step="1" placeholder="0-5" />
+        <input type="number" name="rating" min="0" max="5" step="1" />
+      </div>
+      <div class="field">
+        <label>封面（可选）</label>
+        <input type="file" name="cover_file" accept="image/*" />
       </div>
     </div>
 
     <details class="more-fields">
       <summary>更多元数据</summary>
       <div class="form-grid">
+        <div class="field">
+          <label>书名</label>
+          <input type="text" name="title" placeholder="留空则自动解析" />
+        </div>
+        <div class="field">
+          <label>作者</label>
+          <input type="text" name="author" placeholder="留空则自动解析" />
+        </div>
+        <div class="field">
+          <label>系列</label>
+          <input type="text" name="series" />
+        </div>
+        <div class="field">
+          <label>Identifier</label>
+          <input type="text" name="identifier" />
+        </div>
         <div class="field">
           <label>出版社</label>
           <input type="text" name="publisher" />
@@ -75,22 +90,179 @@
     </details>
 
     <div class="actions">
-      <button class="btn" type="submit">生成 EPUB</button>
+      <button
+        class="btn ghost"
+        type="button"
+        hx-post="/upload/preview"
+        hx-target="#upload-preview"
+        hx-include="#upload-form"
+        hx-encoding="multipart/form-data"
+      >
+        预览解析
+      </button>
+      <button class="btn" type="submit">开始转换</button>
     </div>
   </form>
+  <div id="upload-preview" class="preview-panel">
+    <div class="empty">上传后点击“预览解析”查看 TOC 与章节统计。</div>
+  </div>
 </section>
 
-<section class="library">
+<section class="panel" id="upload-epub">
   <div class="panel-header">
-    <h2>书库</h2>
-    <p>已生成 {{ books | length }} 本。</p>
+    <h2>导入 EPUB</h2>
+    <p>已有 EPUB 直接入库，支持元数据覆盖与预览。</p>
   </div>
-  <div id="library" class="library-grid">
-    {% for book in books %}
-      {% include "partials/book_card.html" %}
-    {% else %}
-      <div class="empty">还没有书籍。上传第一本 TXT 吧。</div>
-    {% endfor %}
+  <form class="upload-form" id="epub-upload-form" action="/upload/epub" method="post" enctype="multipart/form-data">
+    <div class="dropzone" data-dropzone>
+      <input type="file" name="files" id="epub-file-input" accept=".epub" multiple required />
+      <div>
+        <div class="dropzone-title">拖拽 EPUB 到这里</div>
+        <div class="dropzone-sub">或点击选择多个文件</div>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>语言</label>
+        <input type="text" name="language" value="" placeholder="留空则沿用 EPUB" />
+      </div>
+      <div class="field">
+        <label>星级</label>
+        <input type="number" name="rating" min="0" max="5" step="1" />
+      </div>
+      <div class="field">
+        <label>封面（可选）</label>
+        <input type="file" name="cover_file" accept="image/*" />
+      </div>
+    </div>
+
+    <details class="more-fields">
+      <summary>覆盖元数据</summary>
+      <div class="form-grid">
+        <div class="field">
+          <label>书名</label>
+          <input type="text" name="title" placeholder="留空则沿用 EPUB" />
+        </div>
+        <div class="field">
+          <label>作者</label>
+          <input type="text" name="author" placeholder="留空则沿用 EPUB" />
+        </div>
+        <div class="field">
+          <label>系列</label>
+          <input type="text" name="series" />
+        </div>
+        <div class="field">
+          <label>Identifier</label>
+          <input type="text" name="identifier" />
+        </div>
+        <div class="field">
+          <label>出版社</label>
+          <input type="text" name="publisher" />
+        </div>
+        <div class="field">
+          <label>标签</label>
+          <input type="text" name="tags" placeholder="例如：科幻, 太空歌剧" />
+        </div>
+        <div class="field">
+          <label>发表时间</label>
+          <input type="text" name="published" placeholder="例如：2024-08-01" />
+        </div>
+        <div class="field">
+          <label>ISBN</label>
+          <input type="text" name="isbn" />
+        </div>
+      </div>
+      <div class="field">
+        <label>内容简介</label>
+        <textarea name="description" rows="3"></textarea>
+      </div>
+    </details>
+
+    <div class="actions">
+      <button
+        class="btn ghost"
+        type="button"
+        hx-post="/upload/epub/preview"
+        hx-target="#upload-preview-epub"
+        hx-include="#epub-upload-form"
+        hx-encoding="multipart/form-data"
+      >
+        预览解析
+      </button>
+      <button class="btn" type="submit">开始入库</button>
+    </div>
+  </form>
+  <div id="upload-preview-epub" class="preview-panel">
+    <div class="empty">上传后点击“预览解析”查看 TOC 与章节统计。</div>
   </div>
 </section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>书库</h2>
+      <p>已生成 {{ books | length }} 本。</p>
+    </div>
+    <div class="library-controls" id="library-controls">
+      <div class="view-toggle" data-view-toggle>
+        <button type="button" class="toggle-btn" data-view="grid">封面墙</button>
+        <button type="button" class="toggle-btn" data-view="list">列表</button>
+      </div>
+      <select name="sort" hx-get="/library" hx-target="#library" hx-trigger="change" hx-include="#library-controls">
+        <option value="updated" {% if sort == 'updated' %}selected{% endif %}>最近修改</option>
+        <option value="created" {% if sort == 'created' %}selected{% endif %}>最近导入</option>
+      </select>
+      <input
+        type="search"
+        name="q"
+        placeholder="标题/作者过滤"
+        value="{{ q }}"
+        hx-get="/library"
+        hx-target="#library"
+        hx-trigger="keyup changed delay:400ms"
+        hx-include="#library-controls"
+      />
+    </div>
+  </div>
+  <div id="library" class="library-grid" data-view="grid">
+    {% include "partials/library.html" %}
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll('[data-dropzone]').forEach((dropzone) => {
+    const fileInput = dropzone.querySelector('input[type="file"]');
+    if (!fileInput) return;
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      dropzone.classList.add('dragging');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragging'));
+    dropzone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dropzone.classList.remove('dragging');
+      if (event.dataTransfer.files.length) {
+        fileInput.files = event.dataTransfer.files;
+      }
+    });
+  });
+
+  const viewToggle = document.querySelector('[data-view-toggle]');
+  const library = document.getElementById('library');
+  if (viewToggle && library) {
+    const stored = localStorage.getItem('bindery-view') || 'grid';
+    library.dataset.view = stored;
+    viewToggle.querySelectorAll('.toggle-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.view === stored);
+      btn.addEventListener('click', () => {
+        const view = btn.dataset.view;
+        library.dataset.view = view;
+        localStorage.setItem('bindery-view', view);
+        viewToggle.querySelectorAll('.toggle-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+      });
+    });
+  }
+</script>
 {% endblock %}

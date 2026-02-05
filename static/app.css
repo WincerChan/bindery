@@ -213,6 +213,15 @@ body {
   border: 1px solid var(--accent);
 }
 
+.btn.danger {
+  background: #9f2d22;
+  color: #fff;
+}
+
+.inline-form {
+  margin: 0;
+}
+
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -374,6 +383,13 @@ body {
   margin: 0 0 1.2em;
 }
 
+.reader-frame {
+  width: 100%;
+  min-height: 70vh;
+  border: none;
+  background: #fff;
+}
+
 @media (max-width: 720px) {
   .panel-header {
     flex-direction: column;
@@ -383,4 +399,379 @@ body {
   .reader-meta {
     text-align: left;
   }
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logout-form {
+  margin: 0;
+}
+
+.nav-link.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.library-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.library-controls input,
+.library-controls select {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.toggle-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.toggle-btn.active {
+  background: var(--accent);
+  color: #fffaf4;
+}
+
+.book-card {
+  grid-template-columns: 1fr;
+}
+
+.card-cover {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--sand);
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+}
+
+.card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-placeholder {
+  font-family: "Fraunces", serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent-2);
+}
+
+.cover-placeholder.large {
+  width: 180px;
+  height: 240px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--sand);
+}
+
+.badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.badge.ok {
+  background: #2e7d32;
+}
+
+.badge.pending {
+  background: #c2791a;
+}
+
+.badge.failed {
+  background: #9f2d22;
+}
+
+.card-body {
+  display: grid;
+  gap: 12px;
+}
+
+.meta.small {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.meta.small code {
+  font-family: "Noto Serif SC", serif;
+  font-size: 0.8rem;
+}
+
+.library-grid[data-view="list"] {
+  grid-template-columns: 1fr;
+}
+
+.library-grid[data-view="list"] .book-card {
+  grid-template-columns: 140px 1fr;
+  align-items: stretch;
+}
+
+.library-grid[data-view="list"] .card-cover {
+  min-height: 180px;
+}
+
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.dropzone input[type="file"] {
+  display: none;
+}
+
+.dropzone.dragging {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.dropzone-title {
+  font-weight: 700;
+}
+
+.dropzone-sub {
+  color: var(--muted);
+}
+
+.preview-panel {
+  margin-top: 16px;
+  background: #fff;
+  border-radius: 18px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 16px;
+}
+
+.preview-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.preview-meta {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.preview-meta span {
+  display: inline-block;
+  width: 6em;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.preview-toc ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.jobs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.job-column h3 {
+  margin-top: 0;
+}
+
+.job-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+}
+
+.job-meta {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.job-meta span {
+  display: inline-block;
+  width: 4em;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.job-log pre {
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+  background: #f7f3ed;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.rules-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.rule-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.rule-title {
+  font-weight: 700;
+}
+
+.rule-id {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  color: var(--muted);
+}
+
+.preview-grid span {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.book-hero {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.book-cover img {
+  width: 100%;
+  border-radius: 16px;
+}
+
+.book-info {
+  display: grid;
+  gap: 16px;
+}
+
+.danger-zone {
+  border-color: #e4b5b0;
+}
+
+.login-page {
+  background: var(--paper);
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+.login-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  width: min(420px, 90vw);
+  display: grid;
+  gap: 16px;
+}
+
+.login-form {
+  display: grid;
+  gap: 12px;
+}
+
+.alert {
+  background: #f7efe7;
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 12px;
+  color: var(--muted);
+}
+
+.alert.warning {
+  background: #ffe9d6;
+  border-color: #f0cda6;
+  color: #8a4d13;
+}
+
+@media (max-width: 900px) {
+  .book-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card-actions form {
+  margin: 0;
+}
+
+.job-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.job-message {
+  color: var(--muted);
+}
+
+.book-card.archived {
+  opacity: 0.85;
 }

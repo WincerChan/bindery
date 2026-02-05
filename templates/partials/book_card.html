@@ -1,21 +1,44 @@
 {% set rating = book.rating or 0 %}
 <article class="book-card" id="book-{{ book.book_id }}">
-  <div class="card-header">
-    <h3>{{ book.title }}</h3>
-    <div class="rating">
-      {% for _ in range(rating) %}★{% endfor %}
-      {% for _ in range(5 - rating) %}☆{% endfor %}
+  <div class="card-cover">
+    {% if book.cover_url %}
+      <img src="{{ book.cover_url }}" alt="{{ book.title }}" />
+    {% else %}
+      <div class="cover-placeholder">{{ book.title[:1] }}</div>
+    {% endif %}
+    <span class="badge {{ book.status_class }}">{{ book.status_label }}</span>
+  </div>
+  <div class="card-body">
+    <div class="card-header">
+      <h3>{{ book.title }}</h3>
+      <div class="rating">
+        {% for _ in range(rating) %}★{% endfor %}
+        {% for _ in range(5 - rating) %}☆{% endfor %}
+      </div>
     </div>
-  </div>
-  <div class="meta">
-    <div><span>作者</span>{{ book.author or "未知" }}</div>
-    <div><span>语言</span>{{ book.language }}</div>
-    {% if book.publisher %}<div><span>出版社</span>{{ book.publisher }}</div>{% endif %}
-    {% if book.tags %}<div><span>标签</span>{{ book.tags | join(", ") }}</div>{% endif %}
-  </div>
-  <div class="card-actions">
-    <a class="btn ghost" href="/book/{{ book.book_id }}">详情</a>
-    <a class="btn ghost" href="/book/{{ book.book_id }}/preview">预览</a>
-    <a class="btn" href="/book/{{ book.book_id }}/download">下载</a>
+    <div class="meta">
+      <div><span>作者</span>{{ book.author or "未知" }}</div>
+      <div><span>语言</span>{{ book.language }}</div>
+      {% if book.series %}<div><span>系列</span>{{ book.series }}</div>{% endif %}
+      {% if book.publisher %}<div><span>出版社</span>{{ book.publisher }}</div>{% endif %}
+      {% if book.tags %}<div><span>标签</span>{{ book.tags | join(", ") }}</div>{% endif %}
+    </div>
+    <div class="meta small">
+      <div><span>ID</span><code>{{ book.book_id }}</code></div>
+      <div><span>路径</span><code>{{ book.path }}</code></div>
+    </div>
+    <div class="card-actions">
+      <a class="btn ghost" href="/book/{{ book.book_id }}">详情</a>
+      <a class="btn ghost" href="/book/{{ book.book_id }}/download">下载</a>
+      {% if book.can_regenerate %}
+        <form action="/book/{{ book.book_id }}/regenerate" method="post">
+          <input type="hidden" name="rule_template" value="{{ book.rule_template or 'default' }}" />
+          <button class="btn ghost" type="submit">重新生成</button>
+        </form>
+      {% endif %}
+      <form action="/book/{{ book.book_id }}/archive" method="post">
+        <button class="btn" type="submit">归档</button>
+      </form>
+    </div>
   </div>
 </article>

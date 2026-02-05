@@ -1,0 +1,31 @@
+{% if previews %}
+  {% for item in previews %}
+    <div class="preview-card">
+      <div class="preview-title">{{ item.filename or item.title }}</div>
+      <div class="preview-meta">
+        <div><span>格式</span>{{ item.format or "TXT" }}</div>
+        <div><span>识别标题</span>{{ item.title }}</div>
+        <div><span>作者</span>{{ item.author or "未知" }}</div>
+        {% if item.format == "EPUB" %}
+          <div><span>章节</span>{{ item.chapters }}</div>
+        {% else %}
+          <div><span>卷/章</span>{{ item.volumes }} / {{ item.chapters }}</div>
+        {% endif %}
+        <div><span>输出文件</span>{{ item.output }}</div>
+        <div><span>落库路径</span>{{ item.path }}</div>
+      </div>
+      {% if item.toc %}
+        <div class="preview-toc">
+          <h4>TOC 前 10 条</h4>
+          <ul>
+            {% for title in item.toc %}
+              <li>{{ title }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+{% else %}
+  <div class="empty">没有可预览的内容。</div>
+{% endif %}

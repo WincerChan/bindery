@@ -14,10 +14,14 @@
     <div><span>书名</span>{{ book.title }}</div>
     <div><span>作者</span>{{ book.author or "未知" }}</div>
     <div><span>语言</span>{{ book.language }}</div>
+    <div><span>系列</span>{{ book.series or "—" }}</div>
+    <div><span>Identifier</span>{{ book.identifier or "—" }}</div>
     <div><span>出版社</span>{{ book.publisher or "—" }}</div>
     <div><span>标签</span>{{ book.tags | join(", ") if book.tags else "—" }}</div>
     <div><span>发表时间</span>{{ book.published or "—" }}</div>
     <div><span>ISBN</span>{{ book.isbn or "—" }}</div>
+    <div><span>规则模板</span>{{ book.rule_template or "—" }}</div>
+    <div><span>状态</span>{{ book.status_label }}</div>
     <div><span>星级</span>
       <span class="rating">
         {% if rating is not none %}

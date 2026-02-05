@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 import html
+import re
 from pathlib import Path
 from typing import Iterable, Optional
 
 from ebooklib import epub
+import ebooklib
 
 from .models import Book, Metadata, Volume
+
+
+@dataclass
+class EpubSection:
+    title: str
+    item_path: str
 
 
 def _render_section(title: str, lines: Iterable[str], lang: str, kind: str = "chapter") -> str:
@@ -18,7 +27,6 @@ def _render_section(title: str, lines: Iterable[str], lang: str, kind: str = "ch
         paragraphs.append(f"    <p>{html.escape(line)}</p>")
     body = "\n".join(paragraphs) if paragraphs else ""
     return (
-        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
         "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"{lang}\">\n"
         "  <head>\n"
         "    <meta charset=\"utf-8\" />\n"
@@ -45,7 +53,6 @@ def _render_intro(title: str, author: Optional[str], intro: str, lang: str) -> s
         paragraphs.append(f"    <p>{html.escape(line)}</p>")
     body = "\n".join(paragraphs)
     return (
-        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
         "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"{lang}\">\n"
         "  <head>\n"
         "    <meta charset=\"utf-8\" />\n"
@@ -61,10 +68,10 @@ def _render_intro(title: str, author: Optional[str], intro: str, lang: str) -> s
 
 
 def _add_metadata(book: epub.EpubBook, meta: Metadata) -> None:
-    book_id = meta.book_id
-    if not book_id.startswith("urn:"):
-        book_id = f"urn:uuid:{book_id}"
-    book.set_identifier(book_id)
+    identifier = meta.identifier or meta.book_id
+    if not identifier.startswith("urn:"):
+        identifier = f"urn:uuid:{identifier}"
+    book.set_identifier(identifier)
     book.set_title(meta.title)
     book.set_language(meta.language or "zh-CN")
 
@@ -76,6 +83,10 @@ def _add_metadata(book: epub.EpubBook, meta: Metadata) -> None:
         book.add_metadata("DC", "publisher", meta.publisher)
     if meta.published:
         book.add_metadata("DC", "date", meta.published)
+    if meta.identifier:
+        book.add_metadata("DC", "identifier", meta.identifier, {"id": "identifier"})
+    if meta.series:
+        book.add_metadata(None, "meta", meta.series, {"property": "belongs-to-collection"})
     if meta.isbn:
         book.add_metadata("DC", "identifier", meta.isbn, {"id": "isbn"})
     for tag in meta.tags:
@@ -93,7 +104,40 @@ def _add_metadata(book: epub.EpubBook, meta: Metadata) -> None:
     book.add_metadata(None, "meta", modified, {"property": "dcterms:modified"})
 
 
-def build_epub(book_data: Book, meta: Metadata, output_path: Path) -> None:
+def _clear_metadata(book: epub.EpubBook) -> None:
+    dc_ns = epub.NAMESPACES["DC"]
+    opf_ns = epub.NAMESPACES["OPF"]
+    dc = book.metadata.get(dc_ns, {})
+    for key in ("identifier", "title", "language", "creator", "description", "publisher", "date", "subject"):
+        if key in dc:
+            dc.pop(key, None)
+    if dc:
+        book.metadata[dc_ns] = dc
+    opf = book.metadata.get(opf_ns, {})
+    meta_items = opf.get("meta", [])
+    filtered = []
+    for value, attrs in meta_items:
+        if attrs.get("property") in {"dcterms:modified", "belongs-to-collection"}:
+            continue
+        if attrs.get("name") in {"rating", "cover"}:
+            continue
+        filtered.append((value, attrs))
+    if opf:
+        opf["meta"] = filtered
+        book.metadata[opf_ns] = opf
+
+
+def update_epub_metadata(epub_file: Path, meta: Metadata, cover_path: Optional[Path] = None) -> None:
+    book = epub.read_epub(str(epub_file))
+    _normalize_spine_and_toc(book)
+    _clear_metadata(book)
+    _add_metadata(book, meta)
+    if cover_path and cover_path.exists():
+        book.set_cover(cover_path.name, cover_path.read_bytes())
+    epub.write_epub(str(epub_file), book, {"epub3_pages": False})
+
+
+def build_epub(book_data: Book, meta: Metadata, output_path: Path, cover_path: Optional[Path] = None) -> None:
     epub_book = epub.EpubBook()
     _add_metadata(epub_book, meta)
 
@@ -108,6 +152,10 @@ def build_epub(book_data: Book, meta: Metadata, output_path: Path) -> None:
     )
     style_item = epub.EpubItem(uid="style", file_name="style.css", media_type="text/css", content=css)
     epub_book.add_item(style_item)
+
+    if cover_path and cover_path.exists():
+        cover_bytes = cover_path.read_bytes()
+        epub_book.set_cover(cover_path.name, cover_bytes)
 
     docs: list[epub.EpubHtml] = []
     toc: list[object] = []
@@ -168,4 +216,208 @@ def build_epub(book_data: Book, meta: Metadata, output_path: Path) -> None:
         epub_book.add_item(doc)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    epub.write_epub(str(output_path), epub_book, {})
+    # Disable page-list generation to avoid failures when a section body is empty.
+    epub.write_epub(str(output_path), epub_book, {"epub3_pages": False})
+
+
+def extract_cover(epub_file: Path) -> Optional[tuple[bytes, str]]:
+    if not epub_file.exists():
+        return None
+    book = epub.read_epub(str(epub_file))
+    for item in book.get_items():
+        if item.get_type() == ebooklib.ITEM_COVER:
+            name = item.get_name() or "cover"
+            return item.get_content(), name
+    for item in book.get_items():
+        if item.get_type() == ebooklib.ITEM_IMAGE:
+            name = item.get_name() or ""
+            if "cover" in name.lower():
+                return item.get_content(), name
+    return None
+
+
+def _looks_like_isbn(value: str) -> bool:
+    cleaned = re.sub(r"[^0-9Xx]", "", value or "")
+    return len(cleaned) in {10, 13}
+
+
+def _first_metadata(book: epub.EpubBook, namespace: str, name: str) -> Optional[str]:
+    items = book.get_metadata(namespace, name)
+    for value, _ in items:
+        if value:
+            return value.strip()
+    return None
+
+
+def extract_epub_metadata(epub_file: Path, fallback_title: str) -> dict:
+    book = epub.read_epub(str(epub_file))
+    title = _first_metadata(book, "DC", "title") or fallback_title
+    author = _first_metadata(book, "DC", "creator")
+    language = _first_metadata(book, "DC", "language") or "zh-CN"
+    description = _first_metadata(book, "DC", "description")
+    publisher = _first_metadata(book, "DC", "publisher")
+    published = _first_metadata(book, "DC", "date")
+
+    tags = [value.strip() for value, _ in book.get_metadata("DC", "subject") if value and value.strip()]
+
+    identifier = None
+    isbn = None
+    for value, attrs in book.get_metadata("DC", "identifier"):
+        if not value:
+            continue
+        cleaned = value.strip()
+        if attrs.get("id") == "isbn" or _looks_like_isbn(cleaned):
+            if not isbn:
+                isbn = cleaned
+            continue
+        if attrs.get("id") == "identifier" or identifier is None:
+            identifier = cleaned
+
+    series = None
+    rating = None
+    for value, attrs in book.get_metadata("OPF", "meta"):
+        if attrs.get("property") == "belongs-to-collection" and value:
+            series = value.strip()
+        if attrs.get("name") == "rating" and value:
+            try:
+                rating_value = int(float(value))
+            except (TypeError, ValueError):
+                continue
+            rating = max(0, min(5, rating_value))
+
+    return {
+        "title": title,
+        "author": author,
+        "language": language,
+        "description": description,
+        "series": series,
+        "identifier": identifier,
+        "publisher": publisher,
+        "tags": tags,
+        "published": published,
+        "isbn": isbn,
+        "rating": rating,
+    }
+
+
+def _strip_scripts(html_text: str) -> str:
+    return re.sub(r"<script\\b[^>]*>.*?</script>", "", html_text, flags=re.IGNORECASE | re.DOTALL)
+
+
+def _inject_base(html_text: str, base_href: str) -> str:
+    base_tag = f'<base href="{html.escape(base_href, quote=True)}" />'
+    match = re.search(r"<head[^>]*>", html_text, flags=re.IGNORECASE)
+    if match:
+        idx = match.end()
+        return f"{html_text[:idx]}{base_tag}{html_text[idx:]}"
+    return f"<head>{base_tag}</head>{html_text}"
+
+
+def _extract_title_from_html(html_text: str) -> Optional[str]:
+    for pattern in (r"<title[^>]*>(.*?)</title>", r"<h1[^>]*>(.*?)</h1>", r"<h2[^>]*>(.*?)</h2>"):
+        match = re.search(pattern, html_text, flags=re.IGNORECASE | re.DOTALL)
+        if match:
+            text = re.sub(r"<[^>]+>", "", match.group(1))
+            text = html.unescape(text).strip()
+            if text:
+                return text
+    return None
+
+
+def _spine_items(book: epub.EpubBook) -> list[ebooklib.epub.EpubItem]:
+    items: list[ebooklib.epub.EpubItem] = []
+    for entry in book.spine:
+        if isinstance(entry, tuple):
+            entry = entry[0]
+        item = None
+        if isinstance(entry, str):
+            item = book.get_item_with_id(entry) or book.get_item_with_href(entry)
+        else:
+            item = entry
+        if not item:
+            continue
+        if item.get_type() == ebooklib.ITEM_NAVIGATION:
+            continue
+        if item.get_type() != ebooklib.ITEM_DOCUMENT:
+            continue
+        items.append(item)
+    if items:
+        return items
+    return [item for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT) if item.get_type() != ebooklib.ITEM_NAVIGATION]
+
+
+def _normalize_spine_and_toc(book: epub.EpubBook) -> None:
+    docs = _spine_items(book)
+    for idx, item in enumerate(docs):
+        if getattr(item, "uid", None) is None:
+            uid = getattr(item, "id", None) or f"doc_{idx}"
+            setattr(item, "uid", uid)
+
+    def assign_uid(entries: list, start: int = 0) -> int:
+        counter = start
+        for entry in entries:
+            if isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[1], list):
+                item, children = entry
+                if getattr(item, "uid", None) is None:
+                    uid = getattr(item, "id", None) or f"toc_{counter}"
+                    setattr(item, "uid", uid)
+                    counter += 1
+                counter = assign_uid(children, counter)
+                continue
+            if getattr(entry, "uid", None) is None:
+                uid = getattr(entry, "id", None) or f"toc_{counter}"
+                setattr(entry, "uid", uid)
+                counter += 1
+        return counter
+
+    if book.toc:
+        assign_uid(book.toc)
+    elif docs:
+        book.toc = docs
+
+
+def list_epub_sections(epub_file: Path) -> list[EpubSection]:
+    book = epub.read_epub(str(epub_file))
+    sections: list[EpubSection] = []
+    for item in _spine_items(book):
+        title = getattr(item, "title", None)
+        if not title and hasattr(item, "get_title"):
+            try:
+                title = item.get_title()
+            except Exception:
+                title = None
+        content_text = None
+        if not title:
+            try:
+                content_text = item.get_content().decode("utf-8", errors="replace")
+            except Exception:
+                content_text = None
+            if content_text:
+                title = _extract_title_from_html(content_text)
+        if not title:
+            name = item.get_name() or "section"
+            title = Path(name).stem
+        sections.append(EpubSection(title=title, item_path=item.get_name()))
+    return sections
+
+
+def load_epub_item(epub_file: Path, item_path: str, base_href: str) -> tuple[bytes, str]:
+    book = epub.read_epub(str(epub_file))
+    target_path = item_path.lstrip("/")
+    target = None
+    for item in book.get_items():
+        name = (item.get_name() or "").lstrip("/")
+        if name == target_path:
+            target = item
+            break
+    if not target:
+        raise FileNotFoundError(item_path)
+    content = target.get_content()
+    media_type = target.media_type or "application/octet-stream"
+    if target.get_type() == ebooklib.ITEM_DOCUMENT:
+        text = content.decode("utf-8", errors="replace")
+        text = _strip_scripts(text)
+        text = _inject_base(text, base_href)
+        content = text.encode("utf-8")
+        media_type = "text/html; charset=utf-8"
+    return content, media_type
