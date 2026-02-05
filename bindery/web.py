@@ -1282,6 +1282,7 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
         {
             "request": request,
             "book": _book_view(meta, base),
+            "toc": [{"index": idx, "title": sec.title} for idx, sec in enumerate(sections)],
             "section": {
                 "title": current.title,
                 "content_url": f"/book/{book_id}/epub/{current.item_path}",
@@ -1289,6 +1290,8 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
             "section_index": section_index,
             "prev_idx": prev_idx,
             "next_idx": next_idx,
+            "hide_nav": True,
+            "main_class": "h-screen w-screen p-0",
         },
     )
 
@@ -1360,12 +1363,42 @@ async def save_edit(
     meta.updated_at = _now_iso()
 
     save_metadata(meta, base)
-    cover_file = meta.cover_file
-    cover_path_obj = cover_path(base, book_id, cover_file) if cover_file else None
+    epub_file = epub_path(base, book_id)
+    cover_path_obj = None
+    if meta.source_type != "epub":
+        extracted_cover = None
+        extracted_cover_error = False
+        if epub_file.exists():
+            try:
+                extracted_cover = extract_cover(epub_file)
+            except Exception:
+                extracted_cover_error = True
+            if extracted_cover:
+                cover_data, cover_name = extracted_cover
+                meta.cover_file = save_cover_bytes(base, book_id, cover_data, cover_name)
+            elif not extracted_cover_error:
+                meta.cover_file = None
+        if meta.cover_file:
+            cover_path_obj = cover_path(base, book_id, meta.cover_file)
+
     if meta.source_type == "epub":
-        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj)
+        # 只写回元数据；封面保持 EPUB 本体不变。
+        update_epub_metadata(epub_file, meta, None)
     else:
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+        build_epub(book, meta, epub_file, cover_path_obj)
+
+    # 保存后始终从 EPUB 刷新封面缓存，保证详情页封面只来源于书籍本体。
+    extracted_cover = None
+    extracted_cover_error = False
+    try:
+        extracted_cover = extract_cover(epub_file)
+    except Exception:
+        extracted_cover_error = True
+    if extracted_cover:
+        cover_data, cover_name = extracted_cover
+        meta.cover_file = save_cover_bytes(base, book_id, cover_data, cover_name)
+    elif not extracted_cover_error:
+        meta.cover_file = None
     _update_meta_synced(meta)
     save_metadata(meta, base)
 

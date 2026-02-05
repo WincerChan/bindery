@@ -3,7 +3,7 @@ import {
     Book, UploadCloud, Activity, Settings, LogOut, LayoutGrid, List as ListIcon,
     Search, MoreVertical, Download, Edit3, RefreshCw, Trash2, FileText,
     AlertCircle, CheckCircle, Clock, ChevronRight, Save, X, Eye, Code,
-    FileType, Layers, Terminal
+    FileType, Layers, Terminal, Type, AlignLeft, Smartphone, FileCode, Split
 } from 'lucide-react';
 
 /**
@@ -25,10 +25,14 @@ const MOCK_BOOKS = [
         cover: 'https://via.placeholder.com/300x450/1e293b/ffffff?text=Deep+Space',
         format: 'EPUB',
         size: '4.2 MB',
-        status: 'synced', // synced, pending, failed
+        status: 'synced',
         addedAt: '2023-10-24T10:00:00',
         path: '/library/chendong/shenkong.epub',
         desc: '浩瀚的宇宙中，一片死寂...',
+        // Bindings
+        parserId: 'r-1',
+        themeId: 't-1',
+        customCss: null, // No override
     },
     {
         id: 'b-1002',
@@ -38,24 +42,15 @@ const MOCK_BOOKS = [
         cover: 'https://via.placeholder.com/300x450/4f46e5/ffffff?text=LOTM',
         format: 'EPUB',
         size: '8.5 MB',
-        status: 'pending', // metadata updated but not written to file
+        status: 'pending',
         addedAt: '2023-10-25T14:30:00',
         path: '/library/wuzei/guimi.epub',
         desc: '周明瑞醒来...',
+        // Bindings
+        parserId: 'r-2',
+        themeId: 't-2',
+        customCss: '/* Special font for LOTM */\nbody { font-family: "Noto Serif SC"; }', // Has override
     },
-    {
-        id: 'b-1003',
-        title: 'Raw Text Conversion Error Log',
-        author: 'Unknown',
-        series: '',
-        cover: null,
-        format: 'TXT',
-        size: '12 KB',
-        status: 'failed',
-        addedAt: '2023-10-26T09:15:00',
-        path: '/incoming/error_dump.txt',
-        desc: '',
-    }
 ];
 
 const MOCK_JOBS = [
@@ -64,10 +59,16 @@ const MOCK_JOBS = [
     { id: 'j-5519', type: 'convert', bookTitle: 'Test File 01', status: 'failed', progress: 12, stage: 'Parsing TOC', error: 'Regex mismatch at line 402: Chapter title exceeds length limit.' },
 ];
 
-const MOCK_RULES = [
+const PARSING_RULES = [
     { id: 'r-1', name: '通用网文 (General Webnovel)', type: 'regex', version: 'v1.2' },
     { id: 'r-2', name: '出版物标准 (Published)', type: 'regex', version: 'v2.0' },
-    { id: 'r-3', name: 'Kindle 优化 CSS', type: 'css', version: 'v1.0' },
+    { id: 'r-custom', name: '特殊正则 (Custom)', type: 'regex', version: 'local' },
+];
+
+const RENDERING_THEMES = [
+    { id: 't-1', name: '默认样式 (Default)', type: 'css', version: 'v1.0' },
+    { id: 't-2', name: 'Kindle 墨水屏优化', type: 'css', version: 'v2.1' },
+    { id: 't-3', name: '手机阅读 (暗色模式)', type: 'css', version: 'v1.0' },
 ];
 
 /**
@@ -355,14 +356,24 @@ const UploadView = () => {
                         </h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Rule Template</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Parsing Template</label>
                                 <select className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                                    <option>General Webnovel (v1.2)</option>
-                                    <option>Published Standard (v2.0)</option>
-                                    <option>Custom...</option>
+                                    {PARSING_RULES.map(r => (
+                                        <option key={r.id} value={r.id}>{r.name}</option>
+                                    ))}
                                 </select>
+                                <p className="text-xs text-slate-400 mt-1">Defines how to split chapters.</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Rendering Theme</label>
+                                <select className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                    {RENDERING_THEMES.map(t => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-slate-400 mt-1">Defines fonts, margins and CSS.</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
                                     <input type="text" className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Auto-detect" defaultValue={previewData?.detectedMeta.title} />
@@ -371,10 +382,6 @@ const UploadView = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Author</label>
                                     <input type="text" className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Auto-detect" defaultValue={previewData?.detectedMeta.author} />
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Series</label>
-                                <input type="text" className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Optional" />
                             </div>
                         </div>
                     </div>
@@ -490,6 +497,8 @@ const JobsView = () => {
 
 // --- Book Detail View ---
 const BookDetailView = ({ book, onBack }) => {
+    const [showOverride, setShowOverride] = useState(!!book.customCss);
+
     return (
         <div className="max-w-6xl mx-auto animate-in fade-in zoom-in-95 duration-200">
             <button onClick={onBack} className="flex items-center text-sm text-slate-500 hover:text-indigo-600 mb-4 transition-colors">
@@ -525,8 +534,9 @@ const BookDetailView = ({ book, onBack }) => {
                     </div>
                 </div>
 
-                {/* Right Column: Metadata & TOC */}
+                {/* Right Column: Metadata & TOC & Build Settings */}
                 <div className="lg:col-span-8 space-y-8">
+
                     {/* Metadata Form */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <div className="flex justify-between items-center mb-6">
@@ -557,15 +567,74 @@ const BookDetailView = ({ book, onBack }) => {
                             </div>
                             <div className="md:col-span-2 space-y-1">
                                 <label className="text-xs font-semibold text-slate-500 uppercase">Description</label>
-                                <textarea defaultValue={book.desc} rows={4} className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm leading-relaxed"></textarea>
+                                <textarea defaultValue={book.desc} rows={3} className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm leading-relaxed"></textarea>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Build Settings (New Section) */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                                    <Settings size={20} /> Build Settings
+                                </h2>
+                                <p className="text-sm text-slate-500 mt-1">Configure how this specific book is processed and rendered.</p>
+                            </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Parsing Strategy (Structure)</label>
+                                <select defaultValue={book.parserId} className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                    {PARSING_RULES.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Rendering Theme (Style)</label>
+                                <select defaultValue={book.themeId} className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                    {RENDERING_THEMES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Book Specific Overrides */}
+                        <div className="border-t border-slate-100 pt-4">
+                            <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowOverride(!showOverride)}>
+                                <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                    <Code size={16} /> Advanced: Embed Book-Specific Rules
+                                </span>
+                                <span className={`text-slate-400 transition-transform ${showOverride ? 'rotate-180' : ''}`}>▼</span>
+                            </div>
+
+                            {showOverride && (
+                                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
+                                        <div className="flex items-start gap-2 text-amber-600 bg-amber-50 p-3 rounded text-xs mb-2">
+                                            <AlertCircle size={14} className="mt-0.5" />
+                                            <span>Settings here will override the global template selected above. This is useful for books with unique formatting needs.</span>
+                                        </div>
+
+                                        <div>
+                                            <label className="flex justify-between text-xs font-semibold text-slate-500 mb-1">
+                                                CUSTOM CSS (APPENDED TO THEME)
+                                            </label>
+                                            <textarea
+                                                className="w-full p-3 font-mono text-xs border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 h-32"
+                                                placeholder="/* e.g. .chapter-title { font-family: 'SpecificFont'; } */"
+                                                defaultValue={book.customCss || ''}
+                                            ></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* TOC Preview */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                            <ListIcon size={20} /> Structure Preview
+                            <ListIcon size={20} /> Structure Preview (Read-Only)
                         </h2>
                         <div className="border border-slate-100 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
                             {[1, 2, 3, 4, 5, 6].map(i => (
@@ -574,9 +643,6 @@ const BookDetailView = ({ book, onBack }) => {
                                     <span className="text-xs text-slate-400 font-mono">2.4kb</span>
                                 </div>
                             ))}
-                            <div className="px-4 py-3 text-xs text-slate-400 text-center italic bg-slate-50">
-                                + 1,402 more items
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -587,25 +653,60 @@ const BookDetailView = ({ book, onBack }) => {
 
 // --- Rules View ---
 const RulesView = () => {
+    const [selectedCategory, setSelectedCategory] = useState('parsing'); // parsing | rendering
+    const [selectedRuleId, setSelectedRuleId] = useState(PARSING_RULES[0].id);
+
+    // Fake state for CSS preview
+    const [cssSettings, setCssSettings] = useState({
+        fontSize: 100, // %
+        lineHeight: 1.5,
+        indent: 2, // em
+        fontFamily: 'serif'
+    });
+
+    const activeRule = (selectedCategory === 'parsing' ? PARSING_RULES : RENDERING_THEMES).find(r => r.id === selectedRuleId) || PARSING_RULES[0];
+
     return (
         <div className="h-[calc(100vh-140px)] flex flex-col lg:flex-row gap-6">
             {/* Sidebar: Rules List */}
             <div className="w-full lg:w-64 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden">
-                <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                    <span className="font-semibold text-slate-700">Templates</span>
-                    <button className="text-indigo-600 hover:text-indigo-800"><Layers size={18} /></button>
+
+                {/* Category Switcher */}
+                <div className="p-2 border-b border-slate-200 grid grid-cols-2 gap-1 bg-slate-50">
+                    <button
+                        onClick={() => { setSelectedCategory('parsing'); setSelectedRuleId(PARSING_RULES[0].id); }}
+                        className={`text-xs font-bold py-2 rounded flex flex-col items-center justify-center gap-1 ${selectedCategory === 'parsing' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Split size={14} />
+                        Parsers
+                    </button>
+                    <button
+                        onClick={() => { setSelectedCategory('rendering'); setSelectedRuleId(RENDERING_THEMES[0].id); }}
+                        className={`text-xs font-bold py-2 rounded flex flex-col items-center justify-center gap-1 ${selectedCategory === 'rendering' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Type size={14} />
+                        Themes
+                    </button>
                 </div>
+
                 <div className="overflow-y-auto flex-1 p-2 space-y-1">
-                    {MOCK_RULES.map(rule => (
-                        <button key={rule.id} className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between group ${rule.id === 'r-1' ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200' : 'text-slate-600 hover:bg-slate-50'}`}>
-                            <span className="truncate">{rule.name}</span>
-                            <span className="text-[10px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-400">{rule.version}</span>
+                    <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        {selectedCategory === 'parsing' ? 'Structure Regex' : 'Output CSS'}
+                    </div>
+                    {(selectedCategory === 'parsing' ? PARSING_RULES : RENDERING_THEMES).map(rule => (
+                        <button
+                            key={rule.id}
+                            onClick={() => setSelectedRuleId(rule.id)}
+                            className={`w-full text-left px-3 py-3 rounded-lg text-sm flex items-center justify-between group transition-colors ${selectedRuleId === rule.id ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                            <div className="truncate font-medium">{rule.name}</div>
+                            {rule.version === 'local' && <span className="w-2 h-2 rounded-full bg-amber-400"></span>}
                         </button>
                     ))}
                 </div>
                 <div className="p-3 border-t border-slate-200">
-                    <button className="w-full py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">
-                        + New Template
+                    <button className="w-full py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2">
+                        + New {selectedCategory === 'parsing' ? 'Parser' : 'Theme'}
                     </button>
                 </div>
             </div>
@@ -615,25 +716,31 @@ const RulesView = () => {
                 {/* Editor Toolbar */}
                 <div className="bg-white border border-slate-200 rounded-xl p-3 flex justify-between items-center">
                     <div className="flex gap-4 items-center">
-                        <h3 className="font-bold text-slate-800 px-2">General Webnovel</h3>
-                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded border border-green-200">Production Ready</span>
+                        <div className="flex flex-col">
+                            <h3 className="font-bold text-slate-800">{activeRule.name}</h3>
+                            <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wide">
+                                {activeRule.type === 'regex' ? 'Regex Configuration' : 'CSS Stylesheet'}
+                            </span>
+                        </div>
+                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded border border-green-200">v2.0</span>
                     </div>
                     <button className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm rounded-lg hover:bg-slate-900">
-                        <Save size={16} /> Save Version
+                        <Save size={16} /> Save Changes
                     </button>
                 </div>
 
-                {/* Workbench Split View */}
-                <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
-                    {/* Regex/Config Input */}
-                    <div className="bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden">
-                        <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 text-xs font-mono text-slate-500 flex justify-between">
-                            <span>CONFIG JSON</span>
-                            <span>REGEX MODE</span>
-                        </div>
-                        <textarea
-                            className="flex-1 w-full p-4 font-mono text-sm resize-none focus:outline-none text-slate-700"
-                            defaultValue={`{
+                {selectedCategory === 'parsing' ? (
+                    /* REGEX MODE */
+                    <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+                        {/* Regex/Config Input */}
+                        <div className="bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden">
+                            <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 text-xs font-mono text-slate-500 flex justify-between">
+                                <span>CONFIG JSON</span>
+                                <span className="text-indigo-600 font-bold">PARSING MODE</span>
+                            </div>
+                            <textarea
+                                className="flex-1 w-full p-4 font-mono text-sm resize-none focus:outline-none text-slate-700"
+                                defaultValue={`{
   "chapter_regex": "^第[0-9一二三四五六七八九十百千]+[章卷].*",
   "noise_filters": [
     "更多更新请访问.*",
@@ -642,28 +749,97 @@ const RulesView = () => {
   "hierarchy": ["volume", "chapter"],
   "min_line_length": 5
 }`}
-                        ></textarea>
-                    </div>
+                            ></textarea>
+                        </div>
 
-                    {/* Live Test */}
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl flex flex-col overflow-hidden shadow-inner">
-                        <div className="bg-slate-900 px-4 py-2 border-b border-slate-700 text-xs font-mono text-slate-400 flex justify-between items-center">
-                            <span>TEST BENCH (PASTE TXT HERE)</span>
-                            <div className="flex gap-2">
-                                <span className="flex items-center gap-1 text-green-400"><div className="w-2 h-2 bg-green-500 rounded-full"></div> 12 Matches</span>
+                        {/* Live Test */}
+                        <div className="bg-slate-800 border border-slate-700 rounded-xl flex flex-col overflow-hidden shadow-inner">
+                            <div className="bg-slate-900 px-4 py-2 border-b border-slate-700 text-xs font-mono text-slate-400 flex justify-between items-center">
+                                <span>TEST BENCH (PASTE TXT HERE)</span>
+                                <div className="flex gap-2">
+                                    <span className="flex items-center gap-1 text-green-400"><div className="w-2 h-2 bg-green-500 rounded-full"></div> 12 Matches</span>
+                                </div>
+                            </div>
+                            <div className="flex-1 relative font-mono text-sm p-4 overflow-y-auto bg-slate-800 text-slate-400 whitespace-pre-wrap">
+                                {/* Simulated Highlighting */}
+                                <span className="bg-indigo-500/30 text-indigo-100 px-1 rounded block mb-2">第1章 穿越开始</span>
+                                <p className="mb-4">Here is some normal text that is part of the content body...</p>
+                                <span className="bg-indigo-500/30 text-indigo-100 px-1 rounded block mb-2">第2章 系统觉醒</span>
+                                <p className="mb-4">More content here...</p>
+                                <span className="bg-red-500/20 text-red-200 px-1 rounded block mb-2 line-through opacity-70">PS: 求推荐票</span>
+                                <p>End of sample.</p>
                             </div>
                         </div>
-                        <div className="flex-1 relative font-mono text-sm p-4 overflow-y-auto bg-slate-800 text-slate-400 whitespace-pre-wrap">
-                            {/* Simulated Highlighting */}
-                            <span className="bg-indigo-500/30 text-indigo-100 px-1 rounded block mb-2">第1章 穿越开始</span>
-                            <p className="mb-4">Here is some normal text that is part of the content body...</p>
-                            <span className="bg-indigo-500/30 text-indigo-100 px-1 rounded block mb-2">第2章 系统觉醒</span>
-                            <p className="mb-4">More content here...</p>
-                            <span className="bg-red-500/20 text-red-200 px-1 rounded block mb-2 line-through opacity-70">PS: 求推荐票</span>
-                            <p>End of sample.</p>
+                    </div>
+                ) : (
+                    /* CSS MODE */
+                    <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
+                        {/* CSS Controls & Code */}
+                        <div className="col-span-5 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden">
+                            <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 text-xs font-mono text-slate-500 flex justify-between">
+                                <span>STYLE CONTROLS</span>
+                                <span className="text-pink-600 font-bold">THEME MODE</span>
+                            </div>
+                            <div className="p-4 border-b border-slate-100 space-y-4">
+                                {/* Sliders for Base Styles */}
+                                <div>
+                                    <label className="flex justify-between text-xs font-semibold text-slate-500 mb-1">
+                                        <span>Base Font Size</span>
+                                        <span>{cssSettings.fontSize}%</span>
+                                    </label>
+                                    <input type="range" min="80" max="150" value={cssSettings.fontSize} onChange={(e) => setCssSettings({ ...cssSettings, fontSize: e.target.value })} className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer" />
+                                </div>
+                                <div>
+                                    <label className="flex justify-between text-xs font-semibold text-slate-500 mb-1">
+                                        <span>Line Height</span>
+                                        <span>{cssSettings.lineHeight}</span>
+                                    </label>
+                                    <input type="range" min="1" max="2.5" step="0.1" value={cssSettings.lineHeight} onChange={(e) => setCssSettings({ ...cssSettings, lineHeight: e.target.value })} className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer" />
+                                </div>
+                            </div>
+                            <textarea
+                                className="flex-1 w-full p-4 font-mono text-xs resize-none focus:outline-none text-slate-700 bg-slate-50"
+                                placeholder="/* Add custom CSS overrides here */"
+                                defaultValue={`/* ${activeRule.name} */
+body {
+  margin: 0;
+  text-align: justify;
+}
+p {
+  text-indent: 2em;
+  margin-bottom: 0.5em;
+}`}
+                            ></textarea>
+                        </div>
+
+                        {/* CSS Preview */}
+                        <div className="col-span-7 bg-[#fbfbfb] border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-inner relative">
+                            <div className="absolute top-4 right-4 z-10 opacity-20 pointer-events-none">
+                                <Smartphone size={120} />
+                            </div>
+                            <div className="flex-1 p-8 overflow-y-auto max-w-lg mx-auto w-full">
+                                <div
+                                    className="prose prose-slate prose-lg max-w-none text-gray-800"
+                                    style={{
+                                        fontSize: `${cssSettings.fontSize}%`,
+                                        lineHeight: cssSettings.lineHeight,
+                                    }}
+                                >
+                                    <h2 className="font-bold mb-6 text-2xl">Chapter 1: The CSS Preview</h2>
+                                    <p style={{ textIndent: `${cssSettings.indent}em` }}>
+                                        This is a live preview of your CSS settings. You can adjust the sliders on the left to change the base typography of the EPUB.
+                                    </p>
+                                    <p style={{ textIndent: `${cssSettings.indent}em` }}>
+                                        The "Kindle Optimization" template typically uses a slightly larger line-height and specific margins to ensure readability on e-ink screens.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="bg-white border-t border-slate-200 px-4 py-2 text-xs text-slate-400 flex justify-center">
+                                Review Mode: iPhone 12 / Kindle Paperwhite (Simulated)
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

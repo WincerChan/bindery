@@ -1,38 +1,641 @@
 {% extends "base.html" %}
 
-{% block title %}{{ book.title }} · 预览{% endblock %}
+{% block title %}{{ book.title }} · 阅读器{% endblock %}
 
 {% block content %}
-<section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 border-b border-slate-200 bg-slate-50">
-    <div class="shrink-0">
-      <a class="px-4 py-2 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors inline-flex" href="/book/{{ book.book_id }}">
-        返回详情
+<div
+  x-data="binderyReader()"
+  class="h-full w-full flex flex-col relative"
+  :class="readerBg === 'paper' ? 'bg-amber-50' : readerBg === 'sand' ? 'bg-stone-100' : readerBg === 'mint' ? 'bg-emerald-50' : 'bg-slate-50'"
+>
+  <div class="fixed top-0 left-0 right-0 z-50 h-14 group">
+    <header
+      class="h-14 bg-white/90 backdrop-blur border-b border-slate-200 flex items-center gap-3 px-3 transition-opacity duration-200 opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
+      :class="(tocOpen || settingsOpen) ? 'md:opacity-100 md:pointer-events-auto' : ''"
+    >
+      <button
+        type="button"
+        class="inline-flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
+        aria-label="切换目录"
+        @click="tocOpen = !tocOpen"
+      >
+        <svg viewBox="0 0 24 24" fill="none" class="w-5 h-5" aria-hidden="true">
+          <path d="M4 6h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M4 12h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+        </svg>
+      </button>
+
+      <a
+        href="/book/{{ book.book_id }}"
+        class="sm:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+        aria-label="返回详情"
+        title="返回详情"
+      >
+        <svg viewBox="0 0 24 24" fill="none" class="w-5 h-5" aria-hidden="true">
+          <path d="M15 18 9 12l6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
       </a>
+
+      <a
+        href="/book/{{ book.book_id }}"
+        class="hidden sm:inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+      >返回详情</a>
+
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-semibold text-slate-900 truncate">{{ book.title }}</div>
+        <div class="text-xs text-slate-500 truncate">{{ section.title }}</div>
+      </div>
+
+      <button
+        type="button"
+        class="inline-flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
+        aria-label="设置"
+        title="设置"
+        @click="settingsOpen = !settingsOpen"
+      >
+        <svg viewBox="0 0 24 24" fill="none" class="w-5 h-5" aria-hidden="true">
+          <path
+            d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z"
+            stroke="currentColor"
+            stroke-width="2"
+          ></path>
+          <path
+            d="M19.2 12a7.5 7.5 0 0 0-.08-1l2.02-1.57-2-3.46-2.43.98a7.35 7.35 0 0 0-1.74-1l-.37-2.58H9.4l-.37 2.58a7.35 7.35 0 0 0-1.74 1l-2.43-.98-2 3.46L4.88 11a7.5 7.5 0 0 0 0 2l-2.02 1.57 2 3.46 2.43-.98a7.35 7.35 0 0 0 1.74 1l.37 2.58h5.2l.37-2.58a7.35 7.35 0 0 0 1.74-1l2.43.98 2-3.46L19.12 13c.05-.33.08-.66.08-1Z"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+      </button>
+    </header>
+  </div>
+
+  <div
+    class="absolute top-16 right-3 z-50 w-80 max-w-[calc(100vw-1.5rem)] rounded-xl bg-white border border-slate-200 shadow-lg p-3"
+    x-show="settingsOpen"
+    x-transition.opacity
+    @click.outside="settingsOpen = false"
+  >
+    <div class="flex items-center justify-between gap-2">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">设置</div>
+      <button
+        type="button"
+        class="w-9 h-9 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
+        aria-label="关闭设置"
+        @click="settingsOpen = false"
+      >
+        <svg viewBox="0 0 24 24" fill="none" class="w-5 h-5" aria-hidden="true">
+          <path d="M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+        </svg>
+      </button>
     </div>
-    <div class="flex-1 text-center">
-      <div class="font-semibold text-slate-900 truncate">{{ book.title }}</div>
-      <div class="text-sm text-slate-500 truncate">{{ section.title }}</div>
-    </div>
-    <div class="shrink-0 flex gap-2 justify-end">
-      {% if prev_idx is not none %}
-        <a class="px-4 py-2 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors" href="/book/{{ book.book_id }}/preview/{{ prev_idx }}">上一节</a>
-      {% endif %}
-      {% if next_idx is not none %}
-        <a class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors" href="/book/{{ book.book_id }}/preview/{{ next_idx }}">下一节</a>
-      {% endif %}
+
+    <div class="mt-3 space-y-3">
+      <div>
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">背景</div>
+        <div class="mt-2 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            class="h-9 rounded-lg border text-xs font-medium transition-colors"
+            :class="readerBg === 'book' ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            @click="readerBg = 'book'"
+          >书籍</button>
+          <button
+            type="button"
+            class="h-9 rounded-lg border text-xs font-medium transition-colors"
+            :class="readerBg === 'slate' ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            @click="readerBg = 'slate'"
+          >灰白</button>
+          <button
+            type="button"
+            class="h-9 rounded-lg border text-xs font-medium transition-colors"
+            :class="readerBg === 'paper' ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            @click="readerBg = 'paper'"
+          >纸张</button>
+          <button
+            type="button"
+            class="h-9 rounded-lg border text-xs font-medium transition-colors"
+            :class="readerBg === 'sand' ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            @click="readerBg = 'sand'"
+          >砂岩</button>
+          <button
+            type="button"
+            class="h-9 rounded-lg border text-xs font-medium transition-colors"
+            :class="readerBg === 'mint' ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            @click="readerBg = 'mint'"
+          >薄荷</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">样式</div>
+        <div class="mt-2 flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200">
+          <button
+            type="button"
+            class="flex-1 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            :class="styleMode === 'book' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+            @click="styleMode = 'book'"
+          >书籍</button>
+          <button
+            type="button"
+            class="flex-1 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            :class="styleMode === 'custom' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+            @click="styleMode = 'custom'"
+          >自定义</button>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">书籍：尽量保持 EPUB 原样式；自定义：覆盖字体/字号/行高。</div>
+      </div>
+
+      <div x-show="styleMode === 'custom'" x-transition.opacity class="space-y-3">
+        <div class="grid grid-cols-2 gap-2">
+          <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide self-center">字体</label>
+          <select
+            class="px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            x-model="fontFamily"
+          >
+            <option value="serif">衬线</option>
+            <option value="sans">无衬线</option>
+            <option value="mono">等宽</option>
+          </select>
+
+          <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide self-center">字号</label>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+              aria-label="减小字号"
+              @click="decFont()"
+            >A-</button>
+            <div class="flex-1 text-center text-xs font-mono text-slate-500" x-text="fontSize + 'px'"></div>
+            <button
+              type="button"
+              class="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+              aria-label="增大字号"
+              @click="incFont()"
+            >A+</button>
+          </div>
+
+          <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide self-center">行高</label>
+          <select
+            class="px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            x-model="lineHeight"
+          >
+            <option value="1.55">1.55</option>
+            <option value="1.65">1.65</option>
+            <option value="1.75">1.75</option>
+            <option value="1.85">1.85</option>
+            <option value="1.95">1.95</option>
+            <option value="2.05">2.05</option>
+          </select>
+        </div>
+      </div>
     </div>
   </div>
 
-  <article class="p-0">
-    <iframe
-      class="w-full min-h-[70vh] bg-white"
-      src="{{ section.content_url }}"
-      sandbox="allow-same-origin"
-      referrerpolicy="no-referrer"
-      loading="lazy"
-      title="{{ section.title }}"
-    ></iframe>
-  </article>
-</section>
+  <div class="flex-1 min-h-0 flex relative pt-14 md:pt-0">
+    <div
+      class="absolute inset-0 bg-black/30 z-30"
+      x-show="tocOpen"
+      x-transition.opacity
+      @click="tocOpen = false"
+    ></div>
+
+    <aside
+      class="absolute inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200 overflow-y-auto transform transition-transform duration-200 ease-out"
+      :class="tocOpen ? 'translate-x-0' : '-translate-x-full'"
+    >
+      <div class="sticky top-0 bg-white border-b border-slate-200 p-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">目录</div>
+          <button
+            type="button"
+            class="w-9 h-9 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
+            aria-label="关闭目录"
+            @click="tocOpen = false"
+          >
+            <svg viewBox="0 0 24 24" fill="none" class="w-5 h-5" aria-hidden="true">
+              <path d="M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              <path d="M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">
+          共 {{ toc | length }} 节 · 当前 {{ section_index + 1 }}
+        </div>
+      </div>
+
+      <nav class="p-2 space-y-1">
+        {% for item in toc %}
+          <a
+            href="/book/{{ book.book_id }}/preview/{{ item.index }}"
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors {% if item.index == section_index %}bg-indigo-50 text-indigo-700{% else %}text-slate-700 hover:bg-slate-50{% endif %}"
+            @click="tocOpen = false"
+            title="{{ item.title }}"
+          >
+            <span class="truncate">{{ item.title }}</span>
+          </a>
+        {% endfor %}
+      </nav>
+    </aside>
+
+    <div class="flex-1 min-h-0 flex items-stretch justify-center">
+      <div class="w-full max-w-[600px] min-h-0 bg-white border-x border-slate-200 shadow-sm flex flex-col">
+        <iframe
+          x-ref="frame"
+          class="w-full flex-1 min-h-0 bg-white"
+          src="{{ section.content_url }}"
+          sandbox="allow-same-origin"
+          referrerpolicy="no-referrer"
+          loading="lazy"
+          title="{{ section.title }}"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    class="fixed left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 border border-slate-200 shadow-sm text-slate-800 hover:bg-white transition-opacity flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+    aria-label="上一页"
+    title="上一页（← / PageUp）"
+    @click="pagePrev()"
+    :disabled="!canPagePrev()"
+    :class="(tocOpen || settingsOpen) ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+  >
+    <svg viewBox="0 0 24 24" fill="none" class="w-6 h-6" aria-hidden="true">
+      <path d="M15 18 9 12l6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  </button>
+
+  <button
+    type="button"
+    class="fixed right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 border border-slate-200 shadow-sm text-slate-800 hover:bg-white transition-opacity flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+    aria-label="下一页"
+    title="下一页（→ / PageDown / 空格）"
+    @click="pageNext()"
+    :disabled="!canPageNext()"
+    :class="(tocOpen || settingsOpen) ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+  >
+    <svg viewBox="0 0 24 24" fill="none" class="w-6 h-6" aria-hidden="true">
+      <path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  </button>
+
+  <div
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-white/90 border border-slate-200 shadow-sm text-xs font-mono text-slate-600 transition-opacity"
+    :class="(tocOpen || settingsOpen) ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+    x-text="page + ' / ' + pageCount"
+  ></div>
+</div>
+
+<script>
+  function binderyReader() {
+    const storageKey = "bindery:reader";
+    const fonts = {
+      serif: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
+      sans: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
+      mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    };
+    const bgColors = {
+      slate: "#f8fafc",
+      paper: "#fffbeb",
+      sand: "#f5f5f4",
+      mint: "#ecfdf5",
+    };
+    const maxPageWidth = 600;
+    const prevChapterUrl = {% if prev_idx is not none %}"/book/{{ book.book_id }}/preview/{{ prev_idx }}"{% else %}null{% endif %};
+    const nextChapterUrl = {% if next_idx is not none %}"/book/{{ book.book_id }}/preview/{{ next_idx }}"{% else %}null{% endif %};
+
+    function clampInt(value, min, max, fallback) {
+      const n = Number.parseInt(String(value || ""), 10);
+      if (Number.isNaN(n)) return fallback;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function clampFloat(value, min, max, fallback) {
+      const n = Number.parseFloat(String(value || ""));
+      if (Number.isNaN(n)) return fallback;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+
+    function saveSettings(data) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(data));
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      tocOpen: false,
+      settingsOpen: false,
+      readerBg: "book",
+      styleMode: "book",
+      fontFamily: "serif",
+      fontSize: 18,
+      lineHeight: 1.85,
+      page: 1,
+      pageCount: 1,
+      prevChapterUrl: prevChapterUrl,
+      nextChapterUrl: nextChapterUrl,
+      _jumpToLast: false,
+      _scrollRaf: null,
+      _snapTimer: null,
+      _resizeTimer: null,
+      _persist() {
+        saveSettings({
+          readerBg: this.readerBg,
+          styleMode: this.styleMode,
+          fontFamily: this.fontFamily,
+          fontSize: this.fontSize,
+          lineHeight: this.lineHeight,
+        });
+      },
+      init() {
+        this._jumpToLast = new URLSearchParams(window.location.search).get("page") === "last";
+
+        const saved = loadSettings();
+        if (saved) {
+          if (typeof saved.readerBg === "string") this.readerBg = saved.readerBg;
+          if (saved.styleMode === "custom") this.styleMode = "custom";
+          if (saved.fontFamily && fonts[saved.fontFamily]) this.fontFamily = saved.fontFamily;
+          this.fontSize = clampInt(saved.fontSize, 12, 28, 18);
+          this.lineHeight = clampFloat(saved.lineHeight, 1.45, 2.2, 1.85);
+        }
+
+        const frame = this.$refs.frame;
+        if (frame) {
+          frame.addEventListener("load", () => this.applyToFrame());
+          // Best-effort for cached loads.
+          setTimeout(() => this.applyToFrame(), 0);
+        }
+
+        window.addEventListener("keydown", (evt) => this.onKeydown(evt));
+        window.addEventListener("resize", () => this.onResize());
+
+        this.$watch("tocOpen", () => {
+          if (this.tocOpen) this.settingsOpen = false;
+        });
+
+        this.$watch("settingsOpen", () => {
+          if (this.settingsOpen) this.tocOpen = false;
+        });
+
+        this.$watch("readerBg", () => {
+          this._persist();
+          this.applyToFrame();
+        });
+        this.$watch("styleMode", () => {
+          this._persist();
+          this.applyToFrame();
+        });
+        this.$watch("fontFamily", () => {
+          this._persist();
+          this.applyToFrame();
+        });
+        this.$watch("fontSize", () => {
+          this._persist();
+          this.applyToFrame();
+        });
+        this.$watch("lineHeight", () => {
+          this._persist();
+          this.applyToFrame();
+        });
+      },
+      onResize() {
+        if (this._resizeTimer) clearTimeout(this._resizeTimer);
+        this._resizeTimer = setTimeout(() => {
+          this.applyToFrame();
+        }, 150);
+      },
+      onKeydown(evt) {
+        if (!evt) return;
+        if (evt.altKey || evt.ctrlKey || evt.metaKey) return;
+
+        if (evt.key === "Escape") {
+          if (this.settingsOpen) {
+            evt.preventDefault();
+            this.settingsOpen = false;
+            return;
+          }
+          if (this.tocOpen) {
+            evt.preventDefault();
+            this.tocOpen = false;
+          }
+          return;
+        }
+
+        const target = evt.target;
+        const tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
+        if (tag === "input" || tag === "textarea" || tag === "select") return;
+
+        if (this.tocOpen || this.settingsOpen) return;
+
+        if (evt.key === "ArrowRight" || evt.key === "PageDown" || evt.key === " ") {
+          evt.preventDefault();
+          this.pageNext();
+          return;
+        }
+        if (evt.key === "ArrowLeft" || evt.key === "PageUp" || evt.key === "Backspace") {
+          evt.preventDefault();
+          this.pagePrev();
+        }
+      },
+      canPagePrev() {
+        return this.page > 1 || !!this.prevChapterUrl;
+      },
+      canPageNext() {
+        return this.page < this.pageCount || !!this.nextChapterUrl;
+      },
+      pagePrev() {
+        const scroller = this.getScroller();
+        if (scroller && this.page > 1) {
+          this.scrollToPage(this.page - 1, "smooth");
+          return;
+        }
+        if (this.prevChapterUrl) window.location.href = this.prevChapterUrl + "?page=last";
+      },
+      pageNext() {
+        const scroller = this.getScroller();
+        if (scroller && this.page < this.pageCount) {
+          this.scrollToPage(this.page + 1, "smooth");
+          return;
+        }
+        if (this.nextChapterUrl) window.location.href = this.nextChapterUrl;
+      },
+      decFont() {
+        this.fontSize = Math.max(12, this.fontSize - 1);
+      },
+      incFont() {
+        this.fontSize = Math.min(28, this.fontSize + 1);
+      },
+      getScroller() {
+        const frame = this.$refs.frame;
+        if (!frame || !frame.contentDocument) return null;
+        return frame.contentDocument.getElementById("bindery-reader-scroller");
+      },
+      scrollToPage(targetPage, behavior) {
+        const scroller = this.getScroller();
+        if (!scroller) return;
+        const width = scroller.clientWidth;
+        if (width <= 0) return;
+        const clamped = Math.max(1, Math.min(this.pageCount, targetPage));
+        scroller.scrollTo({ left: (clamped - 1) * width, top: 0, behavior: behavior || "auto" });
+        this.page = clamped;
+      },
+      refreshPagination(opts) {
+        const scroller = this.getScroller();
+        if (!scroller) return;
+        const desiredPage = opts && opts.desiredPage ? opts.desiredPage : this.page;
+        const behavior = opts && opts.behavior ? opts.behavior : "auto";
+
+        requestAnimationFrame(() => {
+          const width = scroller.clientWidth;
+          if (width <= 0) return;
+          const sw = Math.max(0, scroller.scrollWidth - 1);
+          const count = Math.max(1, Math.ceil(sw / width));
+          this.pageCount = count;
+
+          const clamped = Math.max(1, Math.min(count, desiredPage));
+          this.page = clamped;
+          scroller.scrollTo({ left: (clamped - 1) * width, top: 0, behavior: behavior });
+        });
+      },
+      _attachScrollListener() {
+        const scroller = this.getScroller();
+        if (!scroller) return;
+        if (scroller.dataset.binderyScrollListener) return;
+        scroller.dataset.binderyScrollListener = "1";
+
+        scroller.addEventListener(
+          "scroll",
+          () => {
+            if (this._snapTimer) clearTimeout(this._snapTimer);
+            this._snapTimer = setTimeout(() => {
+              this.scrollToPage(this.page, "auto");
+            }, 120);
+
+            if (this._scrollRaf) cancelAnimationFrame(this._scrollRaf);
+            this._scrollRaf = requestAnimationFrame(() => {
+              const width = scroller.clientWidth || 1;
+              const idx = Math.round(scroller.scrollLeft / width) + 1;
+              this.page = Math.max(1, Math.min(this.pageCount, idx));
+            });
+          },
+          { passive: true },
+        );
+      },
+      _attachFrameKeyListener(doc) {
+        if (!doc || !doc.documentElement) return;
+        if (doc.documentElement.dataset.binderyKeyListener) return;
+        doc.documentElement.dataset.binderyKeyListener = "1";
+        doc.addEventListener("keydown", (evt) => this.onKeydown(evt));
+      },
+      _mountPagedLayout(doc) {
+        if (!doc || !doc.body) return;
+        if (doc.getElementById("bindery-reader-scroller")) return;
+        const body = doc.body;
+
+        const scroller = doc.createElement("div");
+        scroller.id = "bindery-reader-scroller";
+        const pages = doc.createElement("div");
+        pages.id = "bindery-reader-pages";
+
+        const frag = doc.createDocumentFragment();
+        while (body.firstChild) frag.appendChild(body.firstChild);
+        pages.appendChild(frag);
+        scroller.appendChild(pages);
+        body.appendChild(scroller);
+      },
+      _updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg) {
+        if (!doc) return;
+        doc.documentElement.style.setProperty("--bindery-page-max-width", maxPageWidth + "px");
+        doc.documentElement.style.setProperty("--bindery-page-padding-x", paddingX + "px");
+        doc.documentElement.style.setProperty("--bindery-page-padding-y", paddingY + "px");
+        doc.documentElement.style.setProperty("--bindery-font-family", family);
+        doc.documentElement.style.setProperty("--bindery-font-size", size + "px");
+        doc.documentElement.style.setProperty("--bindery-line-height", String(lineHeight));
+        doc.documentElement.style.setProperty("--bindery-reader-bg", themeBg);
+
+        const scroller = doc.getElementById("bindery-reader-scroller");
+        if (!scroller) return;
+        const width = scroller.clientWidth || maxPageWidth;
+        const columnWidth = Math.max(240, width - 2 * paddingX);
+        doc.documentElement.style.setProperty("--bindery-column-width", columnWidth + "px");
+        doc.documentElement.style.setProperty("--bindery-column-gap", paddingX * 2 + "px");
+      },
+      applyToFrame() {
+        const frame = this.$refs.frame;
+        if (!frame || !frame.contentDocument) return;
+        const doc = frame.contentDocument;
+        const head = doc.head || doc.getElementsByTagName("head")[0];
+        if (!head) return;
+        if (!doc.body) return;
+
+        this._mountPagedLayout(doc);
+
+        let style = doc.getElementById("bindery-reader-style");
+        if (!style) {
+          style = doc.createElement("style");
+          style.id = "bindery-reader-style";
+          head.appendChild(style);
+        }
+
+        const family = fonts[this.fontFamily] || fonts.serif;
+        const size = clampInt(this.fontSize, 12, 28, 18);
+        const lineHeight = clampFloat(this.lineHeight, 1.45, 2.2, 1.85);
+        const paddingX = this.styleMode === "custom" ? 22 : 0;
+        const paddingY = this.styleMode === "custom" ? 24 : 0;
+        const themeOn = this.readerBg !== "book";
+        const themeBg = bgColors[this.readerBg] || bgColors.slate;
+
+        doc.documentElement.classList.toggle("bindery-mode-custom", this.styleMode === "custom");
+        doc.documentElement.classList.toggle("bindery-mode-book", this.styleMode !== "custom");
+        doc.documentElement.classList.toggle("bindery-theme-on", themeOn);
+
+        style.textContent =
+          "html,body{height:100%!important;}" +
+          "body{overflow:hidden!important;}" +
+          "html.bindery-theme-on,html.bindery-theme-on body{background:var(--bindery-reader-bg)!important;}" +
+          "html.bindery-mode-custom body{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;}" +
+          "#bindery-reader-scroller{height:100%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:smooth;scrollbar-width:none;}" +
+          "#bindery-reader-scroller::-webkit-scrollbar{display:none;}" +
+          "#bindery-reader-pages{height:100%!important;box-sizing:border-box!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding:var(--bindery-page-padding-y,0px) var(--bindery-page-padding-x,0px)!important;}" +
+          "h1,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}" +
+          "img,svg,video{max-width:100%!important;height:auto!important;}";
+
+        requestAnimationFrame(() => {
+          this._updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg);
+          this._attachScrollListener();
+          this._attachFrameKeyListener(doc);
+
+          const desired = this._jumpToLast ? 99999 : this.page;
+          this.refreshPagination({ desiredPage: desired, behavior: "auto" });
+          if (this._jumpToLast) {
+            this._jumpToLast = false;
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete("page");
+              history.replaceState({}, "", url);
+            } catch {
+              // ignore
+            }
+          }
+        });
+      },
+    };
+  }
+</script>
 {% endblock %}

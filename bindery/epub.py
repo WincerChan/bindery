@@ -104,7 +104,7 @@ def _add_metadata(book: epub.EpubBook, meta: Metadata) -> None:
     book.add_metadata(None, "meta", modified, {"property": "dcterms:modified"})
 
 
-def _clear_metadata(book: epub.EpubBook) -> None:
+def _clear_metadata(book: epub.EpubBook, *, keep_cover: bool = False) -> None:
     dc_ns = epub.NAMESPACES["DC"]
     opf_ns = epub.NAMESPACES["OPF"]
     dc = book.metadata.get(dc_ns, {})
@@ -119,7 +119,9 @@ def _clear_metadata(book: epub.EpubBook) -> None:
     for value, attrs in meta_items:
         if attrs.get("property") in {"dcterms:modified", "belongs-to-collection"}:
             continue
-        if attrs.get("name") in {"rating", "cover"}:
+        if attrs.get("name") == "rating":
+            continue
+        if not keep_cover and attrs.get("name") == "cover":
             continue
         filtered.append((value, attrs))
     if opf:
@@ -130,9 +132,10 @@ def _clear_metadata(book: epub.EpubBook) -> None:
 def update_epub_metadata(epub_file: Path, meta: Metadata, cover_path: Optional[Path] = None) -> None:
     book = epub.read_epub(str(epub_file))
     _normalize_spine_and_toc(book)
-    _clear_metadata(book)
+    cover_ok = bool(cover_path and cover_path.exists())
+    _clear_metadata(book, keep_cover=not cover_ok)
     _add_metadata(book, meta)
-    if cover_path and cover_path.exists():
+    if cover_ok:
         book.set_cover(cover_path.name, cover_path.read_bytes())
     epub.write_epub(str(epub_file), book, {"epub3_pages": False})
 

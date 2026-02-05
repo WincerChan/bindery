@@ -11,6 +11,9 @@
   <body class="min-h-screen bg-slate-50 text-slate-900">
     {% set path = request.url.path %}
     {% set nav_base = "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors" %}
+    {% set hide_nav = hide_nav if hide_nav is defined else false %}
+    {% set main_class = main_class if main_class is defined and main_class else "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" %}
+    {% if not hide_nav %}
     <nav class="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-sm">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <div class="flex items-center gap-6">
@@ -80,8 +83,9 @@
         </div>
       </div>
     </nav>
+    {% endif %}
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="{{ main_class }}">
       {% block content %}{% endblock %}
     </main>
   </body>

@@ -1,6 +1,21 @@
 <div id="meta-panel" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-  <div class="flex justify-between items-center mb-6">
-    <h2 class="text-xl font-bold text-slate-900">编辑元数据</h2>
+  <div class="flex justify-between items-start gap-4 mb-6">
+    <div class="flex items-start gap-4 min-w-0">
+      <div class="w-20 sm:w-24 aspect-[2/3] rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shadow-sm shrink-0">
+        {% if book.cover_url %}
+          <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover" />
+        {% else %}
+          <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 p-3 text-center">
+            <div class="w-9 h-9 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500 font-bold text-lg mb-2">B</div>
+            <span class="text-[10px] font-mono line-clamp-2">{{ book.title }}</span>
+          </div>
+        {% endif %}
+      </div>
+      <div class="min-w-0">
+        <h2 class="text-xl font-bold text-slate-900 truncate">{{ book.title }}</h2>
+        <div class="mt-1 text-xs text-slate-500">编辑并写回到 EPUB（封面将从书籍本身读取）</div>
+      </div>
+    </div>
     <a class="px-4 py-2 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors" href="/book/{{ book_id }}">取消</a>
   </div>
   <form
