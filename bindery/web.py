@@ -20,6 +20,7 @@ from fastapi.templating import Jinja2Templates
 from .auth import SESSION_COOKIE, configured_hash, is_authenticated, sign_in, sign_out, verify_password
 from .db import create_job, get_job, init_db, list_jobs, update_job
 from .epub import (
+    DEFAULT_EPUB_CSS,
     build_epub,
     epub_base_href,
     extract_cover,
@@ -57,6 +58,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 BOOK_ID_RE = re.compile(r"^[a-f0-9]{32}$")
+DEFAULT_THEME_ID = "default"
+# 显式声明“保持书籍样式”（仅针对 EPUB 导入书籍有意义）；避免用 `None` 产生歧义。
+KEEP_BOOK_THEME_ID = "__book__"
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -197,6 +201,87 @@ def _status_view(meta: Metadata) -> tuple[str, str]:
     return "待写回", "pending"
 
 
+def _effective_theme_id(meta: Metadata) -> Optional[str]:
+    raw = (meta.theme_template or "").strip()
+    if meta.source_type == "epub" and raw == KEEP_BOOK_THEME_ID:
+        return None
+    if raw:
+        return raw
+    return DEFAULT_THEME_ID
+
+
+def _compose_css_text(meta: Metadata) -> str:
+    theme_id = _effective_theme_id(meta)
+    theme_css = get_theme(theme_id).css if theme_id else ""
+    return compose_css(theme_css, meta.custom_css)
+
+
+def _normalize_css_text(text: str) -> str:
+    return (text or "").replace("\r\n", "\n").strip()
+
+
+def _style_css_path(names: list[str]) -> Optional[str]:
+    if "EPUB/style.css" in names:
+        return "EPUB/style.css"
+    for name in names:
+        if name.endswith("/style.css") or name == "style.css":
+            return name
+    return None
+
+
+def _overlay_css_paths(names: list[str]) -> list[str]:
+    matches = [
+        name
+        for name in names
+        if name.endswith("/Styles/bindery.css")
+        or name.endswith("/Styles/bindery-overlay.css")
+        or name.endswith("/Text/bindery.css")
+        or name.endswith("/bindery.css")
+    ]
+    return sorted(set(matches))
+
+
+def _book_epub_needs_css_sync(epub_file: Path, meta: Metadata) -> bool:
+    css_text = _compose_css_text(meta)
+    with zipfile.ZipFile(epub_file, "r") as zf:
+        names = zf.namelist()
+        if meta.source_type != "epub":
+            style_path = _style_css_path(names)
+            if not style_path:
+                return True
+            expected = css_text if css_text.strip() else DEFAULT_EPUB_CSS
+            actual = zf.read(style_path).decode("utf-8", errors="replace")
+            return _normalize_css_text(actual) != _normalize_css_text(expected)
+
+        overlay_paths = _overlay_css_paths(names)
+        if not css_text.strip():
+            return bool(overlay_paths)
+        if not overlay_paths:
+            return True
+        actual = zf.read(overlay_paths[0]).decode("utf-8", errors="replace")
+        return _normalize_css_text(actual) != _normalize_css_text(css_text)
+
+
+def _ensure_book_epub_css(base: Path, meta: Metadata) -> None:
+    epub_file = epub_path(base, meta.book_id)
+    if not epub_file.exists():
+        return
+    if not _book_epub_needs_css_sync(epub_file, meta):
+        return
+
+    css_text = _compose_css_text(meta)
+    if meta.source_type == "epub":
+        # 不覆盖封面：保持 EPUB 本体。
+        update_epub_metadata(epub_file, meta, None, css_text=css_text)
+    else:
+        book = load_book(base, meta.book_id)
+        cover_path_obj = cover_path(base, meta.book_id, meta.cover_file) if meta.cover_file else None
+        build_epub(book, meta, epub_file, cover_path_obj, css_text=css_text)
+
+    _update_meta_synced(meta)
+    save_metadata(meta, base)
+
+
 def _book_view(meta: Metadata, base: Path) -> dict:
     status_label, status_class = _status_view(meta)
     source_type = meta.source_type or "txt"
@@ -222,6 +307,7 @@ def _book_view(meta: Metadata, base: Path) -> dict:
         "cover_file": meta.cover_file,
         "rule_template": meta.rule_template,
         "theme_template": meta.theme_template,
+        "effective_theme_template": _effective_theme_id(meta),
         "custom_css": meta.custom_css,
         "source_type": source_type,
         "can_regenerate": can_regenerate,
@@ -278,7 +364,8 @@ def _build_metadata(
     meta_published = published.strip() if published.strip() else None
     meta_isbn = isbn.strip() if isbn.strip() else None
     meta_rating = _parse_rating(rating)
-    meta_theme = theme_template.strip() if theme_template.strip() else "default"
+    raw_theme = theme_template.strip()
+    meta_theme = raw_theme if raw_theme and raw_theme != KEEP_BOOK_THEME_ID else DEFAULT_THEME_ID
     meta_css = custom_css.strip() if custom_css and custom_css.strip() else None
 
     return Metadata(
@@ -340,7 +427,11 @@ def _build_metadata_from_epub(
     meta_published = pick(published, extracted.get("published"))
     meta_isbn = pick(isbn, extracted.get("isbn"))
     meta_rating = _parse_rating(rating) if rating.strip() else extracted.get("rating")
-    meta_theme = theme_template.strip() if theme_template.strip() else None
+    raw_theme = theme_template.strip()
+    if raw_theme == KEEP_BOOK_THEME_ID:
+        meta_theme = KEEP_BOOK_THEME_ID
+    else:
+        meta_theme = raw_theme or DEFAULT_THEME_ID
     meta_css = custom_css.strip() if custom_css and custom_css.strip() else None
 
     return Metadata(
@@ -466,8 +557,7 @@ def _run_ingest(
         cover_path_obj = cover_path(base, book_id, cover_file) if cover_file else None
 
         _update_job(job.id, stage="生成 EPUB")
-        theme_css = get_theme(meta.theme_template or "default").css if meta.theme_template else ""
-        css_text = compose_css(theme_css, meta.custom_css)
+        css_text = _compose_css_text(meta)
         build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=css_text)
         _update_meta_synced(meta)
         save_metadata(meta, base)
@@ -539,8 +629,7 @@ def _run_epub_ingest(
                 meta.cover_file = save_cover_bytes(base, book_id, cover_data, cover_filename)
 
         cover_path_obj = cover_path(base, book_id, meta.cover_file) if meta.cover_file else None
-        theme_css = get_theme(meta.theme_template).css if meta.theme_template else ""
-        css_text = compose_css(theme_css, meta.custom_css)
+        css_text = _compose_css_text(meta)
         override_fields = [title, author, language, description, series, identifier, publisher, tags, published, isbn]
         needs_rewrite = any(value.strip() for value in override_fields if isinstance(value, str))
         if rating.strip() or cover_bytes:
@@ -586,8 +675,7 @@ def _run_regenerate(
         _update_job(job.id, stage="生成 EPUB")
         cover_file = meta.cover_file
         cover_path_obj = cover_path(base, book_id, cover_file) if cover_file else None
-        theme_css = get_theme(meta.theme_template or "default").css if meta.theme_template else ""
-        css_text = compose_css(theme_css, meta.custom_css)
+        css_text = _compose_css_text(meta)
         build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=css_text)
         _update_meta_synced(meta)
         save_metadata(meta, base)
@@ -1206,6 +1294,7 @@ async def download(book_id: str) -> FileResponse:
     base = library_dir()
     _require_book(base, book_id)
     meta = load_metadata(base, book_id)
+    _ensure_book_epub_css(base, meta)
     epub_file = epub_path(base, book_id)
     if not epub_file.exists():
         raise HTTPException(status_code=404, detail="EPUB missing")
@@ -1247,10 +1336,10 @@ async def upload_cover(request: Request, book_id: str, cover: UploadFile = File(
 
     cover_path_obj = cover_path(base, book_id, meta.cover_file)
     if meta.source_type == "epub":
-        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj)
+        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj, css_text=_compose_css_text(meta))
     else:
         book = load_book(base, book_id)
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=_compose_css_text(meta))
     _update_meta_synced(meta)
     save_metadata(meta, base)
 
@@ -1281,10 +1370,10 @@ async def upload_cover_url(
 
     cover_path_obj = cover_path(base, book_id, meta.cover_file)
     if meta.source_type == "epub":
-        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj)
+        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj, css_text=_compose_css_text(meta))
     else:
         book = load_book(base, book_id)
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=_compose_css_text(meta))
     _update_meta_synced(meta)
     save_metadata(meta, base)
     return RedirectResponse(url=f"/book/{book_id}", status_code=303)
@@ -1306,10 +1395,10 @@ async def extract_cover_view(book_id: str) -> RedirectResponse:
 
     cover_path_obj = cover_path(base, book_id, meta.cover_file)
     if meta.source_type == "epub":
-        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj)
+        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj, css_text=_compose_css_text(meta))
     else:
         book = load_book(base, book_id)
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=_compose_css_text(meta))
     _update_meta_synced(meta)
     save_metadata(meta, base)
     return RedirectResponse(url=f"/book/{book_id}", status_code=303)
@@ -1333,6 +1422,7 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
     base = library_dir()
     _require_book(base, book_id)
     meta = load_metadata(base, book_id)
+    _ensure_book_epub_css(base, meta)
     epub_file = epub_path(base, book_id)
     if not epub_file.exists():
         raise HTTPException(status_code=404, detail="EPUB missing")
@@ -1438,9 +1528,13 @@ async def save_edit(
     meta.rating = _parse_rating(rating)
     if meta.source_type != "epub":
         meta.rule_template = rule_template.strip() or meta.rule_template or "default"
-    meta.theme_template = theme_template.strip() or (meta.theme_template if meta.source_type == "epub" else "default")
-    if meta.source_type == "epub" and not theme_template.strip():
-        meta.theme_template = None
+    raw_theme = theme_template.strip()
+    if meta.source_type == "epub" and raw_theme == KEEP_BOOK_THEME_ID:
+        meta.theme_template = KEEP_BOOK_THEME_ID
+    else:
+        meta.theme_template = raw_theme or DEFAULT_THEME_ID
+        if meta.theme_template == KEEP_BOOK_THEME_ID:
+            meta.theme_template = DEFAULT_THEME_ID
     meta.custom_css = custom_css.strip() or None
     meta.status = "dirty"
     meta.updated_at = _now_iso()
@@ -1466,13 +1560,9 @@ async def save_edit(
 
     if meta.source_type == "epub":
         # 只写回元数据；封面保持 EPUB 本体不变。
-        theme_css = get_theme(meta.theme_template).css if meta.theme_template else ""
-        css_text = compose_css(theme_css, meta.custom_css)
-        update_epub_metadata(epub_file, meta, None, css_text=css_text)
+        update_epub_metadata(epub_file, meta, None, css_text=_compose_css_text(meta))
     else:
-        theme_css = get_theme(meta.theme_template or "default").css if meta.theme_template else ""
-        css_text = compose_css(theme_css, meta.custom_css)
-        build_epub(book, meta, epub_file, cover_path_obj, css_text=css_text)
+        build_epub(book, meta, epub_file, cover_path_obj, css_text=_compose_css_text(meta))
 
     # 保存后始终从 EPUB 刷新封面缓存，保证详情页封面只来源于书籍本体。
     extracted_cover = None

@@ -103,9 +103,9 @@
         <div class="space-y-1">
           <label class="text-xs font-semibold text-slate-500 uppercase">渲染主题</label>
           <select name="theme_template" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm">
-            <option value="" {% if not book.theme_template %}selected{% endif %}>保持书籍样式</option>
+            <option value="__book__" {% if book.source_type == "epub" and book.theme_template == "__book__" %}selected{% endif %}>保持书籍样式（仅 EPUB）</option>
             {% for theme in themes %}
-              <option value="{{ theme.theme_id }}" {% if book.theme_template == theme.theme_id %}selected{% endif %}>
+              <option value="{{ theme.theme_id }}" {% if book.effective_theme_template == theme.theme_id %}selected{% endif %}>
                 {{ theme.name }} · v{{ theme.version }}
               </option>
             {% endfor %}

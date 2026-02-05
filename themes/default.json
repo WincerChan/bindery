@@ -3,6 +3,5 @@
   "name": "默认样式",
   "description": "生成 EPUB 的默认排版（可全局复用）",
   "version": "1",
-  "css": "body { font-family: \"Noto Serif SC\", serif; line-height: 1.7; }\np { text-indent: 2em; margin: 0 0 0.8em; }\nh2 { font-weight: 700; font-size: 1.2em; margin: 1.5em 0 1em; }\nh1 { font-weight: 800; font-size: 1.6em; margin: 1.5em 0 1em; }\n.front-matter p.author { text-align: center; text-indent: 0; margin: 0 0 1.5em; }\n.front-matter p.intro-label { text-indent: 0; font-weight: 700; margin: 1.2em 0 0.6em; }\n.volume p, .volume h2 { text-indent: 0; }\n"
+  "css": "p {\n  text-indent: 2rem;\n}"
 }
-

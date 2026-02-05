@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from bindery.models import Book, Metadata
+from bindery.epub import build_epub
 from bindery.storage import epub_path, library_dir, save_book, save_metadata
 from bindery.web import download
 
@@ -30,7 +31,7 @@ class DownloadFilenameTests(unittest.TestCase):
 
                 save_book(book, base, book_id)
                 save_metadata(meta, base)
-                epub_path(base, book_id).write_bytes(b"dummy")
+                build_epub(book, meta, epub_path(base, book_id))
 
                 resp = asyncio.run(download(book_id))
                 self.assertEqual(resp.filename, "乱世书-姬叉.epub")
@@ -61,7 +62,7 @@ class DownloadFilenameTests(unittest.TestCase):
 
                 save_book(book, base, book_id)
                 save_metadata(meta, base)
-                epub_path(base, book_id).write_bytes(b"dummy")
+                build_epub(book, meta, epub_path(base, book_id))
 
                 resp = asyncio.run(download(book_id))
                 self.assertEqual(resp.filename, "乱世书-未知.epub")
