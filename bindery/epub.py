@@ -3,8 +3,9 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 import html
+import posixpath
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Iterable, Optional
 
 from ebooklib import epub
@@ -328,6 +329,17 @@ def _strip_scripts(html_text: str) -> str:
 
 def _inject_base(html_text: str, base_href: str) -> str:
     base_tag = f'<base href="{html.escape(base_href, quote=True)}" />'
+    # 预览时总是以我们自己的 /book/{id}/epub/... 作为资源基准；
+    # 若原文档存在 <base>，可能会把相对资源解析到错误位置（甚至逃逸出 /epub/）。
+    html_text = re.sub(r"<base\\b[^>]*>\\s*", "", html_text, flags=re.IGNORECASE)
+
+    # 处理 <head/>（自闭合）这种形式：需要展开成 <head>...</head> 才能放入 <base>。
+    match = re.search(r"<head([^>]*)\\s*/>", html_text, flags=re.IGNORECASE)
+    if match:
+        attrs = match.group(1) or ""
+        replacement = f"<head{attrs}>{base_tag}</head>"
+        return re.sub(r"<head([^>]*)\\s*/>", replacement, html_text, count=1, flags=re.IGNORECASE)
+
     match = re.search(r"<head[^>]*>", html_text, flags=re.IGNORECASE)
     if match:
         idx = match.end()
@@ -347,6 +359,14 @@ def _extract_title_from_html(html_text: str) -> Optional[str]:
 
 
 def _spine_items(book: epub.EpubBook) -> list[ebooklib.epub.EpubItem]:
+    def is_nav_doc(item: ebooklib.epub.EpubItem) -> bool:
+        if isinstance(item, epub.EpubNav):
+            return True
+        name = (item.get_name() or "").lower()
+        if name in {"nav.xhtml", "nav.html"}:
+            return True
+        return item.get_type() == ebooklib.ITEM_NAVIGATION
+
     items: list[ebooklib.epub.EpubItem] = []
     for entry in book.spine:
         if isinstance(entry, tuple):
@@ -358,14 +378,14 @@ def _spine_items(book: epub.EpubBook) -> list[ebooklib.epub.EpubItem]:
             item = entry
         if not item:
             continue
-        if item.get_type() == ebooklib.ITEM_NAVIGATION:
+        if is_nav_doc(item):
             continue
         if item.get_type() != ebooklib.ITEM_DOCUMENT:
             continue
         items.append(item)
     if items:
         return items
-    return [item for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT) if item.get_type() != ebooklib.ITEM_NAVIGATION]
+    return [item for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT) if not is_nav_doc(item)]
 
 
 def _normalize_spine_and_toc(book: epub.EpubBook) -> None:
@@ -434,7 +454,11 @@ def load_epub_item(epub_file: Path, item_path: str, base_href: str) -> tuple[byt
             break
     if not target:
         raise FileNotFoundError(item_path)
-    content = target.get_content()
+    content = getattr(target, "content", None)
+    if content is None:
+        content = target.get_content()
+    if isinstance(content, str):
+        content = content.encode("utf-8")
     media_type = target.media_type or "application/octet-stream"
     if target.get_type() == ebooklib.ITEM_DOCUMENT:
         text = content.decode("utf-8", errors="replace")
@@ -460,65 +484,85 @@ def epub_base_href(base_prefix: str, item_path: str) -> str:
         return prefix
     return f"{prefix}{parent.strip('/')}/"
 
-
-def _inject_stylesheet_link(html_text: str, href: str) -> str:
-    if re.search(rf"<link\\b[^>]*href=[\"']{re.escape(href)}[\"'][^>]*>", html_text, flags=re.IGNORECASE):
-        return html_text
-    link_tag = f'<link rel="stylesheet" type="text/css" href="{html.escape(href, quote=True)}" />'
-    match = re.search(r"</head\\s*>", html_text, flags=re.IGNORECASE)
-    if match:
-        idx = match.start()
-        return f"{html_text[:idx]}{link_tag}{html_text[idx:]}"
-    match = re.search(r"<head[^>]*>", html_text, flags=re.IGNORECASE)
-    if match:
-        idx = match.end()
-        return f"{html_text[:idx]}{link_tag}{html_text[idx:]}"
-    return f"<head>{link_tag}</head>{html_text}"
-
-
-def _remove_stylesheet_link(html_text: str, href: str) -> str:
-    return re.sub(
-        rf"<link\\b[^>]*href=[\"']{re.escape(href)}[\"'][^>]*>\\s*",
-        "",
-        html_text,
-        flags=re.IGNORECASE,
-    )
-
-
 def _apply_bindery_css_overlay(book: epub.EpubBook, css_text: str) -> None:
     css_clean = css_text.strip()
     docs = _spine_items(book)
-    by_dir: dict[str, list[ebooklib.epub.EpubItem]] = {}
+
+    doc_dirs: list[PurePosixPath] = []
     for item in docs:
         name = (item.get_name() or "").lstrip("/")
-        parent = str(Path(name).parent) if name else "."
-        by_dir.setdefault(parent, []).append(item)
+        if not name:
+            continue
+        doc_dirs.append(PurePosixPath(name).parent)
+
+    package_root = PurePosixPath(".")
+    if doc_dirs:
+        common = posixpath.commonpath([d.as_posix() for d in doc_dirs]) or "."
+        package_root = PurePosixPath(common)
+        if package_root.as_posix() in {"", "."}:
+            package_root = PurePosixPath(".")
+        if package_root.parts and package_root.parts[-1].lower() in {"text", "xhtml", "html"}:
+            package_root = package_root.parent if package_root.parent.as_posix() not in {"", "."} else PurePosixPath(".")
+
+    styles_dir = package_root / "Styles"
+    css_href = (styles_dir / BINDERY_CSS_NAME).as_posix()
+    if css_href.startswith("./"):
+        css_href = css_href[2:]
+
+    # 清理旧版本写入的 bindery.css（以前可能放在 Text/ 之下）。
+    keep_ids: set[str] = set()
+    if css_clean:
+        keep_ids.add(f"bindery-css:{css_href}")
+    kept: list[ebooklib.epub.EpubItem] = []
+    for item in book.get_items():
+        item_id = ""
+        try:
+            item_id = item.get_id() or ""
+        except Exception:
+            item_id = ""
+        if item_id.startswith("bindery-css:") and item_id not in keep_ids:
+            continue
+        kept.append(item)
+    book.items = kept
 
     if css_clean:
-        for directory in by_dir:
-            if directory in {"", "."}:
-                file_name = BINDERY_CSS_NAME
-            else:
-                file_name = str(Path(directory) / BINDERY_CSS_NAME)
-            existing = book.get_item_with_href(file_name)
-            if existing and existing.get_type() == ebooklib.ITEM_STYLE:
-                existing.set_content(css_clean.encode("utf-8"))
-            else:
-                style_item = epub.EpubItem(
-                    uid=f"bindery-css:{file_name}",
-                    file_name=file_name,
-                    media_type="text/css",
-                    content=css_clean.encode("utf-8"),
-                )
-                book.add_item(style_item)
-    for items in by_dir.values():
-        for item in items:
-            # ebooklib 在写 EPUB / 生成 HTML 时会重建 <head>，只保留 item.links。
-            # 因此不能通过“字符串注入 <link>”的方式写入样式表链接。
-            if not isinstance(item, epub.EpubHtml):
-                continue
-            if css_clean:
-                if not any(link.get("href") == BINDERY_CSS_NAME for link in item.links):
-                    item.add_link(href=BINDERY_CSS_NAME, rel="stylesheet", type="text/css")
-            else:
-                item.links = [link for link in item.links if link.get("href") != BINDERY_CSS_NAME]
+        existing = book.get_item_with_href(css_href)
+        if existing and existing.get_type() == ebooklib.ITEM_STYLE:
+            existing.set_content(css_clean.encode("utf-8"))
+        elif existing:
+            # 同名资源存在但不是样式，避免覆盖；改用不冲突的文件名。
+            css_href = (styles_dir / "bindery-overlay.css").as_posix()
+            if css_href.startswith("./"):
+                css_href = css_href[2:]
+            style_item = epub.EpubItem(
+                uid=f"bindery-css:{css_href}",
+                file_name=css_href,
+                media_type="text/css",
+                content=css_clean.encode("utf-8"),
+            )
+            book.add_item(style_item)
+        else:
+            style_item = epub.EpubItem(
+                uid=f"bindery-css:{css_href}",
+                file_name=css_href,
+                media_type="text/css",
+                content=css_clean.encode("utf-8"),
+            )
+            book.add_item(style_item)
+
+    for item in docs:
+        # ebooklib 在写 EPUB / 生成 HTML 时会重建 <head>，只保留 item.links。
+        # 因此不能通过“字符串注入 <link>”的方式写入样式表链接。
+        if not isinstance(item, epub.EpubHtml):
+            continue
+        item.links = [
+            link for link in item.links if PurePosixPath(str(link.get("href") or "")).name != BINDERY_CSS_NAME
+        ]
+        if css_clean:
+            name = (item.get_name() or "").lstrip("/")
+            doc_dir = PurePosixPath(name).parent if name else PurePosixPath(".")
+            start = doc_dir.as_posix()
+            if start in {"", "."}:
+                start = "."
+            rel_href = posixpath.relpath(css_href, start=start)
+            item.add_link(href=rel_href, rel="stylesheet", type="text/css")
