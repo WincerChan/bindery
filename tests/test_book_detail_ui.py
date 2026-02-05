@@ -28,7 +28,10 @@ class BookDetailUiTests(unittest.TestCase):
 
         self.assertNotIn("元数据", edit)
         self.assertIn("保存并写回", edit)
-        self.assertIn("封面将从书籍本身读取", edit)
+        self.assertIn('enctype="multipart/form-data"', edit)
+        self.assertIn('hx-encoding="multipart/form-data"', edit)
+        self.assertIn('name="cover_file"', edit)
+        self.assertIn('name="cover_url"', edit)
         self.assertNotIn('name="identifier"', edit)
 
 

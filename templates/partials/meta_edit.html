@@ -13,7 +13,7 @@
       </div>
       <div class="min-w-0">
         <h2 class="text-xl font-bold text-slate-900 truncate">{{ book.title }}</h2>
-        <div class="mt-1 text-xs text-slate-500">编辑并写回到 EPUB（封面将从书籍本身读取）</div>
+        <div class="mt-1 text-xs text-slate-500">编辑并写回到 EPUB（可选：同时写回封面）</div>
         <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
           <span class="truncate">{{ book.author or "未知" }}</span>
           <span class="text-slate-300">·</span>
@@ -30,11 +30,18 @@
   <form
     action="/book/{{ book_id }}/edit"
     method="post"
+    enctype="multipart/form-data"
     hx-post="/book/{{ book_id }}/edit"
     hx-target="#meta-panel"
     hx-swap="innerHTML"
+    hx-encoding="multipart/form-data"
     class="space-y-6"
   >
+    {% if error %}
+      <div class="rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">
+        {{ error }}
+      </div>
+    {% endif %}
     <div class="grid md:grid-cols-2 gap-6">
       <div class="space-y-1">
         <label class="text-xs font-semibold text-slate-500 uppercase">书名</label>
@@ -71,6 +78,26 @@
       <div class="space-y-1">
         <label class="text-xs font-semibold text-slate-500 uppercase">ISBN</label>
         <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none font-mono" type="text" name="isbn" value="{{ book.isbn or '' }}" />
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">封面 <span class="normal-case font-medium text-slate-400">(本地上传)</span></label>
+        <input
+          class="w-full text-sm text-slate-700 border border-slate-300 rounded-lg file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+          type="file"
+          name="cover_file"
+          accept="image/*"
+        />
+        <p class="text-[11px] text-slate-500">可选：与 URL 二选一；上传后会写入 EPUB 本体。</p>
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">封面 <span class="normal-case font-medium text-slate-400">(URL 下载)</span></label>
+        <input
+          class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
+          type="url"
+          name="cover_url"
+          placeholder="https://example.com/cover.jpg"
+        />
+        <p class="text-[11px] text-slate-500">可选：保存时会下载并写回到 EPUB。</p>
       </div>
     </div>
     <div class="space-y-1">

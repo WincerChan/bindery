@@ -1508,6 +1508,8 @@ async def save_edit(
     rule_template: str = Form(""),
     theme_template: str = Form(""),
     custom_css: str = Form(""),
+    cover_file: Optional[UploadFile] = File(None),
+    cover_url: str = Form(""),
 ) -> HTMLResponse:
     base = library_dir()
     _require_book(base, book_id)
@@ -1539,28 +1541,78 @@ async def save_edit(
     meta.status = "dirty"
     meta.updated_at = _now_iso()
 
+    cover_bytes: Optional[bytes] = None
+    cover_name: Optional[str] = None
+    cover_changed = False
+    cover_path_obj: Optional[Path] = None
+
+    cover_url = cover_url.strip()
+    cover_error: Optional[str] = None
+    if cover_file is not None:
+        data = await cover_file.read()
+        if not data:
+            cover_error = "封面文件为空"
+        else:
+            cover_bytes = data
+            cover_name = cover_file.filename or "cover"
+    elif cover_url:
+        try:
+            with urllib.request.urlopen(cover_url, timeout=10) as response:
+                cover_bytes = response.read()
+            cover_name = Path(urllib.parse.urlparse(cover_url).path).name or "cover"
+            if not cover_bytes:
+                cover_error = "封面 URL 下载为空"
+        except Exception as exc:
+            cover_error = f"封面 URL 下载失败：{exc}"
+
+    if cover_error:
+        rules = load_rule_templates()
+        themes = load_theme_templates()
+        template = "partials/meta_edit.html" if _is_htmx(request) else "edit.html"
+        return templates.TemplateResponse(
+            template,
+            {
+                "request": request,
+                "book": _book_view(meta, base),
+                "book_id": book_id,
+                "rules": rules,
+                "themes": themes,
+                "error": cover_error,
+            },
+        )
+
+    if cover_bytes:
+        meta.cover_file = save_cover_bytes(base, book_id, cover_bytes, cover_name)
+        cover_path_obj = cover_path(base, book_id, meta.cover_file)
+        cover_changed = True
+
     save_metadata(meta, base)
     epub_file = epub_path(base, book_id)
-    cover_path_obj = None
     if meta.source_type != "epub":
-        extracted_cover = None
-        extracted_cover_error = False
-        if epub_file.exists():
-            try:
-                extracted_cover = extract_cover(epub_file)
-            except Exception:
-                extracted_cover_error = True
-            if extracted_cover:
-                cover_data, cover_name = extracted_cover
-                meta.cover_file = save_cover_bytes(base, book_id, cover_data, cover_name)
-            elif not extracted_cover_error:
-                meta.cover_file = None
-        if meta.cover_file:
-            cover_path_obj = cover_path(base, book_id, meta.cover_file)
+        if not cover_changed:
+            extracted_cover = None
+            extracted_cover_error = False
+            if epub_file.exists():
+                try:
+                    extracted_cover = extract_cover(epub_file)
+                except Exception:
+                    extracted_cover_error = True
+                if extracted_cover:
+                    cover_data, extracted_name = extracted_cover
+                    meta.cover_file = save_cover_bytes(base, book_id, cover_data, extracted_name)
+                elif not extracted_cover_error:
+                    meta.cover_file = None
+            if meta.cover_file:
+                cover_path_obj = cover_path(base, book_id, meta.cover_file)
 
     if meta.source_type == "epub":
-        # 只写回元数据；封面保持 EPUB 本体不变。
-        update_epub_metadata(epub_file, meta, None, css_text=_compose_css_text(meta))
+        # 默认不改封面；当提交封面时一并写回到 EPUB 本体。
+        update_epub_metadata(
+            epub_file,
+            meta,
+            cover_path_obj if cover_changed else None,
+            css_text=_compose_css_text(meta),
+        )
     else:
         build_epub(book, meta, epub_file, cover_path_obj, css_text=_compose_css_text(meta))
 
