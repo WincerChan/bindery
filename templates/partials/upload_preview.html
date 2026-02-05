@@ -2,14 +2,17 @@
   {% for item in previews %}
     <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
       <div class="font-semibold text-slate-900 mb-3 truncate" title="{{ item.filename or item.title }}">{{ item.filename or item.title }}</div>
+      {% if item.error %}
+        <div class="mb-3 text-sm text-red-600">{{ item.error }}</div>
+      {% endif %}
       <dl class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
         <div>
           <dt class="text-xs font-semibold text-slate-500 uppercase">格式</dt>
-          <dd class="text-slate-700 font-mono">{{ item.format or "TXT" }}</dd>
+          <dd class="text-slate-700 font-mono">{{ item.format or "—" }}</dd>
         </div>
         <div>
           <dt class="text-xs font-semibold text-slate-500 uppercase">识别标题</dt>
-          <dd class="text-slate-700">{{ item.title }}</dd>
+          <dd class="text-slate-700">{{ item.title or "—" }}</dd>
         </div>
         <div>
           <dt class="text-xs font-semibold text-slate-500 uppercase">作者</dt>

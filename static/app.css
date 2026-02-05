@@ -1011,6 +1011,9 @@
   .text-white {
     color: var(--color-white);
   }
+  .normal-case {
+    text-transform: none;
+  }
   .uppercase {
     text-transform: uppercase;
   }

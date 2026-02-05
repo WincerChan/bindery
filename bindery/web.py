@@ -6,6 +6,8 @@ import tempfile
 import traceback
 import urllib.request
 import urllib.parse
+import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
@@ -106,6 +108,51 @@ def _parse_rating(raw: str) -> Optional[int]:
     except ValueError:
         return None
     return max(0, min(5, value))
+
+
+def _looks_like_text(data: bytes) -> bool:
+    if not data:
+        return False
+    sample = data[:4096]
+    if b"\x00" in sample:
+        return False
+    bad = 0
+    for byte in sample:
+        if byte < 9 or (13 < byte < 32):
+            bad += 1
+    return bad / len(sample) < 0.02
+
+
+def _is_epub_zip(data: bytes) -> bool:
+    if len(data) < 4 or not data.startswith(b"PK"):
+        return False
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as zf:
+            names = set(zf.namelist())
+            if "mimetype" in names:
+                mimetype = zf.read("mimetype").strip()
+                if mimetype == b"application/epub+zip":
+                    return True
+            return "META-INF/container.xml" in names
+    except Exception:
+        return False
+
+
+def _detect_source_type(filename: str, content_type: Optional[str], data: bytes) -> str:
+    suffix = Path(filename).suffix.lower() if filename else ""
+    if suffix == ".epub":
+        return "epub"
+    if suffix == ".txt":
+        return "txt"
+    if content_type == "application/epub+zip":
+        return "epub"
+    if _is_epub_zip(data):
+        return "epub"
+    if content_type and content_type.startswith("text/"):
+        return "txt"
+    if _looks_like_text(data):
+        return "txt"
+    return "unknown"
 
 
 def _safe_filename(value: str) -> str:
@@ -577,6 +624,252 @@ async def ingest_view(request: Request) -> HTMLResponse:
         "ingest.html",
         {"request": request, "rules": rules},
     )
+
+
+@app.post("/ingest/preview", response_class=HTMLResponse)
+async def ingest_preview(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    rule_template: str = Form("default"),
+) -> HTMLResponse:
+    previews: list[dict] = []
+    base = library_dir()
+    rule = None
+
+    for file in files:
+        filename = file.filename or "upload"
+        data = await file.read()
+        if not data:
+            previews.append(
+                {
+                    "filename": filename,
+                    "format": "未知",
+                    "title": None,
+                    "author": None,
+                    "volumes": 0,
+                    "chapters": 0,
+                    "toc": [],
+                    "output": "—",
+                    "path": str(base / "<自动ID>"),
+                    "error": "空文件",
+                }
+            )
+            continue
+
+        kind = _detect_source_type(filename, file.content_type, data)
+        if kind == "epub":
+            with tempfile.NamedTemporaryFile(suffix=".epub") as tmp:
+                tmp.write(data)
+                tmp.flush()
+                try:
+                    meta = extract_epub_metadata(Path(tmp.name), Path(filename).stem)
+                    sections = list_epub_sections(Path(tmp.name))
+                except Exception:
+                    previews.append(
+                        {
+                            "filename": filename,
+                            "format": "EPUB",
+                            "title": None,
+                            "author": None,
+                            "volumes": 0,
+                            "chapters": 0,
+                            "toc": [],
+                            "output": filename,
+                            "path": str(base / "<自动ID>"),
+                            "error": "解析 EPUB 失败",
+                        }
+                    )
+                    continue
+            previews.append(
+                {
+                    "filename": filename,
+                    "format": "EPUB",
+                    "title": meta.get("title"),
+                    "author": meta.get("author"),
+                    "volumes": 0,
+                    "chapters": len(sections),
+                    "toc": [section.title for section in sections[:10]],
+                    "output": filename,
+                    "path": str(base / "<自动ID>"),
+                }
+            )
+            continue
+
+        if kind == "txt":
+            if rule is None:
+                rule = get_rule(rule_template)
+            text = decode_text(data)
+            if not text.strip():
+                previews.append(
+                    {
+                        "filename": filename,
+                        "format": "TXT",
+                        "title": None,
+                        "author": None,
+                        "volumes": 0,
+                        "chapters": 0,
+                        "toc": [],
+                        "output": "—",
+                        "path": str(base / "<自动ID>"),
+                        "error": "文本为空或无法解码",
+                    }
+                )
+                continue
+            book = parse_book(text, Path(filename).stem, rule.rules)
+            previews.append(
+                {
+                    "filename": filename,
+                    "format": "TXT",
+                    "title": book.title,
+                    "author": book.author,
+                    "volumes": len(book.volumes),
+                    "chapters": len(book.root_chapters) + sum(len(v.chapters) for v in book.volumes),
+                    "toc": _toc_preview(book, 10),
+                    "output": f"{_safe_filename(book.title)}.epub",
+                    "path": str(base / "<自动ID>"),
+                }
+            )
+            continue
+
+        previews.append(
+            {
+                "filename": filename,
+                "format": "未知",
+                "title": None,
+                "author": None,
+                "volumes": 0,
+                "chapters": 0,
+                "toc": [],
+                "output": "—",
+                "path": str(base / "<自动ID>"),
+                "error": "不支持的文件类型（仅支持 .txt / .epub）",
+            }
+        )
+
+    return templates.TemplateResponse(
+        "partials/upload_preview.html",
+        {"request": request, "previews": previews},
+    )
+
+
+@app.post("/ingest", response_class=HTMLResponse)
+async def ingest(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    title: str = Form(""),
+    author: str = Form(""),
+    language: str = Form(""),
+    description: str = Form(""),
+    series: str = Form(""),
+    identifier: str = Form(""),
+    publisher: str = Form(""),
+    tags: str = Form(""),
+    published: str = Form(""),
+    isbn: str = Form(""),
+    rating: str = Form(""),
+    rule_template: str = Form("default"),
+    cover_file: Optional[UploadFile] = File(None),
+) -> HTMLResponse:
+    if not files:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    cover_bytes = await cover_file.read() if cover_file else None
+    cover_name = cover_file.filename if cover_file else None
+
+    base = library_dir()
+    created_books: list[dict] = []
+    for upload_file in files:
+        filename = upload_file.filename or "upload"
+        data = await upload_file.read()
+        if not data:
+            job = _create_job("ingest", None, rule_template)
+            _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
+            continue
+
+        kind = _detect_source_type(filename, upload_file.content_type, data)
+        if kind == "epub":
+            book_id = new_book_id()
+            job = _create_job("upload-epub", book_id, None)
+            try:
+                meta = _run_epub_ingest(
+                    job,
+                    base,
+                    data,
+                    filename,
+                    title,
+                    author,
+                    language,
+                    description,
+                    series,
+                    identifier,
+                    publisher,
+                    tags,
+                    published,
+                    isbn,
+                    rating,
+                    cover_bytes,
+                    cover_name,
+                )
+                created_books.append(_book_view(meta, base))
+            except Exception:
+                try:
+                    meta = load_metadata(base, book_id)
+                    _update_meta_failed(meta)
+                    save_metadata(meta, base)
+                except Exception:
+                    pass
+            continue
+
+        if kind == "txt":
+            text = decode_text(data)
+            if not text.strip():
+                job = _create_job("upload", None, rule_template)
+                _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 文本为空或无法解码", log=None)
+                continue
+            source_name = Path(filename).stem
+            book_id = new_book_id()
+            job = _create_job("upload", book_id, rule_template)
+            try:
+                meta = _run_ingest(
+                    job,
+                    base,
+                    text,
+                    source_name,
+                    title,
+                    author,
+                    language,
+                    description,
+                    series,
+                    identifier,
+                    publisher,
+                    tags,
+                    published,
+                    isbn,
+                    rating,
+                    rule_template,
+                    cover_bytes,
+                    cover_name,
+                )
+                created_books.append(_book_view(meta, base))
+            except Exception:
+                try:
+                    meta = load_metadata(base, book_id)
+                    _update_meta_failed(meta)
+                    save_metadata(meta, base)
+                except Exception:
+                    pass
+            continue
+
+        job = _create_job("ingest", None, rule_template)
+        _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 不支持的文件类型", log=None)
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            "partials/library.html",
+            {"request": request, "books": created_books},
+        )
+
+    return RedirectResponse(url="/jobs", status_code=303)
 
 
 @app.get("/library", response_class=HTMLResponse)

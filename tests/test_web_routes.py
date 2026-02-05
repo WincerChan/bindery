@@ -5,14 +5,17 @@ from bindery.web import app
 
 
 class WebRoutesTests(unittest.TestCase):
-    def test_ingest_route_registered(self) -> None:
+    def test_ingest_routes_registered(self) -> None:
+        seen: set[tuple[str, str]] = set()
         for route in app.routes:
-            if getattr(route, "path", None) != "/ingest":
-                continue
+            path = getattr(route, "path", None)
             methods = getattr(route, "methods", None) or set()
-            if "GET" in methods:
-                return
-        self.fail("GET /ingest route not registered")
+            for method in methods:
+                if path in {"/ingest", "/ingest/preview"}:
+                    seen.add((method, path))
+        self.assertIn(("GET", "/ingest"), seen)
+        self.assertIn(("POST", "/ingest"), seen)
+        self.assertIn(("POST", "/ingest/preview"), seen)
 
     def test_base_template_links_ingest(self) -> None:
         root = Path(__file__).resolve().parent.parent
@@ -25,7 +28,15 @@ class WebRoutesTests(unittest.TestCase):
         self.assertNotIn('action="/upload"', index)
         self.assertNotIn('action="/upload/epub"', index)
 
+    def test_ingest_template_has_single_file_input(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        ingest = (root / "templates" / "ingest.html").read_text(encoding="utf-8")
+        self.assertIn('action="/ingest"', ingest)
+        self.assertNotIn('action="/upload"', ingest)
+        self.assertNotIn('action="/upload/epub"', ingest)
+        self.assertIn('accept=".txt,.epub"', ingest)
+        self.assertIn('hx-post="/ingest/preview"', ingest)
+
 
 if __name__ == "__main__":
     unittest.main()
-
