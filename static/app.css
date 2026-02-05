@@ -520,6 +520,9 @@
   .gap-4 {
     gap: calc(var(--spacing) * 4);
   }
+  .gap-5 {
+    gap: calc(var(--spacing) * 5);
+  }
   .gap-6 {
     gap: calc(var(--spacing) * 6);
   }
@@ -737,6 +740,9 @@
     @supports (color: color-mix(in lab, red, red)) {
       background-color: color-mix(in oklab, var(--color-red-500) 20%, transparent);
     }
+  }
+  .bg-red-600 {
+    background-color: var(--color-red-600);
   }
   .bg-slate-50 {
     background-color: var(--color-slate-50);
@@ -1107,6 +1113,23 @@
     --tw-outline-style: none;
     outline-style: none;
   }
+  .group-focus-within\:pointer-events-auto {
+    &:is(:where(.group):focus-within *) {
+      pointer-events: auto;
+    }
+  }
+  .group-focus-within\:opacity-100 {
+    &:is(:where(.group):focus-within *) {
+      opacity: 100%;
+    }
+  }
+  .group-hover\:pointer-events-auto {
+    &:is(:where(.group):hover *) {
+      @media (hover: hover) {
+        pointer-events: auto;
+      }
+    }
+  }
   .group-hover\:scale-105 {
     &:is(:where(.group):hover *) {
       @media (hover: hover) {
@@ -1208,6 +1231,13 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-red-50);
+      }
+    }
+  }
+  .hover\:bg-red-700 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-red-700);
       }
     }
   }
@@ -1374,6 +1404,13 @@
       padding-inline: calc(var(--spacing) * 6);
     }
   }
+  .sm\:data-\[view\=grid\]\:grid-cols-3 {
+    @media (width >= 40rem) {
+      &[data-view="grid"] {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+  }
   .md\:col-span-2 {
     @media (width >= 48rem) {
       grid-column: span 2 / span 2;
@@ -1436,6 +1473,13 @@
       }
     }
   }
+  .md\:data-\[view\=grid\]\:grid-cols-4 {
+    @media (width >= 48rem) {
+      &[data-view="grid"] {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+  }
   .lg\:col-span-4 {
     @media (width >= 64rem) {
       grid-column: span 4 / span 4;
@@ -1493,6 +1537,13 @@
       }
     }
   }
+  .lg\:data-\[view\=grid\]\:grid-cols-5 {
+    @media (width >= 64rem) {
+      &[data-view="grid"] {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+  }
   .xl\:grid-cols-5 {
     @media (width >= 80rem) {
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1502,6 +1553,13 @@
     @media (width >= 80rem) {
       &[data-view="grid"] {
         grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+  }
+  .xl\:data-\[view\=grid\]\:grid-cols-6 {
+    @media (width >= 80rem) {
+      &[data-view="grid"] {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
       }
     }
   }
