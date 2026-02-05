@@ -1,42 +1,78 @@
 {% set rating = book.rating %}
-<div class="meta-panel" id="meta-panel">
-  <div class="panel-header inline">
-    <h2>元数据</h2>
+<div id="meta-panel" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-xl font-bold text-slate-900">元数据</h2>
     <a
-      class="btn ghost"
+      class="px-4 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 font-medium transition-colors"
       href="/book/{{ book_id }}/edit"
       hx-get="/book/{{ book_id }}/edit"
       hx-target="#meta-panel"
       hx-swap="innerHTML"
     >编辑</a>
   </div>
-  <div class="meta-grid">
-    <div><span>书名</span>{{ book.title }}</div>
-    <div><span>作者</span>{{ book.author or "未知" }}</div>
-    <div><span>语言</span>{{ book.language }}</div>
-    <div><span>系列</span>{{ book.series or "—" }}</div>
-    <div><span>Identifier</span>{{ book.identifier or "—" }}</div>
-    <div><span>出版社</span>{{ book.publisher or "—" }}</div>
-    <div><span>标签</span>{{ book.tags | join(", ") if book.tags else "—" }}</div>
-    <div><span>发表时间</span>{{ book.published or "—" }}</div>
-    <div><span>ISBN</span>{{ book.isbn or "—" }}</div>
-    <div><span>规则模板</span>{{ book.rule_template or "—" }}</div>
-    <div><span>状态</span>{{ book.status_label }}</div>
-    <div><span>星级</span>
-      <span class="rating">
+
+  <dl class="grid md:grid-cols-2 gap-6 text-sm">
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">书名</dt>
+      <dd class="font-medium text-slate-900">{{ book.title }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">作者</dt>
+      <dd class="text-slate-700">{{ book.author or "未知" }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">语言</dt>
+      <dd class="text-slate-700">{{ book.language }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">系列</dt>
+      <dd class="text-slate-700">{{ book.series or "—" }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">Identifier</dt>
+      <dd class="text-slate-700 font-mono break-all">{{ book.identifier or "—" }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">出版社</dt>
+      <dd class="text-slate-700">{{ book.publisher or "—" }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">标签</dt>
+      <dd class="text-slate-700">{{ book.tags | join(", ") if book.tags else "—" }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">发表时间</dt>
+      <dd class="text-slate-700">{{ book.published or "—" }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">ISBN</dt>
+      <dd class="text-slate-700 font-mono break-all">{{ book.isbn or "—" }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">规则模板</dt>
+      <dd class="text-slate-700 font-mono">{{ book.rule_template or "—" }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">状态</dt>
+      <dd class="text-slate-700">{{ book.status_label }}</dd>
+    </div>
+    <div class="space-y-1">
+      <dt class="text-xs font-semibold text-slate-500 uppercase">星级</dt>
+      <dd class="text-amber-500">
         {% if rating is not none %}
           {% for _ in range(rating) %}★{% endfor %}
-          {% for _ in range(5 - rating) %}☆{% endfor %}
+          <span class="text-slate-300">{% for _ in range(5 - rating) %}★{% endfor %}</span>
         {% else %}
-          未评分
+          <span class="text-slate-500">未评分</span>
         {% endif %}
-      </span>
+      </dd>
     </div>
-  </div>
+  </dl>
+
   {% if book.description %}
-    <div class="meta-description">
-      <h3>简介</h3>
-      <p>{{ book.description }}</p>
+    <div class="mt-6 pt-5 border-t border-slate-100">
+      <h3 class="text-sm font-semibold text-slate-900 mb-2">简介</h3>
+      <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{{ book.description }}</p>
     </div>
   {% endif %}
 </div>

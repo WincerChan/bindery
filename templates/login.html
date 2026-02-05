@@ -6,28 +6,43 @@
     <title>登录 · Bindery</title>
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body class="login-page">
-    <main class="login-panel">
-      <div class="brand">
-        <div class="brand-mark">B</div>
-        <div>
-          <div class="brand-title">Bindery</div>
-          <div class="brand-sub">单用户登录</div>
+  <body class="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
+    <main class="w-full max-w-sm p-8 bg-white rounded-xl shadow-lg border border-slate-100">
+      <div class="flex justify-center mb-6">
+        <div class="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
+          B
         </div>
       </div>
+      <h2 class="text-2xl font-bold text-center text-slate-800 mb-2">Bindery</h2>
+      <p class="text-center text-slate-500 mb-8 text-sm">Access Control</p>
+
       {% if error %}
-        <div class="alert">{{ error }}</div>
+        <div class="mb-4 bg-red-50 border border-red-100 rounded-lg px-4 py-3 text-sm text-red-700">
+          {{ error }}
+        </div>
       {% endif %}
       {% if not hash_configured %}
-        <div class="alert warning">未配置 BINDERY_PASSWORD_HASH，无法登录。</div>
-      {% endif %}
-      <form class="login-form" action="/login" method="post">
-        <input type="hidden" name="next" value="{{ next }}" />
-        <div class="field">
-          <label>密码</label>
-          <input type="password" name="password" required />
+        <div class="mb-4 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 text-sm text-amber-800">
+          未配置 BINDERY_PASSWORD_HASH，无法登录。
         </div>
-        <button class="btn" type="submit">登录</button>
+      {% endif %}
+
+      <form action="/login" method="post" class="space-y-4">
+        <input type="hidden" name="next" value="{{ next }}" />
+        <div>
+          <input
+            type="password"
+            name="password"
+            required
+            placeholder="Enter Password"
+            class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+            autofocus
+          />
+        </div>
+        <button
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium shadow-sm transition-all"
+          type="submit"
+        >Login</button>
       </form>
     </main>
   </body>

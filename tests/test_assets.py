@@ -7,7 +7,7 @@ class AssetSetupTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         self.assertTrue((root / "tailwind.config.js").exists())
         self.assertTrue((root / "static" / "tailwind.css").exists())
-        self.assertTrue((root / "static" / "custom.css").exists())
+        self.assertTrue((root / "static" / "app.css").exists())
 
     def test_procfile_has_port(self) -> None:
         root = Path(__file__).resolve().parent.parent

@@ -564,10 +564,18 @@ async def index(request: Request, sort: str = "updated", q: str = "") -> HTMLRes
     else:
         books.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
     view_books = [_book_view(book, base) for book in books]
-    rules = load_rule_templates()
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "books": view_books, "rules": rules, "sort": sort, "q": q},
+        {"request": request, "books": view_books, "sort": sort, "q": q},
+    )
+
+
+@app.get("/ingest", response_class=HTMLResponse)
+async def ingest_view(request: Request) -> HTMLResponse:
+    rules = load_rule_templates()
+    return templates.TemplateResponse(
+        "ingest.html",
+        {"request": request, "rules": rules},
     )
 
 

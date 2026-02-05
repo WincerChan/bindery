@@ -1,424 +1,486 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Library,
-    Upload,
-    Activity,
-    Settings,
-    LogOut,
-    Search,
-    LayoutGrid,
-    List as ListIcon,
-    MoreVertical,
-    Edit3,
-    Download,
-    RefreshCw,
-    Trash2,
-    FileText,
-    CheckCircle2,
-    AlertCircle,
-    Clock,
-    X,
-    ChevronRight,
-    Save,
-    Eye,
-    FolderOpen,
-    Play
+    Book, UploadCloud, Activity, Settings, LogOut, LayoutGrid, List as ListIcon,
+    Search, MoreVertical, Download, Edit3, RefreshCw, Trash2, FileText,
+    AlertCircle, CheckCircle, Clock, ChevronRight, Save, X, Eye, Code,
+    FileType, Layers, Terminal
 } from 'lucide-react';
 
 /**
- * MOCK DATA
+ * MOCK DATA & CONSTANTS
  */
+const STATUS_COLORS = {
+    synced: 'bg-green-100 text-green-700 border-green-200',
+    pending: 'bg-amber-100 text-amber-700 border-amber-200',
+    failed: 'bg-red-100 text-red-700 border-red-200',
+    processing: 'bg-blue-100 text-blue-700 border-blue-200',
+};
+
 const MOCK_BOOKS = [
     {
-        id: 'b1',
+        id: 'b-1001',
+        title: '深空彼岸',
+        author: '辰东',
+        series: '网络版',
+        cover: 'https://via.placeholder.com/300x450/1e293b/ffffff?text=Deep+Space',
+        format: 'EPUB',
+        size: '4.2 MB',
+        status: 'synced', // synced, pending, failed
+        addedAt: '2023-10-24T10:00:00',
+        path: '/library/chendong/shenkong.epub',
+        desc: '浩瀚的宇宙中，一片死寂...',
+    },
+    {
+        id: 'b-1002',
         title: '诡秘之主',
         author: '爱潜水的乌贼',
-        series: '诡秘之主系列 #1',
-        cover: 'https://bookcover.longzhub.com/5df620029051867c4e03ce73/5df620029051867c4e03ce75.jpg', // Placeholder
-        status: 'synced', // synced, pending, error
-        path: '/library/fiction/guimi_v1.epub',
-        date: '2023-10-24 14:20',
-        tags: ['网文', '克苏鲁', '蒸汽朋克']
+        series: '精修版',
+        cover: 'https://via.placeholder.com/300x450/4f46e5/ffffff?text=LOTM',
+        format: 'EPUB',
+        size: '8.5 MB',
+        status: 'pending', // metadata updated but not written to file
+        addedAt: '2023-10-25T14:30:00',
+        path: '/library/wuzei/guimi.epub',
+        desc: '周明瑞醒来...',
     },
     {
-        id: 'b2',
-        title: 'Deep Learning',
-        author: 'Ian Goodfellow',
-        series: 'MIT Press',
-        cover: null, // No cover
-        status: 'pending',
-        path: '/library/tech/deep_learning.epub',
-        date: '2023-10-25 09:15',
-        tags: ['技术', 'AI']
-    },
-    {
-        id: 'b3',
-        title: '三体全集',
-        author: '刘慈欣',
+        id: 'b-1003',
+        title: 'Raw Text Conversion Error Log',
+        author: 'Unknown',
         series: '',
-        cover: 'https://img1.doubanio.com/view/subject/l/public/s2768378.jpg',
-        status: 'error',
-        path: '/library/scifi/three_body_problem.epub',
-        date: '2023-10-22 18:30',
-        tags: ['科幻', '雨果奖']
+        cover: null,
+        format: 'TXT',
+        size: '12 KB',
+        status: 'failed',
+        addedAt: '2023-10-26T09:15:00',
+        path: '/incoming/error_dump.txt',
+        desc: '',
     }
 ];
 
 const MOCK_JOBS = [
-    {
-        id: 'j1',
-        name: 'Processing: 诡秘_校对版.txt',
-        status: 'active', // active, success, failed
-        stage: 'Generating EPUB', // Pre-process, Generating, Metadata, Finalizing
-        progress: 65,
-        timestamp: 'Just now'
-    },
-    {
-        id: 'j2',
-        name: 'Batch: 鲁迅全集 (20 files)',
-        status: 'success',
-        stage: 'Completed',
-        progress: 100,
-        timestamp: '2 hours ago'
-    },
-    {
-        id: 'j3',
-        name: 'Import: broken_encoding.txt',
-        status: 'failed',
-        stage: 'Pre-process',
-        error: 'Encoding Error: GBK sequence invalid at line 4021',
-        progress: 10,
-        timestamp: 'Yesterday'
-    }
+    { id: 'j-5521', type: 'convert', bookTitle: '道诡异仙', status: 'running', progress: 45, stage: 'Generating EPUB Structure', error: null },
+    { id: 'j-5520', type: 'metadata', bookTitle: '深空彼岸', status: 'success', progress: 100, stage: 'Completed', error: null },
+    { id: 'j-5519', type: 'convert', bookTitle: 'Test File 01', status: 'failed', progress: 12, stage: 'Parsing TOC', error: 'Regex mismatch at line 402: Chapter title exceeds length limit.' },
 ];
 
 const MOCK_RULES = [
-    { id: 'r1', name: '通用网文 (General Web Novel)', description: '识别 "第X章"、"卷X" 等标准格式' },
-    { id: 'r2', name: '出版物 (Standard Publishing)', description: '基于层级标题识别，更严格的去噪' },
-    { id: 'r3', name: '英文技术文档 (Tech Docs)', description: 'Markdown 风格标题 (#, ##) 提取' },
+    { id: 'r-1', name: '通用网文 (General Webnovel)', type: 'regex', version: 'v1.2' },
+    { id: 'r-2', name: '出版物标准 (Published)', type: 'regex', version: 'v2.0' },
+    { id: 'r-3', name: 'Kindle 优化 CSS', type: 'css', version: 'v1.0' },
 ];
 
 /**
- * SHARED COMPONENTS
+ * COMPONENTS
  */
 
-const BookOpenIcon = ({ className, size }) => (
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width={size || 24}
-        height={size || 24}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={className}
-    >
-        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-    </svg>
-);
-
-/**
- * PAGE COMPONENTS
- */
-
-// 1. Sidebar
-const Sidebar = ({ activeTab, onTabChange, onLogout }) => {
-    const menuItems = [
-        { id: 'library', icon: Library, label: 'Library' },
-        { id: 'upload', icon: Upload, label: 'Ingest' },
-        { id: 'jobs', icon: Activity, label: 'Jobs' },
-        { id: 'rules', icon: Settings, label: 'Rules' },
-    ];
+// --- Status Badge ---
+const StatusBadge = ({ status }) => {
+    const config = {
+        synced: { label: '已写回', color: STATUS_COLORS.synced, icon: CheckCircle },
+        pending: { label: '待写回', color: STATUS_COLORS.pending, icon: Clock },
+        failed: { label: '失败', color: STATUS_COLORS.failed, icon: AlertCircle },
+        processing: { label: '处理中', color: STATUS_COLORS.processing, icon: Activity },
+    };
+    const current = config[status] || config.synced;
+    const Icon = current.icon;
 
     return (
-        <div className="w-64 bg-slate-900 text-slate-300 flex flex-col h-full border-r border-slate-800 shrink-0">
-            <div className="p-6">
-                <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                    <BookOpenIcon className="w-6 h-6 text-indigo-500" />
-                    Bindery
-                </h1>
-                <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-semibold">EPUB Factory</p>
-            </div>
+        <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${current.color}`}>
+            <Icon size={12} />
+            {current.label}
+        </span>
+    );
+};
 
-            <nav className="flex-1 px-3 space-y-1">
-                {menuItems.map((item) => (
+// --- Auth View ---
+const AuthView = ({ onLogin }) => {
+    const [password, setPassword] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (password.length > 0) onLogin();
+    };
+
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <div className="w-full max-w-sm p-8 bg-white rounded-xl shadow-lg border border-slate-100">
+                <div className="flex justify-center mb-6">
+                    <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center">
+                        <Book className="text-white" size={24} />
+                    </div>
+                </div>
+                <h2 className="text-2xl font-bold text-center text-slate-800 mb-2">Bindery</h2>
+                <p className="text-center text-slate-500 mb-8 text-sm">Access Control</p>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Enter Password"
+                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                            autoFocus
+                        />
+                    </div>
                     <button
-                        key={item.id}
-                        onClick={() => onTabChange(item.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${activeTab === item.id
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50'
-                                : 'hover:bg-slate-800 hover:text-white'
-                            }`}
+                        type="submit"
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg transition-colors"
                     >
-                        <item.icon size={18} />
-                        <span className="font-medium text-sm">{item.label}</span>
+                        Unlock Library
                     </button>
-                ))}
-            </nav>
-
-            <div className="p-4 border-t border-slate-800">
-                <button onClick={onLogout} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors w-full">
-                    <LogOut size={18} />
-                    <span>Sign Out</span>
-                </button>
+                </form>
             </div>
         </div>
     );
 };
 
-// 2. Auth Page
-const AuthPage = ({ onLogin }) => (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-            <div className="p-8 text-center bg-slate-900">
-                <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-900/50">
-                    <BookOpenIcon className="w-8 h-8 text-white" />
-                </div>
-                <h2 className="text-2xl font-bold text-white">Bindery OS</h2>
-                <p className="text-slate-400 mt-2">Personal eBook Foundry</p>
-            </div>
-            <div className="p-8">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Access Key</label>
-                <input
-                    type="password"
-                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                    placeholder="••••••••"
-                />
-                <button
-                    onClick={onLogin}
-                    className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg transition-colors shadow-md shadow-indigo-200"
-                >
-                    Enter Studio
-                </button>
-            </div>
-        </div>
-    </div>
-);
-
-// 3. Library Page
-const LibraryPage = ({ onSelectBook }) => {
+// --- Library View ---
+const LibraryView = ({ onNavigate }) => {
     const [viewMode, setViewMode] = useState('grid'); // grid | list
     const [filter, setFilter] = useState('');
+    const [sortBy, setSortBy] = useState('recent'); // recent | modified
 
-    const StatusBadge = ({ status }) => {
-        const config = {
-            synced: { color: 'bg-green-100 text-green-700 border-green-200', text: 'Synced', icon: CheckCircle2 },
-            pending: { color: 'bg-amber-100 text-amber-700 border-amber-200', text: 'Pending Write-back', icon: Clock },
-            error: { color: 'bg-red-100 text-red-700 border-red-200', text: 'Conversion Error', icon: AlertCircle },
-        }[status];
-
-        const Icon = config.icon;
-
-        return (
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${config.color}`}>
-                <Icon size={12} />
-                {config.text}
-            </span>
-        );
-    };
+    const filteredBooks = MOCK_BOOKS.filter(b =>
+        b.title.toLowerCase().includes(filter.toLowerCase()) ||
+        b.author.toLowerCase().includes(filter.toLowerCase())
+    );
 
     return (
-        <div className="h-full flex flex-col bg-slate-50">
-            {/* Header */}
-            <header className="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between sticky top-0 z-10">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-800">Library</h2>
-                    <p className="text-sm text-slate-500">32 books total · 2 updated recently</p>
+        <div className="space-y-6">
+            {/* Toolbar */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div className="relative w-full md:w-96">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search title, author..."
+                        className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                    />
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Filter by title, author..."
-                            value={filter}
-                            onChange={(e) => setFilter(e.target.value)}
-                            className="pl-10 pr-4 py-2 w-64 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
-                        />
-                    </div>
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <select
+                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                    >
+                        <option value="recent">最近导入</option>
+                        <option value="modified">最近修改</option>
+                    </select>
 
                     <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
                         <button
                             onClick={() => setViewMode('grid')}
-                            className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             <LayoutGrid size={18} />
                         </button>
                         <button
                             onClick={() => setViewMode('list')}
-                            className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             <ListIcon size={18} />
                         </button>
                     </div>
                 </div>
-            </header>
+            </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-8">
-                {viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {MOCK_BOOKS.map(book => (
-                            <div key={book.id} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow group overflow-hidden flex flex-col">
-                                <div className="relative aspect-[2/3] bg-slate-100 border-b border-slate-100">
-                                    {book.cover ? (
-                                        <img src={book.cover} className="w-full h-full object-cover" alt={book.title} />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                            <BookOpenIcon size={48} />
-                                        </div>
-                                    )}
-                                    {/* Hover Overlay */}
-                                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 p-4 backdrop-blur-sm">
-                                        <button onClick={() => onSelectBook(book)} className="bg-white text-slate-900 px-4 py-2 rounded-lg font-medium text-sm w-full hover:bg-indigo-50">Edit Metadata</button>
-                                        <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium text-sm w-full hover:bg-indigo-700">Download EPUB</button>
-                                        <div className="flex gap-2 w-full mt-2">
-                                            <button className="flex-1 bg-slate-800 text-slate-200 p-2 rounded-lg hover:bg-slate-700 flex justify-center" title="Regenerate"><RefreshCw size={16} /></button>
-                                            <button className="flex-1 bg-red-600/80 text-white p-2 rounded-lg hover:bg-red-600 flex justify-center" title="Delete"><Trash2 size={16} /></button>
-                                        </div>
+            {/* Grid View */}
+            {viewMode === 'grid' && (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                    {filteredBooks.map(book => (
+                        <div key={book.id} className="group bg-white rounded-xl shadow-sm hover:shadow-md border border-slate-200 overflow-hidden transition-all flex flex-col">
+                            <div className="relative aspect-[2/3] bg-slate-100 overflow-hidden cursor-pointer" onClick={() => onNavigate('detail', book)}>
+                                {book.cover ? (
+                                    <img src={book.cover} alt={book.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+                                        <Book size={48} className="mb-2 opacity-50" />
+                                        <span className="text-xs font-mono">{book.title}</span>
                                     </div>
-                                </div>
-                                <div className="p-4 flex-1 flex flex-col">
-                                    <div className="mb-2">
-                                        <StatusBadge status={book.status} />
-                                    </div>
-                                    <h3 className="font-bold text-slate-900 line-clamp-1" title={book.title}>{book.title}</h3>
-                                    <p className="text-sm text-slate-500 mb-4">{book.author}</p>
-                                    <div className="mt-auto pt-3 border-t border-slate-50 flex items-center justify-between text-xs text-slate-400 font-mono">
-                                        <span className="truncate max-w-[120px]" title={book.path}>{book.path.split('/').pop()}</span>
-                                        <span>EPUB</span>
-                                    </div>
+                                )}
+                                {/* Overlay Quick Actions */}
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 p-4 backdrop-blur-[2px]">
+                                    <button className="flex items-center gap-2 text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-full text-sm font-medium w-full justify-center">
+                                        <Download size={16} /> EPUB
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); onNavigate('detail', book); }} className="flex items-center gap-2 text-white bg-slate-600 hover:bg-slate-700 px-4 py-2 rounded-full text-sm font-medium w-full justify-center">
+                                        <Edit3 size={16} /> Edit
+                                    </button>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
-                                <tr>
-                                    <th className="px-6 py-4 w-12">Cover</th>
-                                    <th className="px-6 py-4">Title / Author</th>
-                                    <th className="px-6 py-4">Path / ID</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4">Date</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {MOCK_BOOKS.map(book => (
-                                    <tr key={book.id} className="hover:bg-slate-50 group">
-                                        <td className="px-6 py-3">
-                                            <div className="w-8 h-12 bg-slate-200 rounded overflow-hidden">
+
+                            <div className="p-4 flex-1 flex flex-col">
+                                <div className="flex justify-between items-start mb-1">
+                                    <h3 className="font-semibold text-slate-900 truncate pr-2" title={book.title}>{book.title}</h3>
+                                    <StatusBadge status={book.status} />
+                                </div>
+                                <p className="text-sm text-slate-500 mb-2 truncate">{book.author || 'Unknown'}</p>
+                                <div className="mt-auto pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400 font-mono">
+                                    <span className="truncate max-w-[100px]" title={book.id}>{book.id}</span>
+                                    <span>{book.size}</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* List View */}
+            {viewMode === 'list' && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold">
+                            <tr>
+                                <th className="px-6 py-4">Title / Author</th>
+                                <th className="px-6 py-4">Path / ID</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredBooks.map(book => (
+                                <tr key={book.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-14 bg-slate-200 rounded shadow-sm flex-shrink-0 overflow-hidden">
                                                 {book.cover && <img src={book.cover} className="w-full h-full object-cover" />}
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-3">
-                                            <div className="font-medium text-slate-900">{book.title}</div>
-                                            <div className="text-slate-500 text-xs">{book.author}</div>
-                                        </td>
-                                        <td className="px-6 py-3 text-slate-400 font-mono text-xs max-w-xs truncate">
-                                            {book.path}
-                                        </td>
-                                        <td className="px-6 py-3">
-                                            <StatusBadge status={book.status} />
-                                        </td>
-                                        <td className="px-6 py-3 text-slate-500">
-                                            {book.date}
-                                        </td>
-                                        <td className="px-6 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => onSelectBook(book)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
-                                                    <Edit3 size={16} />
-                                                </button>
-                                                <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Download">
-                                                    <Download size={16} />
-                                                </button>
-                                                <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Regenerate">
-                                                    <RefreshCw size={16} />
-                                                </button>
+                                            <div>
+                                                <div
+                                                    className="font-medium text-slate-900 cursor-pointer hover:text-indigo-600"
+                                                    onClick={() => onNavigate('detail', book)}
+                                                >
+                                                    {book.title}
+                                                </div>
+                                                <div className="text-sm text-slate-500">{book.author}</div>
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="text-xs font-mono text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded max-w-[200px] truncate" title={book.path}>
+                                            {book.path}
+                                        </div>
+                                        <div className="text-xs text-slate-400 mt-1">{book.id}</div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <StatusBadge status={book.status} />
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Download">
+                                                <Download size={18} />
+                                            </button>
+                                            <button
+                                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                title="Edit"
+                                                onClick={() => onNavigate('detail', book)}
+                                            >
+                                                <Edit3 size={18} />
+                                            </button>
+                                            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Regenerate">
+                                                <RefreshCw size={18} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 };
 
-// 4. Jobs Page
-const JobsPage = ({ onGoToBook }) => {
+// --- Upload View ---
+const UploadView = () => {
+    const [dragActive, setDragActive] = useState(false);
+    const [files, setFiles] = useState([]);
+    const [previewData, setPreviewData] = useState(null);
+
+    const handleDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+        else if (e.type === "dragleave") setDragActive(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            setFiles([...files, ...Array.from(e.dataTransfer.files)]);
+            // Simulate preview for the first file
+            setTimeout(() => {
+                setPreviewData({
+                    tocCount: 124,
+                    firstChapters: ['Chapter 1: The Beginning', 'Chapter 2: The Crash', 'Chapter 3: Survival'],
+                    detectedMeta: { title: 'Uploaded Novel', author: 'Anonymous' },
+                    outputPath: '/library/anonymous/uploaded_novel.epub'
+                });
+            }, 800);
+        }
+    };
+
     return (
-        <div className="h-full flex flex-col bg-slate-50 p-8">
-            <div className="mb-8 flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-800">Task Queue</h2>
-                <div className="flex gap-2">
-                    <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-sm font-medium text-slate-600">All: 12</span>
-                    <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-full text-sm font-medium text-indigo-600">Active: 1</span>
-                    <span className="px-3 py-1 bg-red-50 border border-red-100 rounded-full text-sm font-medium text-red-600">Failed: 1</span>
+        <div className="max-w-4xl mx-auto space-y-8">
+            {/* Drag Drop Zone */}
+            <div
+                className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all ${dragActive ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 hover:border-indigo-400 bg-white'}`}
+                onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+            >
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center">
+                        <UploadCloud size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-semibold text-slate-800">Drag & Drop TXT/EPUB files</h3>
+                        <p className="text-slate-500 mt-1">or click to browse local files</p>
+                    </div>
                 </div>
+                <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" multiple />
+            </div>
+
+            {files.length > 0 && (
+                <div className="grid md:grid-cols-2 gap-8">
+                    {/* File Config */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                            <Settings size={18} /> Ingest Configuration
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Rule Template</label>
+                                <select className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                    <option>General Webnovel (v1.2)</option>
+                                    <option>Published Standard (v2.0)</option>
+                                    <option>Custom...</option>
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+                                    <input type="text" className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Auto-detect" defaultValue={previewData?.detectedMeta.title} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Author</label>
+                                    <input type="text" className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Auto-detect" defaultValue={previewData?.detectedMeta.author} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Series</label>
+                                <input type="text" className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Optional" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Preview Panel */}
+                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                        <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                            <Eye size={18} /> Conversion Preview
+                        </h3>
+                        {previewData ? (
+                            <div className="space-y-4 text-sm">
+                                <div className="flex justify-between p-3 bg-white rounded border border-slate-200">
+                                    <span className="text-slate-500">Output Path</span>
+                                    <span className="font-mono text-slate-700 truncate max-w-[200px]">{previewData.outputPath}</span>
+                                </div>
+                                <div className="flex justify-between p-3 bg-white rounded border border-slate-200">
+                                    <span className="text-slate-500">Detected Chapters</span>
+                                    <span className="font-bold text-indigo-600">{previewData.tocCount}</span>
+                                </div>
+                                <div className="bg-white rounded border border-slate-200 p-3">
+                                    <div className="text-xs font-semibold text-slate-400 uppercase mb-2">TOC Sample</div>
+                                    <ul className="space-y-1 text-slate-600 font-mono text-xs">
+                                        {previewData.firstChapters.map((c, i) => (
+                                            <li key={i}>{c}</li>
+                                        ))}
+                                        <li className="text-slate-400 italic">... and 121 more</li>
+                                    </ul>
+                                </div>
+                                <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition-colors shadow-sm">
+                                    Start Processing
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="h-40 flex items-center justify-center text-slate-400 italic">
+                                Analyzing file content...
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Jobs View ---
+const JobsView = () => {
+    return (
+        <div className="max-w-5xl mx-auto">
+            <div className="flex gap-4 mb-6 border-b border-slate-200 pb-1">
+                <button className="px-4 py-2 text-indigo-600 border-b-2 border-indigo-600 font-medium">All Jobs</button>
+                <button className="px-4 py-2 text-slate-500 hover:text-slate-800">Running (1)</button>
+                <button className="px-4 py-2 text-slate-500 hover:text-slate-800">Failed (1)</button>
             </div>
 
             <div className="space-y-4">
                 {MOCK_JOBS.map(job => (
-                    <div key={job.id} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col gap-4">
-                        <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className={`p-3 rounded-full ${job.status === 'active' ? 'bg-indigo-50 text-indigo-600' :
-                                        job.status === 'success' ? 'bg-green-50 text-green-600' :
-                                            'bg-red-50 text-red-600'
-                                    }`}>
-                                    {job.status === 'active' ? <RefreshCw className="animate-spin" size={20} /> :
-                                        job.status === 'success' ? <CheckCircle2 size={20} /> :
-                                            <AlertCircle size={20} />}
-                                </div>
+                    <div key={job.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-2 h-2 rounded-full ${job.status === 'running' ? 'bg-blue-500 animate-pulse' : job.status === 'success' ? 'bg-green-500' : 'bg-red-500'}`}></div>
                                 <div>
-                                    <h3 className="font-bold text-slate-900">{job.name}</h3>
-                                    <div className="flex items-center gap-2 text-sm text-slate-500 mt-0.5">
-                                        <span>{job.stage}</span>
-                                        <span>•</span>
-                                        <span>{job.timestamp}</span>
+                                    <h4 className="font-semibold text-slate-900">{job.bookTitle}</h4>
+                                    <div className="text-xs text-slate-500 font-mono uppercase mt-0.5">{job.type} • {job.id}</div>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                {job.status === 'failed' && (
+                                    <button className="px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 flex items-center gap-1">
+                                        <RefreshCw size={12} /> Retry
+                                    </button>
+                                )}
+                                {job.status === 'success' && (
+                                    <button className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 flex items-center gap-1">
+                                        View Book <ChevronRight size={12} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="mb-2">
+                            <div className="flex justify-between text-xs mb-1">
+                                <span className="font-medium text-slate-700">{job.stage}</span>
+                                <span className="text-slate-500">{job.progress}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full ${job.status === 'failed' ? 'bg-red-500' : job.status === 'success' ? 'bg-green-500' : 'bg-indigo-500'}`}
+                                    style={{ width: `${job.progress}%` }}
+                                ></div>
+                            </div>
+                        </div>
+
+                        {/* Error Log */}
+                        {job.error && (
+                            <div className="mt-4 bg-red-50 border border-red-100 rounded-lg p-3">
+                                <div className="flex items-start gap-2">
+                                    <AlertCircle size={16} className="text-red-600 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1">
+                                        <p className="text-sm text-red-800 font-medium">Processing Failed</p>
+                                        <p className="text-xs text-red-600 font-mono mt-1">{job.error}</p>
+                                        <button className="text-xs text-red-700 underline mt-2 hover:text-red-900">Show Full Stderr</button>
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Actions */}
-                            <div className="flex gap-3">
-                                {job.status === 'failed' && (
-                                    <button className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">View Log</button>
-                                )}
-                                {job.status === 'failed' ? (
-                                    <button className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm shadow-indigo-200">Retry</button>
-                                ) : job.status === 'success' ? (
-                                    <button onClick={onGoToBook} className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100">Open Book</button>
-                                ) : (
-                                    <button className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">Cancel</button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Progress or Error */}
-                        <div className="pl-16">
-                            {job.status === 'failed' ? (
-                                <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-red-800 font-mono">
-                                    {job.error}
-                                </div>
-                            ) : (
-                                <div className="w-full bg-slate-100 rounded-full h-2 mb-1">
-                                    <div className={`h-2 rounded-full transition-all duration-500 ${job.status === 'success' ? 'bg-green-500' : 'bg-indigo-500'
-                                        }`} style={{ width: `${job.progress}%` }}></div>
-                                </div>
-                            )}
-                            {job.status === 'active' && <p className="text-xs text-slate-400 text-right mt-1">{job.progress}%</p>}
-                        </div>
+                        )}
                     </div>
                 ))}
             </div>
@@ -426,319 +488,94 @@ const JobsPage = ({ onGoToBook }) => {
     );
 };
 
-// 5. Upload / Ingest Page
-const UploadPage = () => {
-    const [step, setStep] = useState(1); // 1: Upload, 2: Config, 3: Preview
-
+// --- Book Detail View ---
+const BookDetailView = ({ book, onBack }) => {
     return (
-        <div className="h-full bg-slate-50 p-8 flex flex-col">
-            <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col">
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Ingest Text</h2>
+        <div className="max-w-6xl mx-auto animate-in fade-in zoom-in-95 duration-200">
+            <button onClick={onBack} className="flex items-center text-sm text-slate-500 hover:text-indigo-600 mb-4 transition-colors">
+                <ChevronRight size={16} className="rotate-180" /> Back to Library
+            </button>
 
-                {/* Stepper */}
-                <div className="flex items-center mb-8">
-                    {[1, 2, 3].map((s) => (
-                        <div key={s} className="flex items-center">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step >= s ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
-                                }`}>
-                                {s}
-                            </div>
-                            {s !== 3 && <div className={`w-24 h-1 mx-2 ${step > s ? 'bg-indigo-600' : 'bg-slate-200'}`}></div>}
-                        </div>
-                    ))}
-                </div>
-
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 p-8 flex flex-col">
-
-                    {/* Step 1: Upload */}
-                    {step === 1 && (
-                        <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 hover:bg-indigo-50/30 hover:border-indigo-300 transition-colors cursor-pointer group">
-                            <div className="bg-white p-4 rounded-full shadow-sm mb-4 group-hover:scale-110 transition-transform">
-                                <Upload className="text-indigo-600" size={32} />
-                            </div>
-                            <h3 className="text-lg font-medium text-slate-800">Drag & Drop TXT files here</h3>
-                            <p className="text-slate-500 mt-2">or click to browse</p>
-                            <button onClick={() => setStep(2)} className="mt-8 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Select Files (Demo)</button>
-                        </div>
-                    )}
-
-                    {/* Step 2: Config */}
-                    {step === 2 && (
-                        <div className="flex-1">
-                            <h3 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-100 pb-4">Metadata & Rules</h3>
-
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Title (Auto-detected)</label>
-                                        <input type="text" defaultValue="我的奋斗史" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Author</label>
-                                        <input type="text" defaultValue="Unknown" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                    </div>
-                                </div>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Processing Rule</label>
-                                        <select className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                                            {MOCK_RULES.map(r => <option key={r.id}>{r.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Series</label>
-                                        <input type="text" placeholder="Optional" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="mt-8 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
-                                <h4 className="text-indigo-900 font-medium text-sm flex items-center gap-2">
-                                    <FolderOpen size={16} /> Target Location
-                                </h4>
-                                <p className="text-indigo-700 text-sm font-mono mt-1">/library/ingest/Unknown/我的奋斗史.epub</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Step 3: Preview */}
-                    {step === 3 && (
-                        <div className="flex-1 flex flex-col min-h-0">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-bold text-slate-800">Preview TOC</h3>
-                                <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">Rule: General Web Novel</span>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg bg-slate-50 p-4 font-mono text-sm">
-                                <div className="text-slate-400 mb-2"># Structure detected: 1 Vol, 12 Chapters</div>
-                                <div className="space-y-1">
-                                    <div className="text-slate-800 font-bold">Volume 1: The Beginning</div>
-                                    <div className="pl-4 text-slate-600 flex items-center gap-2"><span className="text-indigo-500 text-xs">[CH]</span> Chapter 1: Waking Up</div>
-                                    <div className="pl-4 text-slate-600 flex items-center gap-2"><span className="text-indigo-500 text-xs">[CH]</span> Chapter 2: The System</div>
-                                    <div className="pl-4 text-slate-600 flex items-center gap-2"><span className="text-indigo-500 text-xs">[CH]</span> Chapter 3: First Quest</div>
-                                    <div className="pl-4 text-slate-600 flex items-center gap-2"><span className="text-slate-300 text-xs">[--]</span> (Skipped: Advertisement line)</div>
-                                    <div className="pl-4 text-slate-600 flex items-center gap-2"><span className="text-indigo-500 text-xs">[CH]</span> Chapter 4: Loot</div>
-                                    {/* More mock items */}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Footer Actions */}
-                    <div className="mt-8 pt-6 border-t border-slate-100 flex justify-between">
-                        {step > 1 ? (
-                            <button onClick={() => setStep(step - 1)} className="px-6 py-2 text-slate-600 font-medium hover:bg-slate-50 rounded-lg">Back</button>
-                        ) : <div></div>}
-
-                        {step < 3 ? (
-                            <button onClick={() => setStep(step + 1)} className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-md shadow-indigo-200">Next</button>
+            <div className="grid lg:grid-cols-12 gap-8">
+                {/* Left Column: Cover & Actions */}
+                <div className="lg:col-span-4 space-y-6">
+                    <div className="relative group rounded-xl overflow-hidden shadow-md border border-slate-200 bg-slate-100 aspect-[2/3]">
+                        {book.cover ? (
+                            <img src={book.cover} alt="Cover" className="w-full h-full object-cover" />
                         ) : (
-                            <button className="px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 shadow-md shadow-green-200 flex items-center gap-2">
-                                <Play size={18} /> Start Conversion
-                            </button>
+                            <div className="flex items-center justify-center w-full h-full">No Cover</div>
                         )}
-                    </div>
-
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// 6. Book Detail Page
-const BookDetailPage = ({ book, onBack }) => {
-    return (
-        <div className="h-full bg-slate-50 flex flex-col">
-            {/* Navbar */}
-            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-4 sticky top-0 z-20">
-                <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full text-slate-500">
-                    <ChevronRight className="rotate-180" size={24} />
-                </button>
-                <h1 className="text-xl font-bold text-slate-800">{book.title}</h1>
-                <div className="ml-auto flex gap-2">
-                    <button className="px-4 py-2 text-sm font-medium text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 flex items-center gap-2">
-                        <RefreshCw size={16} /> Re-Process
-                    </button>
-                    <button className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm flex items-center gap-2">
-                        <Save size={16} /> Save Changes
-                    </button>
-                </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-8">
-                <div className="max-w-6xl mx-auto grid grid-cols-12 gap-8">
-
-                    {/* Left Col: Cover & Primary Info */}
-                    <div className="col-span-12 lg:col-span-4 space-y-6">
-                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
-                            <div className="w-48 aspect-[2/3] bg-slate-100 rounded shadow-inner mb-6 relative group cursor-pointer overflow-hidden">
-                                {book.cover ? <img src={book.cover} className="w-full h-full object-cover" /> : <div className="p-8 text-center text-slate-400">No Cover</div>}
-                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-medium">
-                                    Change Cover
-                                </div>
-                            </div>
-                            <div className="w-full space-y-3">
-                                <button className="w-full py-2.5 bg-indigo-50 text-indigo-700 font-medium rounded-lg hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2">
-                                    <Download size={18} /> Download EPUB
-                                </button>
-                                <button className="w-full py-2.5 text-slate-600 font-medium rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
-                                    <Eye size={18} /> Preview HTML
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                            <h3 className="font-bold text-slate-800 mb-4">File Info</h3>
-                            <div className="space-y-3 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">Size</span>
-                                    <span className="font-mono text-slate-700">2.4 MB</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">Chapter Count</span>
-                                    <span className="font-mono text-slate-700">1,402</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">Created</span>
-                                    <span className="font-mono text-slate-700">2023-10-24</span>
-                                </div>
-                                <div className="pt-3 border-t border-slate-100">
-                                    <span className="text-slate-500 block mb-1">Path</span>
-                                    <code className="text-xs bg-slate-100 p-1 rounded block break-all text-slate-600">{book.path}</code>
-                                </div>
-                            </div>
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button className="bg-white/90 text-slate-900 px-4 py-2 rounded-full font-medium text-sm hover:bg-white flex items-center gap-2">
+                                <UploadCloud size={16} /> Change Cover
+                            </button>
                         </div>
                     </div>
 
-                    {/* Right Col: Metadata Editor */}
-                    <div className="col-span-12 lg:col-span-8 space-y-6">
-                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                                <Edit3 size={18} className="text-indigo-600" /> Metadata
-                            </h3>
-
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Book Title</label>
-                                    <input type="text" defaultValue={book.title} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Author</label>
-                                    <input type="text" defaultValue={book.author} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Series & Index</label>
-                                    <input type="text" defaultValue={book.series} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                                    <textarea rows={4} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Book description..."></textarea>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* TOC Preview (Mini) */}
-                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex-1">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-bold text-slate-800">Structure Preview</h3>
-                                <button className="text-sm text-indigo-600 font-medium hover:underline">View Full TOC</button>
-                            </div>
-                            <div className="border border-slate-100 rounded-lg overflow-hidden">
-                                {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className="px-4 py-3 border-b border-slate-100 last:border-0 text-sm flex justify-between hover:bg-slate-50">
-                                        <span className="text-slate-700">Chapter {i}: The {['Beginning', 'Journey', 'Conflict', 'Resolution', 'End'][i - 1]}</span>
-                                        <span className="text-slate-400 font-mono text-xs">Page {i * 12}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// 7. Rules Page (Split Pane)
-const RulesPage = () => {
-    return (
-        <div className="h-full flex flex-col bg-slate-50">
-            <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-slate-800">Rule Engine</h2>
-                <div className="flex gap-2">
-                    <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">Save Rule</button>
-                </div>
-            </header>
-
-            <div className="flex-1 flex overflow-hidden">
-                {/* Sidebar List */}
-                <div className="w-64 bg-white border-r border-slate-200 overflow-y-auto">
-                    {MOCK_RULES.map(rule => (
-                        <div key={rule.id} className={`p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${rule.id === 'r1' ? 'bg-indigo-50 border-r-4 border-r-indigo-600' : ''}`}>
-                            <h3 className={`font-bold text-sm ${rule.id === 'r1' ? 'text-indigo-900' : 'text-slate-700'}`}>{rule.name}</h3>
-                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">{rule.description}</p>
-                        </div>
-                    ))}
-                    <div className="p-4">
-                        <button className="w-full py-2 border border-dashed border-slate-300 rounded-lg text-slate-500 text-sm hover:border-indigo-400 hover:text-indigo-600 transition-colors">
-                            + New Rule
+                    <div className="space-y-2">
+                        <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors">
+                            <Download size={18} /> Download EPUB
+                        </button>
+                        <button className="w-full bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors">
+                            <RefreshCw size={18} /> Regenerate
+                        </button>
+                        <button className="w-full bg-white border border-red-200 text-red-600 hover:bg-red-50 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors">
+                            <Trash2 size={18} /> Archive / Delete
                         </button>
                     </div>
                 </div>
 
-                {/* Editor Area */}
-                <div className="flex-1 flex flex-col min-w-0">
-                    {/* Split View */}
-                    <div className="flex-1 flex">
-                        {/* Left: JSON Editor */}
-                        <div className="flex-1 bg-slate-900 text-slate-300 p-0 flex flex-col border-r border-slate-700">
-                            <div className="px-4 py-2 bg-slate-800 text-xs font-mono text-slate-400 border-b border-slate-700 flex justify-between">
-                                <span>CONFIG (JSON/YAML)</span>
+                {/* Right Column: Metadata & TOC */}
+                <div className="lg:col-span-8 space-y-8">
+                    {/* Metadata Form */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-slate-900">Metadata</h2>
+                            <div className="flex gap-2">
+                                <button className="px-4 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 font-medium flex items-center gap-2">
+                                    <Save size={16} /> Save & Write to File
+                                </button>
                             </div>
-                            <textarea
-                                className="flex-1 w-full bg-slate-900 text-sm font-mono p-4 outline-none resize-none leading-relaxed text-green-400"
-                                spellCheck="false"
-                                defaultValue={`{
-  "name": "General Web Novel",
-  "structure": {
-    "volume": "^第[0-9一二三四五六七八九十百千万]+卷\\s+.*$",
-    "chapter": "^第[0-9一二三四五六七八九十百千万]+章\\s+.*$"
-  },
-  "cleanup": [
-    { "replace": "(&nbsp;)", "with": " " },
-    { "remove": "^PS:.*" }
-  ],
-  "title_extract": {
-    "method": "first_line_if_short"
-  }
-}`}
-                            ></textarea>
                         </div>
 
-                        {/* Right: Test Playground */}
-                        <div className="flex-1 bg-white flex flex-col min-w-0">
-                            <div className="px-4 py-2 bg-slate-100 text-xs font-bold text-slate-600 border-b border-slate-200 flex justify-between items-center">
-                                <span>TEST PLAYGROUND (PASTE TXT)</span>
-                                <span className="text-green-600 flex items-center gap-1"><CheckCircle2 size={12} /> Valid JSON</span>
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Title</label>
+                                <input type="text" defaultValue={book.title} className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none font-medium" />
                             </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Author</label>
+                                <input type="text" defaultValue={book.author} className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Series</label>
+                                <input type="text" defaultValue={book.series} className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Identifier</label>
+                                <input type="text" defaultValue={book.id} disabled className="w-full p-2 border border-slate-200 bg-slate-50 rounded text-slate-500" />
+                            </div>
+                            <div className="md:col-span-2 space-y-1">
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Description</label>
+                                <textarea defaultValue={book.desc} rows={4} className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm leading-relaxed"></textarea>
+                            </div>
+                        </div>
+                    </div>
 
-                            <div className="flex-1 p-4 overflow-y-auto font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-800">
-                                <span className="text-slate-400">{'// Paste text here to test regex matches'}</span>
-                                <br /><br />
-                                <span className="bg-indigo-100 text-indigo-800 font-bold px-1 rounded mx-[-4px]">第1卷 初始之地</span>
-                                <br /><br />
-                                这是一个普通的段落，不会被识别。<br />
-                                有些行可能包含广告。<br />
-                                <br />
-                                <span className="bg-green-100 text-green-800 font-bold px-1 rounded mx-[-4px]">第1章 穿越</span>
-                                <br /><br />
-                                主角醒来的时候，发现自己在一个陌生的地方。<br />
-                                <span className="bg-red-50 text-slate-400 line-through">PS: 求推荐票！</span>
-                                <br />
-                                <span className="bg-green-100 text-green-800 font-bold px-1 rounded mx-[-4px]">第2章 系统觉醒</span>
-                                <br /><br />
-                                "叮！系统已绑定。"
+                    {/* TOC Preview */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                            <ListIcon size={20} /> Structure Preview
+                        </h2>
+                        <div className="border border-slate-100 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <div key={i} className="flex justify-between items-center px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                                    <span className="text-sm text-slate-700">Chapter {i}: The Journey Begins</span>
+                                    <span className="text-xs text-slate-400 font-mono">2.4kb</span>
+                                </div>
+                            ))}
+                            <div className="px-4 py-3 text-xs text-slate-400 text-center italic bg-slate-50">
+                                + 1,402 more items
                             </div>
                         </div>
                     </div>
@@ -748,44 +585,157 @@ const RulesPage = () => {
     );
 };
 
+// --- Rules View ---
+const RulesView = () => {
+    return (
+        <div className="h-[calc(100vh-140px)] flex flex-col lg:flex-row gap-6">
+            {/* Sidebar: Rules List */}
+            <div className="w-full lg:w-64 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden">
+                <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                    <span className="font-semibold text-slate-700">Templates</span>
+                    <button className="text-indigo-600 hover:text-indigo-800"><Layers size={18} /></button>
+                </div>
+                <div className="overflow-y-auto flex-1 p-2 space-y-1">
+                    {MOCK_RULES.map(rule => (
+                        <button key={rule.id} className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between group ${rule.id === 'r-1' ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200' : 'text-slate-600 hover:bg-slate-50'}`}>
+                            <span className="truncate">{rule.name}</span>
+                            <span className="text-[10px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-400">{rule.version}</span>
+                        </button>
+                    ))}
+                </div>
+                <div className="p-3 border-t border-slate-200">
+                    <button className="w-full py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">
+                        + New Template
+                    </button>
+                </div>
+            </div>
 
-// Main App Container
-export default function App() {
+            {/* Main: Editor & Test Bench */}
+            <div className="flex-1 flex flex-col gap-4">
+                {/* Editor Toolbar */}
+                <div className="bg-white border border-slate-200 rounded-xl p-3 flex justify-between items-center">
+                    <div className="flex gap-4 items-center">
+                        <h3 className="font-bold text-slate-800 px-2">General Webnovel</h3>
+                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded border border-green-200">Production Ready</span>
+                    </div>
+                    <button className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm rounded-lg hover:bg-slate-900">
+                        <Save size={16} /> Save Version
+                    </button>
+                </div>
+
+                {/* Workbench Split View */}
+                <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+                    {/* Regex/Config Input */}
+                    <div className="bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden">
+                        <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 text-xs font-mono text-slate-500 flex justify-between">
+                            <span>CONFIG JSON</span>
+                            <span>REGEX MODE</span>
+                        </div>
+                        <textarea
+                            className="flex-1 w-full p-4 font-mono text-sm resize-none focus:outline-none text-slate-700"
+                            defaultValue={`{
+  "chapter_regex": "^第[0-9一二三四五六七八九十百千]+[章卷].*",
+  "noise_filters": [
+    "更多更新请访问.*",
+    "PS:.*"
+  ],
+  "hierarchy": ["volume", "chapter"],
+  "min_line_length": 5
+}`}
+                        ></textarea>
+                    </div>
+
+                    {/* Live Test */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl flex flex-col overflow-hidden shadow-inner">
+                        <div className="bg-slate-900 px-4 py-2 border-b border-slate-700 text-xs font-mono text-slate-400 flex justify-between items-center">
+                            <span>TEST BENCH (PASTE TXT HERE)</span>
+                            <div className="flex gap-2">
+                                <span className="flex items-center gap-1 text-green-400"><div className="w-2 h-2 bg-green-500 rounded-full"></div> 12 Matches</span>
+                            </div>
+                        </div>
+                        <div className="flex-1 relative font-mono text-sm p-4 overflow-y-auto bg-slate-800 text-slate-400 whitespace-pre-wrap">
+                            {/* Simulated Highlighting */}
+                            <span className="bg-indigo-500/30 text-indigo-100 px-1 rounded block mb-2">第1章 穿越开始</span>
+                            <p className="mb-4">Here is some normal text that is part of the content body...</p>
+                            <span className="bg-indigo-500/30 text-indigo-100 px-1 rounded block mb-2">第2章 系统觉醒</span>
+                            <p className="mb-4">More content here...</p>
+                            <span className="bg-red-500/20 text-red-200 px-1 rounded block mb-2 line-through opacity-70">PS: 求推荐票</span>
+                            <p>End of sample.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Main App Shell ---
+const App = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [activeTab, setActiveTab] = useState('library');
+    const [currentView, setCurrentView] = useState('library'); // library, upload, jobs, detail, rules
     const [selectedBook, setSelectedBook] = useState(null);
 
-    // Fake router/nav logic
-    const renderContent = () => {
-        if (selectedBook) {
-            return <BookDetailPage book={selectedBook} onBack={() => setSelectedBook(null)} />;
-        }
-
-        switch (activeTab) {
-            case 'library': return <LibraryPage onSelectBook={(book) => setSelectedBook(book)} />;
-            case 'upload': return <UploadPage />;
-            case 'jobs': return <JobsPage onGoToBook={() => { setActiveTab('library'); setSelectedBook(MOCK_BOOKS[0]); }} />;
-            case 'rules': return <RulesPage />;
-            default: return <LibraryPage />;
-        }
+    const navigate = (view, data = null) => {
+        if (data) setSelectedBook(data);
+        setCurrentView(view);
     };
 
-    // REMOVED BookOpenIcon from here, it is now defined at the top scope
-
-    if (!isAuthenticated) {
-        return <AuthPage onLogin={() => setIsAuthenticated(true)} />;
-    }
+    if (!isAuthenticated) return <AuthView onLogin={() => setIsAuthenticated(true)} />;
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden font-sans text-slate-900 bg-slate-50">
-            <Sidebar
-                activeTab={activeTab}
-                onTabChange={(tab) => { setActiveTab(tab); setSelectedBook(null); }}
-                onLogout={() => setIsAuthenticated(false)}
-            />
-            <main className="flex-1 h-full min-w-0 flex flex-col relative">
-                {renderContent()}
+        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+            {/* Top Navigation Bar */}
+            <nav className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm h-16">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between">
+                    <div className="flex items-center gap-8">
+                        <div className="flex items-center gap-2 font-bold text-xl text-indigo-600">
+                            <Book className="fill-indigo-600" size={24} strokeWidth={1.5} />
+                            <span className="text-slate-800 tracking-tight">Bindery</span>
+                        </div>
+
+                        <div className="hidden md:flex items-center space-x-1">
+                            {[
+                                { id: 'library', label: 'Library', icon: LayoutGrid },
+                                { id: 'upload', label: 'Ingest', icon: UploadCloud },
+                                { id: 'jobs', label: 'Jobs', icon: Activity },
+                                { id: 'rules', label: 'Rules', icon: Code },
+                            ].map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => navigate(item.id)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentView === item.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                                >
+                                    <item.icon size={18} />
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        {/* Simulated Job Indicator */}
+                        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full border border-slate-200 text-xs font-medium text-slate-600 cursor-pointer hover:bg-slate-200" onClick={() => navigate('jobs')}>
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                            Processing 1 item
+                        </div>
+
+                        <button onClick={() => setIsAuthenticated(false)} className="text-slate-400 hover:text-red-500 transition-colors">
+                            <LogOut size={20} />
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            {/* Main Content Area */}
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {currentView === 'library' && <LibraryView onNavigate={navigate} />}
+                {currentView === 'upload' && <UploadView />}
+                {currentView === 'jobs' && <JobsView />}
+                {currentView === 'rules' && <RulesView />}
+                {currentView === 'detail' && selectedBook && <BookDetailView book={selectedBook} onBack={() => navigate('library')} />}
             </main>
         </div>
     );
-}
+};
+
+export default App;

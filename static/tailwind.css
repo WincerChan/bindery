@@ -1,5 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4 entry (includes theme + preflight + utilities). */
+@import "tailwindcss";
 
-@import "./custom.css";
+/* Scan FastAPI/Jinja templates for class names. */
+@source "../templates/**/*.html";

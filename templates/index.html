@@ -3,220 +3,21 @@
 {% block title %}Bindery · 书库{% endblock %}
 
 {% block content %}
-<section class="hero">
-  <div>
-    <h1>把 TXT 变成真正的书</h1>
-    <p>多文件拖拽导入，规则切章，写入元数据，再进入你的本地书库。</p>
-  </div>
-</section>
-
-<section class="panel" id="upload">
-  <div class="panel-header">
-    <h2>上传与入库</h2>
-    <p>支持规则模板选择与预览。</p>
-  </div>
-  <form class="upload-form" id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
-    <div class="dropzone" data-dropzone>
-      <input type="file" name="files" id="file-input" accept=".txt" multiple required />
-      <div>
-        <div class="dropzone-title">拖拽 TXT 到这里</div>
-        <div class="dropzone-sub">或点击选择多个文件</div>
-      </div>
-    </div>
-
-    <div class="form-grid">
-      <div class="field">
-        <label>规则模板</label>
-        <select name="rule_template">
-          {% for rule in rules %}
-            <option value="{{ rule.rule_id }}">{{ rule.name }} · v{{ rule.version }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label>语言</label>
-        <input type="text" name="language" value="zh-CN" />
-      </div>
-      <div class="field">
-        <label>星级</label>
-        <input type="number" name="rating" min="0" max="5" step="1" />
-      </div>
-      <div class="field">
-        <label>封面（可选）</label>
-        <input type="file" name="cover_file" accept="image/*" />
-      </div>
-    </div>
-
-    <details class="more-fields">
-      <summary>更多元数据</summary>
-      <div class="form-grid">
-        <div class="field">
-          <label>书名</label>
-          <input type="text" name="title" placeholder="留空则自动解析" />
-        </div>
-        <div class="field">
-          <label>作者</label>
-          <input type="text" name="author" placeholder="留空则自动解析" />
-        </div>
-        <div class="field">
-          <label>系列</label>
-          <input type="text" name="series" />
-        </div>
-        <div class="field">
-          <label>Identifier</label>
-          <input type="text" name="identifier" />
-        </div>
-        <div class="field">
-          <label>出版社</label>
-          <input type="text" name="publisher" />
-        </div>
-        <div class="field">
-          <label>标签</label>
-          <input type="text" name="tags" placeholder="例如：科幻, 太空歌剧" />
-        </div>
-        <div class="field">
-          <label>发表时间</label>
-          <input type="text" name="published" placeholder="例如：2024-08-01" />
-        </div>
-        <div class="field">
-          <label>ISBN</label>
-          <input type="text" name="isbn" />
-        </div>
-      </div>
-      <div class="field">
-        <label>内容简介</label>
-        <textarea name="description" rows="3"></textarea>
-      </div>
-    </details>
-
-    <div class="actions">
-      <button
-        class="btn ghost"
-        type="button"
-        hx-post="/upload/preview"
-        hx-target="#upload-preview"
-        hx-include="#upload-form"
-        hx-encoding="multipart/form-data"
-      >
-        预览解析
-      </button>
-      <button class="btn" type="submit">开始转换</button>
-    </div>
-  </form>
-  <div id="upload-preview" class="preview-panel">
-    <div class="empty">上传后点击“预览解析”查看 TOC 与章节统计。</div>
-  </div>
-</section>
-
-<section class="panel" id="upload-epub">
-  <div class="panel-header">
-    <h2>导入 EPUB</h2>
-    <p>已有 EPUB 直接入库，支持元数据覆盖与预览。</p>
-  </div>
-  <form class="upload-form" id="epub-upload-form" action="/upload/epub" method="post" enctype="multipart/form-data">
-    <div class="dropzone" data-dropzone>
-      <input type="file" name="files" id="epub-file-input" accept=".epub" multiple required />
-      <div>
-        <div class="dropzone-title">拖拽 EPUB 到这里</div>
-        <div class="dropzone-sub">或点击选择多个文件</div>
-      </div>
-    </div>
-
-    <div class="form-grid">
-      <div class="field">
-        <label>语言</label>
-        <input type="text" name="language" value="" placeholder="留空则沿用 EPUB" />
-      </div>
-      <div class="field">
-        <label>星级</label>
-        <input type="number" name="rating" min="0" max="5" step="1" />
-      </div>
-      <div class="field">
-        <label>封面（可选）</label>
-        <input type="file" name="cover_file" accept="image/*" />
-      </div>
-    </div>
-
-    <details class="more-fields">
-      <summary>覆盖元数据</summary>
-      <div class="form-grid">
-        <div class="field">
-          <label>书名</label>
-          <input type="text" name="title" placeholder="留空则沿用 EPUB" />
-        </div>
-        <div class="field">
-          <label>作者</label>
-          <input type="text" name="author" placeholder="留空则沿用 EPUB" />
-        </div>
-        <div class="field">
-          <label>系列</label>
-          <input type="text" name="series" />
-        </div>
-        <div class="field">
-          <label>Identifier</label>
-          <input type="text" name="identifier" />
-        </div>
-        <div class="field">
-          <label>出版社</label>
-          <input type="text" name="publisher" />
-        </div>
-        <div class="field">
-          <label>标签</label>
-          <input type="text" name="tags" placeholder="例如：科幻, 太空歌剧" />
-        </div>
-        <div class="field">
-          <label>发表时间</label>
-          <input type="text" name="published" placeholder="例如：2024-08-01" />
-        </div>
-        <div class="field">
-          <label>ISBN</label>
-          <input type="text" name="isbn" />
-        </div>
-      </div>
-      <div class="field">
-        <label>内容简介</label>
-        <textarea name="description" rows="3"></textarea>
-      </div>
-    </details>
-
-    <div class="actions">
-      <button
-        class="btn ghost"
-        type="button"
-        hx-post="/upload/epub/preview"
-        hx-target="#upload-preview-epub"
-        hx-include="#epub-upload-form"
-        hx-encoding="multipart/form-data"
-      >
-        预览解析
-      </button>
-      <button class="btn" type="submit">开始入库</button>
-    </div>
-  </form>
-  <div id="upload-preview-epub" class="preview-panel">
-    <div class="empty">上传后点击“预览解析”查看 TOC 与章节统计。</div>
-  </div>
-</section>
-
-<section class="panel">
-  <div class="panel-header">
-    <div>
-      <h2>书库</h2>
-      <p>已生成 {{ books | length }} 本。</p>
-    </div>
-    <div class="library-controls" id="library-controls">
-      <div class="view-toggle" data-view-toggle>
-        <button type="button" class="toggle-btn" data-view="grid">封面墙</button>
-        <button type="button" class="toggle-btn" data-view="list">列表</button>
-      </div>
-      <select name="sort" hx-get="/library" hx-target="#library" hx-trigger="change" hx-include="#library-controls">
-        <option value="updated" {% if sort == 'updated' %}selected{% endif %}>最近修改</option>
-        <option value="created" {% if sort == 'created' %}selected{% endif %}>最近导入</option>
-      </select>
+<div class="space-y-6">
+  <div
+    id="library-controls"
+    class="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200"
+  >
+    <div class="relative w-full md:w-96">
+      <svg viewBox="0 0 24 24" fill="none" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" aria-hidden="true">
+        <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2"></path>
+        <path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+      </svg>
       <input
+        class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         type="search"
         name="q"
-        placeholder="标题/作者过滤"
+        placeholder="搜索标题、作者…"
         value="{{ q }}"
         hx-get="/library"
         hx-target="#library"
@@ -224,31 +25,75 @@
         hx-include="#library-controls"
       />
     </div>
+
+    <div class="flex items-center gap-3 w-full md:w-auto">
+      <select
+        class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+        name="sort"
+        hx-get="/library"
+        hx-target="#library"
+        hx-trigger="change"
+        hx-include="#library-controls"
+      >
+        <option value="created" {% if sort == 'created' %}selected{% endif %}>最近导入</option>
+        <option value="updated" {% if sort == 'updated' %}selected{% endif %}>最近修改</option>
+      </select>
+
+      <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200" data-view-toggle>
+        <button
+          type="button"
+          class="toggle-btn p-1.5 rounded text-slate-500 hover:text-slate-700 transition-colors [&.active]:bg-white [&.active]:shadow-sm [&.active]:text-indigo-600"
+          data-view="grid"
+          aria-label="封面墙"
+          title="封面墙"
+        >
+          <svg viewBox="0 0 24 24" fill="none" class="w-[18px] h-[18px]" aria-hidden="true">
+            <path d="M4 4h7v7H4V4Z" stroke="currentColor" stroke-width="2"></path>
+            <path d="M13 4h7v7h-7V4Z" stroke="currentColor" stroke-width="2"></path>
+            <path d="M4 13h7v7H4v-7Z" stroke="currentColor" stroke-width="2"></path>
+            <path d="M13 13h7v7h-7v-7Z" stroke="currentColor" stroke-width="2"></path>
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="toggle-btn p-1.5 rounded text-slate-500 hover:text-slate-700 transition-colors [&.active]:bg-white [&.active]:shadow-sm [&.active]:text-indigo-600"
+          data-view="list"
+          aria-label="列表"
+          title="列表"
+        >
+          <svg viewBox="0 0 24 24" fill="none" class="w-[18px] h-[18px]" aria-hidden="true">
+            <path d="M8 6h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M8 12h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M8 18h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M3 6h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+            <path d="M3 12h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+            <path d="M3 18h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+
+      <a
+        href="/ingest"
+        class="hidden sm:inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+      >入库</a>
+    </div>
   </div>
-  <div id="library" class="library-grid" data-view="grid">
+
+  <div class="text-sm text-slate-500 flex items-center justify-between">
+    <div>已入库 {{ books | length }} 本</div>
+    <div class="text-xs font-mono text-slate-400">/library</div>
+  </div>
+
+  <div
+    id="library"
+    data-view="grid"
+    class="grid gap-6 data-[view=grid]:grid-cols-2 md:data-[view=grid]:grid-cols-3 lg:data-[view=grid]:grid-cols-4 xl:data-[view=grid]:grid-cols-5 data-[view=list]:grid-cols-1"
+  >
     {% include "partials/library.html" %}
   </div>
-</section>
+</div>
 
 <script>
-  document.querySelectorAll('[data-dropzone]').forEach((dropzone) => {
-    const fileInput = dropzone.querySelector('input[type="file"]');
-    if (!fileInput) return;
-    dropzone.addEventListener('click', () => fileInput.click());
-    dropzone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      dropzone.classList.add('dragging');
-    });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragging'));
-    dropzone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      dropzone.classList.remove('dragging');
-      if (event.dataTransfer.files.length) {
-        fileInput.files = event.dataTransfer.files;
-      }
-    });
-  });
-
   const viewToggle = document.querySelector('[data-view-toggle]');
   const library = document.getElementById('library');
   if (viewToggle && library) {
@@ -266,3 +111,4 @@
   }
 </script>
 {% endblock %}
+

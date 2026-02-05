@@ -1,23 +1,42 @@
 {% if previews %}
   {% for item in previews %}
-    <div class="preview-card">
-      <div class="preview-title">{{ item.filename or item.title }}</div>
-      <div class="preview-meta">
-        <div><span>格式</span>{{ item.format or "TXT" }}</div>
-        <div><span>识别标题</span>{{ item.title }}</div>
-        <div><span>作者</span>{{ item.author or "未知" }}</div>
-        {% if item.format == "EPUB" %}
-          <div><span>章节</span>{{ item.chapters }}</div>
-        {% else %}
-          <div><span>卷/章</span>{{ item.volumes }} / {{ item.chapters }}</div>
-        {% endif %}
-        <div><span>输出文件</span>{{ item.output }}</div>
-        <div><span>落库路径</span>{{ item.path }}</div>
-      </div>
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+      <div class="font-semibold text-slate-900 mb-3 truncate" title="{{ item.filename or item.title }}">{{ item.filename or item.title }}</div>
+      <dl class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+        <div>
+          <dt class="text-xs font-semibold text-slate-500 uppercase">格式</dt>
+          <dd class="text-slate-700 font-mono">{{ item.format or "TXT" }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-semibold text-slate-500 uppercase">识别标题</dt>
+          <dd class="text-slate-700">{{ item.title }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-semibold text-slate-500 uppercase">作者</dt>
+          <dd class="text-slate-700">{{ item.author or "未知" }}</dd>
+        </div>
+        <div>
+          {% if item.format == "EPUB" %}
+            <dt class="text-xs font-semibold text-slate-500 uppercase">章节</dt>
+            <dd class="text-slate-700">{{ item.chapters }}</dd>
+          {% else %}
+            <dt class="text-xs font-semibold text-slate-500 uppercase">卷/章</dt>
+            <dd class="text-slate-700">{{ item.volumes }} / {{ item.chapters }}</dd>
+          {% endif %}
+        </div>
+        <div>
+          <dt class="text-xs font-semibold text-slate-500 uppercase">输出文件</dt>
+          <dd class="text-slate-700 font-mono truncate" title="{{ item.output }}">{{ item.output }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-semibold text-slate-500 uppercase">落库路径</dt>
+          <dd class="text-slate-700 font-mono truncate" title="{{ item.path }}">{{ item.path }}</dd>
+        </div>
+      </dl>
       {% if item.toc %}
-        <div class="preview-toc">
-          <h4>TOC 前 10 条</h4>
-          <ul>
+        <div class="mt-4 pt-3 border-t border-slate-200">
+          <h4 class="text-sm font-semibold text-slate-900 mb-2">TOC 前 10 条</h4>
+          <ul class="list-disc pl-5 text-sm text-slate-600 space-y-1">
             {% for title in item.toc %}
               <li>{{ title }}</li>
             {% endfor %}
@@ -27,5 +46,5 @@
     </div>
   {% endfor %}
 {% else %}
-  <div class="empty">没有可预览的内容。</div>
+  <div class="text-sm text-slate-500 text-center py-6">没有可预览的内容。</div>
 {% endif %}

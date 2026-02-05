@@ -3,37 +3,42 @@
 {% block title %}归档 · Bindery{% endblock %}
 
 {% block content %}
-<section class="panel">
-  <div class="panel-header">
-    <h2>归档书籍</h2>
-    <p>已归档 {{ books | length }} 本。</p>
+<section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+  <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-6">
+    <div>
+      <h2 class="text-xl font-bold text-slate-900">归档书籍</h2>
+      <p class="text-sm text-slate-500 mt-1">已归档 {{ books | length }} 本。</p>
+    </div>
   </div>
-  <div class="library-grid" data-view="grid">
+
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
     {% for book in books %}
-      <article class="book-card archived">
-        <div class="card-cover">
-          <div class="cover-placeholder">{{ book.title[:1] }}</div>
+      <article class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden transition-shadow flex flex-col opacity-95">
+        <div class="aspect-[2/3] bg-slate-100 flex items-center justify-center">
+          <div class="w-12 h-12 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500 font-bold text-xl">
+            {{ book.title[:1] }}
+          </div>
         </div>
-        <div class="card-body">
-          <div class="card-header">
-            <h3>{{ book.title }}</h3>
-          </div>
-          <div class="meta">
-            <div><span>作者</span>{{ book.author or "未知" }}</div>
-            <div><span>ID</span><code>{{ book.book_id }}</code></div>
-          </div>
-          <div class="card-actions">
-            <form action="/book/{{ book.book_id }}/restore" method="post">
-              <button class="btn" type="submit">恢复</button>
+        <div class="p-4 flex-1 flex flex-col">
+          <h3 class="font-semibold text-slate-900 truncate" title="{{ book.title }}">{{ book.title }}</h3>
+          <p class="text-sm text-slate-500 mt-1 truncate">{{ book.author or "未知" }}</p>
+          <div class="mt-3 text-xs text-slate-400 font-mono truncate" title="{{ book.book_id }}">{{ book.book_id }}</div>
+          <div class="mt-auto pt-3 flex flex-wrap gap-2">
+            <form action="/book/{{ book.book_id }}/restore" method="post" class="m-0">
+              <button class="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors" type="submit">
+                恢复
+              </button>
             </form>
-            <form action="/book/{{ book.book_id }}/delete" method="post" onsubmit="return confirm('确定永久删除？');">
-              <button class="btn danger" type="submit">删除</button>
+            <form action="/book/{{ book.book_id }}/delete" method="post" onsubmit="return confirm('确定永久删除？');" class="m-0">
+              <button class="px-3 py-1.5 text-xs font-medium bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors" type="submit">
+                删除
+              </button>
             </form>
           </div>
         </div>
       </article>
     {% else %}
-      <div class="empty">归档为空。</div>
+      <div class="col-span-full text-sm text-slate-500 text-center py-12">归档为空。</div>
     {% endfor %}
   </div>
 </section>

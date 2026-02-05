@@ -1,64 +1,64 @@
-<div class="meta-panel" id="meta-panel">
-  <div class="panel-header inline">
-    <h2>编辑元数据</h2>
-    <a class="btn ghost" href="/book/{{ book_id }}">取消</a>
+<div id="meta-panel" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-xl font-bold text-slate-900">编辑元数据</h2>
+    <a class="px-4 py-2 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors" href="/book/{{ book_id }}">取消</a>
   </div>
   <form
-    class="edit-form"
     action="/book/{{ book_id }}/edit"
     method="post"
     hx-post="/book/{{ book_id }}/edit"
     hx-target="#meta-panel"
     hx-swap="innerHTML"
+    class="space-y-6"
   >
-    <div class="form-grid">
-      <div class="field">
-        <label>书名</label>
-        <input type="text" name="title" value="{{ book.title }}" required />
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">书名</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none font-medium" type="text" name="title" value="{{ book.title }}" required />
       </div>
-      <div class="field">
-        <label>作者</label>
-        <input type="text" name="author" value="{{ book.author or '' }}" />
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">作者</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="author" value="{{ book.author or '' }}" />
       </div>
-      <div class="field">
-        <label>语言</label>
-        <input type="text" name="language" value="{{ book.language }}" />
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">语言</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="language" value="{{ book.language }}" />
       </div>
-      <div class="field">
-        <label>星级</label>
-        <input type="number" name="rating" min="0" max="5" step="1" value="{{ book.rating if book.rating is not none else '' }}" />
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">星级</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" type="number" name="rating" min="0" max="5" step="1" value="{{ book.rating if book.rating is not none else '' }}" />
       </div>
-      <div class="field">
-        <label>系列</label>
-        <input type="text" name="series" value="{{ book.series or '' }}" />
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">系列</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="series" value="{{ book.series or '' }}" />
       </div>
-      <div class="field">
-        <label>Identifier</label>
-        <input type="text" name="identifier" value="{{ book.identifier or '' }}" />
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">Identifier</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none font-mono" type="text" name="identifier" value="{{ book.identifier or '' }}" />
       </div>
-      <div class="field">
-        <label>出版社</label>
-        <input type="text" name="publisher" value="{{ book.publisher or '' }}" />
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">出版社</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="publisher" value="{{ book.publisher or '' }}" />
       </div>
-      <div class="field">
-        <label>标签</label>
-        <input type="text" name="tags" value="{{ book.tags | join(', ') if book.tags else '' }}" />
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">标签</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="tags" value="{{ book.tags | join(', ') if book.tags else '' }}" />
       </div>
-      <div class="field">
-        <label>发表时间</label>
-        <input type="text" name="published" value="{{ book.published or '' }}" />
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">发表时间</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="published" value="{{ book.published or '' }}" />
       </div>
-      <div class="field">
-        <label>ISBN</label>
-        <input type="text" name="isbn" value="{{ book.isbn or '' }}" />
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">ISBN</label>
+        <input class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none font-mono" type="text" name="isbn" value="{{ book.isbn or '' }}" />
       </div>
     </div>
-    <div class="field">
-      <label>内容简介</label>
-      <textarea name="description" rows="4">{{ book.description or '' }}</textarea>
+    <div class="space-y-1">
+      <label class="text-xs font-semibold text-slate-500 uppercase">内容简介</label>
+      <textarea class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm leading-relaxed" name="description" rows="4">{{ book.description or '' }}</textarea>
     </div>
-    <div class="actions">
-      <button class="btn" type="submit">保存并写回</button>
+    <div class="flex gap-2">
+      <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm transition-colors" type="submit">保存并写回</button>
     </div>
   </form>
 </div>

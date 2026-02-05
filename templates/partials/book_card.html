@@ -1,43 +1,72 @@
 {% set rating = book.rating or 0 %}
-<article class="book-card" id="book-{{ book.book_id }}">
-  <div class="card-cover">
+<article class="group bg-white rounded-xl shadow-sm hover:shadow-md border border-slate-200 overflow-hidden transition-shadow flex flex-col" id="book-{{ book.book_id }}">
+  <div class="relative aspect-[2/3] bg-slate-100 overflow-hidden">
+    <a href="/book/{{ book.book_id }}" class="absolute inset-0 z-10" aria-label="打开详情"></a>
     {% if book.cover_url %}
-      <img src="{{ book.cover_url }}" alt="{{ book.title }}" />
+      <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
     {% else %}
-      <div class="cover-placeholder">{{ book.title[:1] }}</div>
-    {% endif %}
-    <span class="badge {{ book.status_class }}">{{ book.status_label }}</span>
-  </div>
-  <div class="card-body">
-    <div class="card-header">
-      <h3>{{ book.title }}</h3>
-      <div class="rating">
-        {% for _ in range(rating) %}★{% endfor %}
-        {% for _ in range(5 - rating) %}☆{% endfor %}
+      <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
+        <div class="w-12 h-12 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500 font-bold text-xl mb-3">B</div>
+        <span class="text-xs font-mono line-clamp-2">{{ book.title }}</span>
       </div>
+    {% endif %}
+
+    <div class="absolute top-3 left-3 z-20">
+      {% if book.status_class == "ok" %}
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-green-100 text-green-700 border-green-200">
+          {{ book.status_label }}
+        </span>
+      {% elif book.status_class == "failed" %}
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-red-100 text-red-700 border-red-200">
+          {{ book.status_label }}
+        </span>
+      {% else %}
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-amber-100 text-amber-700 border-amber-200">
+          {{ book.status_label }}
+        </span>
+      {% endif %}
     </div>
-    <div class="meta">
-      <div><span>作者</span>{{ book.author or "未知" }}</div>
-      <div><span>语言</span>{{ book.language }}</div>
-      {% if book.series %}<div><span>系列</span>{{ book.series }}</div>{% endif %}
-      {% if book.publisher %}<div><span>出版社</span>{{ book.publisher }}</div>{% endif %}
-      {% if book.tags %}<div><span>标签</span>{{ book.tags | join(", ") }}</div>{% endif %}
+
+    <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 p-4 backdrop-blur-[2px] z-20">
+      <a class="flex items-center gap-2 text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-full text-sm font-medium w-full justify-center" href="/book/{{ book.book_id }}/download">
+        下载 EPUB
+      </a>
+      <a class="flex items-center gap-2 text-white bg-slate-600 hover:bg-slate-700 px-4 py-2 rounded-full text-sm font-medium w-full justify-center" href="/book/{{ book.book_id }}">
+        详情 / 编辑
+      </a>
     </div>
-    <div class="meta small">
-      <div><span>ID</span><code>{{ book.book_id }}</code></div>
-      <div><span>路径</span><code>{{ book.path }}</code></div>
+  </div>
+
+  <div class="p-4 flex-1 flex flex-col">
+    <div class="flex justify-between items-start gap-2 mb-1">
+      <h3 class="font-semibold text-slate-900 truncate pr-2" title="{{ book.title }}">{{ book.title }}</h3>
+      {% if rating %}
+        <div class="text-xs text-amber-500 shrink-0">
+          {% for _ in range(rating) %}★{% endfor %}
+          {% for _ in range(5 - rating) %}☆{% endfor %}
+        </div>
+      {% endif %}
     </div>
-    <div class="card-actions">
-      <a class="btn ghost" href="/book/{{ book.book_id }}">详情</a>
-      <a class="btn ghost" href="/book/{{ book.book_id }}/download">下载</a>
+    <p class="text-sm text-slate-500 mb-2 truncate">{{ book.author or "未知" }}</p>
+
+    <div class="mt-auto pt-3 border-t border-slate-100 text-xs text-slate-400 font-mono space-y-1">
+      <div class="truncate" title="{{ book.path }}">{{ book.path }}</div>
+      <div class="truncate" title="{{ book.book_id }}">{{ book.book_id }}</div>
+    </div>
+
+    <div class="mt-3 flex flex-wrap gap-2">
       {% if book.can_regenerate %}
-        <form action="/book/{{ book.book_id }}/regenerate" method="post">
+        <form action="/book/{{ book.book_id }}/regenerate" method="post" class="m-0">
           <input type="hidden" name="rule_template" value="{{ book.rule_template or 'default' }}" />
-          <button class="btn ghost" type="submit">重新生成</button>
+          <button class="px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors" type="submit">
+            重新生成
+          </button>
         </form>
       {% endif %}
-      <form action="/book/{{ book.book_id }}/archive" method="post">
-        <button class="btn" type="submit">归档</button>
+      <form action="/book/{{ book.book_id }}/archive" method="post" class="m-0">
+        <button class="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors" type="submit">
+          归档
+        </button>
       </form>
     </div>
   </div>

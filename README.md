@@ -19,6 +19,13 @@ SQLite 默认路径：`./bindery.db`，可用 `BINDERY_DB_PATH` 自定义。
 
 - 需已安装 `tailwindcss` standalone CLI（确保命令在 PATH 中）
 - `Procfile` 同时启动后端与 Tailwind watch
+- Tailwind 入口文件是 `static/tailwind.css`（Tailwind v4：`@import "tailwindcss";` + `@source` 扫描模板）
+
+如果你发现页面“完全没样式”，优先检查：
+
+- 浏览器 DevTools Network 里 `/static/app.css` 是否 200
+- `static/app.css` 是否被 Tailwind 重新生成（文件修改时间变化）
+- `static/app.css` 里是否包含你用到的类（例如搜索 `.bg-white` / `.px-4`）
 
 ## 认证配置
 

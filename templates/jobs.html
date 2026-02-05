@@ -3,49 +3,86 @@
 {% block title %}任务 · Bindery{% endblock %}
 
 {% block content %}
-<section class="panel">
-  <div class="panel-header">
-    <h2>任务队列</h2>
-    <p>查看转换与写回的进度。</p>
+<section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+  <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-6">
+    <div>
+      <h2 class="text-xl font-bold text-slate-900">任务队列</h2>
+      <p class="text-sm text-slate-500 mt-1">查看转换与写回的进度。</p>
+    </div>
   </div>
-  <div class="jobs-grid">
+
+  <div class="grid lg:grid-cols-3 gap-6">
     {% for status, jobs in groups.items() %}
-      <div class="job-column">
-        <h3>{% if status == 'running' %}进行中{% elif status == 'success' %}成功{% else %}失败{% endif %}</h3>
-        {% for job in jobs %}
-          <article class="job-card">
-            <div class="job-header">
-              <div class="job-action">{{ job.action }}</div>
-              <div class="job-status">{{ job.status }}</div>
-            </div>
-            <div class="job-meta">
-              <div><span>阶段</span>{{ job.stage or "—" }}</div>
-              <div><span>规则</span>{{ job.rule_template or "default" }}</div>
-              <div><span>时间</span>{{ job.created_at }}</div>
-            </div>
-            {% if job.message %}
-              <div class="job-message">{{ job.message }}</div>
-            {% endif %}
-            {% if job.log %}
-              <details class="job-log">
-                <summary>展开详细日志</summary>
-                <pre>{{ job.log }}</pre>
-              </details>
-            {% endif %}
-            <div class="job-actions">
-              {% if job.book_id %}
-                <a class="btn ghost" href="/book/{{ job.book_id }}">打开产物</a>
+      <div>
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+          {% if status == 'running' %}进行中{% elif status == 'success' %}成功{% else %}失败{% endif %}
+        </h3>
+        <div class="space-y-3">
+          {% for job in jobs %}
+            <article class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-semibold text-slate-900 truncate">{{ job.action }}</div>
+                  <div class="text-xs text-slate-500 font-mono mt-1 truncate" title="{{ job.id }}">{{ job.id }}</div>
+                </div>
+                <div class="shrink-0">
+                  {% if job.status == "success" %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-green-100 text-green-700 border-green-200">成功</span>
+                  {% elif job.status == "failed" %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-red-100 text-red-700 border-red-200">失败</span>
+                  {% else %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-blue-100 text-blue-700 border-blue-200">进行中</span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <dl class="mt-3 grid grid-cols-1 gap-2 text-sm">
+                <div class="flex justify-between gap-3">
+                  <dt class="text-xs font-semibold text-slate-500 uppercase">阶段</dt>
+                  <dd class="text-slate-700 text-right truncate">{{ job.stage or "—" }}</dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <dt class="text-xs font-semibold text-slate-500 uppercase">规则</dt>
+                  <dd class="text-slate-700 text-right font-mono truncate">{{ job.rule_template or "—" }}</dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <dt class="text-xs font-semibold text-slate-500 uppercase">时间</dt>
+                  <dd class="text-slate-700 text-right font-mono truncate">{{ job.created_at }}</dd>
+                </div>
+              </dl>
+
+              {% if job.message %}
+                <div class="mt-3 text-sm text-slate-600">{{ job.message }}</div>
               {% endif %}
-              {% if job.status == 'failed' and job.book_id %}
-                <form action="/jobs/{{ job.id }}/retry" method="post">
-                  <button class="btn" type="submit">一键重试</button>
-                </form>
+
+              {% if job.log %}
+                <details class="mt-3">
+                  <summary class="text-xs font-medium text-slate-600 cursor-pointer hover:text-slate-900">展开详细日志</summary>
+                  <pre class="mt-2 text-xs bg-slate-900 text-slate-200 rounded-lg p-3 overflow-y-auto whitespace-pre-wrap">{{ job.log }}</pre>
+                </details>
               {% endif %}
+
+              <div class="mt-4 flex flex-wrap gap-2">
+                {% if job.book_id %}
+                  <a class="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors" href="/book/{{ job.book_id }}">
+                    打开产物
+                  </a>
+                {% endif %}
+                {% if job.status == 'failed' and job.book_id %}
+                  <form action="/jobs/{{ job.id }}/retry" method="post">
+                    <button class="px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors" type="submit">
+                      一键重试
+                    </button>
+                  </form>
+                {% endif %}
+              </div>
+            </article>
+          {% else %}
+            <div class="text-sm text-slate-500 text-center py-6 border border-dashed border-slate-200 rounded-xl bg-slate-50/30">
+              暂无任务
             </div>
-          </article>
-        {% else %}
-          <div class="empty">暂无任务</div>
-        {% endfor %}
+          {% endfor %}
+        </div>
       </div>
     {% endfor %}
   </div>

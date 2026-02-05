@@ -1,5 +1,5 @@
 {% for book in books %}
   {% include "partials/book_card.html" %}
 {% else %}
-  <div class="empty">还没有书籍。上传第一本 TXT/EPUB 吧。</div>
+  <div class="col-span-full text-sm text-slate-500 text-center py-12">还没有书籍。上传第一本 TXT/EPUB 吧。</div>
 {% endfor %}

@@ -3,47 +3,51 @@
 {% block title %}规则 · Bindery{% endblock %}
 
 {% block content %}
-<section class="panel">
-  <div class="panel-header">
-    <h2>切章规则模板</h2>
-    <p>JSON 模板管理与测试。</p>
+<section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+  <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-6">
+    <div>
+      <h2 class="text-xl font-bold text-slate-900">切章规则模板</h2>
+      <p class="text-sm text-slate-500 mt-1">JSON 模板管理与测试。</p>
+    </div>
   </div>
-  <div class="rules-list">
+  <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for rule in rules %}
-      <div class="rule-card">
-        <div class="rule-title">{{ rule.name }} · v{{ rule.version }}</div>
-        <div class="rule-id">{{ rule.rule_id }}</div>
-        <div class="rule-desc">{{ rule.description or "—" }}</div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div class="font-semibold text-slate-900">{{ rule.name }} · v{{ rule.version }}</div>
+        <div class="text-xs text-slate-500 font-mono mt-1">{{ rule.rule_id }}</div>
+        <div class="text-sm text-slate-600 mt-2">{{ rule.description or "—" }}</div>
       </div>
     {% endfor %}
   </div>
 </section>
 
-<section class="panel">
-  <div class="panel-header">
-    <h2>规则测试台</h2>
-    <p>上传 sample 文本并即时查看 TOC 预览。</p>
+<section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+  <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-6">
+    <div>
+      <h2 class="text-xl font-bold text-slate-900">规则测试台</h2>
+      <p class="text-sm text-slate-500 mt-1">粘贴 sample 文本并即时查看 TOC 预览。</p>
+    </div>
   </div>
-  <form class="edit-form" action="/rules/test" method="post" hx-post="/rules/test" hx-target="#rules-preview">
-    <div class="form-grid">
-      <div class="field">
-        <label>规则模板</label>
-        <select name="rule_template">
+  <form action="/rules/test" method="post" hx-post="/rules/test" hx-target="#rules-preview" class="space-y-4">
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-500 uppercase">规则模板</label>
+        <select name="rule_template" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
           {% for rule in rules %}
             <option value="{{ rule.rule_id }}">{{ rule.name }} · v{{ rule.version }}</option>
           {% endfor %}
         </select>
       </div>
     </div>
-    <div class="field">
-      <label>Sample 文本</label>
-      <textarea name="sample" rows="6" placeholder="粘贴一段文本"></textarea>
+    <div class="space-y-1">
+      <label class="text-xs font-semibold text-slate-500 uppercase">Sample 文本</label>
+      <textarea name="sample" rows="6" placeholder="粘贴一段文本" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
     </div>
-    <div class="actions">
-      <button class="btn" type="submit">运行测试</button>
+    <div class="flex gap-2">
+      <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors" type="submit">运行测试</button>
     </div>
   </form>
-  <div id="rules-preview" class="preview-panel">
+  <div id="rules-preview" class="mt-4 bg-white border border-slate-200 rounded-xl p-4">
     {% include "partials/rules_preview.html" %}
   </div>
 </section>
