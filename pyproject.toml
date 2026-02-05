@@ -13,6 +13,7 @@ dependencies = [
   "python-multipart",
   "ebooklib",
   "argon2-cffi",
+  "honcho",
 ]
 
 [project.urls]
