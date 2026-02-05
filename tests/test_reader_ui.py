@@ -28,6 +28,10 @@ class ReaderUiTests(unittest.TestCase):
         self.assertIn("书籍", tpl)
         self.assertIn("自定义", tpl)
         self.assertIn(":class=\"tocOpen ? 'translate-x-0' : '-translate-x-full'\"", tpl)
+        self.assertIn('src="{{ book.cover_url }}"', tpl)
+        self.assertIn("timeNow", tpl)
+        self.assertNotIn("md:opacity-0", tpl)
+        self.assertNotIn("md:group-hover:opacity-100", tpl)
 
     def test_base_supports_fullscreen_layout(self) -> None:
         root = Path(__file__).resolve().parent.parent

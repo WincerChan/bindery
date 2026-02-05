@@ -23,12 +23,14 @@ class BookDetailUiTests(unittest.TestCase):
 
         self.assertNotIn("元数据", view)
         self.assertIn("{{ book.title }}", view)
+        self.assertNotIn("Identifier", view)
+        self.assertIn("[:10]", view)
 
         self.assertNotIn("元数据", edit)
         self.assertIn("保存并写回", edit)
         self.assertIn("封面将从书籍本身读取", edit)
+        self.assertNotIn('name="identifier"', edit)
 
 
 if __name__ == "__main__":
     unittest.main()
-

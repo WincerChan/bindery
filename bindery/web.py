@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
 import tempfile
 import traceback
@@ -20,6 +21,7 @@ from .auth import SESSION_COOKIE, configured_hash, is_authenticated, sign_in, si
 from .db import create_job, get_job, init_db, list_jobs, update_job
 from .epub import (
     build_epub,
+    epub_base_href,
     extract_cover,
     extract_epub_metadata,
     list_epub_sections,
@@ -29,6 +31,7 @@ from .epub import (
 from .models import Book, Job, Metadata, Volume
 from .parsing import decode_text, parse_book
 from .rules import get_rule, load_rule_templates
+from .themes import compose_css, get_theme, load_theme_templates
 from .storage import (
     archive_book,
     archive_book_dir,
@@ -218,6 +221,8 @@ def _book_view(meta: Metadata, base: Path) -> dict:
         "archived": meta.archived,
         "cover_file": meta.cover_file,
         "rule_template": meta.rule_template,
+        "theme_template": meta.theme_template,
+        "custom_css": meta.custom_css,
         "source_type": source_type,
         "can_regenerate": can_regenerate,
         "created_at": meta.created_at,
@@ -236,6 +241,13 @@ def _require_book(base: Path, book_id: str) -> None:
         raise HTTPException(status_code=404, detail="Book not found")
 
 
+def _require_theme(theme_id: str):
+    for theme in load_theme_templates():
+        if theme.theme_id == theme_id:
+            return theme
+    raise HTTPException(status_code=404, detail="Theme not found")
+
+
 def _build_metadata(
     book_id: str,
     book: Book,
@@ -251,6 +263,8 @@ def _build_metadata(
     isbn: str,
     rating: str,
     rule_template: str,
+    theme_template: str,
+    custom_css: str,
 ) -> Metadata:
     now = _now_iso()
     meta_title = title.strip() if title.strip() else (book.title or "未命名")
@@ -264,6 +278,8 @@ def _build_metadata(
     meta_published = published.strip() if published.strip() else None
     meta_isbn = isbn.strip() if isbn.strip() else None
     meta_rating = _parse_rating(rating)
+    meta_theme = theme_template.strip() if theme_template.strip() else "default"
+    meta_css = custom_css.strip() if custom_css and custom_css.strip() else None
 
     return Metadata(
         book_id=book_id,
@@ -284,6 +300,8 @@ def _build_metadata(
         archived=False,
         cover_file=None,
         rule_template=rule_template,
+        theme_template=meta_theme,
+        custom_css=meta_css,
         created_at=now,
         updated_at=now,
     )
@@ -303,6 +321,8 @@ def _build_metadata_from_epub(
     published: str,
     isbn: str,
     rating: str,
+    theme_template: str,
+    custom_css: str,
 ) -> Metadata:
     now = _now_iso()
 
@@ -320,6 +340,8 @@ def _build_metadata_from_epub(
     meta_published = pick(published, extracted.get("published"))
     meta_isbn = pick(isbn, extracted.get("isbn"))
     meta_rating = _parse_rating(rating) if rating.strip() else extracted.get("rating")
+    meta_theme = theme_template.strip() if theme_template.strip() else None
+    meta_css = custom_css.strip() if custom_css and custom_css.strip() else None
 
     return Metadata(
         book_id=book_id,
@@ -340,15 +362,18 @@ def _build_metadata_from_epub(
         archived=False,
         cover_file=None,
         rule_template=None,
+        theme_template=meta_theme,
+        custom_css=meta_css,
         created_at=now,
         updated_at=now,
     )
 
 
 def _update_meta_synced(meta: Metadata) -> None:
+    now = _now_iso()
     meta.status = "synced"
-    meta.epub_updated_at = _now_iso()
-    meta.updated_at = _now_iso()
+    meta.epub_updated_at = now
+    meta.updated_at = now
 
 
 def _update_meta_failed(meta: Metadata) -> None:
@@ -396,6 +421,8 @@ def _run_ingest(
     isbn: str,
     rating: str,
     rule_template: str,
+    theme_template: str,
+    custom_css: str,
     cover_bytes: Optional[bytes],
     cover_name: Optional[str],
 ) -> Metadata:
@@ -422,6 +449,8 @@ def _run_ingest(
             isbn,
             rating,
             rule_template,
+            theme_template,
+            custom_css,
         )
 
         save_book(book, base, book_id)
@@ -437,7 +466,9 @@ def _run_ingest(
         cover_path_obj = cover_path(base, book_id, cover_file) if cover_file else None
 
         _update_job(job.id, stage="生成 EPUB")
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+        theme_css = get_theme(meta.theme_template or "default").css if meta.theme_template else ""
+        css_text = compose_css(theme_css, meta.custom_css)
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=css_text)
         _update_meta_synced(meta)
         save_metadata(meta, base)
         _update_job(job.id, status="success", stage="完成", message="完成")
@@ -463,6 +494,8 @@ def _run_epub_ingest(
     published: str,
     isbn: str,
     rating: str,
+    theme_template: str,
+    custom_css: str,
     cover_bytes: Optional[bytes],
     cover_name: Optional[str],
 ) -> Metadata:
@@ -490,6 +523,8 @@ def _run_epub_ingest(
             published,
             isbn,
             rating,
+            theme_template,
+            custom_css,
         )
 
         save_book(Book(title=meta.title, author=meta.author, intro=None), base, book_id)
@@ -504,14 +539,18 @@ def _run_epub_ingest(
                 meta.cover_file = save_cover_bytes(base, book_id, cover_data, cover_filename)
 
         cover_path_obj = cover_path(base, book_id, meta.cover_file) if meta.cover_file else None
+        theme_css = get_theme(meta.theme_template).css if meta.theme_template else ""
+        css_text = compose_css(theme_css, meta.custom_css)
         override_fields = [title, author, language, description, series, identifier, publisher, tags, published, isbn]
         needs_rewrite = any(value.strip() for value in override_fields if isinstance(value, str))
         if rating.strip() or cover_bytes:
             needs_rewrite = True
+        if css_text:
+            needs_rewrite = True
 
         if needs_rewrite:
             _update_job(job.id, stage="写回 EPUB")
-            update_epub_metadata(epub_file, meta, cover_path_obj)
+            update_epub_metadata(epub_file, meta, cover_path_obj, css_text=css_text)
 
         _update_meta_synced(meta)
         save_metadata(meta, base)
@@ -547,7 +586,9 @@ def _run_regenerate(
         _update_job(job.id, stage="生成 EPUB")
         cover_file = meta.cover_file
         cover_path_obj = cover_path(base, book_id, cover_file) if cover_file else None
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj)
+        theme_css = get_theme(meta.theme_template or "default").css if meta.theme_template else ""
+        css_text = compose_css(theme_css, meta.custom_css)
+        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=css_text)
         _update_meta_synced(meta)
         save_metadata(meta, base)
         _update_job(job.id, status="success", stage="完成", message="完成")
@@ -620,9 +661,10 @@ async def index(request: Request, sort: str = "updated", q: str = "") -> HTMLRes
 @app.get("/ingest", response_class=HTMLResponse)
 async def ingest_view(request: Request) -> HTMLResponse:
     rules = load_rule_templates()
+    themes = load_theme_templates()
     return templates.TemplateResponse(
         "ingest.html",
-        {"request": request, "rules": rules},
+        {"request": request, "rules": rules, "themes": themes},
     )
 
 
@@ -631,6 +673,7 @@ async def ingest_preview(
     request: Request,
     files: list[UploadFile] = File(...),
     rule_template: str = Form("default"),
+    theme_template: str = Form(""),
 ) -> HTMLResponse:
     previews: list[dict] = []
     base = library_dir()
@@ -768,6 +811,8 @@ async def ingest(
     isbn: str = Form(""),
     rating: str = Form(""),
     rule_template: str = Form("default"),
+    theme_template: str = Form(""),
+    custom_css: str = Form(""),
     cover_file: Optional[UploadFile] = File(None),
 ) -> HTMLResponse:
     if not files:
@@ -807,6 +852,8 @@ async def ingest(
                     published,
                     isbn,
                     rating,
+                    theme_template,
+                    custom_css,
                     cover_bytes,
                     cover_name,
                 )
@@ -847,6 +894,8 @@ async def ingest(
                     isbn,
                     rating,
                     rule_template,
+                    theme_template,
+                    custom_css,
                     cover_bytes,
                     cover_name,
                 )
@@ -993,6 +1042,8 @@ async def upload(
     isbn: str = Form(""),
     rating: str = Form(""),
     rule_template: str = Form("default"),
+    theme_template: str = Form(""),
+    custom_css: str = Form(""),
     cover_file: Optional[UploadFile] = File(None),
 ) -> HTMLResponse:
     if not files:
@@ -1032,6 +1083,8 @@ async def upload(
                 isbn,
                 rating,
                 rule_template,
+                theme_template,
+                custom_css,
                 cover_bytes,
                 cover_name,
             )
@@ -1068,6 +1121,8 @@ async def upload_epub(
     published: str = Form(""),
     isbn: str = Form(""),
     rating: str = Form(""),
+    theme_template: str = Form(""),
+    custom_css: str = Form(""),
     cover_file: Optional[UploadFile] = File(None),
 ) -> HTMLResponse:
     if not files:
@@ -1101,6 +1156,8 @@ async def upload_epub(
                 published,
                 isbn,
                 rating,
+                theme_template,
+                custom_css,
                 cover_bytes,
                 cover_name,
             )
@@ -1130,6 +1187,7 @@ async def book_detail(request: Request, book_id: str) -> HTMLResponse:
     book = load_book(base, book_id)
     sections = _book_sections(book)
     rules = load_rule_templates()
+    themes = load_theme_templates()
     return templates.TemplateResponse(
         "book.html",
         {
@@ -1138,6 +1196,7 @@ async def book_detail(request: Request, book_id: str) -> HTMLResponse:
             "sections": sections,
             "book_id": book_id,
             "rules": rules,
+            "themes": themes,
         },
     )
 
@@ -1146,10 +1205,19 @@ async def book_detail(request: Request, book_id: str) -> HTMLResponse:
 async def download(book_id: str) -> FileResponse:
     base = library_dir()
     _require_book(base, book_id)
+    meta = load_metadata(base, book_id)
     epub_file = epub_path(base, book_id)
     if not epub_file.exists():
         raise HTTPException(status_code=404, detail="EPUB missing")
-    return FileResponse(path=epub_file, filename=epub_file.name, media_type="application/epub+zip")
+
+    title = (meta.title or "").strip()
+    safe_title = _safe_filename(title) if title else "book"
+    author = (meta.author or "").strip()
+    if not author:
+        author = "未知"
+    safe_author = _safe_filename(author)
+    download_name = f"{safe_title}-{safe_author}.epub"
+    return FileResponse(path=epub_file, filename=download_name, media_type="application/epub+zip")
 
 
 @app.get("/book/{book_id}/cover")
@@ -1305,7 +1373,8 @@ async def epub_item(book_id: str, item_path: str) -> Response:
         raise HTTPException(status_code=404, detail="EPUB missing")
     item_path = urllib.parse.unquote(item_path)
     try:
-        content, media_type = load_epub_item(epub_file, item_path, f"/book/{book_id}/epub/")
+        base_href = epub_base_href(f"/book/{book_id}/epub/", item_path)
+        content, media_type = load_epub_item(epub_file, item_path, base_href)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Item not found")
     return Response(content=content, media_type=media_type)
@@ -1316,6 +1385,8 @@ async def edit_metadata(request: Request, book_id: str) -> HTMLResponse:
     base = library_dir()
     _require_book(base, book_id)
     meta = load_metadata(base, book_id)
+    rules = load_rule_templates()
+    themes = load_theme_templates()
     template = "partials/meta_edit.html" if _is_htmx(request) else "edit.html"
     return templates.TemplateResponse(
         template,
@@ -1323,6 +1394,8 @@ async def edit_metadata(request: Request, book_id: str) -> HTMLResponse:
             "request": request,
             "book": _book_view(meta, base),
             "book_id": book_id,
+            "rules": rules,
+            "themes": themes,
         },
     )
 
@@ -1336,12 +1409,15 @@ async def save_edit(
     language: str = Form(""),
     description: str = Form(""),
     series: str = Form(""),
-    identifier: str = Form(""),
+    identifier: Optional[str] = Form(None),
     publisher: str = Form(""),
     tags: str = Form(""),
     published: str = Form(""),
     isbn: str = Form(""),
     rating: str = Form(""),
+    rule_template: str = Form(""),
+    theme_template: str = Form(""),
+    custom_css: str = Form(""),
 ) -> HTMLResponse:
     base = library_dir()
     _require_book(base, book_id)
@@ -1353,12 +1429,19 @@ async def save_edit(
     meta.language = language.strip() or "zh-CN"
     meta.description = description.strip() or None
     meta.series = series.strip() or None
-    meta.identifier = identifier.strip() or None
+    if identifier is not None:
+        meta.identifier = identifier.strip() or None
     meta.publisher = publisher.strip() or None
     meta.tags = _parse_tags(tags)
     meta.published = published.strip() or None
     meta.isbn = isbn.strip() or None
     meta.rating = _parse_rating(rating)
+    if meta.source_type != "epub":
+        meta.rule_template = rule_template.strip() or meta.rule_template or "default"
+    meta.theme_template = theme_template.strip() or (meta.theme_template if meta.source_type == "epub" else "default")
+    if meta.source_type == "epub" and not theme_template.strip():
+        meta.theme_template = None
+    meta.custom_css = custom_css.strip() or None
     meta.status = "dirty"
     meta.updated_at = _now_iso()
 
@@ -1383,9 +1466,13 @@ async def save_edit(
 
     if meta.source_type == "epub":
         # 只写回元数据；封面保持 EPUB 本体不变。
-        update_epub_metadata(epub_file, meta, None)
+        theme_css = get_theme(meta.theme_template).css if meta.theme_template else ""
+        css_text = compose_css(theme_css, meta.custom_css)
+        update_epub_metadata(epub_file, meta, None, css_text=css_text)
     else:
-        build_epub(book, meta, epub_file, cover_path_obj)
+        theme_css = get_theme(meta.theme_template or "default").css if meta.theme_template else ""
+        css_text = compose_css(theme_css, meta.custom_css)
+        build_epub(book, meta, epub_file, cover_path_obj, css_text=css_text)
 
     # 保存后始终从 EPUB 刷新封面缓存，保证详情页封面只来源于书籍本体。
     extracted_cover = None
@@ -1494,9 +1581,35 @@ async def retry_job(job_id: str, rule_template: str = Form("default")) -> Redire
 @app.get("/rules", response_class=HTMLResponse)
 async def rules_view(request: Request) -> HTMLResponse:
     rules = load_rule_templates()
+    themes = load_theme_templates()
     return templates.TemplateResponse(
         "rules.html",
-        {"request": request, "rules": rules},
+        {"request": request, "rules": rules, "themes": themes},
+    )
+
+
+@app.get("/themes/{theme_id}/editor", response_class=HTMLResponse)
+async def theme_editor(request: Request, theme_id: str) -> HTMLResponse:
+    theme = _require_theme(theme_id)
+    return templates.TemplateResponse(
+        "partials/theme_editor.html",
+        {"request": request, "theme": theme, "saved": False},
+    )
+
+
+@app.post("/themes/{theme_id}/editor", response_class=HTMLResponse)
+async def theme_editor_save(request: Request, theme_id: str, css: str = Form("")) -> HTMLResponse:
+    theme = _require_theme(theme_id)
+    try:
+        data = json.loads(theme.file_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Theme file is not valid JSON") from exc
+    data["css"] = css
+    theme.file_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    theme = _require_theme(theme_id)
+    return templates.TemplateResponse(
+        "partials/theme_editor.html",
+        {"request": request, "theme": theme, "saved": True},
     )
 
 

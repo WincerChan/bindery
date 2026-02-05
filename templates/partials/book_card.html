@@ -1,7 +1,6 @@
 {% set rating = book.rating or 0 %}
 <article class="group bg-white rounded-xl shadow-sm hover:shadow-md border border-slate-200 overflow-hidden transition-shadow flex flex-col" id="book-{{ book.book_id }}">
   <div class="relative aspect-[2/3] bg-slate-100 overflow-hidden">
-    <a href="/book/{{ book.book_id }}" class="absolute inset-0 z-10" aria-label="打开详情"></a>
     {% if book.cover_url %}
       <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
     {% else %}
@@ -11,7 +10,7 @@
       </div>
     {% endif %}
 
-    <div class="absolute top-3 left-3 z-20">
+    <div class="absolute top-3 left-3 z-10">
       {% if book.status_class == "ok" %}
         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-green-100 text-green-700 border-green-200">
           {{ book.status_label }}
@@ -27,24 +26,31 @@
       {% endif %}
     </div>
 
-    <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity backdrop-blur-[2px] z-20 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
-      <div class="h-full w-full flex flex-col items-center justify-center gap-2 p-4">
-        <a class="flex items-center gap-2 text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-full text-xs font-medium w-full justify-center cursor-pointer" href="/book/{{ book.book_id }}/download">
-          下载 EPUB
-        </a>
-        <a class="flex items-center gap-2 text-white bg-slate-600 hover:bg-slate-700 px-4 py-2 rounded-full text-xs font-medium w-full justify-center cursor-pointer" href="/book/{{ book.book_id }}">
-          详情 / 编辑
-        </a>
-        <form action="/book/{{ book.book_id }}/archive" method="post" class="w-full m-0">
-          <button class="flex items-center gap-2 text-white bg-red-600 hover:bg-red-700 px-4 py-2 rounded-full text-xs font-medium w-full justify-center cursor-pointer" type="submit">
-            归档
-          </button>
-        </form>
+    <a
+      href="/book/{{ book.book_id }}"
+      class="absolute inset-0 z-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+      aria-label="打开详情"
+    ></a>
+
+    <div class="absolute inset-x-0 bottom-0 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
+      <div class="p-3 bg-gradient-to-t from-slate-900/70 via-slate-900/20 to-transparent">
+        <div class="grid grid-cols-2 gap-2">
+          <a
+            class="w-full h-9 inline-flex items-center justify-center px-3 text-xs font-medium bg-white/90 text-slate-900 rounded-lg hover:bg-white transition-colors"
+            href="/book/{{ book.book_id }}/download"
+          >下载</a>
+          <form action="/book/{{ book.book_id }}/archive" method="post" class="m-0 min-w-0">
+            <button
+              class="w-full h-9 inline-flex items-center justify-center px-3 text-xs font-medium bg-white/90 text-red-700 rounded-lg hover:bg-white transition-colors cursor-pointer"
+              type="submit"
+            >归档</button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="p-3 flex-1 flex flex-col">
+  <a href="/book/{{ book.book_id }}" class="block p-3 flex-1 flex flex-col focus:outline-none focus:ring-2 focus:ring-indigo-500/50" aria-label="打开详情">
     <div class="flex justify-between items-start gap-2 mb-1">
       <h3 class="text-sm font-semibold text-slate-900 truncate pr-2" title="{{ book.title }}">{{ book.title }}</h3>
       {% if rating %}
@@ -55,5 +61,5 @@
       {% endif %}
     </div>
     <p class="text-xs text-slate-500 truncate">{{ book.author or "未知" }}</p>
-  </div>
+  </a>
 </article>

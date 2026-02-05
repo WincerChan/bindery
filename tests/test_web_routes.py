@@ -36,6 +36,18 @@ class WebRoutesTests(unittest.TestCase):
         self.assertNotIn('action="/upload/epub"', ingest)
         self.assertIn('accept=".txt,.epub"', ingest)
         self.assertIn('hx-post="/ingest/preview"', ingest)
+        self.assertIn('name="custom_css"', ingest)
+
+    def test_theme_editor_routes_registered(self) -> None:
+        seen: set[tuple[str, str]] = set()
+        for route in app.routes:
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None) or set()
+            if path == "/themes/{theme_id}/editor":
+                for method in methods:
+                    seen.add((method, path))
+        self.assertIn(("GET", "/themes/{theme_id}/editor"), seen)
+        self.assertIn(("POST", "/themes/{theme_id}/editor"), seen)
 
 
 if __name__ == "__main__":

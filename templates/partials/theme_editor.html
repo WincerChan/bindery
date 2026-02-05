@@ -1,0 +1,102 @@
+<div
+  class="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col min-h-0"
+  x-data="binderyThemeEditor()"
+  x-init="init()"
+>
+  <div class="p-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-white">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2">
+        <h3 class="font-bold text-slate-900 truncate">{{ theme.name }}</h3>
+        <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded border border-green-200">v{{ theme.version }}</span>
+      </div>
+      <div class="text-xs text-slate-500 mt-1 truncate">{{ theme.description or "—" }}</div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      {% if saved %}
+        <span class="px-2 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 rounded border border-emerald-200">已保存</span>
+      {% endif %}
+      <button form="theme-form" class="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm rounded-lg hover:bg-slate-900" type="submit">
+        保存
+      </button>
+    </div>
+  </div>
+
+  <form
+    id="theme-form"
+    action="/themes/{{ theme.theme_id }}/editor"
+    method="post"
+    hx-post="/themes/{{ theme.theme_id }}/editor"
+    hx-target="#theme-editor"
+    hx-swap="innerHTML"
+    class="flex-1 grid grid-cols-12 gap-4 p-4 min-h-0"
+  >
+    <div class="col-span-12 lg:col-span-5 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden min-h-0">
+      <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 text-xs font-mono text-slate-500 flex justify-between">
+        <span>THEME CSS</span>
+        <span class="text-pink-600 font-bold">GLOBAL</span>
+      </div>
+      <textarea
+        x-ref="cssInput"
+        x-model="css"
+        @input.debounce.150ms="updatePreview()"
+        name="css"
+        class="flex-1 w-full p-4 font-mono text-xs resize-none focus:outline-none text-slate-700 min-h-[240px]"
+        placeholder="/* Add CSS here */"
+      >{{ theme.css }}</textarea>
+      <div class="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-200 bg-white">
+        保存后会写入主题文件；书籍侧的“渲染主题/自定义 CSS”会写回到 EPUB。
+      </div>
+    </div>
+
+    <div class="col-span-12 lg:col-span-7 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden min-h-0">
+      <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 text-xs font-mono text-slate-500 flex justify-between">
+        <span>LIVE PREVIEW</span>
+        <span class="text-indigo-600 font-bold">SANDBOX</span>
+      </div>
+      <div class="flex-1 p-4 min-h-0">
+        <iframe x-ref="frame" class="w-full h-full rounded-lg border border-slate-200 bg-white"></iframe>
+      </div>
+      <div class="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-200 bg-white flex justify-center">
+        预览仅用于检查排版效果（不会影响页面自身样式）。
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+  function binderyThemeEditor() {
+    return {
+      css: "",
+      init() {
+        this.css = (this.$refs.cssInput && this.$refs.cssInput.value) || "";
+        this.updatePreview();
+      },
+      updatePreview() {
+        const raw = this.css || "";
+        const safe = raw.replaceAll("</style", "<\\/style").replaceAll("</script", "<\\/script");
+        const html = `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      html, body { height: 100%; }
+      body { margin: 0; padding: 48px 24px; background: #fff; color: #0f172a; }
+      .page { max-width: 600px; margin: 0 auto; }
+    </style>
+    <style>${safe}</style>
+  </head>
+  <body>
+    <div class="page">
+      <h2>第一章：CSS 预览</h2>
+      <p>这是一段用于预览主题 CSS 的正文内容。你可以调整字体、行高、缩进与边距，观察阅读体验变化。</p>
+      <p>建议在这里模拟你常读的文本密度与段落风格，然后再保存并写回到 EPUB。</p>
+    </div>
+  </body>
+</html>`;
+        if (this.$refs.frame) this.$refs.frame.srcdoc = html;
+      },
+    };
+  }
+</script>
+

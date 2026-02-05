@@ -19,6 +19,19 @@ class EpubSection:
     item_path: str
 
 
+DEFAULT_EPUB_CSS = (
+    "body { font-family: \"Noto Serif SC\", serif; line-height: 1.7; }\n"
+    "p { text-indent: 2em; margin: 0 0 0.8em; }\n"
+    "h2 { font-weight: 700; font-size: 1.2em; margin: 1.5em 0 1em; }\n"
+    "h1 { font-weight: 800; font-size: 1.6em; margin: 1.5em 0 1em; }\n"
+    ".front-matter p.author { text-align: center; text-indent: 0; margin: 0 0 1.5em; }\n"
+    ".front-matter p.intro-label { text-indent: 0; font-weight: 700; margin: 1.2em 0 0.6em; }\n"
+    ".volume p, .volume h2 { text-indent: 0; }\n"
+)
+
+BINDERY_CSS_NAME = "bindery.css"
+
+
 def _render_section(title: str, lines: Iterable[str], lang: str, kind: str = "chapter") -> str:
     paragraphs = []
     for line in lines:
@@ -129,7 +142,13 @@ def _clear_metadata(book: epub.EpubBook, *, keep_cover: bool = False) -> None:
         book.metadata[opf_ns] = opf
 
 
-def update_epub_metadata(epub_file: Path, meta: Metadata, cover_path: Optional[Path] = None) -> None:
+def update_epub_metadata(
+    epub_file: Path,
+    meta: Metadata,
+    cover_path: Optional[Path] = None,
+    *,
+    css_text: Optional[str] = None,
+) -> None:
     book = epub.read_epub(str(epub_file))
     _normalize_spine_and_toc(book)
     cover_ok = bool(cover_path and cover_path.exists())
@@ -137,22 +156,22 @@ def update_epub_metadata(epub_file: Path, meta: Metadata, cover_path: Optional[P
     _add_metadata(book, meta)
     if cover_ok:
         book.set_cover(cover_path.name, cover_path.read_bytes())
+    if css_text is not None:
+        _apply_bindery_css_overlay(book, css_text)
     epub.write_epub(str(epub_file), book, {"epub3_pages": False})
 
 
-def build_epub(book_data: Book, meta: Metadata, output_path: Path, cover_path: Optional[Path] = None) -> None:
+def build_epub(
+    book_data: Book,
+    meta: Metadata,
+    output_path: Path,
+    cover_path: Optional[Path] = None,
+    css_text: Optional[str] = None,
+) -> None:
     epub_book = epub.EpubBook()
     _add_metadata(epub_book, meta)
 
-    css = (
-        "body { font-family: \"Noto Serif SC\", serif; line-height: 1.7; }\n"
-        "p { text-indent: 2em; margin: 0 0 0.8em; }\n"
-        "h2 { font-weight: 700; font-size: 1.2em; margin: 1.5em 0 1em; }\n"
-        "h1 { font-weight: 800; font-size: 1.6em; margin: 1.5em 0 1em; }\n"
-        ".front-matter p.author { text-align: center; text-indent: 0; margin: 0 0 1.5em; }\n"
-        ".front-matter p.intro-label { text-indent: 0; font-weight: 700; margin: 1.2em 0 0.6em; }\n"
-        ".volume p, .volume h2 { text-indent: 0; }\n"
-    )
+    css = css_text.strip() if css_text and css_text.strip() else DEFAULT_EPUB_CSS
     style_item = epub.EpubItem(uid="style", file_name="style.css", media_type="text/css", content=css)
     epub_book.add_item(style_item)
 
@@ -424,3 +443,82 @@ def load_epub_item(epub_file: Path, item_path: str, base_href: str) -> tuple[byt
         content = text.encode("utf-8")
         media_type = "text/html; charset=utf-8"
     return content, media_type
+
+
+def epub_base_href(base_prefix: str, item_path: str) -> str:
+    """Compute a <base href> for an EPUB item so relative assets resolve correctly.
+
+    Many EPUBs store chapters under a directory like "OEBPS/Text/" and assets under
+    "OEBPS/Images/". Chapter HTML typically references assets via "../Images/...".
+    If we always use "/.../epub/" as the base, "../Images/..." escapes the epub path.
+    """
+
+    prefix = base_prefix if base_prefix.endswith("/") else f"{base_prefix}/"
+    safe = Path(item_path.lstrip("/"))
+    parent = safe.parent.as_posix()
+    if not parent or parent == ".":
+        return prefix
+    return f"{prefix}{parent.strip('/')}/"
+
+
+def _inject_stylesheet_link(html_text: str, href: str) -> str:
+    if re.search(rf"<link\\b[^>]*href=[\"']{re.escape(href)}[\"'][^>]*>", html_text, flags=re.IGNORECASE):
+        return html_text
+    link_tag = f'<link rel="stylesheet" type="text/css" href="{html.escape(href, quote=True)}" />'
+    match = re.search(r"</head\\s*>", html_text, flags=re.IGNORECASE)
+    if match:
+        idx = match.start()
+        return f"{html_text[:idx]}{link_tag}{html_text[idx:]}"
+    match = re.search(r"<head[^>]*>", html_text, flags=re.IGNORECASE)
+    if match:
+        idx = match.end()
+        return f"{html_text[:idx]}{link_tag}{html_text[idx:]}"
+    return f"<head>{link_tag}</head>{html_text}"
+
+
+def _remove_stylesheet_link(html_text: str, href: str) -> str:
+    return re.sub(
+        rf"<link\\b[^>]*href=[\"']{re.escape(href)}[\"'][^>]*>\\s*",
+        "",
+        html_text,
+        flags=re.IGNORECASE,
+    )
+
+
+def _apply_bindery_css_overlay(book: epub.EpubBook, css_text: str) -> None:
+    css_clean = css_text.strip()
+    docs = _spine_items(book)
+    by_dir: dict[str, list[ebooklib.epub.EpubItem]] = {}
+    for item in docs:
+        name = (item.get_name() or "").lstrip("/")
+        parent = str(Path(name).parent) if name else "."
+        by_dir.setdefault(parent, []).append(item)
+
+    if css_clean:
+        for directory in by_dir:
+            if directory in {"", "."}:
+                file_name = BINDERY_CSS_NAME
+            else:
+                file_name = str(Path(directory) / BINDERY_CSS_NAME)
+            existing = book.get_item_with_href(file_name)
+            if existing and existing.get_type() == ebooklib.ITEM_STYLE:
+                existing.set_content(css_clean.encode("utf-8"))
+            else:
+                style_item = epub.EpubItem(
+                    uid=f"bindery-css:{file_name}",
+                    file_name=file_name,
+                    media_type="text/css",
+                    content=css_clean.encode("utf-8"),
+                )
+                book.add_item(style_item)
+    for items in by_dir.values():
+        for item in items:
+            # ebooklib 在写 EPUB / 生成 HTML 时会重建 <head>，只保留 item.links。
+            # 因此不能通过“字符串注入 <link>”的方式写入样式表链接。
+            if not isinstance(item, epub.EpubHtml):
+                continue
+            if css_clean:
+                if not any(link.get("href") == BINDERY_CSS_NAME for link in item.links):
+                    item.add_link(href=BINDERY_CSS_NAME, rel="stylesheet", type="text/css")
+            else:
+                item.links = [link for link in item.links if link.get("href") != BINDERY_CSS_NAME]

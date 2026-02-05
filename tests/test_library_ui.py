@@ -17,8 +17,12 @@ class LibraryUiTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         tpl = (root / "templates" / "partials" / "book_card.html").read_text(encoding="utf-8")
 
+        self.assertIn('href="/book/{{ book.book_id }}"', tpl)
+        self.assertIn('href="/book/{{ book.book_id }}/download"', tpl)
         self.assertIn('action="/book/{{ book.book_id }}/archive"', tpl)
+        self.assertIn("group-hover:opacity-100", tpl)
         self.assertIn("group-hover:pointer-events-auto", tpl)
+        self.assertNotIn("pb-3 mt-auto", tpl)
         self.assertNotIn("/regenerate", tpl)
 
     def test_index_grid_is_compact(self) -> None:

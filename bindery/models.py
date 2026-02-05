@@ -48,6 +48,8 @@ class Metadata:
     archived: bool = False
     cover_file: Optional[str] = None
     rule_template: Optional[str] = None
+    theme_template: Optional[str] = None
+    custom_css: Optional[str] = None
     created_at: str = ""
     updated_at: str = ""
 
@@ -198,6 +200,8 @@ def metadata_to_dict(meta: Metadata) -> dict:
         "archived": meta.archived,
         "cover_file": meta.cover_file,
         "rule_template": meta.rule_template,
+        "theme_template": meta.theme_template,
+        "custom_css": meta.custom_css,
         "created_at": meta.created_at,
         "updated_at": meta.updated_at,
     }
@@ -223,6 +227,8 @@ def metadata_from_dict(data: dict) -> Metadata:
         archived=bool(data.get("archived", False)),
         cover_file=data.get("cover_file"),
         rule_template=data.get("rule_template"),
+        theme_template=data.get("theme_template"),
+        custom_css=data.get("custom_css"),
         created_at=data.get("created_at", ""),
         updated_at=data.get("updated_at", ""),
     )

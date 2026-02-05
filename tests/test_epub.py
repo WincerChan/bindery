@@ -3,11 +3,19 @@ import unittest
 from pathlib import Path
 import zipfile
 
-from bindery.epub import build_epub, extract_epub_metadata, list_epub_sections, update_epub_metadata
+from bindery.epub import build_epub, epub_base_href, extract_epub_metadata, list_epub_sections, update_epub_metadata
 from bindery.models import Book, Chapter, Metadata
 
 
 class BuildEpubTests(unittest.TestCase):
+    def test_epub_base_href_tracks_item_directory(self) -> None:
+        self.assertEqual(epub_base_href("/book/abc/epub/", "chapter.xhtml"), "/book/abc/epub/")
+        self.assertEqual(epub_base_href("/book/abc/epub", "chapter.xhtml"), "/book/abc/epub/")
+        self.assertEqual(
+            epub_base_href("/book/abc/epub/", "OEBPS/Text/ch1.xhtml"),
+            "/book/abc/epub/OEBPS/Text/",
+        )
+
     def test_build_epub_creates_file(self) -> None:
         book = Book(title="测试书", author="作者", intro=None)
         chapter = Chapter(title="第一章", lines=["第一段文字。"])
@@ -150,6 +158,45 @@ class BuildEpubTests(unittest.TestCase):
             self.assertEqual(extracted["title"], "新标题")
             self.assertEqual(extracted["author"], "新作者")
             self.assertEqual(extracted["description"], "新简介")
+
+    def test_update_epub_metadata_injects_bindery_css_overlay(self) -> None:
+        book = Book(title="旧标题", author="旧作者", intro=None)
+        chapter = Chapter(title="第一章", lines=["正文"])
+        book.root_chapters.append(chapter)
+        book.spine.append(chapter)
+
+        meta = Metadata(
+            book_id="update-css-id",
+            title="旧标题",
+            author="旧作者",
+            language="zh-CN",
+            description=None,
+            publisher=None,
+            tags=[],
+            published=None,
+            isbn=None,
+            rating=None,
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            build_epub(book, meta, output_path)
+
+            update_epub_metadata(output_path, meta, css_text="body{margin-left:10px;}")
+
+            with zipfile.ZipFile(output_path, "r") as zf:
+                names = zf.namelist()
+                self.assertTrue(any(name.endswith("/bindery.css") for name in names))
+                doc_names = [name for name in names if name.endswith(".xhtml") or name.endswith(".html")]
+                self.assertTrue(doc_names)
+                linked = 0
+                for name in doc_names[:10]:
+                    text = zf.read(name).decode("utf-8", errors="replace")
+                    if "bindery.css" in text:
+                        linked += 1
+                self.assertGreater(linked, 0)
 
 
 if __name__ == "__main__":
