@@ -68,7 +68,6 @@ DEFAULT_THEME_ID = "default"
 # 显式声明“保持书籍样式”（仅针对 EPUB 导入书籍有意义）；避免用 `None` 产生歧义。
 KEEP_BOOK_THEME_ID = "__book__"
 LIBRARY_PAGE_SIZE = 28
-INGEST_ASYNC_BATCH_THRESHOLD = 8
 INGEST_QUEUE_DIR = ".ingest-queue"
 DOUBAN_REFERER = "https://book.douban.com/"
 
@@ -1688,50 +1687,8 @@ async def ingest(
         )
 
     base = library_dir()
-    created_books: list[dict] = []
     dedupe_mode = "normalize" if dedupe_mode == "normalize" else "keep"
-    if len(files) >= INGEST_ASYNC_BATCH_THRESHOLD:
-        _ensure_ingest_worker_started()
-        for upload_file in files:
-            filename = upload_file.filename or "upload"
-            data = await upload_file.read()
-            if not data:
-                job = _create_job("ingest", None, rule_template)
-                _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
-                continue
-            kind = _detect_source_type(filename, upload_file.content_type, data)
-            action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
-            job = _create_job(action, book_id, job_rule_template)
-            _update_job(job.id, stage="排队中", message="等待后台处理")
-            payload_path = _persist_queued_upload(base, job.id, filename, data)
-            _ingest_queue.put(
-                {
-                    "job_id": job.id,
-                    "payload_path": str(payload_path),
-                    "filename": filename,
-                    "content_type": upload_file.content_type,
-                    "kind": kind,
-                    "title": title,
-                    "author": author,
-                    "language": language,
-                    "description": description,
-                    "series": series,
-                    "identifier": identifier,
-                    "publisher": publisher,
-                    "tags": tags,
-                    "published": published,
-                    "isbn": isbn,
-                    "rating": rating,
-                    "rule_template": rule_template,
-                    "theme_template": theme_template,
-                    "custom_css": custom_css,
-                    "dedupe_mode": dedupe_mode,
-                    "cover_bytes": cover_bytes,
-                    "cover_name": cover_name,
-                }
-            )
-        return RedirectResponse(url="/jobs", status_code=303)
-
+    _ensure_ingest_worker_started()
     for upload_file in files:
         filename = upload_file.filename or "upload"
         data = await upload_file.read()
@@ -1741,133 +1698,41 @@ async def ingest(
             continue
 
         kind = _detect_source_type(filename, upload_file.content_type, data)
-        if kind == "epub":
-            if dedupe_mode == "normalize":
-                try:
-                    with tempfile.NamedTemporaryFile(suffix=".epub") as tmp:
-                        tmp.write(data)
-                        tmp.flush()
-                        extracted = extract_epub_metadata(Path(tmp.name), Path(filename).stem)
-                    duplicate_meta = _find_first_duplicate_meta(
-                        base,
-                        title.strip() or extracted.get("title") or Path(filename).stem,
-                        author.strip() or extracted.get("author"),
-                        isbn.strip() or extracted.get("isbn"),
-                    )
-                    if duplicate_meta:
-                        created_books.append(_book_view(duplicate_meta, base))
-                        continue
-                except Exception:
-                    # 去重探测失败时回退到常规入库流程，避免影响主流程可用性。
-                    pass
-            book_id = new_book_id()
-            job = _create_job("upload-epub", book_id, None)
-            try:
-                meta = _run_epub_ingest(
-                    job,
-                    base,
-                    data,
-                    filename,
-                    title,
-                    author,
-                    language,
-                    description,
-                    series,
-                    identifier,
-                    publisher,
-                    tags,
-                    published,
-                    isbn,
-                    rating,
-                    theme_template,
-                    custom_css,
-                    cover_bytes,
-                    cover_name,
-                )
-                created_books.append(_book_view(meta, base))
-            except Exception:
-                try:
-                    meta = load_metadata(base, book_id)
-                    _update_meta_failed(meta)
-                    save_metadata(meta, base)
-                except Exception:
-                    pass
-            continue
-
-        if kind == "txt":
-            text = decode_text(data)
-            if not text.strip():
-                job = _create_job("upload", None, rule_template)
-                _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 文本为空或无法解码", log=None)
-                continue
-            source_name = Path(filename).stem
-            if dedupe_mode == "normalize":
-                try:
-                    dedupe_rule = get_rule(rule_template)
-                    dedupe_book = parse_book(text, source_name, dedupe_rule.rules)
-                    duplicate_meta = _find_first_duplicate_meta(
-                        base,
-                        title.strip() or dedupe_book.title,
-                        author.strip() or dedupe_book.author,
-                        isbn.strip() or None,
-                    )
-                    if duplicate_meta:
-                        created_books.append(_book_view(duplicate_meta, base))
-                        continue
-                except RuleTemplateError:
-                    pass
-                except Exception:
-                    pass
-            book_id = new_book_id()
-            job = _create_job("upload", book_id, rule_template)
-            try:
-                meta = _run_ingest(
-                    job,
-                    base,
-                    text,
-                    source_name,
-                    title,
-                    author,
-                    language,
-                    description,
-                    series,
-                    identifier,
-                    publisher,
-                    tags,
-                    published,
-                    isbn,
-                    rating,
-                    rule_template,
-                    theme_template,
-                    custom_css,
-                    cover_bytes,
-                    cover_name,
-                )
-                created_books.append(_book_view(meta, base))
-            except Exception:
-                try:
-                    meta = load_metadata(base, book_id)
-                    _update_meta_failed(meta)
-                    save_metadata(meta, base)
-                except Exception:
-                    pass
-            continue
-
-        job = _create_job("ingest", None, rule_template)
-        _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 不支持的文件类型", log=None)
-
-    if _is_htmx(request):
-        return templates.TemplateResponse(
-            "partials/library.html",
-            {"request": request, "books": created_books, "return_to": "/"},
+        action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
+        job = _create_job(action, book_id, job_rule_template)
+        _update_job(job.id, stage="排队中", message="等待后台处理")
+        payload_path = _persist_queued_upload(base, job.id, filename, data)
+        _ingest_queue.put(
+            {
+                "job_id": job.id,
+                "payload_path": str(payload_path),
+                "filename": filename,
+                "content_type": upload_file.content_type,
+                "kind": kind,
+                "title": title,
+                "author": author,
+                "language": language,
+                "description": description,
+                "series": series,
+                "identifier": identifier,
+                "publisher": publisher,
+                "tags": tags,
+                "published": published,
+                "isbn": isbn,
+                "rating": rating,
+                "rule_template": rule_template,
+                "theme_template": theme_template,
+                "custom_css": custom_css,
+                "dedupe_mode": dedupe_mode,
+                "cover_bytes": cover_bytes,
+                "cover_name": cover_name,
+            }
         )
 
-    if len(created_books) == 1:
-        target_book_id = str(created_books[0].get("book_id") or "").strip()
-        if target_book_id:
-            return RedirectResponse(url=f"/book/{target_book_id}/edit", status_code=303)
-
-    return RedirectResponse(url="/jobs", status_code=303)
+    redirect_url = "/jobs"
+    if _is_htmx(request):
+        return _htmx_redirect(redirect_url)
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @app.get("/library", response_class=HTMLResponse)
