@@ -84,6 +84,23 @@ class WebRoutesTests(unittest.TestCase):
                     seen.add((method, path))
         self.assertIn(("GET", "/library"), seen)
 
+    def test_archive_bulk_delete_route_registered(self) -> None:
+        seen: set[tuple[str, str]] = set()
+        for route in app.routes:
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None) or set()
+            if path == "/archive/delete-bulk":
+                for method in methods:
+                    seen.add((method, path))
+        self.assertIn(("POST", "/archive/delete-bulk"), seen)
+
+    def test_archive_template_has_bulk_delete_controls(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        archive = (root / "templates" / "archive.html").read_text(encoding="utf-8")
+        self.assertIn('action="/archive/delete-bulk"', archive)
+        self.assertIn("data-archive-select", archive)
+        self.assertIn("data-archive-bulk-delete", archive)
+
     def test_library_section_template_has_pagination_text(self) -> None:
         root = Path(__file__).resolve().parent.parent
         section = (root / "templates" / "partials" / "library_section.html").read_text(encoding="utf-8")

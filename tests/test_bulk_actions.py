@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from bindery.epub import build_epub
 from bindery.models import Book, Metadata
 from bindery.storage import library_dir, list_archived_books, list_books, save_book, save_metadata
-from bindery.web import archive_bulk, download_bulk
+from bindery.web import archive_bulk, archive_delete_bulk, download_bulk
 
 
 class BulkActionsTests(unittest.TestCase):
@@ -76,6 +76,23 @@ class BulkActionsTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as exc:
             asyncio.run(download_bulk([]))
         self.assertEqual(exc.exception.status_code, 400)
+
+    def test_archive_delete_bulk_removes_only_archived_books(self) -> None:
+        self._create_book("a" * 32, "Book A", "Author")
+        self._create_book("b" * 32, "Book B", "Author")
+        self._create_book("c" * 32, "Book C", "Author")
+
+        asyncio.run(archive_bulk(["a" * 32, "b" * 32]))
+        response = asyncio.run(archive_delete_bulk(["a" * 32, "c" * 32, "bad-id"]))
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers.get("location"), "/archive")
+        active_ids = {meta.book_id for meta in list_books(library_dir())}
+        archived_ids = {meta.book_id for meta in list_archived_books(library_dir())}
+        self.assertIn("c" * 32, active_ids)
+        self.assertNotIn("a" * 32, active_ids)
+        self.assertIn("b" * 32, archived_ids)
+        self.assertNotIn("a" * 32, archived_ids)
 
 
 if __name__ == "__main__":

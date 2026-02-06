@@ -64,7 +64,7 @@ BOOK_ID_RE = re.compile(r"^[a-f0-9]{32}$")
 DEFAULT_THEME_ID = "default"
 # 显式声明“保持书籍样式”（仅针对 EPUB 导入书籍有意义）；避免用 `None` 产生歧义。
 KEEP_BOOK_THEME_ID = "__book__"
-LIBRARY_PAGE_SIZE = 24
+LIBRARY_PAGE_SIZE = 28
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -2328,6 +2328,16 @@ async def restore_view(book_id: str) -> RedirectResponse:
     meta.updated_at = _now_iso()
     save_metadata(meta, base)
     return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/archive/delete-bulk")
+async def archive_delete_bulk(book_ids: list[str] = Form([])) -> RedirectResponse:
+    base = library_dir()
+    for book_id in _normalize_book_ids(book_ids):
+        if not archive_book_dir(base, book_id).exists():
+            continue
+        delete_book_data(base, book_id)
+    return RedirectResponse(url="/archive", status_code=303)
 
 
 @app.post("/book/{book_id}/delete")
