@@ -119,6 +119,16 @@ class WebRoutesTests(unittest.TestCase):
         self.assertIn(("POST", "/books/archive"), seen)
         self.assertIn(("POST", "/books/download"), seen)
 
+    def test_read_status_route_registered(self) -> None:
+        seen: set[tuple[str, str]] = set()
+        for route in app.routes:
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None) or set()
+            if path == "/book/{book_id}/read":
+                for method in methods:
+                    seen.add((method, path))
+        self.assertIn(("POST", "/book/{book_id}/read"), seen)
+
     def test_theme_editor_routes_registered(self) -> None:
         seen: set[tuple[str, str]] = set()
         for route in app.routes:

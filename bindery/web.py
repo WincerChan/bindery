@@ -442,6 +442,7 @@ def _book_view(meta: Metadata, base: Path) -> dict:
         "status_class": status_class,
         "epub_updated_at": meta.epub_updated_at,
         "archived": meta.archived,
+        "read": meta.read,
         "cover_file": meta.cover_file,
         "rule_template": meta.rule_template,
         "theme_template": meta.theme_template,
@@ -2617,6 +2618,33 @@ async def archive_view(book_id: str) -> RedirectResponse:
     save_metadata(meta, base)
     archive_book(base, book_id)
     return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/book/{book_id}/read")
+async def set_read_status(
+    request: Request,
+    book_id: str,
+    read: str = Form(""),
+    next: str = Form(""),
+) -> HTMLResponse:
+    base = library_dir()
+    _require_book(base, book_id)
+    meta = load_metadata(base, book_id)
+    normalized = read.strip().lower()
+    meta.read = normalized in {"1", "true", "yes", "on"}
+    meta.updated_at = _now_iso()
+    save_metadata(meta, base)
+
+    if _is_htmx(request):
+        return templates.TemplateResponse(
+            "partials/meta_view.html",
+            {"request": request, "book": _book_view(meta, base), "book_id": book_id},
+        )
+
+    target = next.strip()
+    if not target.startswith("/"):
+        target = f"/book/{book_id}"
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.post("/books/archive")

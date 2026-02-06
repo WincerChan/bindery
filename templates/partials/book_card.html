@@ -14,15 +14,20 @@
         </div>
       {% endif %}
 
-      {% if book.status_class != "ok" %}
-        <div class="absolute top-3 left-3 z-10">
+      {% if book.status_class != "ok" or book.read %}
+        <div class="absolute top-3 left-3 z-10 flex flex-col gap-1 items-start">
           {% if book.status_class == "failed" %}
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-red-100 text-red-700 border-red-200">
               {{ book.status_label }}
             </span>
-          {% else %}
+          {% elif book.status_class != "ok" %}
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-amber-100 text-amber-700 border-amber-200">
               {{ book.status_label }}
+            </span>
+          {% endif %}
+          {% if book.read %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-emerald-100 text-emerald-700 border-emerald-200">
+              已读
             </span>
           {% endif %}
         </div>
@@ -93,6 +98,11 @@
           <div class="flex items-center gap-2 min-w-0">
             <h3 class="min-w-0 text-sm sm:text-base font-semibold text-slate-900 truncate" title="{{ book.title }}">{{ book.title }}</h3>
             <span class="min-w-0 text-xs sm:text-sm text-slate-500 truncate">{{ book.author or "未知" }}</span>
+            {% if book.read %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0">
+                已读
+              </span>
+            {% endif %}
             {% if book.status_class != "ok" %}
               {% if book.status_class == "failed" %}
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border bg-red-100 text-red-700 border-red-200 shrink-0">

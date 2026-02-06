@@ -26,6 +26,8 @@ class LibraryUiTests(unittest.TestCase):
         self.assertNotIn("/regenerate", tpl)
         self.assertIn('book.status_class != "ok"', tpl)
         self.assertNotIn('book.status_class == "ok"', tpl)
+        self.assertIn("book.read", tpl)
+        self.assertIn("已读", tpl)
 
     def test_book_card_supports_list_layout(self) -> None:
         root = Path(__file__).resolve().parent.parent

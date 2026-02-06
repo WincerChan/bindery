@@ -10,6 +10,9 @@ class BookDetailUiTests(unittest.TestCase):
         self.assertIn('href="/book/{{ book_id }}/download"', tpl)
         self.assertIn('href="/book/{{ book_id }}/preview"', tpl)
         self.assertIn('action="/book/{{ book_id }}/archive"', tpl)
+        self.assertIn('action="/book/{{ book_id }}/read"', tpl)
+        self.assertIn("阅读状态", tpl)
+        self.assertIn('{{ "已读" if book.read else "未读" }}', tpl)
 
         self.assertNotIn("封面管理", tpl)
         self.assertNotIn("/cover/upload", tpl)

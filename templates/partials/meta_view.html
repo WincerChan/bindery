@@ -18,6 +18,14 @@
           class="w-full inline-flex items-center justify-center px-3 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
           href="/book/{{ book_id }}/download"
         >下载 EPUB</a>
+        <form action="/book/{{ book_id }}/read" method="post">
+          <input type="hidden" name="read" value="{{ '0' if book.read else '1' }}" />
+          <input type="hidden" name="next" value="/book/{{ book_id }}" />
+          <button
+            class="w-full inline-flex items-center justify-center px-3 py-2 text-sm bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-lg font-medium transition-colors cursor-pointer"
+            type="submit"
+          >{{ "标记未读" if book.read else "标记已读" }}</button>
+        </form>
         <a
           class="w-full inline-flex items-center justify-center px-3 py-2 text-sm bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg font-medium transition-colors"
           href="/book/{{ book_id }}/preview"
@@ -84,6 +92,10 @@
         <div class="flex items-center gap-2 min-w-[180px] flex-1">
           <span class="shrink-0 text-slate-500 font-semibold uppercase">状态</span>
           <span class="truncate text-slate-700">{{ book.status_label }}</span>
+        </div>
+        <div class="flex items-center gap-2 min-w-[180px] flex-1">
+          <span class="shrink-0 text-slate-500 font-semibold uppercase">阅读状态</span>
+          <span class="truncate {{ 'text-emerald-700' if book.read else 'text-slate-700' }}">{{ "已读" if book.read else "未读" }}</span>
         </div>
         <div class="flex items-center gap-2 min-w-[180px] flex-1">
           <span class="shrink-0 text-slate-500 font-semibold uppercase">星级</span>

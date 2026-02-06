@@ -46,6 +46,7 @@ class Metadata:
     status: str = "synced"
     epub_updated_at: Optional[str] = None
     archived: bool = False
+    read: bool = False
     cover_file: Optional[str] = None
     rule_template: Optional[str] = None
     theme_template: Optional[str] = None
@@ -198,6 +199,7 @@ def metadata_to_dict(meta: Metadata) -> dict:
         "status": meta.status,
         "epub_updated_at": meta.epub_updated_at,
         "archived": meta.archived,
+        "read": meta.read,
         "cover_file": meta.cover_file,
         "rule_template": meta.rule_template,
         "theme_template": meta.theme_template,
@@ -225,6 +227,7 @@ def metadata_from_dict(data: dict) -> Metadata:
         status=data.get("status", "synced"),
         epub_updated_at=data.get("epub_updated_at"),
         archived=bool(data.get("archived", False)),
+        read=bool(data.get("read", False)),
         cover_file=data.get("cover_file"),
         rule_template=data.get("rule_template"),
         theme_template=data.get("theme_template"),
