@@ -1,4 +1,24 @@
-<div class="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col min-h-0">
+<div
+  class="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col min-h-0"
+  x-data="{
+    formatJson() {
+      const textarea = this.$refs.configJson;
+      if (!textarea) return;
+      const raw = (textarea.value || '').trim();
+      if (!raw) {
+        textarea.value = '';
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        textarea.value = JSON.stringify(parsed, null, 2);
+      } catch (error) {
+        window.alert('JSON 格式错误，无法格式化');
+        textarea.focus();
+      }
+    },
+  }"
+>
   <div class="p-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-white">
     <div class="min-w-0">
       <div class="flex items-center gap-2">
@@ -11,6 +31,12 @@
       {% if saved %}
         <span class="px-2 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 rounded border border-emerald-200">已保存</span>
       {% endif %}
+      <button
+        form="rule-form"
+        type="button"
+        @click="formatJson()"
+        class="px-3 py-2 text-sm bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors cursor-pointer"
+      >格式化 JSON</button>
       <form
         action="/rules/{{ rule.rule_id }}/delete"
         method="post"
@@ -51,6 +77,7 @@
         <span class="text-indigo-600 font-bold">PARSER</span>
       </div>
       <textarea
+        x-ref="configJson"
         name="config_json"
         class="flex-1 w-full p-4 font-mono text-xs resize-none focus:outline-none text-slate-700 min-h-[320px]"
         placeholder="{\n  \"id\": \"default\",\n  \"name\": \"默认\",\n  \"chapter_patterns\": [\"...\"],\n  \"volume_patterns\": [\"...\"],\n  \"special_headings\": [\"...\"],\n  \"heading_max_len\": 40,\n  \"heading_max_commas\": 1,\n  \"skip_candidate_re\": \"...\"\n}"

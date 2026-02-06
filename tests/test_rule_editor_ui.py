@@ -10,6 +10,9 @@ class RuleEditorUiTests(unittest.TestCase):
         self.assertIn('action="/rules/{{ rule.rule_id }}/editor"', tpl)
         self.assertIn('hx-post="/rules/{{ rule.rule_id }}/editor"', tpl)
         self.assertIn('name="config_json"', tpl)
+        self.assertIn('x-ref="configJson"', tpl)
+        self.assertIn('@click="formatJson()"', tpl)
+        self.assertIn('JSON.stringify(parsed, null, 2)', tpl)
 
         self.assertIn('action="/rules/test"', tpl)
         self.assertIn('hx-post="/rules/test"', tpl)
@@ -22,4 +25,3 @@ class RuleEditorUiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

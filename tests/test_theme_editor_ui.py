@@ -8,8 +8,11 @@ class ThemeEditorUiTests(unittest.TestCase):
         tpl = (root / "templates" / "partials" / "theme_editor.html").read_text(encoding="utf-8")
         self.assertNotIn("binderyThemeEditor", tpl)
         self.assertNotIn("<script", tpl.lower())
+        self.assertIn('@click="formatCss()"', tpl)
+        self.assertIn("<html lang=\\'zh-CN\\'>", tpl)
+        self.assertIn("const doubleQuote = String.fromCharCode(34);", tpl)
+        self.assertNotIn('ch === "\'"', tpl)
 
 
 if __name__ == "__main__":
     unittest.main()
-

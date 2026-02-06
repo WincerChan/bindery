@@ -11,10 +11,10 @@
       const safe = raw.replaceAll('</style', '<\\\\/style').replaceAll('</script', '<\\\\/script');
       const html =
         '<!doctype html>' +
-        '<html lang=\\'zh-CN\\'>' +
+        '<html lang=\'zh-CN\'>' +
         '<head>' +
-        '<meta charset=\\'utf-8\\' />' +
-        '<meta name=\\'viewport\\' content=\\'width=device-width, initial-scale=1\\' />' +
+        '<meta charset=\'utf-8\' />' +
+        '<meta name=\'viewport\' content=\'width=device-width, initial-scale=1\' />' +
         '<style>' +
         'html, body { height: 100%; }' +
         'body { margin: 0; padding: 48px 24px; background: #fff; color: #0f172a; }' +
@@ -25,7 +25,7 @@
         '</style>' +
         '</head>' +
         '<body>' +
-        '<div class=\\'page\\'>' +
+        '<div class=\'page\'>' +
         '<h2>第一章：CSS 预览</h2>' +
         '<p>这是一段用于预览主题 CSS 的正文内容。你可以调整字体、行高、缩进与边距，观察阅读体验变化。</p>' +
         '<p>建议在这里模拟你常读的文本密度与段落风格，然后再保存并写回到 EPUB。</p>' +
@@ -43,6 +43,8 @@
       let escape = false;
       let pendingSpace = false;
       const indentUnit = '  ';
+      const doubleQuote = String.fromCharCode(34);
+      const singleQuote = String.fromCharCode(39);
       const pushIndent = () => {
         out += indentUnit.repeat(Math.max(0, indent));
       };
@@ -75,7 +77,7 @@
           }
           continue;
         }
-        if (ch === '&quot;' || ch === "'") {
+        if (ch === doubleQuote || ch === singleQuote) {
           flushSpace();
           inString = ch;
           out += ch;
