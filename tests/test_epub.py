@@ -11,6 +11,80 @@ from bindery.models import Book, Chapter, Metadata
 
 
 class BuildEpubTests(unittest.TestCase):
+    def _create_external_epub_with_inline_style(
+        self,
+        output_path: Path,
+        *,
+        book_id: str,
+        title: str = "旧书名",
+        author: str = "旧作者",
+    ) -> None:
+        chapter_html = (
+            "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"zh-CN\">"
+            "<head><meta charset=\"utf-8\" /><title>第一章</title><style>p{color:#d00;}</style></head>"
+            "<body><p>正文</p></body></html>"
+        )
+        with zipfile.ZipFile(output_path, "w") as zf:
+            zf.writestr("mimetype", b"application/epub+zip", compress_type=zipfile.ZIP_STORED)
+            zf.writestr(
+                "META-INF/container.xml",
+                (
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                    "<container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\">"
+                    "<rootfiles><rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\"/>"
+                    "</rootfiles></container>"
+                ),
+            )
+            zf.writestr(
+                "OEBPS/content.opf",
+                (
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                    "<package xmlns=\"http://www.idpf.org/2007/opf\" unique-identifier=\"BookId\" version=\"3.0\">"
+                    "<metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">"
+                    f"<dc:identifier id=\"BookId\">urn:uuid:{book_id}</dc:identifier>"
+                    f"<dc:title>{title}</dc:title>"
+                    "<dc:language>zh-CN</dc:language>"
+                    f"<dc:creator>{author}</dc:creator>"
+                    "</metadata>"
+                    "<manifest>"
+                    "<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>"
+                    "<item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>"
+                    "<item id=\"c1\" href=\"Text/ch1.xhtml\" media-type=\"application/xhtml+xml\"/>"
+                    "</manifest>"
+                    "<spine toc=\"ncx\"><itemref idref=\"c1\"/></spine>"
+                    "</package>"
+                ),
+            )
+            zf.writestr(
+                "OEBPS/nav.xhtml",
+                (
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                    "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>nav</title></head><body>"
+                    "<nav epub:type=\"toc\" xmlns:epub=\"http://www.idpf.org/2007/ops\"><ol>"
+                    "<li><a href=\"Text/ch1.xhtml\">第一章</a></li>"
+                    "</ol></nav></body></html>"
+                ),
+            )
+            zf.writestr(
+                "OEBPS/toc.ncx",
+                (
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                    "<ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\">"
+                    "<head></head><docTitle><text>旧书名</text></docTitle><navMap>"
+                    "<navPoint id=\"navPoint-1\" playOrder=\"1\"><navLabel><text>第一章</text></navLabel>"
+                    "<content src=\"Text/ch1.xhtml\"/></navPoint></navMap></ncx>"
+                ),
+            )
+            zf.writestr("OEBPS/Text/ch1.xhtml", chapter_html)
+
+    def _read_any_chapter_html(self, output_path: Path) -> str:
+        with zipfile.ZipFile(output_path, "r") as zf:
+            names = zf.namelist()
+            for candidate in ("OEBPS/Text/ch1.xhtml", "EPUB/OEBPS/Text/ch1.xhtml", "EPUB/Text/ch1.xhtml"):
+                if candidate in names:
+                    return zf.read(candidate).decode("utf-8", errors="replace")
+        raise AssertionError("chapter html not found")
+
     def test_epub_base_href_tracks_item_directory(self) -> None:
         self.assertEqual(epub_base_href("/book/abc/epub/", "chapter.xhtml"), "/book/abc/epub/")
         self.assertEqual(epub_base_href("/book/abc/epub", "chapter.xhtml"), "/book/abc/epub/")
@@ -377,6 +451,81 @@ class BuildEpubTests(unittest.TestCase):
                 self.assertNotIn("EPUB/OEBPS/Text/bindery.css", names)
                 html_text = zf.read("EPUB/OEBPS/Text/ch1.xhtml").decode("utf-8", errors="replace")
                 self.assertIn("../Styles/bindery.css", html_text)
+
+    def test_update_epub_metadata_preserves_inline_head_styles_when_css_empty(self) -> None:
+        new_meta = Metadata(
+            book_id="keep-head-style-id",
+            title="新书名",
+            author="新作者",
+            language="zh-CN",
+            description="新简介",
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            self._create_external_epub_with_inline_style(output_path, book_id="keep-head-style-id")
+            update_epub_metadata(output_path, new_meta, css_text="")
+
+            html_text = self._read_any_chapter_html(output_path)
+            self.assertIn("<style>p{color:#d00;}</style>", html_text)
+            extracted = extract_epub_metadata(output_path, "fallback")
+            self.assertEqual(extracted["title"], "新书名")
+            self.assertEqual(extracted["author"], "新作者")
+            self.assertEqual(extracted["description"], "新简介")
+
+    def test_update_epub_metadata_with_cover_preserves_inline_head_styles(self) -> None:
+        new_meta = Metadata(
+            book_id="cover-only-id",
+            title="新书名",
+            author="新作者",
+            language="zh-CN",
+            description="新简介",
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            self._create_external_epub_with_inline_style(output_path, book_id="cover-only-id")
+            cover_path = Path(tmp) / "cover.jpg"
+            cover_path.write_bytes(b"\xff\xd8\xff\xd9")
+            update_epub_metadata(output_path, new_meta, cover_path=cover_path, css_text="")
+
+            html_text = self._read_any_chapter_html(output_path)
+            self.assertIn("<style>p{color:#d00;}</style>", html_text)
+            self.assertNotIn("bindery.css", html_text)
+            with zipfile.ZipFile(output_path, "r") as zf:
+                names = zf.namelist()
+                self.assertTrue(any("cover" in Path(name).name.lower() for name in names))
+
+    def test_update_epub_metadata_with_cover_and_css_appends_link_and_keeps_inline_style(self) -> None:
+        new_meta = Metadata(
+            book_id="cover-css-id",
+            title="新书名",
+            author="新作者",
+            language="zh-CN",
+            description="新简介",
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            self._create_external_epub_with_inline_style(output_path, book_id="cover-css-id")
+            cover_path = Path(tmp) / "cover.jpg"
+            cover_path.write_bytes(b"\xff\xd8\xff\xd9")
+            update_epub_metadata(output_path, new_meta, cover_path=cover_path, css_text="p{font-size:18px;}")
+
+            html_text = self._read_any_chapter_html(output_path)
+            self.assertIn("<style>p{color:#d00;}</style>", html_text)
+            self.assertIn("bindery.css", html_text)
+            with zipfile.ZipFile(output_path, "r") as zf:
+                names = zf.namelist()
+                self.assertTrue(any(name.endswith("/Styles/bindery.css") for name in names))
+                css_name = next(name for name in names if name.endswith("/Styles/bindery.css"))
+                self.assertIn("font-size:18px", zf.read(css_name).decode("utf-8", errors="replace"))
 
     def test_load_epub_item_preserves_head_links(self) -> None:
         book = Book(title="旧标题", author="旧作者", intro=None)

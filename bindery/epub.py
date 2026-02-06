@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 import tempfile
 from typing import Iterable, Optional
 import zipfile
+import xml.etree.ElementTree as ET
 
 from ebooklib import epub
 import ebooklib
@@ -26,6 +27,10 @@ BINDERY_CSS_NAME = "bindery.css"
 CHAPTER_STAMP_RE = re.compile(
     r"^\s*(第[0-9零〇一二两三四五六七八九十百千万亿\d]+章)\s*[:：、.\-·]?\s*(.+)\s*$"
 )
+CONTAINER_NS = "urn:oasis:names:tc:opendocument:xmlns:container"
+OPF_NS = epub.NAMESPACES["OPF"]
+DC_NS = epub.NAMESPACES["DC"]
+BINDERY_CSS_BASENAMES = {"bindery.css", "bindery-overlay.css"}
 
 
 def _canonical_zip_member(name: str) -> str:
@@ -124,6 +129,513 @@ def _read_epub_resilient(epub_file: Path) -> epub.EpubBook:
         if not _normalize_epub_archive_paths(epub_file, expected_missing=missing):
             raise
         return epub.read_epub(str(epub_file))
+
+
+def _tag_local_name(tag: str) -> str:
+    if not tag:
+        return ""
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+    return tag
+
+
+def _find_first_child_by_local_name(node: ET.Element, local_name: str) -> Optional[ET.Element]:
+    for child in list(node):
+        if _tag_local_name(child.tag) == local_name:
+            return child
+    return None
+
+
+def _resolve_opf_href(opf_path: str, href: str) -> str:
+    opf_dir = PurePosixPath(opf_path).parent
+    joined = posixpath.normpath(posixpath.join(opf_dir.as_posix(), href))
+    return _canonical_zip_member(joined)
+
+
+def _relative_href(from_member: str, to_member: str) -> str:
+    from_dir = PurePosixPath(from_member).parent.as_posix()
+    start = from_dir if from_dir not in {"", "."} else "."
+    return posixpath.relpath(to_member, start=start)
+
+
+def _derive_package_root_from_docs(doc_members: list[str]) -> PurePosixPath:
+    if not doc_members:
+        return PurePosixPath(".")
+    doc_dirs = [PurePosixPath(member).parent.as_posix() for member in doc_members]
+    common = posixpath.commonpath(doc_dirs) or "."
+    root = PurePosixPath(common)
+    if root.as_posix() in {"", "."}:
+        return PurePosixPath(".")
+    if root.parts and root.parts[-1].lower() in {"text", "xhtml", "html"}:
+        parent = root.parent.as_posix()
+        return PurePosixPath(".") if parent in {"", "."} else root.parent
+    return root
+
+
+def _strip_bindery_css_links(html_text: str) -> str:
+    return re.sub(
+        r"<link\b[^>]*href=['\"][^'\"]*bindery(?:-overlay)?\.css[^'\"]*['\"][^>]*>\s*",
+        "",
+        html_text,
+        flags=re.IGNORECASE,
+    )
+
+
+def _append_stylesheet_link(html_text: str, href: str) -> str:
+    safe_href = html.escape(href, quote=True)
+    link_tag = f'<link rel="stylesheet" type="text/css" href="{safe_href}" />'
+    self_close = re.search(r"<head([^>]*)\s*/>", html_text, flags=re.IGNORECASE)
+    if self_close:
+        attrs = self_close.group(1) or ""
+        replacement = f"<head{attrs}>{link_tag}</head>"
+        return re.sub(r"<head([^>]*)\s*/>", replacement, html_text, count=1, flags=re.IGNORECASE)
+    closing = re.search(r"</head>", html_text, flags=re.IGNORECASE)
+    if closing:
+        idx = closing.start()
+        return f"{html_text[:idx]}{link_tag}{html_text[idx:]}"
+    opening = re.search(r"<head[^>]*>", html_text, flags=re.IGNORECASE)
+    if opening:
+        idx = opening.end()
+        return f"{html_text[:idx]}{link_tag}{html_text[idx:]}"
+    return f"<head>{link_tag}</head>{html_text}"
+
+
+def _patch_doc_html_bindery_css(html_text: str, href: Optional[str]) -> str:
+    stripped = _strip_bindery_css_links(html_text)
+    if not href:
+        return stripped
+    return _append_stylesheet_link(stripped, href)
+
+
+def _guess_image_media_type(name: str) -> str:
+    suffix = Path(name).suffix.lower()
+    return {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+    }.get(suffix, "image/jpeg")
+
+
+def _opf_path_from_container(zf: zipfile.ZipFile) -> str:
+    try:
+        container_raw = zf.read("META-INF/container.xml")
+    except KeyError as exc:
+        raise KeyError("Missing META-INF/container.xml") from exc
+    root = ET.fromstring(container_raw)
+    rootfile = root.find(f".//{{{CONTAINER_NS}}}rootfile")
+    full_path = ""
+    if rootfile is not None:
+        full_path = (rootfile.attrib.get("full-path") or "").strip()
+    if not full_path:
+        for node in root.iter():
+            if _tag_local_name(node.tag) != "rootfile":
+                continue
+            candidate = (node.attrib.get("full-path") or "").strip()
+            if candidate:
+                full_path = candidate
+                break
+    normalized = _canonical_zip_member(full_path)
+    if not normalized:
+        raise KeyError("Missing OPF path in container.xml")
+    return normalized
+
+
+def _apply_metadata_to_opf_root(
+    root: ET.Element,
+    meta: Metadata,
+    *,
+    keep_cover: bool,
+    cover_meta_id: Optional[str] = None,
+) -> None:
+    metadata_node = root.find(f"{{{OPF_NS}}}metadata")
+    if metadata_node is None:
+        metadata_node = _find_first_child_by_local_name(root, "metadata")
+    if metadata_node is None:
+        metadata_node = ET.Element(f"{{{OPF_NS}}}metadata")
+        root.insert(0, metadata_node)
+
+    dc_locals_to_clear = {"identifier", "title", "language", "creator", "description", "publisher", "date", "subject"}
+    for child in list(metadata_node):
+        local = _tag_local_name(child.tag)
+        if local in dc_locals_to_clear:
+            metadata_node.remove(child)
+            continue
+        if local != "meta":
+            continue
+        prop = str(child.attrib.get("property") or "").strip()
+        name = str(child.attrib.get("name") or "").strip()
+        if prop in {"dcterms:modified", "belongs-to-collection"}:
+            metadata_node.remove(child)
+            continue
+        if name == "rating":
+            metadata_node.remove(child)
+            continue
+        if (not keep_cover or cover_meta_id) and name == "cover":
+            metadata_node.remove(child)
+
+    identifier = meta.identifier or meta.book_id
+    if not identifier.startswith("urn:"):
+        identifier = f"urn:uuid:{identifier}"
+    identifier_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}identifier")
+    identifier_el.text = identifier
+
+    title_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}title")
+    title_el.text = meta.title
+
+    language_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}language")
+    language_el.text = meta.language or "zh-CN"
+
+    if meta.author:
+        author_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}creator")
+        author_el.text = meta.author
+    if meta.description:
+        description_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}description")
+        description_el.text = meta.description
+    if meta.publisher:
+        publisher_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}publisher")
+        publisher_el.text = meta.publisher
+    if meta.published:
+        published_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}date")
+        published_el.text = meta.published
+    if meta.identifier:
+        user_identifier_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}identifier")
+        user_identifier_el.set("id", "identifier")
+        user_identifier_el.text = meta.identifier
+    if meta.series:
+        series_el = ET.SubElement(metadata_node, f"{{{OPF_NS}}}meta")
+        series_el.set("property", "belongs-to-collection")
+        series_el.text = meta.series
+    if meta.isbn:
+        isbn_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}identifier")
+        isbn_el.set("id", "isbn")
+        isbn_el.text = meta.isbn
+    for tag in meta.tags:
+        if not tag:
+            continue
+        subject_el = ET.SubElement(metadata_node, f"{{{DC_NS}}}subject")
+        subject_el.text = tag
+    if meta.rating is not None:
+        rating_el = ET.SubElement(metadata_node, f"{{{OPF_NS}}}meta")
+        rating_el.set("name", "rating")
+        rating_el.text = str(meta.rating)
+
+    modified = (
+        dt.datetime.now(dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    modified_el = ET.SubElement(metadata_node, f"{{{OPF_NS}}}meta")
+    modified_el.set("property", "dcterms:modified")
+    modified_el.text = modified
+    if cover_meta_id:
+        cover_el = ET.SubElement(metadata_node, f"{{{OPF_NS}}}meta")
+        cover_el.set("name", "cover")
+        cover_el.set("content", cover_meta_id)
+
+
+def _rewrite_opf_metadata(
+    opf_bytes: bytes,
+    meta: Metadata,
+    *,
+    keep_cover: bool,
+    cover_meta_id: Optional[str] = None,
+) -> bytes:
+    root = ET.fromstring(opf_bytes)
+    _apply_metadata_to_opf_root(root, meta, keep_cover=keep_cover, cover_meta_id=cover_meta_id)
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def _update_epub_metadata_opf_only(epub_file: Path, meta: Metadata, *, keep_cover: bool) -> bool:
+    if not epub_file.exists():
+        return False
+    with zipfile.ZipFile(epub_file, "r") as src:
+        infos = src.infolist()
+        try:
+            opf_path = _opf_path_from_container(src)
+        except Exception:
+            return False
+
+        opf_info: Optional[zipfile.ZipInfo] = None
+        entries: list[tuple[zipfile.ZipInfo, bytes]] = []
+        for info in infos:
+            payload = src.read(info)
+            if _canonical_zip_member(info.filename) == opf_path:
+                opf_info = info
+            entries.append((info, payload))
+        if opf_info is None:
+            return False
+
+        try:
+            rewritten_opf = _rewrite_opf_metadata(src.read(opf_info), meta, keep_cover=keep_cover)
+        except Exception:
+            return False
+
+    tmp_handle = tempfile.NamedTemporaryFile(
+        prefix=f"{epub_file.stem}.",
+        suffix=".epub",
+        dir=str(epub_file.parent),
+        delete=False,
+    )
+    tmp_path = Path(tmp_handle.name)
+    tmp_handle.close()
+
+    try:
+        with zipfile.ZipFile(tmp_path, "w") as dst:
+            for info, payload in entries:
+                content = rewritten_opf if _canonical_zip_member(info.filename) == opf_path else payload
+                if info.filename == "mimetype":
+                    dst.writestr("mimetype", content, compress_type=zipfile.ZIP_STORED)
+                    continue
+                zinfo = zipfile.ZipInfo(info.filename, date_time=info.date_time)
+                zinfo.compress_type = info.compress_type
+                zinfo.comment = info.comment
+                zinfo.extra = info.extra
+                zinfo.internal_attr = info.internal_attr
+                zinfo.external_attr = info.external_attr
+                zinfo.create_system = info.create_system
+                zinfo.create_version = info.create_version
+                zinfo.extract_version = info.extract_version
+                zinfo.flag_bits = info.flag_bits
+                dst.writestr(zinfo, content)
+        tmp_path.replace(epub_file)
+        return True
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+
+
+def _update_epub_preserve_documents(
+    epub_file: Path,
+    meta: Metadata,
+    *,
+    cover_path: Optional[Path],
+    css_text: str,
+) -> bool:
+    cover_ok = bool(cover_path and cover_path.exists())
+    css_clean = (css_text or "").strip()
+    if not cover_ok and not css_clean:
+        return False
+
+    with zipfile.ZipFile(epub_file, "r") as src:
+        infos = src.infolist()
+        try:
+            opf_path = _opf_path_from_container(src)
+        except Exception:
+            return False
+        opf_info = next((info for info in infos if _canonical_zip_member(info.filename) == opf_path), None)
+        if opf_info is None:
+            return False
+
+        root = ET.fromstring(src.read(opf_info.filename))
+        manifest = root.find(f"{{{OPF_NS}}}manifest")
+        if manifest is None:
+            manifest = _find_first_child_by_local_name(root, "manifest")
+        if manifest is None:
+            return False
+        spine = root.find(f"{{{OPF_NS}}}spine")
+        if spine is None:
+            spine = _find_first_child_by_local_name(root, "spine")
+
+        manifest_items = [item for item in list(manifest) if _tag_local_name(item.tag) == "item"]
+        items_by_id: dict[str, ET.Element] = {}
+        for item in manifest_items:
+            item_id = str(item.attrib.get("id") or "").strip()
+            if item_id:
+                items_by_id[item_id] = item
+
+        doc_items: list[ET.Element] = []
+        if spine is not None:
+            for itemref in list(spine):
+                if _tag_local_name(itemref.tag) != "itemref":
+                    continue
+                idref = str(itemref.attrib.get("idref") or "").strip()
+                if not idref or idref not in items_by_id:
+                    continue
+                item = items_by_id[idref]
+                media_type = str(item.attrib.get("media-type") or "").strip().lower()
+                properties = str(item.attrib.get("properties") or "")
+                if media_type not in {"application/xhtml+xml", "text/html"}:
+                    continue
+                if "nav" in properties.split():
+                    continue
+                doc_items.append(item)
+        if not doc_items:
+            for item in manifest_items:
+                media_type = str(item.attrib.get("media-type") or "").strip().lower()
+                properties = str(item.attrib.get("properties") or "")
+                if media_type not in {"application/xhtml+xml", "text/html"}:
+                    continue
+                if "nav" in properties.split():
+                    continue
+                doc_items.append(item)
+
+        doc_members: list[str] = []
+        for item in doc_items:
+            href = str(item.attrib.get("href") or "").strip()
+            if not href:
+                continue
+            member = _resolve_opf_href(opf_path, href)
+            if member:
+                doc_members.append(member)
+
+        opf_dir = PurePosixPath(opf_path).parent.as_posix()
+        opf_dir_start = opf_dir if opf_dir not in {"", "."} else "."
+
+        replacements: dict[str, bytes] = {}
+        remove_members: set[str] = set()
+
+        bindery_items = [
+            item
+            for item in manifest_items
+            if Path(str(item.attrib.get("href") or "")).name.lower() in BINDERY_CSS_BASENAMES
+            or str(item.attrib.get("id") or "").startswith("bindery-css")
+        ]
+        for item in bindery_items:
+            href = str(item.attrib.get("href") or "").strip()
+            if href:
+                member = _resolve_opf_href(opf_path, href)
+                if member:
+                    remove_members.add(member)
+            manifest.remove(item)
+
+        css_member: Optional[str] = None
+        if css_clean:
+            package_root = _derive_package_root_from_docs(doc_members)
+            css_member = _canonical_zip_member((package_root / "Styles" / BINDERY_CSS_NAME).as_posix())
+            css_href = posixpath.relpath(css_member, start=opf_dir_start)
+            css_item_id = "bindery-css"
+            suffix = 1
+            while css_item_id in items_by_id:
+                css_item_id = f"bindery-css-{suffix}"
+                suffix += 1
+            css_item = ET.SubElement(manifest, f"{{{OPF_NS}}}item")
+            css_item.set("id", css_item_id)
+            css_item.set("href", css_href)
+            css_item.set("media-type", "text/css")
+            replacements[css_member] = css_clean.encode("utf-8")
+        else:
+            css_item = None
+
+        cover_meta_id: Optional[str] = None
+        if cover_ok and cover_path is not None:
+            cover_bytes = cover_path.read_bytes()
+            original_name = cover_path.name or "cover.jpg"
+            cover_media_type = _guess_image_media_type(original_name)
+
+            cover_item: Optional[ET.Element] = None
+            for item in manifest_items:
+                media_type = str(item.attrib.get("media-type") or "").strip().lower()
+                properties = str(item.attrib.get("properties") or "")
+                if "cover-image" in properties.split():
+                    cover_item = item
+                    break
+                if media_type.startswith("image/"):
+                    item_id = str(item.attrib.get("id") or "").strip().lower()
+                    item_href = str(item.attrib.get("href") or "").strip().lower()
+                    if "cover" in item_id or "cover" in item_href:
+                        cover_item = item
+                        break
+
+            if cover_item is not None:
+                cover_item_id = str(cover_item.attrib.get("id") or "").strip() or "cover-image"
+                cover_href = str(cover_item.attrib.get("href") or "").strip()
+                ext = Path(original_name).suffix or Path(cover_href).suffix or ".jpg"
+                if not cover_href:
+                    cover_href = f"Images/cover{ext.lower()}"
+                cover_member = _resolve_opf_href(opf_path, cover_href)
+                cover_item.set("id", cover_item_id)
+                cover_item.set("href", posixpath.relpath(cover_member, start=opf_dir_start))
+                cover_item.set("media-type", cover_media_type)
+                cover_item.set("properties", "cover-image")
+                cover_meta_id = cover_item_id
+            else:
+                ext = Path(original_name).suffix.lower() or ".jpg"
+                package_root = _derive_package_root_from_docs(doc_members)
+                cover_member = _canonical_zip_member((package_root / "Images" / f"cover{ext}").as_posix())
+                cover_href = posixpath.relpath(cover_member, start=opf_dir_start)
+                cover_item_id = "cover-image"
+                suffix = 1
+                while cover_item_id in items_by_id:
+                    cover_item_id = f"cover-image-{suffix}"
+                    suffix += 1
+                cover_item = ET.SubElement(manifest, f"{{{OPF_NS}}}item")
+                cover_item.set("id", cover_item_id)
+                cover_item.set("href", cover_href)
+                cover_item.set("media-type", cover_media_type)
+                cover_item.set("properties", "cover-image")
+                cover_meta_id = cover_item_id
+
+            replacements[cover_member] = cover_bytes
+
+        for member in doc_members:
+            info = next((it for it in infos if _canonical_zip_member(it.filename) == member), None)
+            if info is None:
+                continue
+            original_text = src.read(info.filename).decode("utf-8", errors="replace")
+            href = _relative_href(member, css_member) if css_member else None
+            patched = _patch_doc_html_bindery_css(original_text, href)
+            replacements[member] = patched.encode("utf-8")
+
+        _apply_metadata_to_opf_root(
+            root,
+            meta,
+            keep_cover=not cover_ok,
+            cover_meta_id=cover_meta_id,
+        )
+        replacements[opf_path] = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+        entries: list[tuple[zipfile.ZipInfo, bytes]] = [(info, src.read(info.filename)) for info in infos]
+
+    tmp_handle = tempfile.NamedTemporaryFile(
+        prefix=f"{epub_file.stem}.",
+        suffix=".epub",
+        dir=str(epub_file.parent),
+        delete=False,
+    )
+    tmp_path = Path(tmp_handle.name)
+    tmp_handle.close()
+
+    written: set[str] = set()
+    try:
+        with zipfile.ZipFile(tmp_path, "w") as dst:
+            for info, payload in entries:
+                canonical = _canonical_zip_member(info.filename)
+                if canonical in remove_members and canonical not in replacements:
+                    continue
+                content = replacements.get(canonical, payload)
+                if canonical == "mimetype":
+                    dst.writestr("mimetype", content, compress_type=zipfile.ZIP_STORED)
+                    written.add(canonical)
+                    continue
+                zinfo = zipfile.ZipInfo(info.filename, date_time=info.date_time)
+                zinfo.compress_type = info.compress_type
+                zinfo.comment = info.comment
+                zinfo.extra = info.extra
+                zinfo.internal_attr = info.internal_attr
+                zinfo.external_attr = info.external_attr
+                zinfo.create_system = info.create_system
+                zinfo.create_version = info.create_version
+                zinfo.extract_version = info.extract_version
+                zinfo.flag_bits = info.flag_bits
+                dst.writestr(zinfo, content)
+                written.add(canonical)
+
+            for canonical, content in replacements.items():
+                if canonical in written:
+                    continue
+                zinfo = zipfile.ZipInfo(canonical)
+                zinfo.compress_type = zipfile.ZIP_DEFLATED
+                dst.writestr(zinfo, content)
+
+        tmp_path.replace(epub_file)
+        return True
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
 
 
 def _split_chapter_title(title: str, kind: str) -> tuple[Optional[str], str]:
@@ -263,9 +775,23 @@ def update_epub_metadata(
     *,
     css_text: Optional[str] = None,
 ) -> None:
+    cover_ok = bool(cover_path and cover_path.exists())
+    css_clean = css_text.strip() if isinstance(css_text, str) else ""
+    # Keep original chapter XHTML untouched when only OPF metadata changes are required.
+    if not cover_ok and not css_clean:
+        # Make non-canonical archive members recoverable before patching OPF.
+        _read_epub_resilient(epub_file)
+        if _update_epub_metadata_opf_only(epub_file, meta, keep_cover=True):
+            _normalize_epub_archive_paths(epub_file)
+            return
+    # For EPUB writeback with cover/css updates, prefer zip-level patching
+    # so original chapter head/style can be preserved.
+    if _update_epub_preserve_documents(epub_file, meta, cover_path=cover_path, css_text=css_clean):
+        _normalize_epub_archive_paths(epub_file)
+        return
+
     book = _read_epub_resilient(epub_file)
     _normalize_spine_and_toc(book)
-    cover_ok = bool(cover_path and cover_path.exists())
     _clear_metadata(book, keep_cover=not cover_ok)
     _add_metadata(book, meta)
     if cover_ok:
