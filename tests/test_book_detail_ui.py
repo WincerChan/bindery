@@ -8,7 +8,7 @@ class BookDetailUiTests(unittest.TestCase):
         tpl = (root / "templates" / "partials" / "meta_view.html").read_text(encoding="utf-8")
 
         self.assertIn('href="/book/{{ book_id }}/download"', tpl)
-        self.assertIn('href="/book/{{ book_id }}/preview"', tpl)
+        self.assertIn('href="{{ preview_url }}"', tpl)
         self.assertIn('action="/book/{{ book_id }}/archive"', tpl)
         self.assertIn('action="/book/{{ book_id }}/read"', tpl)
         self.assertIn("阅读状态", tpl)

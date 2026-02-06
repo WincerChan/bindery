@@ -364,6 +364,34 @@ def _normalize_read_filter(value: str) -> str:
     return "unread" if (value or "").strip().lower() == "unread" else "all"
 
 
+def _normalize_sort(value: str) -> str:
+    return "created" if (value or "").strip().lower() == "created" else "updated"
+
+
+def _safe_internal_redirect_target(target: object, fallback: str) -> str:
+    raw = target.strip() if isinstance(target, str) else ""
+    if not raw:
+        return fallback
+    parsed = urllib.parse.urlparse(raw)
+    if parsed.scheme or parsed.netloc:
+        return fallback
+    path = parsed.path or ""
+    if not path.startswith("/") or path.startswith("//"):
+        return fallback
+    return urllib.parse.urlunparse(("", "", path, "", parsed.query, ""))
+
+
+def _library_return_to_url(sort: str, q: str, page: int, read_filter: str) -> str:
+    safe_page = max(1, page)
+    params = {
+        "sort": _normalize_sort(sort),
+        "q": q or "",
+        "page": str(safe_page),
+        "read_filter": _normalize_read_filter(read_filter),
+    }
+    return f"/?{urllib.parse.urlencode(params)}"
+
+
 def _is_douban_host(hostname: str) -> bool:
     host = (hostname or "").strip().lower()
     return host in {"douban.com", "doubanio.com"} or host.endswith(".douban.com") or host.endswith(".doubanio.com")
@@ -1464,10 +1492,12 @@ async def index(
     read_filter: str = "all",
 ) -> HTMLResponse:
     base = library_dir()
-    payload = _library_page_data(base, sort, q, page, read_filter)
+    selected_sort = _normalize_sort(sort)
+    payload = _library_page_data(base, selected_sort, q, page, read_filter)
+    return_to = _library_return_to_url(selected_sort, q, payload["page"], payload["read_filter"])
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "sort": sort, "q": q, **payload},
+        {"request": request, "sort": selected_sort, "q": q, "return_to": return_to, **payload},
     )
 
 
@@ -1829,7 +1859,7 @@ async def ingest(
     if _is_htmx(request):
         return templates.TemplateResponse(
             "partials/library.html",
-            {"request": request, "books": created_books},
+            {"request": request, "books": created_books, "return_to": "/"},
         )
 
     if len(created_books) == 1:
@@ -1849,10 +1879,12 @@ async def library_partial(
     read_filter: str = "all",
 ) -> HTMLResponse:
     base = library_dir()
-    payload = _library_page_data(base, sort, q, page, read_filter)
+    selected_sort = _normalize_sort(sort)
+    payload = _library_page_data(base, selected_sort, q, page, read_filter)
+    return_to = _library_return_to_url(selected_sort, q, payload["page"], payload["read_filter"])
     return templates.TemplateResponse(
         "partials/library_section.html",
-        {"request": request, "sort": sort, "q": q, **payload},
+        {"request": request, "sort": selected_sort, "q": q, "return_to": return_to, **payload},
     )
 
 
@@ -2012,7 +2044,7 @@ async def upload(
     if _is_htmx(request):
         return templates.TemplateResponse(
             "partials/library.html",
-            {"request": request, "books": created_books},
+            {"request": request, "books": created_books, "return_to": "/"},
         )
 
     return RedirectResponse(url="/jobs", status_code=303)
@@ -2085,7 +2117,7 @@ async def upload_epub(
     if _is_htmx(request):
         return templates.TemplateResponse(
             "partials/library.html",
-            {"request": request, "books": created_books},
+            {"request": request, "books": created_books, "return_to": "/"},
         )
 
     return RedirectResponse(url="/jobs", status_code=303)
@@ -2095,6 +2127,8 @@ async def upload_epub(
 async def book_detail(request: Request, book_id: str) -> HTMLResponse:
     base = library_dir()
     _require_book(base, book_id)
+    return_to = _safe_internal_redirect_target(request.query_params.get("return_to", ""), "/")
+    return_to_query = f"?return_to={urllib.parse.quote(return_to, safe='')}" if return_to != "/" else ""
     meta = load_metadata(base, book_id)
     book = load_book(base, book_id)
     sections = _book_sections(book)
@@ -2109,6 +2143,8 @@ async def book_detail(request: Request, book_id: str) -> HTMLResponse:
             "book_id": book_id,
             "rules": rules,
             "themes": themes,
+            "return_to": return_to,
+            "return_to_query": return_to_query,
         },
     )
 
@@ -2276,7 +2312,7 @@ async def extract_cover_view(book_id: str) -> RedirectResponse:
 
 
 @app.get("/book/{book_id}/preview")
-async def preview_first(book_id: str) -> RedirectResponse:
+async def preview_first(request: Request, book_id: str) -> RedirectResponse:
     base = library_dir()
     _require_book(base, book_id)
     epub_file = epub_path(base, book_id)
@@ -2285,13 +2321,19 @@ async def preview_first(book_id: str) -> RedirectResponse:
     sections = list_epub_sections(epub_file)
     if not sections:
         raise HTTPException(status_code=404, detail="No sections")
-    return RedirectResponse(url=f"/book/{book_id}/preview/0", status_code=303)
+    return_to = _safe_internal_redirect_target(request.query_params.get("return_to", ""), "")
+    target = f"/book/{book_id}/preview/0"
+    if return_to:
+        target += f"?return_to={urllib.parse.quote(return_to, safe='')}"
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.get("/book/{book_id}/preview/{section_index}", response_class=HTMLResponse)
 async def preview(request: Request, book_id: str, section_index: int) -> HTMLResponse:
     base = library_dir()
     _require_book(base, book_id)
+    return_to = _safe_internal_redirect_target(request.query_params.get("return_to", ""), "/")
+    return_to_query = f"?return_to={urllib.parse.quote(return_to, safe='')}" if return_to != "/" else ""
     meta = load_metadata(base, book_id)
     _ensure_book_epub_css(base, meta)
     epub_file = epub_path(base, book_id)
@@ -2319,6 +2361,8 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
             "section_index": section_index,
             "prev_idx": prev_idx,
             "next_idx": next_idx,
+            "return_to": return_to,
+            "return_to_query": return_to_query,
             "hide_nav": True,
             "main_class": "h-screen w-screen p-0",
         },
@@ -2345,6 +2389,8 @@ async def epub_item(book_id: str, item_path: str) -> Response:
 async def edit_metadata(request: Request, book_id: str) -> HTMLResponse:
     base = library_dir()
     _require_book(base, book_id)
+    return_to = _safe_internal_redirect_target(request.query_params.get("return_to", ""), "/")
+    return_to_query = f"?return_to={urllib.parse.quote(return_to, safe='')}" if return_to != "/" else ""
     meta = load_metadata(base, book_id)
     rules = load_rule_templates()
     themes = load_theme_templates()
@@ -2357,6 +2403,8 @@ async def edit_metadata(request: Request, book_id: str) -> HTMLResponse:
             "book_id": book_id,
             "rules": rules,
             "themes": themes,
+            "return_to": return_to,
+            "return_to_query": return_to_query,
         },
     )
 
@@ -2380,9 +2428,12 @@ async def fetch_metadata(
     custom_css: str = Form(""),
     cover_url: str = Form(""),
     metadata_source: str = Form(""),
+    return_to: str = Form(""),
 ) -> HTMLResponse:
     base = library_dir()
     _require_book(base, book_id)
+    safe_return_to = _safe_internal_redirect_target(return_to, "/")
+    return_to_query = f"?return_to={urllib.parse.quote(safe_return_to, safe='')}" if safe_return_to != "/" else ""
     meta = load_metadata(base, book_id)
     book = load_book(base, book_id)
 
@@ -2440,6 +2491,8 @@ async def fetch_metadata(
                 "lookup_changed_fields": [],
                 "lookup_candidates": {},
                 "lookup_allow_cover_fill": False,
+                "return_to": safe_return_to,
+                "return_to_query": return_to_query,
             },
         )
 
@@ -2464,6 +2517,8 @@ async def fetch_metadata(
                 "lookup_changed_fields": [],
                 "lookup_candidates": {},
                 "lookup_allow_cover_fill": False,
+                "return_to": safe_return_to,
+                "return_to_query": return_to_query,
             },
         )
 
@@ -2535,6 +2590,8 @@ async def fetch_metadata(
             "lookup_changed_fields": changed_fields,
             "lookup_candidates": _lookup_candidates_payload(candidates),
             "lookup_allow_cover_fill": allow_cover_fill,
+            "return_to": safe_return_to,
+            "return_to_query": return_to_query,
         },
     )
 
@@ -2559,9 +2616,12 @@ async def save_edit(
     custom_css: str = Form(""),
     cover_file: Optional[UploadFile] = File(None),
     cover_url: str = Form(""),
+    return_to: str = Form(""),
 ) -> HTMLResponse:
     base = library_dir()
     _require_book(base, book_id)
+    safe_return_to = _safe_internal_redirect_target(return_to, "/")
+    return_to_query = f"?return_to={urllib.parse.quote(safe_return_to, safe='')}" if safe_return_to != "/" else ""
     meta = load_metadata(base, book_id)
     book = load_book(base, book_id)
 
@@ -2592,6 +2652,8 @@ async def save_edit(
                 "rules": rules,
                 "themes": themes,
                 "error": f"自定义 CSS 校验失败：{css_error}",
+                "return_to": safe_return_to,
+                "return_to_query": return_to_query,
             },
         )
     if meta.source_type != "epub":
@@ -2632,6 +2694,8 @@ async def save_edit(
                 "rules": rules,
                 "themes": themes,
                 "error": cover_error,
+                "return_to": safe_return_to,
+                "return_to_query": return_to_query,
             },
         )
 
@@ -2657,7 +2721,11 @@ async def save_edit(
 
 
 @app.post("/book/{book_id}/regenerate")
-async def regenerate(book_id: str, rule_template: str = Form("default")) -> RedirectResponse:
+async def regenerate(
+    book_id: str,
+    rule_template: str = Form("default"),
+    next: str = Form(""),
+) -> RedirectResponse:
     base = library_dir()
     _require_book(base, book_id)
     meta = load_metadata(base, book_id)
@@ -2665,11 +2733,12 @@ async def regenerate(book_id: str, rule_template: str = Form("default")) -> Redi
         raise HTTPException(status_code=400, detail="EPUB 导入的书籍无法重新生成")
     job = _create_job("regenerate", book_id, rule_template)
     _run_regenerate(job, base, book_id, rule_template)
-    return RedirectResponse(url=f"/book/{book_id}", status_code=303)
+    target = _safe_internal_redirect_target(next, f"/book/{book_id}")
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.post("/book/{book_id}/archive")
-async def archive_view(book_id: str) -> RedirectResponse:
+async def archive_view(book_id: str, next: str = Form("")) -> RedirectResponse:
     base = library_dir()
     _require_book(base, book_id)
     meta = load_metadata(base, book_id)
@@ -2677,7 +2746,8 @@ async def archive_view(book_id: str) -> RedirectResponse:
     meta.updated_at = _now_iso()
     save_metadata(meta, base)
     archive_book(base, book_id)
-    return RedirectResponse(url="/", status_code=303)
+    target = _safe_internal_redirect_target(next, "/")
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.post("/book/{book_id}/read")
@@ -2694,16 +2764,26 @@ async def set_read_status(
     meta.read = normalized in {"1", "true", "yes", "on"}
     meta.read_updated_at = _now_iso()
     save_metadata(meta, base)
+    target = _safe_internal_redirect_target(next, f"/book/{book_id}")
+    parsed_target = urllib.parse.urlparse(target)
+    target_query = urllib.parse.parse_qs(parsed_target.query)
+    target_return_to = _safe_internal_redirect_target(target_query.get("return_to", [""])[0], "/")
+    target_return_to_query = (
+        f"?return_to={urllib.parse.quote(target_return_to, safe='')}" if target_return_to != "/" else ""
+    )
 
     if _is_htmx(request):
         return templates.TemplateResponse(
             "partials/meta_view.html",
-            {"request": request, "book": _book_view(meta, base), "book_id": book_id},
+            {
+                "request": request,
+                "book": _book_view(meta, base),
+                "book_id": book_id,
+                "return_to": target_return_to,
+                "return_to_query": target_return_to_query,
+            },
         )
 
-    target = next.strip()
-    if not target.startswith("/"):
-        target = f"/book/{book_id}"
     return RedirectResponse(url=target, status_code=303)
 
 
@@ -2751,14 +2831,15 @@ async def archive_delete_bulk(book_ids: list[str] = Form([])) -> RedirectRespons
 
 
 @app.post("/book/{book_id}/delete")
-async def delete_book(request: Request, book_id: str) -> HTMLResponse:
+async def delete_book(request: Request, book_id: str, next: str = Form("")) -> HTMLResponse:
     base = library_dir()
     if not BOOK_ID_RE.match(book_id):
         raise HTTPException(status_code=404, detail="Invalid book id")
     delete_book_data(base, book_id)
     if _is_htmx(request):
         return HTMLResponse("")
-    return RedirectResponse(url="/", status_code=303)
+    target = _safe_internal_redirect_target(next, "/")
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.get("/jobs", response_class=HTMLResponse)

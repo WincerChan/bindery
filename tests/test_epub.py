@@ -179,6 +179,80 @@ class BuildEpubTests(unittest.TestCase):
             self.assertTrue(sections)
             self.assertTrue(sections[0].title)
 
+    def test_update_epub_metadata_repairs_noncanonical_nav_entry(self) -> None:
+        book = Book(title="章节书", author="作者", intro="简介")
+        chapter = Chapter(title="第一章", lines=["正文"])
+        book.root_chapters.append(chapter)
+        book.spine.append(chapter)
+
+        meta = Metadata(
+            book_id="repair-nav-id",
+            title="章节书",
+            author="作者",
+            language="zh-CN",
+            description=None,
+            publisher=None,
+            tags=[],
+            published=None,
+            isbn=None,
+            rating=None,
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            build_epub(book, meta, output_path)
+
+            with zipfile.ZipFile(output_path, "r") as src:
+                infos = src.infolist()
+                nav_name = next((info.filename for info in infos if info.filename.endswith("nav.xhtml")), "")
+                self.assertTrue(nav_name)
+                tampered_path = Path(tmp) / "tampered.epub"
+                with zipfile.ZipFile(tampered_path, "w") as dst:
+                    for info in infos:
+                        payload = src.read(info.filename)
+                        target_name = "EPUB/../nav.xhtml" if info.filename == nav_name else info.filename
+                        if target_name == "mimetype":
+                            dst.writestr(target_name, payload, compress_type=zipfile.ZIP_STORED)
+                            continue
+                        zinfo = zipfile.ZipInfo(target_name, date_time=info.date_time)
+                        zinfo.compress_type = info.compress_type
+                        zinfo.comment = info.comment
+                        zinfo.extra = info.extra
+                        zinfo.internal_attr = info.internal_attr
+                        zinfo.external_attr = info.external_attr
+                        zinfo.create_system = info.create_system
+                        zinfo.create_version = info.create_version
+                        zinfo.extract_version = info.extract_version
+                        zinfo.flag_bits = info.flag_bits
+                        dst.writestr(zinfo, payload)
+
+            tampered_path.replace(output_path)
+
+            new_meta = Metadata(
+                book_id="repair-nav-id",
+                title="修复后标题",
+                author="作者",
+                language="zh-CN",
+                description=None,
+                publisher=None,
+                tags=[],
+                published=None,
+                isbn=None,
+                rating=None,
+                created_at="",
+                updated_at="",
+            )
+            update_epub_metadata(output_path, new_meta)
+
+            sections = list_epub_sections(output_path)
+            self.assertTrue(sections)
+            with zipfile.ZipFile(output_path, "r") as zf:
+                names = set(zf.namelist())
+                self.assertNotIn("EPUB/../nav.xhtml", names)
+                self.assertTrue(any(name == "nav.xhtml" or name.endswith("/nav.xhtml") for name in names))
+
     def test_update_epub_metadata(self) -> None:
         book = Book(title="旧标题", author="旧作者", intro=None)
         chapter = Chapter(title="第一章", lines=["正文"])

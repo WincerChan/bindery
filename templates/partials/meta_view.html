@@ -1,4 +1,7 @@
 {% set rating = book.rating %}
+{% set detail_url = "/book/" ~ book_id ~ return_to_query %}
+{% set edit_url = "/book/" ~ book_id ~ "/edit" ~ return_to_query %}
+{% set preview_url = "/book/" ~ book_id ~ "/preview" ~ return_to_query %}
 <div id="meta-panel" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
   <div class="flex flex-col lg:flex-row gap-6">
     <div class="w-[180px] shrink-0">
@@ -20,7 +23,7 @@
         >下载 EPUB</a>
         <form action="/book/{{ book_id }}/read" method="post">
           <input type="hidden" name="read" value="{{ '0' if book.read else '1' }}" />
-          <input type="hidden" name="next" value="/book/{{ book_id }}" />
+          <input type="hidden" name="next" value="{{ detail_url }}" />
           <button
             class="w-full inline-flex items-center justify-center px-3 py-2 text-sm bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-lg font-medium transition-colors cursor-pointer"
             type="submit"
@@ -28,9 +31,10 @@
         </form>
         <a
           class="w-full inline-flex items-center justify-center px-3 py-2 text-sm bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg font-medium transition-colors"
-          href="/book/{{ book_id }}/preview"
+          href="{{ preview_url }}"
         >打开阅读器</a>
         <form action="/book/{{ book_id }}/archive" method="post">
+          <input type="hidden" name="next" value="{{ return_to }}" />
           <button
             class="w-full inline-flex items-center justify-center px-3 py-2 text-sm bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors cursor-pointer"
             type="submit"
@@ -53,8 +57,8 @@
         </div>
     <a
       class="px-4 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 font-medium transition-colors"
-      href="/book/{{ book_id }}/edit"
-      hx-get="/book/{{ book_id }}/edit"
+      href="{{ edit_url }}"
+      hx-get="{{ edit_url }}"
       hx-target="#meta-panel"
       hx-swap="outerHTML"
     >编辑</a>

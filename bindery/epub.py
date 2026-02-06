@@ -6,7 +6,9 @@ import html
 import posixpath
 import re
 from pathlib import Path, PurePosixPath
+import tempfile
 from typing import Iterable, Optional
+import zipfile
 
 from ebooklib import epub
 import ebooklib
@@ -24,6 +26,104 @@ BINDERY_CSS_NAME = "bindery.css"
 CHAPTER_STAMP_RE = re.compile(
     r"^\s*(第[0-9零〇一二两三四五六七八九十百千万亿\d]+章)\s*[:：、.\-·]?\s*(.+)\s*$"
 )
+
+
+def _canonical_zip_member(name: str) -> str:
+    normalized = posixpath.normpath((name or "").replace("\\", "/")).lstrip("/")
+    while normalized.startswith("../"):
+        normalized = normalized[3:]
+    return "" if normalized in {"", "."} else normalized
+
+
+def _missing_member_from_keyerror(exc: KeyError) -> str:
+    match = re.search(r"named '([^']+)'", str(exc))
+    if not match:
+        return ""
+    return _canonical_zip_member(match.group(1))
+
+
+def _normalize_epub_archive_paths(epub_file: Path, expected_missing: str = "") -> bool:
+    if not epub_file.exists():
+        return False
+    expected = _canonical_zip_member(expected_missing)
+    expected_name = PurePosixPath(expected).name if expected else ""
+    with zipfile.ZipFile(epub_file, "r") as src:
+        infos = src.infolist()
+        needs_rewrite = False
+        for info in infos:
+            original = (info.filename or "").replace("\\", "/")
+            canonical = _canonical_zip_member(original)
+            if expected and ".." in PurePosixPath(original).parts:
+                if PurePosixPath(canonical).name == expected_name:
+                    canonical = expected
+            if canonical != info.filename:
+                needs_rewrite = True
+        if not needs_rewrite:
+            return False
+
+        entries: list[tuple[str, zipfile.ZipInfo, bytes]] = []
+        for info in infos:
+            original = (info.filename or "").replace("\\", "/")
+            canonical = _canonical_zip_member(original)
+            if expected and ".." in PurePosixPath(original).parts:
+                if PurePosixPath(canonical).name == expected_name:
+                    canonical = expected
+            if not canonical:
+                continue
+            entries.append((canonical, info, src.read(info.filename)))
+
+    tmp_handle = tempfile.NamedTemporaryFile(
+        prefix=f"{epub_file.stem}.",
+        suffix=".epub",
+        dir=str(epub_file.parent),
+        delete=False,
+    )
+    tmp_path = Path(tmp_handle.name)
+    tmp_handle.close()
+
+    written: set[str] = set()
+    try:
+        with zipfile.ZipFile(tmp_path, "w") as dst:
+            # EPUB 规范要求 mimetype 为第一个且不压缩。
+            for canonical, info, payload in entries:
+                if canonical != "mimetype" or canonical in written:
+                    continue
+                dst.writestr(canonical, payload, compress_type=zipfile.ZIP_STORED)
+                written.add(canonical)
+
+            for canonical, info, payload in entries:
+                if canonical in written:
+                    continue
+                zinfo = zipfile.ZipInfo(canonical, date_time=info.date_time)
+                zinfo.compress_type = info.compress_type
+                zinfo.comment = info.comment
+                zinfo.extra = info.extra
+                zinfo.internal_attr = info.internal_attr
+                zinfo.external_attr = info.external_attr
+                zinfo.create_system = info.create_system
+                zinfo.create_version = info.create_version
+                zinfo.extract_version = info.extract_version
+                zinfo.flag_bits = info.flag_bits
+                dst.writestr(zinfo, payload)
+                written.add(canonical)
+
+        tmp_path.replace(epub_file)
+        return True
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+
+
+def _read_epub_resilient(epub_file: Path) -> epub.EpubBook:
+    try:
+        return epub.read_epub(str(epub_file))
+    except KeyError as exc:
+        missing = _missing_member_from_keyerror(exc)
+        if not missing:
+            raise
+        if not _normalize_epub_archive_paths(epub_file, expected_missing=missing):
+            raise
+        return epub.read_epub(str(epub_file))
 
 
 def _split_chapter_title(title: str, kind: str) -> tuple[Optional[str], str]:
@@ -163,7 +263,7 @@ def update_epub_metadata(
     *,
     css_text: Optional[str] = None,
 ) -> None:
-    book = epub.read_epub(str(epub_file))
+    book = _read_epub_resilient(epub_file)
     _normalize_spine_and_toc(book)
     cover_ok = bool(cover_path and cover_path.exists())
     _clear_metadata(book, keep_cover=not cover_ok)
@@ -173,6 +273,7 @@ def update_epub_metadata(
     if css_text is not None:
         _apply_bindery_css_overlay(book, css_text)
     epub.write_epub(str(epub_file), book, {"epub3_pages": False})
+    _normalize_epub_archive_paths(epub_file)
 
 
 def build_epub(
@@ -254,12 +355,13 @@ def build_epub(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     # Disable page-list generation to avoid failures when a section body is empty.
     epub.write_epub(str(output_path), epub_book, {"epub3_pages": False})
+    _normalize_epub_archive_paths(output_path)
 
 
 def extract_cover(epub_file: Path) -> Optional[tuple[bytes, str]]:
     if not epub_file.exists():
         return None
-    book = epub.read_epub(str(epub_file))
+    book = _read_epub_resilient(epub_file)
     for item in book.get_items():
         if item.get_type() == ebooklib.ITEM_COVER:
             name = item.get_name() or "cover"
@@ -286,7 +388,7 @@ def _first_metadata(book: epub.EpubBook, namespace: str, name: str) -> Optional[
 
 
 def extract_epub_metadata(epub_file: Path, fallback_title: str) -> dict:
-    book = epub.read_epub(str(epub_file))
+    book = _read_epub_resilient(epub_file)
     title = _first_metadata(book, "DC", "title") or fallback_title
     author = _first_metadata(book, "DC", "creator")
     language = _first_metadata(book, "DC", "language") or "zh-CN"
@@ -432,7 +534,7 @@ def _normalize_spine_and_toc(book: epub.EpubBook) -> None:
 
 
 def list_epub_sections(epub_file: Path) -> list[EpubSection]:
-    book = epub.read_epub(str(epub_file))
+    book = _read_epub_resilient(epub_file)
     sections: list[EpubSection] = []
     for item in _spine_items(book):
         title = getattr(item, "title", None)
@@ -457,7 +559,7 @@ def list_epub_sections(epub_file: Path) -> list[EpubSection]:
 
 
 def load_epub_item(epub_file: Path, item_path: str, base_href: str) -> tuple[bytes, str]:
-    book = epub.read_epub(str(epub_file))
+    book = _read_epub_resilient(epub_file)
     target_path = item_path.lstrip("/")
     target = None
     for item in book.get_items():

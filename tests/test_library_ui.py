@@ -17,8 +17,10 @@ class LibraryUiTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         tpl = (root / "templates" / "partials" / "book_card.html").read_text(encoding="utf-8")
 
-        self.assertIn('href="/book/{{ book.book_id }}"', tpl)
+        self.assertIn('{% set detail_url = "/book/" ~ book.book_id ~ "?return_to=" ~ (return_to|urlencode) %}', tpl)
+        self.assertIn('href="{{ detail_url }}"', tpl)
         self.assertIn('href="/book/{{ book.book_id }}/download"', tpl)
+        self.assertIn('name="next" value="{{ return_to }}"', tpl)
         self.assertIn('action="/book/{{ book.book_id }}/archive"', tpl)
         self.assertIn("group-hover:opacity-100", tpl)
         self.assertIn("group-hover:pointer-events-auto", tpl)
@@ -35,7 +37,7 @@ class LibraryUiTests(unittest.TestCase):
         self.assertIn('data-book-layout="grid"', tpl)
         self.assertIn('data-book-layout="list"', tpl)
         self.assertIn("data-book-select", tpl)
-        self.assertIn('href="/book/{{ book.book_id }}/preview"', tpl)
+        self.assertIn('href="{{ preview_url }}"', tpl)
 
     def test_index_grid_is_compact(self) -> None:
         root = Path(__file__).resolve().parent.parent
@@ -77,6 +79,18 @@ class LibraryUiTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         css = (root / "static" / "tailwind.css").read_text(encoding="utf-8")
         self.assertIn("repeat(auto-fill, minmax(180px, 1fr))", css)
+
+    def test_book_detail_and_edit_templates_keep_return_to(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        book_tpl = (root / "templates" / "book.html").read_text(encoding="utf-8")
+        view_tpl = (root / "templates" / "partials" / "meta_view.html").read_text(encoding="utf-8")
+        edit_tpl = (root / "templates" / "partials" / "meta_edit.html").read_text(encoding="utf-8")
+        preview_tpl = (root / "templates" / "preview.html").read_text(encoding="utf-8")
+        self.assertIn('href="{{ return_to }}"', book_tpl)
+        self.assertIn('name="next" value="{{ return_to }}"', book_tpl)
+        self.assertIn('{% set edit_url = "/book/" ~ book_id ~ "/edit" ~ return_to_query %}', view_tpl)
+        self.assertIn('name="return_to" value="{{ return_to }}"', edit_tpl)
+        self.assertIn('{% set detail_url = "/book/" ~ book.book_id ~ return_to_query %}', preview_tpl)
 
 
 if __name__ == "__main__":
