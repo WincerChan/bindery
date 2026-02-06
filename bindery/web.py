@@ -3,7 +3,9 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import queue
 import re
+import threading
 import tempfile
 import traceback
 import urllib.request
@@ -65,6 +67,12 @@ DEFAULT_THEME_ID = "default"
 # 显式声明“保持书籍样式”（仅针对 EPUB 导入书籍有意义）；避免用 `None` 产生歧义。
 KEEP_BOOK_THEME_ID = "__book__"
 LIBRARY_PAGE_SIZE = 28
+INGEST_ASYNC_BATCH_THRESHOLD = 8
+INGEST_QUEUE_DIR = ".ingest-queue"
+
+_ingest_queue: "queue.Queue[dict]" = queue.Queue()
+_ingest_worker_started = False
+_ingest_worker_lock = threading.Lock()
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -77,6 +85,7 @@ logger = logging.getLogger("bindery.metadata")
 async def startup() -> None:
     init_db()
     load_rule_templates()
+    _ensure_ingest_worker_started()
     print(f"[bindery] password hash configured: {bool(configured_hash())}")
 
 
@@ -814,6 +823,216 @@ def _update_job(job_id: str, **fields: object) -> None:
     update_job(job_id, **fields)
 
 
+def _queue_payload_path(base: Path, job_id: str, filename: str) -> Path:
+    queue_dir = base / INGEST_QUEUE_DIR / job_id
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    raw_name = Path(filename or "upload")
+    suffix = raw_name.suffix.lower() or ".bin"
+    stem = _safe_filename(raw_name.stem or "upload")
+    return queue_dir / f"{stem}{suffix}"
+
+
+def _persist_queued_upload(base: Path, job_id: str, filename: str, data: bytes) -> Path:
+    payload_path = _queue_payload_path(base, job_id, filename)
+    payload_path.write_bytes(data)
+    return payload_path
+
+
+def _cleanup_queued_upload(payload_path: Path) -> None:
+    try:
+        payload_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+    parent = payload_path.parent
+    try:
+        parent.rmdir()
+    except OSError:
+        return
+
+
+def _queued_job_spec(kind: str, rule_template: str) -> tuple[str, Optional[str], Optional[str]]:
+    if kind == "txt":
+        return "upload", new_book_id(), rule_template
+    if kind == "epub":
+        return "upload-epub", new_book_id(), None
+    return "ingest", None, rule_template
+
+
+def _process_queued_ingest_task(task: dict) -> None:
+    job_id = str(task.get("job_id") or "").strip()
+    if not job_id:
+        return
+    job = get_job(job_id)
+    if not job:
+        return
+
+    base = library_dir()
+    payload_path = Path(str(task.get("payload_path") or ""))
+    try:
+        data = payload_path.read_bytes()
+    except Exception:
+        _update_job(job_id, status="failed", stage="失败", message="读取队列文件失败")
+        _cleanup_queued_upload(payload_path)
+        return
+
+    filename = str(task.get("filename") or "upload")
+    kind = str(task.get("kind") or "unknown")
+    content_type = task.get("content_type")
+    detected_kind = _detect_source_type(filename, content_type if isinstance(content_type, str) else None, data)
+    if detected_kind != kind:
+        kind = detected_kind
+
+    title = str(task.get("title") or "")
+    author = str(task.get("author") or "")
+    language = str(task.get("language") or "")
+    description = str(task.get("description") or "")
+    series = str(task.get("series") or "")
+    identifier = str(task.get("identifier") or "")
+    publisher = str(task.get("publisher") or "")
+    tags = str(task.get("tags") or "")
+    published = str(task.get("published") or "")
+    isbn = str(task.get("isbn") or "")
+    rating = str(task.get("rating") or "")
+    rule_template = str(task.get("rule_template") or "default")
+    theme_template = str(task.get("theme_template") or "")
+    custom_css = str(task.get("custom_css") or "")
+    dedupe_mode = "normalize" if str(task.get("dedupe_mode") or "keep") == "normalize" else "keep"
+    cover_bytes = task.get("cover_bytes")
+    cover_name = task.get("cover_name")
+
+    try:
+        if kind == "epub":
+            if dedupe_mode == "normalize":
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".epub") as tmp:
+                        tmp.write(data)
+                        tmp.flush()
+                        extracted = extract_epub_metadata(Path(tmp.name), Path(filename).stem)
+                    duplicate_meta = _find_first_duplicate_meta(
+                        base,
+                        title.strip() or extracted.get("title") or Path(filename).stem,
+                        author.strip() or extracted.get("author"),
+                        isbn.strip() or extracted.get("isbn"),
+                    )
+                    if duplicate_meta:
+                        _update_job(
+                            job_id,
+                            book_id=duplicate_meta.book_id,
+                            status="success",
+                            stage="完成",
+                            message="归一到已入库书籍",
+                        )
+                        return
+                except Exception:
+                    pass
+            meta = _run_epub_ingest(
+                job,
+                base,
+                data,
+                filename,
+                title,
+                author,
+                language,
+                description,
+                series,
+                identifier,
+                publisher,
+                tags,
+                published,
+                isbn,
+                rating,
+                theme_template,
+                custom_css,
+                cover_bytes if isinstance(cover_bytes, bytes) else None,
+                cover_name if isinstance(cover_name, str) else None,
+            )
+            _update_job(job_id, book_id=meta.book_id)
+            return
+
+        if kind == "txt":
+            text = decode_text(data)
+            if not text.strip():
+                _update_job(job_id, status="failed", stage="失败", message=f"{filename}: 文本为空或无法解码", log=None)
+                return
+            source_name = Path(filename).stem
+            if dedupe_mode == "normalize":
+                try:
+                    dedupe_rule = get_rule(rule_template)
+                    dedupe_book = parse_book(text, source_name, dedupe_rule.rules)
+                    duplicate_meta = _find_first_duplicate_meta(
+                        base,
+                        title.strip() or dedupe_book.title,
+                        author.strip() or dedupe_book.author,
+                        isbn.strip() or None,
+                    )
+                    if duplicate_meta:
+                        _update_job(
+                            job_id,
+                            book_id=duplicate_meta.book_id,
+                            status="success",
+                            stage="完成",
+                            message="归一到已入库书籍",
+                        )
+                        return
+                except RuleTemplateError:
+                    pass
+                except Exception:
+                    pass
+            meta = _run_ingest(
+                job,
+                base,
+                text,
+                source_name,
+                title,
+                author,
+                language,
+                description,
+                series,
+                identifier,
+                publisher,
+                tags,
+                published,
+                isbn,
+                rating,
+                rule_template,
+                theme_template,
+                custom_css,
+                cover_bytes if isinstance(cover_bytes, bytes) else None,
+                cover_name if isinstance(cover_name, str) else None,
+            )
+            _update_job(job_id, book_id=meta.book_id)
+            return
+
+        _update_job(job_id, status="failed", stage="失败", message=f"{filename}: 不支持的文件类型", log=None)
+    except Exception:
+        current = get_job(job_id)
+        if current and current.status == "running":
+            _update_job(job_id, status="failed", stage="失败", message="后台处理失败", log=traceback.format_exc())
+    finally:
+        _cleanup_queued_upload(payload_path)
+
+
+def _ingest_worker_loop() -> None:
+    while True:
+        task = _ingest_queue.get()
+        try:
+            _process_queued_ingest_task(task)
+        except Exception:
+            logger.exception("ingest worker crashed while processing task")
+        finally:
+            _ingest_queue.task_done()
+
+
+def _ensure_ingest_worker_started() -> None:
+    global _ingest_worker_started
+    with _ingest_worker_lock:
+        if _ingest_worker_started:
+            return
+        worker = threading.Thread(target=_ingest_worker_loop, name="bindery-ingest-worker", daemon=True)
+        worker.start()
+        _ingest_worker_started = True
+
+
 def _run_ingest(
     job: Job,
     base: Path,
@@ -1274,6 +1493,48 @@ async def ingest(
     base = library_dir()
     created_books: list[dict] = []
     dedupe_mode = "normalize" if dedupe_mode == "normalize" else "keep"
+    if len(files) >= INGEST_ASYNC_BATCH_THRESHOLD:
+        _ensure_ingest_worker_started()
+        for upload_file in files:
+            filename = upload_file.filename or "upload"
+            data = await upload_file.read()
+            if not data:
+                job = _create_job("ingest", None, rule_template)
+                _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
+                continue
+            kind = _detect_source_type(filename, upload_file.content_type, data)
+            action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
+            job = _create_job(action, book_id, job_rule_template)
+            _update_job(job.id, stage="排队中", message="等待后台处理")
+            payload_path = _persist_queued_upload(base, job.id, filename, data)
+            _ingest_queue.put(
+                {
+                    "job_id": job.id,
+                    "payload_path": str(payload_path),
+                    "filename": filename,
+                    "content_type": upload_file.content_type,
+                    "kind": kind,
+                    "title": title,
+                    "author": author,
+                    "language": language,
+                    "description": description,
+                    "series": series,
+                    "identifier": identifier,
+                    "publisher": publisher,
+                    "tags": tags,
+                    "published": published,
+                    "isbn": isbn,
+                    "rating": rating,
+                    "rule_template": rule_template,
+                    "theme_template": theme_template,
+                    "custom_css": custom_css,
+                    "dedupe_mode": dedupe_mode,
+                    "cover_bytes": cover_bytes,
+                    "cover_name": cover_name,
+                }
+            )
+        return RedirectResponse(url="/jobs", status_code=303)
+
     for upload_file in files:
         filename = upload_file.filename or "upload"
         data = await upload_file.read()
