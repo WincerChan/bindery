@@ -1,0 +1,38 @@
+<div id="library-section" data-page="{{ page }}" class="space-y-4">
+  <div class="text-sm text-slate-500 flex items-center justify-between">
+    <div>已入库 {{ total_books }} 本</div>
+    <div class="text-xs font-mono text-slate-400">/library</div>
+  </div>
+
+  <div
+    id="library"
+    data-view="grid"
+    class="grid gap-5 grid-cols-auto-180 data-[view=list]:!grid-cols-1"
+  >
+    {% include "partials/library.html" %}
+  </div>
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-500">
+    <div>第 {{ page }} / {{ total_pages }} 页 · 当前 {{ books | length }} / {{ total_books }} 本</div>
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        class="h-8 px-3 inline-flex items-center justify-center rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        {% if not has_prev %}disabled{% endif %}
+        hx-get="/library"
+        hx-target="#library-section"
+        hx-include="#library-controls"
+        hx-vals='{"page":"{{ prev_page }}"}'
+      >上一页</button>
+      <button
+        type="button"
+        class="h-8 px-3 inline-flex items-center justify-center rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        {% if not has_next %}disabled{% endif %}
+        hx-get="/library"
+        hx-target="#library-section"
+        hx-include="#library-controls"
+        hx-vals='{"page":"{{ next_page }}"}'
+      >下一页</button>
+    </div>
+  </div>
+</div>

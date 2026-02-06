@@ -73,6 +73,34 @@ class WebRoutesTests(unittest.TestCase):
                     seen.add((method, path))
         self.assertIn(("POST", "/jobs/cleanup-invalid"), seen)
 
+    def test_library_route_registered(self) -> None:
+        seen: set[tuple[str, str]] = set()
+        for route in app.routes:
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None) or set()
+            if path == "/library":
+                for method in methods:
+                    seen.add((method, path))
+        self.assertIn(("GET", "/library"), seen)
+
+    def test_library_section_template_has_pagination_text(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        section = (root / "templates" / "partials" / "library_section.html").read_text(encoding="utf-8")
+        self.assertIn("第 {{ page }} / {{ total_pages }} 页", section)
+        self.assertIn("上一页", section)
+        self.assertIn("下一页", section)
+
+    def test_bulk_book_routes_registered(self) -> None:
+        seen: set[tuple[str, str]] = set()
+        for route in app.routes:
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None) or set()
+            if path in {"/books/archive", "/books/download"}:
+                for method in methods:
+                    seen.add((method, path))
+        self.assertIn(("POST", "/books/archive"), seen)
+        self.assertIn(("POST", "/books/download"), seen)
+
     def test_theme_editor_routes_registered(self) -> None:
         seen: set[tuple[str, str]] = set()
         for route in app.routes:

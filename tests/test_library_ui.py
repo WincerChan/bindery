@@ -30,14 +30,37 @@ class LibraryUiTests(unittest.TestCase):
         tpl = (root / "templates" / "partials" / "book_card.html").read_text(encoding="utf-8")
         self.assertIn('data-book-layout="grid"', tpl)
         self.assertIn('data-book-layout="list"', tpl)
+        self.assertIn("data-book-select", tpl)
         self.assertIn('href="/book/{{ book.book_id }}/preview"', tpl)
 
     def test_index_grid_is_compact(self) -> None:
         root = Path(__file__).resolve().parent.parent
         index = (root / "templates" / "index.html").read_text(encoding="utf-8")
-        self.assertIn("gap-5", index)
-        self.assertIn("grid-cols-auto-180", index)
-        self.assertIn("data-[view=list]:!grid-cols-1", index)
+        section = (root / "templates" / "partials" / "library_section.html").read_text(encoding="utf-8")
+        self.assertIn('{% include "partials/library_section.html" %}', index)
+        self.assertIn("gap-5", section)
+        self.assertIn("grid-cols-auto-180", section)
+        self.assertIn("data-[view=list]:!grid-cols-1", section)
+
+    def test_index_has_bulk_actions(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        index = (root / "templates" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("data-bulk-controls", index)
+        self.assertIn('action="/books/download"', index)
+        self.assertIn('action="/books/archive"', index)
+        self.assertIn("data-bulk-select-all", index)
+        self.assertIn("data-bulk-clear", index)
+
+    def test_index_has_pagination_controls(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        index = (root / "templates" / "index.html").read_text(encoding="utf-8")
+        section = (root / "templates" / "partials" / "library_section.html").read_text(encoding="utf-8")
+        self.assertIn('name="page"', index)
+        self.assertIn("data-page-input", index)
+        self.assertIn('id="library-section"', section)
+        self.assertIn('hx-target="#library-section"', section)
+        self.assertIn('hx-vals=\'{"page":"{{ prev_page }}"}\'', section)
+        self.assertIn('hx-vals=\'{"page":"{{ next_page }}"}\'', section)
 
 
 if __name__ == "__main__":

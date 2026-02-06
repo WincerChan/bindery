@@ -298,6 +298,9 @@
   .right-2 {
     right: calc(var(--spacing) * 2);
   }
+  .right-3 {
+    right: calc(var(--spacing) * 3);
+  }
   .right-4 {
     right: calc(var(--spacing) * 4);
   }
@@ -1141,6 +1144,9 @@
   .pb-9 {
     padding-bottom: calc(var(--spacing) * 9);
   }
+  .pl-3 {
+    padding-left: calc(var(--spacing) * 3);
+  }
   .pl-5 {
     padding-left: calc(var(--spacing) * 5);
   }
@@ -1742,6 +1748,11 @@
       opacity: 40%;
     }
   }
+  .disabled\:opacity-50 {
+    &:disabled {
+      opacity: 50%;
+    }
+  }
   .data-\[view\=list\]\:\!grid-cols-1 {
     &[data-view="list"] {
       grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
@@ -1805,6 +1816,11 @@
   .sm\:pr-4 {
     @media (width >= 40rem) {
       padding-right: calc(var(--spacing) * 4);
+    }
+  }
+  .sm\:pl-4 {
+    @media (width >= 40rem) {
+      padding-left: calc(var(--spacing) * 4);
     }
   }
   .sm\:text-base {

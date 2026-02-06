@@ -64,6 +64,7 @@ BOOK_ID_RE = re.compile(r"^[a-f0-9]{32}$")
 DEFAULT_THEME_ID = "default"
 # 显式声明“保持书籍样式”（仅针对 EPUB 导入书籍有意义）；避免用 `None` 产生歧义。
 KEEP_BOOK_THEME_ID = "__book__"
+LIBRARY_PAGE_SIZE = 24
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -606,6 +607,20 @@ def _require_book(base: Path, book_id: str) -> None:
         raise HTTPException(status_code=404, detail="Book not found")
 
 
+def _normalize_book_ids(raw_ids: list[str]) -> list[str]:
+    selected: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_ids:
+        book_id = (raw or "").strip()
+        if not BOOK_ID_RE.match(book_id):
+            continue
+        if book_id in seen:
+            continue
+        seen.add(book_id)
+        selected.append(book_id)
+    return selected
+
+
 def _require_theme(theme_id: str):
     for theme in load_theme_templates():
         if theme.theme_id == theme_id:
@@ -1027,26 +1042,46 @@ async def logout(request: Request) -> RedirectResponse:
     return response
 
 
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request, sort: str = "updated", q: str = "") -> HTMLResponse:
-    base = library_dir()
+def _library_page_data(base: Path, sort: str, q: str, page: int) -> dict:
     books = list_books(base)
     if q:
         q_lower = q.lower()
         books = [
             book
             for book in books
-            if (book.title and q_lower in book.title.lower())
-            or (book.author and q_lower in book.author.lower())
+            if (book.title and q_lower in book.title.lower()) or (book.author and q_lower in book.author.lower())
         ]
     if sort == "created":
         books.sort(key=lambda item: item.created_at, reverse=True)
     else:
         books.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
-    view_books = [_book_view(book, base) for book in books]
+
+    total_books = len(books)
+    total_pages = max(1, (total_books + LIBRARY_PAGE_SIZE - 1) // LIBRARY_PAGE_SIZE)
+    current_page = min(max(1, page), total_pages)
+    start = (current_page - 1) * LIBRARY_PAGE_SIZE
+    page_books = books[start : start + LIBRARY_PAGE_SIZE]
+    view_books = [_book_view(book, base) for book in page_books]
+
+    return {
+        "books": view_books,
+        "total_books": total_books,
+        "page": current_page,
+        "total_pages": total_pages,
+        "has_prev": current_page > 1,
+        "has_next": current_page < total_pages,
+        "prev_page": current_page - 1,
+        "next_page": current_page + 1,
+    }
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request, sort: str = "updated", q: str = "", page: int = 1) -> HTMLResponse:
+    base = library_dir()
+    payload = _library_page_data(base, sort, q, page)
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "books": view_books, "sort": sort, "q": q},
+        {"request": request, "sort": sort, "q": q, **payload},
     )
 
 
@@ -1378,25 +1413,12 @@ async def ingest(
 
 
 @app.get("/library", response_class=HTMLResponse)
-async def library_partial(request: Request, sort: str = "updated", q: str = "") -> HTMLResponse:
+async def library_partial(request: Request, sort: str = "updated", q: str = "", page: int = 1) -> HTMLResponse:
     base = library_dir()
-    books = list_books(base)
-    if q:
-        q_lower = q.lower()
-        books = [
-            book
-            for book in books
-            if (book.title and q_lower in book.title.lower())
-            or (book.author and q_lower in book.author.lower())
-        ]
-    if sort == "created":
-        books.sort(key=lambda item: item.created_at, reverse=True)
-    else:
-        books.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
-    view_books = [_book_view(book, base) for book in books]
+    payload = _library_page_data(base, sort, q, page)
     return templates.TemplateResponse(
-        "partials/library.html",
-        {"request": request, "books": view_books},
+        "partials/library_section.html",
+        {"request": request, "sort": sort, "q": q, **payload},
     )
 
 
@@ -1675,6 +1697,54 @@ async def download(book_id: str) -> FileResponse:
     safe_author = _safe_filename(author)
     download_name = f"{safe_title}-{safe_author}.epub"
     return FileResponse(path=epub_file, filename=download_name, media_type="application/epub+zip")
+
+
+@app.post("/books/download")
+async def download_bulk(book_ids: list[str] = Form([])) -> Response:
+    base = library_dir()
+    selected_ids = _normalize_book_ids(book_ids)
+    if not selected_ids:
+        raise HTTPException(status_code=400, detail="未选择书籍")
+
+    bundle_items: list[tuple[Metadata, Path]] = []
+    for book_id in selected_ids:
+        if not ensure_book_exists(base, book_id):
+            continue
+        meta = load_metadata(base, book_id)
+        _ensure_book_epub_css(base, meta)
+        item_path = epub_path(base, book_id)
+        if item_path.exists():
+            bundle_items.append((meta, item_path))
+
+    if not bundle_items:
+        raise HTTPException(status_code=404, detail="未找到可下载的 EPUB")
+
+    archive_buffer = BytesIO()
+    used_names: set[str] = set()
+    with zipfile.ZipFile(archive_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for meta, item_path in bundle_items:
+            title = (meta.title or "").strip()
+            safe_title = _safe_filename(title) if title else "book"
+            author = (meta.author or "").strip() or "未知"
+            safe_author = _safe_filename(author)
+            basename = f"{safe_title}-{safe_author}"
+            archive_name = f"{basename}.epub"
+            if archive_name in used_names:
+                suffix = 2
+                while True:
+                    archive_name = f"{basename}-{suffix}.epub"
+                    if archive_name not in used_names:
+                        break
+                    suffix += 1
+            used_names.add(archive_name)
+            archive.write(item_path, arcname=archive_name)
+
+    bundle_name = f"bindery-books-{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+    return Response(
+        content=archive_buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{bundle_name}"'},
+    )
 
 
 @app.get("/book/{book_id}/cover")
@@ -2224,6 +2294,22 @@ async def archive_view(book_id: str) -> RedirectResponse:
     meta.updated_at = _now_iso()
     save_metadata(meta, base)
     archive_book(base, book_id)
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/books/archive")
+async def archive_bulk(book_ids: list[str] = Form([])) -> RedirectResponse:
+    base = library_dir()
+    for book_id in _normalize_book_ids(book_ids):
+        if not ensure_book_exists(base, book_id):
+            continue
+        meta = load_metadata(base, book_id)
+        if meta.archived:
+            continue
+        meta.archived = True
+        meta.updated_at = _now_iso()
+        save_metadata(meta, base)
+        archive_book(base, book_id)
     return RedirectResponse(url="/", status_code=303)
 
 

@@ -20,9 +20,10 @@
         placeholder="搜索标题、作者…"
         value="{{ q }}"
         hx-get="/library"
-        hx-target="#library"
+        hx-target="#library-section"
         hx-trigger="keyup changed delay:400ms"
         hx-include="#library-controls"
+        hx-vals='{"page":"1"}'
       />
     </div>
 
@@ -31,13 +32,15 @@
         class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
         name="sort"
         hx-get="/library"
-        hx-target="#library"
+        hx-target="#library-section"
         hx-trigger="change"
         hx-include="#library-controls"
+        hx-vals='{"page":"1"}'
       >
         <option value="created" {% if sort == 'created' %}selected{% endif %}>最近导入</option>
         <option value="updated" {% if sort == 'updated' %}selected{% endif %}>最近修改</option>
       </select>
+      <input type="hidden" name="page" value="{{ page }}" data-page-input />
 
       <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200" data-view-toggle>
         <button
@@ -79,51 +82,210 @@
     </div>
   </div>
 
-  <div class="text-sm text-slate-500 flex items-center justify-between">
-    <div>已入库 {{ books | length }} 本</div>
-    <div class="text-xs font-mono text-slate-400">/library</div>
-  </div>
-
   <div
-    id="library"
-    data-view="grid"
-    class="grid gap-5 grid-cols-auto-180 data-[view=list]:!grid-cols-1"
+    class="flex flex-col md:flex-row md:items-center gap-3 justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200"
+    data-bulk-controls
   >
-    {% include "partials/library.html" %}
+    <div class="flex items-center gap-3 text-sm">
+      <span class="font-medium text-slate-800">毗连设置</span>
+      <span class="text-slate-500">已选 <span data-selected-count>0</span> 本</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        data-bulk-select-all
+        class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+      >全选当前页</button>
+      <button
+        type="button"
+        data-bulk-clear
+        class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+      >清空</button>
+      <form id="bulk-download-form" action="/books/download" method="post" target="bulk-download-target" class="m-0">
+        <div data-book-ids></div>
+        <button
+          type="submit"
+          data-bulk-download
+          class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled
+        >批量下载</button>
+      </form>
+      <form id="bulk-archive-form" action="/books/archive" method="post" class="m-0">
+        <div data-book-ids></div>
+        <button
+          type="submit"
+          data-bulk-archive
+          class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-red-200 rounded-lg bg-white text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled
+        >批量归档</button>
+      </form>
+    </div>
   </div>
+  <iframe name="bulk-download-target" class="hidden"></iframe>
+
+  {% include "partials/library_section.html" %}
 </div>
 
 <script>
-  const viewToggle = document.querySelector('[data-view-toggle]');
-  const library = document.getElementById('library');
-  function applyLibraryView(view) {
-    if (!library) return;
-    library.dataset.view = view;
-    library.querySelectorAll('[data-book-layout]').forEach((node) => {
-      const layout = node.dataset.bookLayout;
-      if (layout === 'grid') node.classList.toggle('hidden', view === 'list');
-      if (layout === 'list') node.classList.toggle('hidden', view !== 'list');
-    });
-  }
+  (() => {
+    const viewToggle = document.querySelector('[data-view-toggle]');
+    const selectedCount = document.querySelector('[data-selected-count]');
+    const selectAllBtn = document.querySelector('[data-bulk-select-all]');
+    const clearBtn = document.querySelector('[data-bulk-clear]');
+    const bulkDownloadBtn = document.querySelector('[data-bulk-download]');
+    const bulkArchiveBtn = document.querySelector('[data-bulk-archive]');
+    const bulkDownloadForm = document.getElementById('bulk-download-form');
+    const bulkArchiveForm = document.getElementById('bulk-archive-form');
+    const pageInput = document.querySelector('[data-page-input]');
+    const selectedBookIds = new Set();
+    let currentView = localStorage.getItem('bindery-view') || 'grid';
 
-  if (viewToggle && library) {
-    const stored = localStorage.getItem('bindery-view') || 'grid';
-    applyLibraryView(stored);
-    viewToggle.querySelectorAll('.toggle-btn').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.view === stored);
-      btn.addEventListener('click', () => {
-        const view = btn.dataset.view;
-        applyLibraryView(view);
-        localStorage.setItem('bindery-view', view);
-        viewToggle.querySelectorAll('.toggle-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+    function getLibrary() {
+      return document.getElementById('library');
+    }
+
+    function syncPageInputFromSection() {
+      if (!pageInput) return;
+      const section = document.getElementById('library-section');
+      if (!section) return;
+      const page = (section.dataset.page || '').trim();
+      if (page) pageInput.value = page;
+    }
+
+    function applyLibraryView(view) {
+      const library = getLibrary();
+      if (!library) return;
+      currentView = view || 'grid';
+      library.dataset.view = currentView;
+      library.querySelectorAll('[data-book-layout]').forEach((node) => {
+        const layout = node.dataset.bookLayout;
+        if (layout === 'grid') node.classList.toggle('hidden', currentView === 'list');
+        if (layout === 'list') node.classList.toggle('hidden', currentView !== 'list');
       });
+    }
+
+    function listVisibleBookIds() {
+      const library = getLibrary();
+      if (!library) return [];
+      const ids = new Set();
+      library.querySelectorAll('[data-book-select]').forEach((node) => {
+        const bookId = (node.value || '').trim();
+        if (bookId) ids.add(bookId);
+      });
+      return Array.from(ids);
+    }
+
+    function syncCheckboxes() {
+      const library = getLibrary();
+      if (!library) return;
+      library.querySelectorAll('[data-book-select]').forEach((node) => {
+        node.checked = selectedBookIds.has(node.value);
+      });
+    }
+
+    function syncHiddenIds(form) {
+      if (!form) return;
+      const holder = form.querySelector('[data-book-ids]');
+      if (!holder) return;
+      holder.innerHTML = '';
+      Array.from(selectedBookIds).forEach((bookId) => {
+        const field = document.createElement('input');
+        field.type = 'hidden';
+        field.name = 'book_ids';
+        field.value = bookId;
+        holder.appendChild(field);
+      });
+    }
+
+    function syncBulkUi() {
+      const visibleIds = new Set(listVisibleBookIds());
+      Array.from(selectedBookIds).forEach((bookId) => {
+        if (!visibleIds.has(bookId)) selectedBookIds.delete(bookId);
+      });
+      syncCheckboxes();
+      syncHiddenIds(bulkDownloadForm);
+      syncHiddenIds(bulkArchiveForm);
+      const count = selectedBookIds.size;
+      if (selectedCount) selectedCount.textContent = String(count);
+      const disabled = count === 0;
+      if (bulkDownloadBtn) bulkDownloadBtn.disabled = disabled;
+      if (bulkArchiveBtn) bulkArchiveBtn.disabled = disabled;
+    }
+
+    if (viewToggle) {
+      applyLibraryView(currentView);
+      viewToggle.querySelectorAll('.toggle-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.view === currentView);
+        btn.addEventListener('click', () => {
+          const view = btn.dataset.view || 'grid';
+          applyLibraryView(view);
+          localStorage.setItem('bindery-view', view);
+          viewToggle.querySelectorAll('.toggle-btn').forEach((node) => {
+            node.classList.toggle('active', node.dataset.view === view);
+          });
+        });
+      });
+    }
+
+    document.body.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || !target.matches('[data-book-select]')) return;
+      const bookId = (target.value || '').trim();
+      if (!bookId) return;
+      if (target.checked) selectedBookIds.add(bookId);
+      else selectedBookIds.delete(bookId);
+      syncBulkUi();
     });
+
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', () => {
+        listVisibleBookIds().forEach((bookId) => selectedBookIds.add(bookId));
+        syncBulkUi();
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        selectedBookIds.clear();
+        syncBulkUi();
+      });
+    }
+
+    if (bulkDownloadForm) {
+      bulkDownloadForm.addEventListener('submit', (event) => {
+        if (selectedBookIds.size === 0) event.preventDefault();
+      });
+    }
+
+    if (bulkArchiveForm) {
+      bulkArchiveForm.addEventListener('submit', (event) => {
+        if (selectedBookIds.size === 0) event.preventDefault();
+      });
+    }
+
+    const searchInput = document.querySelector('#library-controls input[name="q"]');
+    const sortSelect = document.querySelector('#library-controls select[name="sort"]');
+    if (searchInput && pageInput) {
+      searchInput.addEventListener('input', () => {
+        pageInput.value = '1';
+      });
+    }
+    if (sortSelect && pageInput) {
+      sortSelect.addEventListener('change', () => {
+        pageInput.value = '1';
+      });
+    }
 
     document.body.addEventListener('htmx:afterSwap', (event) => {
-      if (event.target && event.target.id === 'library') {
-        applyLibraryView(library.dataset.view || stored);
+      if (event.target && event.target.id === 'library-section') {
+        syncPageInputFromSection();
+        applyLibraryView(currentView);
+        syncBulkUi();
       }
     });
-  }
+
+    syncPageInputFromSection();
+    syncBulkUi();
+  })();
 </script>
 {% endblock %}
