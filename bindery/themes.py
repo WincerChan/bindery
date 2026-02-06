@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+
+from .env import read_env
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 THEMES_DIR_ENV = "BINDERY_THEMES_DIR"
@@ -65,7 +66,7 @@ class ThemeTemplate:
 
 
 def themes_dir() -> Path:
-    env = os.getenv(THEMES_DIR_ENV)
+    env = read_env(THEMES_DIR_ENV)
     if env:
         path = Path(env)
     else:
@@ -75,7 +76,7 @@ def themes_dir() -> Path:
 
 
 def _templates_parent_dir() -> Path:
-    env = os.getenv(TEMPLATES_DIR_ENV)
+    env = read_env(TEMPLATES_DIR_ENV)
     path = Path(env) if env else DEFAULT_RUNTIME_TEMPLATES_DIR
     path.mkdir(parents=True, exist_ok=True)
     return path

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
 import shutil
 import sqlite3
 from pathlib import Path
 from typing import Optional
 
+from .env import read_env
 from .models import Job
 from .storage import library_dir
 
@@ -14,7 +14,7 @@ DB_FILENAME = "bindery.db"
 
 
 def db_path() -> Path:
-    env = os.getenv("BINDERY_DB_PATH")
+    env = read_env("BINDERY_DB_PATH")
     if env:
         return Path(env)
     default_path = library_dir() / DB_FILENAME

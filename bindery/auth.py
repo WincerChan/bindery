@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import os
 import secrets
 from typing import Optional
 
@@ -9,6 +8,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchError
 
 from .db import create_session, delete_session, get_session, touch_session
+from .env import read_env
 
 SESSION_COOKIE = "bindery_session"
 
@@ -18,7 +18,7 @@ def _now_iso() -> str:
 
 
 def configured_hash() -> Optional[str]:
-    return os.getenv("BINDERY_PASSWORD_HASH")
+    return read_env("BINDERY_PASSWORD_HASH")
 
 
 def verify_password(password: str) -> bool:

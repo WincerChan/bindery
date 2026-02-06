@@ -36,6 +36,7 @@ SQLite 默认路径：`./library/bindery.db`，可用 `BINDERY_DB_PATH` 自定�
 设置单用户登录凭据：
 
 - `BINDERY_PASSWORD_HASH`：argon2 哈希密码（encoded 字符串）
+- 支持 `BINDERY_PASSWORD_HASH_FILE`：从文件读取哈希（适合 Quadlet/Kubernetes secret）
 
 示例（生成哈希）：
 
@@ -58,3 +59,6 @@ PY
 
 - `Image=ghcr.io/replace-me/bindery:latest`
 - `EnvironmentFile=/etc/bindery/bindery.env`（文件内至少包含 `BINDERY_PASSWORD_HASH=...`）
+
+说明：主要配置项支持 `NAME_FILE` 形式读取（当 `NAME` 未设置时生效），
+例如 `BINDERY_PASSWORD_HASH_FILE`、`BINDERY_LIBRARY_DIR_FILE`、`BINDERY_DB_PATH_FILE`、`BINDERY_TEMPLATE_DIR_FILE`。

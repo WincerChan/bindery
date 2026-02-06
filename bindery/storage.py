@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import imghdr
 import json
-import os
 from pathlib import Path
 import shutil
 import uuid
 
+from .env import read_env
 from .models import Book, Metadata, book_from_dict, book_to_dict, metadata_from_dict, metadata_to_dict
 
 META_FILE = "meta.json"
@@ -17,7 +17,7 @@ COVER_PREFIX = "cover"
 
 
 def library_dir() -> Path:
-    env = os.getenv("BINDERY_LIBRARY_DIR")
+    env = read_env("BINDERY_LIBRARY_DIR")
     base = Path(env) if env else Path(__file__).resolve().parent.parent / "library"
     base.mkdir(parents=True, exist_ok=True)
     return base
