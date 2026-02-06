@@ -44,3 +44,16 @@ from argon2 import PasswordHasher
 print(PasswordHasher().hash("your-password"))
 PY
 ```
+
+## 容器部署
+
+- `Containerfile`：生产镜像定义，默认监听 `5670`，并将数据目录设为 `/data/library`。
+- GHCR 推送：`.github/workflows/publish-ghcr.yml` 会在 `main/master` 或 `v*` tag push 时自动构建并推送镜像到 `ghcr.io/<owner>/<repo>`。
+- Quadlet 示例：
+  - `deploy/quadlet/bindery-library.volume`
+  - `deploy/quadlet/bindery.container`
+
+`deploy/quadlet/bindery.container` 里需要替换：
+
+- `Image=ghcr.io/replace-me/bindery:latest`
+- `EnvironmentFile=/etc/bindery/bindery.env`（文件内至少包含 `BINDERY_PASSWORD_HASH=...`）

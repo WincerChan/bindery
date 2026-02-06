@@ -1,0 +1,20 @@
+[Unit]
+Description=Bindery Service
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/replace-me/bindery:latest
+ContainerName=bindery
+PublishPort=5670:5670
+Volume=bindery-library.volume:/data/library:Z
+Environment=BINDERY_LIBRARY_DIR=/data/library
+EnvironmentFile=/etc/bindery/bindery.env
+AutoUpdate=registry
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
