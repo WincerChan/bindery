@@ -12,6 +12,7 @@
     {% endif %}
     <form id="ingest-form" action="/ingest" method="post" enctype="multipart/form-data" class="space-y-6">
       <input type="hidden" name="dedupe_mode" value="keep" data-dedupe-mode />
+      <div data-upload-tokens></div>
       <div
         data-dropzone
         class="relative border-2 border-dashed rounded-xl p-12 text-center transition-all border-slate-300 hover:border-indigo-400 bg-white [&.dragging]:border-indigo-500 [&.dragging]:bg-indigo-50"
@@ -111,6 +112,7 @@
         </button>
         <button data-ingest-submit class="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer" type="submit">开始入库</button>
       </div>
+      <div data-ingest-error class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"></div>
       <div data-ingest-preview-status class="hidden text-xs text-indigo-600">正在解析文件，请稍候...</div>
       <div data-ingest-status class="hidden text-xs text-indigo-600">正在提交入库任务，请稍候...</div>
     </form>
@@ -127,9 +129,11 @@
   const fileFeedback = ingestForm ? ingestForm.querySelector('[data-file-feedback]') : null;
   const ingestPreviewBtn = ingestForm ? ingestForm.querySelector('[data-ingest-preview]') : null;
   const ingestSubmitBtn = ingestForm ? ingestForm.querySelector('[data-ingest-submit]') : null;
+  const ingestError = ingestForm ? ingestForm.querySelector('[data-ingest-error]') : null;
   const ingestPreviewStatus = ingestForm ? ingestForm.querySelector('[data-ingest-preview-status]') : null;
   const ingestStatus = ingestForm ? ingestForm.querySelector('[data-ingest-status]') : null;
   const dedupeModeInput = ingestForm ? ingestForm.querySelector('[data-dedupe-mode]') : null;
+  const uploadTokensContainer = ingestForm ? ingestForm.querySelector('[data-upload-tokens]') : null;
 
   document.querySelectorAll('[data-dropzone]').forEach((dropzone) => {
     dropzone.addEventListener('dragover', (event) => {
@@ -279,8 +283,46 @@
     if (ingestPreviewStatus) ingestPreviewStatus.classList.add('hidden');
   };
 
+  const hideIngestError = () => {
+    if (!ingestError) return;
+    ingestError.classList.add('hidden');
+    ingestError.textContent = '';
+  };
+
+  const showIngestError = (message) => {
+    if (!ingestError) return;
+    ingestError.textContent = message;
+    ingestError.classList.remove('hidden');
+  };
+
+  const clearUploadTokens = () => {
+    if (!uploadTokensContainer) return;
+    uploadTokensContainer.innerHTML = '';
+  };
+
+  const syncUploadTokensFromPreview = () => {
+    if (!uploadTokensContainer) return 0;
+    uploadTokensContainer.innerHTML = '';
+    const previewContainer = document.getElementById('ingest-preview');
+    if (!previewContainer) return 0;
+    const tokens = Array.from(previewContainer.querySelectorAll('[data-upload-token]'))
+      .map((node) => (node.dataset.uploadToken || '').trim())
+      .filter((token, index, list) => token && list.indexOf(token) === index);
+    tokens.forEach((token) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'upload_tokens';
+      input.value = token;
+      uploadTokensContainer.appendChild(input);
+    });
+    return tokens.length;
+  };
+
   if (fileInput) {
     fileInput.addEventListener('change', () => {
+      clearUploadTokens();
+      fileInput.disabled = false;
+      fileInput.required = true;
       setSelectedFilesFeedback();
       if (ingestPreviewBtn) ingestPreviewBtn.click();
     });
@@ -288,18 +330,41 @@
 
   if (ingestPreviewBtn) {
     ingestPreviewBtn.addEventListener('htmx:beforeRequest', () => {
+      hideIngestError();
       setPreviewLoading(true);
     });
-    ingestPreviewBtn.addEventListener('htmx:afterRequest', () => {
+    ingestPreviewBtn.addEventListener('htmx:afterRequest', (event) => {
       setPreviewLoading(false);
+      if (event.detail && event.detail.successful) {
+        hideIngestError();
+        syncUploadTokensFromPreview();
+      }
     });
-    ingestPreviewBtn.addEventListener('htmx:responseError', () => {
+    ingestPreviewBtn.addEventListener('htmx:responseError', (event) => {
       setPreviewLoading(false);
+      clearUploadTokens();
+      const status = event.detail && event.detail.xhr ? event.detail.xhr.status : 0;
+      if (status === 413) {
+        showIngestError('预览请求过大（413）：请减少单次文件数，或先压缩/拆分后再预览。');
+        return;
+      }
+      const suffix = status ? `（HTTP ${status}）` : '';
+      showIngestError(`预览解析失败${suffix}，请稍后重试。`);
     });
   }
 
   if (ingestForm && ingestSubmitBtn) {
     ingestForm.addEventListener('submit', () => {
+      const tokenCount = syncUploadTokensFromPreview();
+      if (fileInput) {
+        if (tokenCount > 0) {
+          fileInput.required = false;
+          fileInput.disabled = true;
+        } else {
+          fileInput.required = true;
+          fileInput.disabled = false;
+        }
+      }
       if (dedupeModeInput) dedupeModeInput.value = 'keep';
       const hasDuplicateHit = Boolean(document.querySelector('#ingest-preview [data-duplicate-hit="1"]'));
       if (hasDuplicateHit && dedupeModeInput) {

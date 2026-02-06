@@ -3,6 +3,7 @@ import os
 import queue
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from starlette.datastructures import UploadFile
@@ -121,6 +122,63 @@ class IngestRedirectTests(unittest.TestCase):
                 self.assertEqual(getattr(response, "status_code", None), 303)
                 self.assertEqual(response.headers.get("location", ""), "/jobs")
                 self.assertEqual(len(list_jobs()), 2)
+            finally:
+                self._drain_queue()
+                if previous_library is None:
+                    os.environ.pop("BINDERY_LIBRARY_DIR", None)
+                else:
+                    os.environ["BINDERY_LIBRARY_DIR"] = previous_library
+                if previous_db is None:
+                    os.environ.pop("BINDERY_DB_PATH", None)
+                else:
+                    os.environ["BINDERY_DB_PATH"] = previous_db
+
+    def test_ingest_accepts_upload_tokens_without_reupload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
+            previous_db = os.environ.get("BINDERY_DB_PATH")
+            os.environ["BINDERY_LIBRARY_DIR"] = tmp
+            os.environ["BINDERY_DB_PATH"] = os.path.join(tmp, "bindery.db")
+            try:
+                init_db()
+                request = Request({"type": "http", "method": "POST", "headers": []})
+                token = web_module._persist_staged_upload(
+                    Path(tmp),
+                    "token-book.txt",
+                    "第一章 开始\n正文".encode("utf-8"),
+                    "text/plain",
+                    "txt",
+                )
+                staged_dir = Path(tmp) / web_module.INGEST_STAGE_DIR / token
+                self.assertTrue(staged_dir.exists())
+                with patch("bindery.web._ensure_ingest_worker_started", return_value=None):
+                    response = asyncio.run(
+                        ingest(
+                            request,
+                            files=[],
+                            title="",
+                            author="",
+                            language="",
+                            description="",
+                            series="",
+                            identifier="",
+                            publisher="",
+                            tags="",
+                            published="",
+                            isbn="",
+                            rating="",
+                            rule_template="default",
+                            theme_template="",
+                            custom_css="",
+                            dedupe_mode="keep",
+                            cover_file=None,
+                            upload_tokens=[token],
+                        )
+                    )
+                self.assertEqual(getattr(response, "status_code", None), 303)
+                self.assertEqual(response.headers.get("location", ""), "/jobs")
+                self.assertFalse(staged_dir.exists())
+                self.assertEqual(len(list_jobs()), 1)
             finally:
                 self._drain_queue()
                 if previous_library is None:

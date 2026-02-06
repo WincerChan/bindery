@@ -5,6 +5,7 @@ import json
 import logging
 import queue
 import re
+import shutil
 import threading
 import tempfile
 import traceback
@@ -69,6 +70,7 @@ DEFAULT_THEME_ID = "default"
 KEEP_BOOK_THEME_ID = "__book__"
 LIBRARY_PAGE_SIZE = 28
 INGEST_QUEUE_DIR = ".ingest-queue"
+INGEST_STAGE_DIR = ".ingest-stage"
 DOUBAN_REFERER = "https://book.douban.com/"
 
 _ingest_queue: "queue.Queue[dict]" = queue.Queue()
@@ -916,6 +918,106 @@ def _persist_queued_upload(base: Path, job_id: str, filename: str, data: bytes) 
     return payload_path
 
 
+def _staged_upload_dir(base: Path) -> Path:
+    stage_dir = base / INGEST_STAGE_DIR
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    return stage_dir
+
+
+def _persist_staged_upload(
+    base: Path,
+    filename: str,
+    data: bytes,
+    content_type: Optional[str],
+    kind: str,
+) -> str:
+    token = new_book_id()
+    staged_dir = _staged_upload_dir(base) / token
+    staged_dir.mkdir(parents=True, exist_ok=True)
+    raw_name = Path(filename or "upload")
+    suffix = raw_name.suffix.lower() or ".bin"
+    stem = _safe_filename(raw_name.stem or "upload")
+    payload_name = f"{stem}{suffix}"
+    payload_path = staged_dir / payload_name
+    payload_path.write_bytes(data)
+    meta = {
+        "filename": filename or "upload",
+        "content_type": content_type or "",
+        "kind": kind,
+        "payload_name": payload_name,
+    }
+    (staged_dir / "meta.json").write_text(
+        json.dumps(meta, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return token
+
+
+def _load_staged_upload(base: Path, token: str) -> Optional[dict]:
+    normalized = (token or "").strip().lower()
+    if not BOOK_ID_RE.match(normalized):
+        return None
+    staged_dir = _staged_upload_dir(base) / normalized
+    meta_path = staged_dir / "meta.json"
+    if not meta_path.exists():
+        return None
+    try:
+        payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    payload_name = str(payload.get("payload_name") or "").strip()
+    if not payload_name or Path(payload_name).name != payload_name:
+        return None
+    payload_path = staged_dir / payload_name
+    if not payload_path.exists():
+        return None
+    try:
+        data = payload_path.read_bytes()
+    except Exception:
+        return None
+    filename = str(payload.get("filename") or payload_name).strip() or payload_name
+    content_type = str(payload.get("content_type") or "").strip() or None
+    kind = str(payload.get("kind") or "").strip()
+    if not kind:
+        kind = _detect_source_type(filename, content_type, data)
+    return {
+        "token": normalized,
+        "filename": filename,
+        "content_type": content_type,
+        "kind": kind,
+        "data": data,
+    }
+
+
+def _cleanup_staged_upload(base: Path, token: str) -> None:
+    normalized = (token or "").strip().lower()
+    if not BOOK_ID_RE.match(normalized):
+        return
+    staged_dir = _staged_upload_dir(base) / normalized
+    try:
+        shutil.rmtree(staged_dir)
+    except FileNotFoundError:
+        return
+    except Exception:
+        return
+
+
+def _normalize_upload_tokens(raw_tokens: Optional[list[str]]) -> list[str]:
+    if not raw_tokens:
+        return []
+    seen: set[str] = set()
+    result: list[str] = []
+    for raw in raw_tokens:
+        token = (raw or "").strip().lower()
+        if not BOOK_ID_RE.match(token):
+            continue
+        if token in seen:
+            continue
+        seen.add(token)
+        result.append(token)
+    return result
+
+
 def _cleanup_queued_upload(payload_path: Path) -> None:
     try:
         payload_path.unlink(missing_ok=True)
@@ -1538,11 +1640,13 @@ async def ingest_preview(
                     "path": str(base / "<自动ID>"),
                     "error": "空文件",
                     "duplicates": [],
+                    "upload_token": None,
                 }
             )
             continue
 
         kind = _detect_source_type(filename, file.content_type, data)
+        upload_token = _persist_staged_upload(base, filename, data, file.content_type, kind)
         if kind == "epub":
             with tempfile.NamedTemporaryFile(suffix=".epub") as tmp:
                 tmp.write(data)
@@ -1564,6 +1668,7 @@ async def ingest_preview(
                             "path": str(base / "<自动ID>"),
                             "error": "解析 EPUB 失败",
                             "duplicates": [],
+                            "upload_token": upload_token,
                         }
                     )
                     continue
@@ -1580,6 +1685,7 @@ async def ingest_preview(
                     "output": filename,
                     "path": str(base / "<自动ID>"),
                     "duplicates": duplicates,
+                    "upload_token": upload_token,
                 }
             )
             continue
@@ -1602,6 +1708,7 @@ async def ingest_preview(
                         "path": str(base / "<自动ID>"),
                         "error": "文本为空或无法解码",
                         "duplicates": [],
+                        "upload_token": upload_token,
                     }
                 )
                 continue
@@ -1619,6 +1726,7 @@ async def ingest_preview(
                     "output": f"{_safe_filename(book.title)}.epub",
                     "path": str(base / "<自动ID>"),
                     "duplicates": duplicates,
+                    "upload_token": upload_token,
                 }
             )
             continue
@@ -1636,6 +1744,7 @@ async def ingest_preview(
                 "path": str(base / "<自动ID>"),
                 "error": "不支持的文件类型（仅支持 .txt / .epub）",
                 "duplicates": [],
+                "upload_token": upload_token,
             }
         )
 
@@ -1648,7 +1757,7 @@ async def ingest_preview(
 @app.post("/ingest", response_class=HTMLResponse)
 async def ingest(
     request: Request,
-    files: list[UploadFile] = File(...),
+    files: Optional[list[UploadFile]] = File(None),
     title: str = Form(""),
     author: str = Form(""),
     language: str = Form(""),
@@ -1665,8 +1774,17 @@ async def ingest(
     custom_css: str = Form(""),
     dedupe_mode: str = Form("keep"),
     cover_file: Optional[UploadFile] = File(None),
+    upload_tokens: Optional[list[str]] = Form(None),
 ) -> HTMLResponse:
-    if not files:
+    file_list = files or []
+    if isinstance(upload_tokens, list):
+        raw_upload_tokens: Optional[list[str]] = upload_tokens
+    elif isinstance(upload_tokens, str):
+        raw_upload_tokens = [upload_tokens]
+    else:
+        raw_upload_tokens = None
+    token_list = _normalize_upload_tokens(raw_upload_tokens)
+    if not file_list and not token_list:
         raise HTTPException(status_code=400, detail="Empty file")
 
     cover_bytes = await cover_file.read() if cover_file else None
@@ -1687,17 +1805,58 @@ async def ingest(
         )
 
     base = library_dir()
+    ingest_entries: list[dict] = []
+    if token_list:
+        for token in token_list:
+            staged = _load_staged_upload(base, token)
+            if staged:
+                ingest_entries.append(staged)
+        if not ingest_entries:
+            rules = load_rule_templates()
+            themes = load_theme_templates()
+            return templates.TemplateResponse(
+                "ingest.html",
+                {
+                    "request": request,
+                    "rules": rules,
+                    "themes": themes,
+                    "error": "上传暂存已失效，请重新选择文件后再提交。",
+                    "custom_css": custom_css,
+                },
+            )
+    else:
+        for upload_file in file_list:
+            filename = upload_file.filename or "upload"
+            data = await upload_file.read()
+            ingest_entries.append(
+                {
+                    "token": None,
+                    "filename": filename,
+                    "content_type": upload_file.content_type,
+                    "kind": _detect_source_type(filename, upload_file.content_type, data),
+                    "data": data,
+                }
+            )
+
     dedupe_mode = "normalize" if dedupe_mode == "normalize" else "keep"
     _ensure_ingest_worker_started()
-    for upload_file in files:
-        filename = upload_file.filename or "upload"
-        data = await upload_file.read()
+    for entry in ingest_entries:
+        token = str(entry.get("token") or "").strip().lower()
+        filename = str(entry.get("filename") or "upload")
+        data = entry.get("data")
+        if not isinstance(data, bytes):
+            data = b""
         if not data:
             job = _create_job("ingest", None, rule_template)
             _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
+            if token:
+                _cleanup_staged_upload(base, token)
             continue
 
-        kind = _detect_source_type(filename, upload_file.content_type, data)
+        content_type = entry.get("content_type")
+        if not isinstance(content_type, str):
+            content_type = None
+        kind = str(entry.get("kind") or "").strip() or _detect_source_type(filename, content_type, data)
         action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
         job = _create_job(action, book_id, job_rule_template)
         _update_job(job.id, stage="排队中", message="等待后台处理")
@@ -1707,7 +1866,7 @@ async def ingest(
                 "job_id": job.id,
                 "payload_path": str(payload_path),
                 "filename": filename,
-                "content_type": upload_file.content_type,
+                "content_type": content_type,
                 "kind": kind,
                 "title": title,
                 "author": author,
@@ -1728,6 +1887,8 @@ async def ingest(
                 "cover_name": cover_name,
             }
         )
+        if token:
+            _cleanup_staged_upload(base, token)
 
     redirect_url = "/jobs"
     if _is_htmx(request):
