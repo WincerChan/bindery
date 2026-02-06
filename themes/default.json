@@ -3,5 +3,5 @@
   "name": "默认样式",
   "description": "生成 EPUB 的默认排版（可全局复用）",
   "version": "1",
-  "css": "p {\n  text-indent: 2rem;\n}"
+  "css": "body {\n  line-height: 1.75;\n}\np {\n  text-indent: 2rem;\n  margin: 0 0 0.8em;\n}\n.chapter-header {\n  margin: 1.25em 0 1em;\n}\n.chapter-stamp {\n  display: inline-block;\n  margin: 0 0 0.45em;\n  padding: 0.1em 0.5em;\n  font-size: 0.72em;\n  letter-spacing: 0.1em;\n  border: 1px solid currentColor;\n  border-radius: 999px;\n  text-indent: 0;\n}\n.chapter-title {\n  margin: 0;\n  font-size: 1.42em;\n  font-weight: 760;\n  line-height: 1.28;\n}\n.front-matter p.author {\n  text-align: center;\n  text-indent: 0;\n  margin: 0 0 1.5em;\n}\n.front-matter p.intro-label {\n  text-indent: 0;\n  font-weight: 700;\n  margin: 1.2em 0 0.6em;\n}\n.volume p, .volume .chapter-title {\n  text-indent: 0;\n}"
 }

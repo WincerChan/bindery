@@ -20,17 +20,23 @@ class EpubSection:
     item_path: str
 
 
-DEFAULT_EPUB_CSS = (
-    "body { font-family: \"Noto Serif SC\", serif; line-height: 1.7; }\n"
-    "p { text-indent: 2em; margin: 0 0 0.8em; }\n"
-    "h2 { font-weight: 700; font-size: 1.2em; margin: 1.5em 0 1em; }\n"
-    "h1 { font-weight: 800; font-size: 1.6em; margin: 1.5em 0 1em; }\n"
-    ".front-matter p.author { text-align: center; text-indent: 0; margin: 0 0 1.5em; }\n"
-    ".front-matter p.intro-label { text-indent: 0; font-weight: 700; margin: 1.2em 0 0.6em; }\n"
-    ".volume p, .volume h2 { text-indent: 0; }\n"
+BINDERY_CSS_NAME = "bindery.css"
+CHAPTER_STAMP_RE = re.compile(
+    r"^\s*(第[0-9零〇一二两三四五六七八九十百千万亿\d]+章)\s*[:：、.\-·]?\s*(.+)\s*$"
 )
 
-BINDERY_CSS_NAME = "bindery.css"
+
+def _split_chapter_title(title: str, kind: str) -> tuple[Optional[str], str]:
+    if kind != "chapter":
+        return None, title
+    match = CHAPTER_STAMP_RE.match(title or "")
+    if not match:
+        return None, title
+    stamp = match.group(1).strip()
+    main_title = match.group(2).strip()
+    if not main_title:
+        return None, title
+    return stamp, main_title
 
 
 def _render_section(title: str, lines: Iterable[str], lang: str, kind: str = "chapter") -> str:
@@ -40,6 +46,13 @@ def _render_section(title: str, lines: Iterable[str], lang: str, kind: str = "ch
             continue
         paragraphs.append(f"    <p>{html.escape(line)}</p>")
     body = "\n".join(paragraphs) if paragraphs else ""
+    stamp, main_title = _split_chapter_title(title, kind)
+    heading_parts: list[str] = ["    <header class=\"chapter-header\">"]
+    if stamp:
+        heading_parts.append(f"      <p class=\"chapter-stamp\">{html.escape(stamp)}</p>")
+    heading_parts.append(f"      <h1 class=\"chapter-title\">{html.escape(main_title)}</h1>")
+    heading_parts.append("    </header>")
+    heading = "\n".join(heading_parts)
     return (
         "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"{lang}\">\n"
         "  <head>\n"
@@ -48,11 +61,11 @@ def _render_section(title: str, lines: Iterable[str], lang: str, kind: str = "ch
         "    <link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\" />\n"
         "  </head>\n"
         "  <body class=\"{kind}\">\n"
-        "    <h2>{title}</h2>\n"
+        "{heading}\n"
         "{body}\n"
         "  </body>\n"
         "</html>\n"
-    ).format(lang=lang, title=html.escape(title), body=body, kind=kind)
+    ).format(lang=lang, title=html.escape(title), heading=heading, body=body, kind=kind)
 
 
 def _render_intro(title: str, author: Optional[str], intro: str, lang: str) -> str:
@@ -172,7 +185,7 @@ def build_epub(
     epub_book = epub.EpubBook()
     _add_metadata(epub_book, meta)
 
-    css = css_text.strip() if css_text and css_text.strip() else DEFAULT_EPUB_CSS
+    css = css_text.strip() if css_text and css_text.strip() else ""
     style_item = epub.EpubItem(uid="style", file_name="style.css", media_type="text/css", content=css)
     epub_book.add_item(style_item)
 

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-
-from .epub import DEFAULT_EPUB_CSS
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -33,12 +32,16 @@ def ensure_default_themes() -> None:
     default_file = path / "default.json"
     if default_file.exists():
         return
+    bundled = BASE_DIR / "themes" / "default.json"
+    if bundled.exists():
+        shutil.copyfile(bundled, default_file)
+        return
     data = {
         "id": "default",
         "name": "默认样式",
         "description": "生成 EPUB 的默认排版（可全局复用）",
         "version": "1",
-        "css": DEFAULT_EPUB_CSS,
+        "css": "",
     }
     default_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 

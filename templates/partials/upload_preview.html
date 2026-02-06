@@ -10,7 +10,7 @@
         <div class="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           检测到疑似重复书籍：
           {% for dup in duplicates %}
-            <a class="underline decoration-dotted hover:text-amber-900" href="/book/{{ dup.book_id }}">{{ dup.title }}（{{ dup.author }}，{{ dup.reason }}）</a>{% if not loop.last %}；{% endif %}
+            <a class="underline decoration-dotted hover:text-amber-900" href="/book/{{ dup.book_id }}">{{ dup.title }}（{{ dup.author }}）</a>{% if not loop.last %}；{% endif %}
           {% endfor %}
         </div>
       {% endif %}

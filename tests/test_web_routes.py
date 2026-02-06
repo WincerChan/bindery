@@ -51,6 +51,28 @@ class WebRoutesTests(unittest.TestCase):
         self.assertNotIn('name="author"', ingest)
         self.assertNotIn('name="description"', ingest)
 
+    def test_jobs_template_uses_tabs_and_list_layout(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        jobs = (root / "templates" / "jobs.html").read_text(encoding="utf-8")
+        self.assertIn('href="/jobs?tab={{ tab.key }}&page=1"', jobs)
+        self.assertIn("job.book_title", jobs)
+        self.assertIn("job.book_author", jobs)
+        self.assertIn("job.action_label", jobs)
+        self.assertIn("作者：{{ job.book_author }}", jobs)
+        self.assertIn("清空失效历史任务", jobs)
+        self.assertIn('action="/jobs/cleanup-invalid"', jobs)
+        self.assertIn("第 {{ page }} / {{ total_pages }} 页", jobs)
+
+    def test_jobs_cleanup_route_registered(self) -> None:
+        seen: set[tuple[str, str]] = set()
+        for route in app.routes:
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None) or set()
+            if path in {"/jobs/cleanup-invalid"}:
+                for method in methods:
+                    seen.add((method, path))
+        self.assertIn(("POST", "/jobs/cleanup-invalid"), seen)
+
     def test_theme_editor_routes_registered(self) -> None:
         seen: set[tuple[str, str]] = set()
         for route in app.routes:

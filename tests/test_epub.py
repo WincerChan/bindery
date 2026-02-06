@@ -51,6 +51,67 @@ class BuildEpubTests(unittest.TestCase):
                 content = zf.read(section_files[0]).decode("utf-8")
                 self.assertIn("第一章", content)
 
+    def test_build_epub_without_css_text_writes_empty_style_sheet(self) -> None:
+        book = Book(title="测试书", author="作者", intro=None)
+        chapter = Chapter(title="第一章", lines=["第一段文字。"])
+        book.root_chapters.append(chapter)
+        book.spine.append(chapter)
+
+        meta = Metadata(
+            book_id="empty-css-id",
+            title="测试书",
+            author="作者",
+            language="zh-CN",
+            description=None,
+            publisher=None,
+            tags=[],
+            published=None,
+            isbn=None,
+            rating=None,
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            build_epub(book, meta, output_path)
+            with zipfile.ZipFile(output_path, "r") as zf:
+                style_candidates = [name for name in zf.namelist() if name.endswith("/style.css")]
+                self.assertTrue(style_candidates)
+                css_text = zf.read(style_candidates[0]).decode("utf-8")
+                self.assertEqual(css_text, "")
+
+    def test_build_epub_splits_chapter_stamp_and_main_title(self) -> None:
+        book = Book(title="测试书", author="作者", intro=None)
+        chapter = Chapter(title="第12章 风雪夜归人", lines=["第一段文字。"])
+        book.root_chapters.append(chapter)
+        book.spine.append(chapter)
+
+        meta = Metadata(
+            book_id="chapter-title-id",
+            title="测试书",
+            author="作者",
+            language="zh-CN",
+            description=None,
+            publisher=None,
+            tags=[],
+            published=None,
+            isbn=None,
+            rating=None,
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            build_epub(book, meta, output_path, css_text="body { color: #111; }")
+            with zipfile.ZipFile(output_path, "r") as zf:
+                section_files = [name for name in zf.namelist() if name.endswith(".xhtml") and "section_" in name]
+                self.assertTrue(section_files)
+                content = zf.read(section_files[0]).decode("utf-8")
+                self.assertIn('class="chapter-stamp">第12章</p>', content)
+                self.assertIn('class="chapter-title">风雪夜归人</h1>', content)
+
     def test_extract_epub_metadata(self) -> None:
         book = Book(title="元数据书", author="作者", intro=None)
         chapter = Chapter(title="第一章", lines=["正文"])

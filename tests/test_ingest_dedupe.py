@@ -6,6 +6,7 @@ import unittest
 from starlette.datastructures import UploadFile
 from starlette.requests import Request
 
+from bindery.db import init_db
 from bindery.storage import library_dir, list_books
 from bindery.web import ingest
 
@@ -19,9 +20,12 @@ class IngestDedupeTests(unittest.TestCase):
 
     def test_normalize_mode_reuses_existing_book(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            previous = os.environ.get("BINDERY_LIBRARY_DIR")
+            previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
+            previous_db = os.environ.get("BINDERY_DB_PATH")
             os.environ["BINDERY_LIBRARY_DIR"] = tmp
+            os.environ["BINDERY_DB_PATH"] = os.path.join(tmp, "bindery.db")
             try:
+                init_db()
                 request = Request({"type": "http", "method": "POST", "headers": []})
                 first_upload = self._make_upload("first.txt", "第一章 起点\n正文")
                 response_first = asyncio.run(
@@ -83,10 +87,14 @@ class IngestDedupeTests(unittest.TestCase):
                 self.assertEqual(getattr(response_second, "status_code", None), 303)
                 self.assertEqual(response_second.headers.get("location"), f"/book/{existing_id}/edit")
             finally:
-                if previous is None:
+                if previous_library is None:
                     os.environ.pop("BINDERY_LIBRARY_DIR", None)
                 else:
-                    os.environ["BINDERY_LIBRARY_DIR"] = previous
+                    os.environ["BINDERY_LIBRARY_DIR"] = previous_library
+                if previous_db is None:
+                    os.environ.pop("BINDERY_DB_PATH", None)
+                else:
+                    os.environ["BINDERY_DB_PATH"] = previous_db
 
 
 if __name__ == "__main__":

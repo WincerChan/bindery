@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sqlite3
 from pathlib import Path
 from typing import Optional
 
 from .models import Job
+from .storage import library_dir
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_FILENAME = "bindery.db"
@@ -13,7 +15,28 @@ DB_FILENAME = "bindery.db"
 
 def db_path() -> Path:
     env = os.getenv("BINDERY_DB_PATH")
-    return Path(env) if env else BASE_DIR / DB_FILENAME
+    if env:
+        return Path(env)
+    default_path = library_dir() / DB_FILENAME
+    _migrate_legacy_db(default_path)
+    return default_path
+
+
+def _migrate_legacy_db(target: Path) -> None:
+    legacy_path = BASE_DIR / DB_FILENAME
+    if target == legacy_path:
+        return
+    if target.exists() or not legacy_path.exists():
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        legacy_path.replace(target)
+    except OSError:
+        try:
+            shutil.copy2(legacy_path, target)
+            legacy_path.unlink(missing_ok=True)
+        except OSError:
+            return
 
 
 def connect() -> sqlite3.Connection:
@@ -141,6 +164,17 @@ def list_jobs(status: Optional[str] = None) -> list[Job]:
         rows = conn.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()
     conn.close()
     return [_row_to_job(row) for row in rows]
+
+
+def delete_jobs(job_ids: list[str]) -> int:
+    if not job_ids:
+        return 0
+    placeholders = ", ".join("?" for _ in job_ids)
+    conn = connect()
+    with conn:
+        cursor = conn.execute(f"DELETE FROM jobs WHERE id IN ({placeholders})", job_ids)
+    conn.close()
+    return cursor.rowcount or 0
 
 
 def _row_to_job(row: sqlite3.Row) -> Job:

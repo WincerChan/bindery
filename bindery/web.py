@@ -21,9 +21,8 @@ from fastapi.templating import Jinja2Templates
 
 from .auth import SESSION_COOKIE, configured_hash, is_authenticated, sign_in, sign_out, verify_password
 from .css import validate_css
-from .db import create_job, get_job, init_db, list_jobs, update_job
+from .db import create_job, delete_jobs, get_job, init_db, list_jobs, update_job
 from .epub import (
-    DEFAULT_EPUB_CSS,
     build_epub,
     epub_base_href,
     extract_cover,
@@ -284,6 +283,51 @@ def _status_view(meta: Metadata) -> tuple[str, str]:
     return "待写回", "pending"
 
 
+def _job_action_label(action: str) -> str:
+    labels = {
+        "upload": "上传并转换",
+        "upload-epub": "EPUB 入库",
+        "regenerate": "重新生成",
+        "retry": "重试生成",
+        "ingest": "入库检查",
+    }
+    return labels.get((action or "").strip(), action or "任务")
+
+
+def _job_view(job: Job, meta_index: dict[str, Metadata]) -> dict:
+    meta = meta_index.get(job.book_id or "")
+    book_title = meta.title if meta and meta.title else "未关联书籍"
+    book_author = meta.author if meta and meta.author else "未知"
+    can_open = bool(job.book_id and meta and not meta.archived)
+    return {
+        "id": job.id,
+        "book_id": job.book_id,
+        "book_title": book_title,
+        "book_author": book_author,
+        "can_open_book": can_open,
+        "action": job.action,
+        "action_label": _job_action_label(job.action),
+        "status": job.status,
+        "stage": job.stage,
+        "message": job.message,
+        "log": job.log,
+        "rule_template": job.rule_template,
+        "created_at": job.created_at,
+        "updated_at": job.updated_at,
+    }
+
+
+def _job_is_invalid(job: Job, meta_index: dict[str, Metadata]) -> bool:
+    book_id = (job.book_id or "").strip()
+    if not book_id:
+        return True
+    return book_id not in meta_index
+
+
+def _invalid_job_ids(jobs: list[Job], meta_index: dict[str, Metadata]) -> list[str]:
+    return [job.id for job in jobs if _job_is_invalid(job, meta_index)]
+
+
 def _effective_theme_id(meta: Metadata) -> Optional[str]:
     raw = (meta.theme_template or "").strip()
     if meta.source_type == "epub" and raw == KEEP_BOOK_THEME_ID:
@@ -332,7 +376,7 @@ def _book_epub_needs_css_sync(epub_file: Path, meta: Metadata) -> bool:
             style_path = _style_css_path(names)
             if not style_path:
                 return True
-            expected = css_text if css_text.strip() else DEFAULT_EPUB_CSS
+            expected = css_text if css_text.strip() else ""
             actual = zf.read(style_path).decode("utf-8", errors="replace")
             return _normalize_css_text(actual) != _normalize_css_text(expected)
 
@@ -2212,16 +2256,43 @@ async def delete_book(request: Request, book_id: str) -> HTMLResponse:
 
 
 @app.get("/jobs", response_class=HTMLResponse)
-async def jobs_view(request: Request) -> HTMLResponse:
-    jobs = list_jobs()
+async def jobs_view(request: Request, tab: str = "running", page: int = 1) -> HTMLResponse:
+    selected_tab = tab if tab in {"running", "success", "failed"} else "running"
+    selected_page = max(1, page)
+    base = library_dir()
+    meta_index = {meta.book_id: meta for meta in _all_book_meta(base)}
+    all_jobs = list_jobs()
     grouped = {
-        "running": [job for job in jobs if job.status == "running"],
-        "success": [job for job in jobs if job.status == "success"],
-        "failed": [job for job in jobs if job.status == "failed"],
+        "running": [_job_view(job, meta_index) for job in all_jobs if job.status == "running"],
+        "success": [_job_view(job, meta_index) for job in all_jobs if job.status == "success"],
+        "failed": [_job_view(job, meta_index) for job in all_jobs if job.status == "failed"],
     }
+    tabs = [
+        {"key": "running", "label": "进行中", "count": len(grouped["running"])},
+        {"key": "success", "label": "已完成", "count": len(grouped["success"])},
+        {"key": "failed", "label": "失败", "count": len(grouped["failed"])},
+    ]
+    page_size = 12
+    selected_jobs = grouped[selected_tab]
+    total_jobs = len(selected_jobs)
+    total_pages = max(1, (total_jobs + page_size - 1) // page_size)
+    if selected_page > total_pages:
+        selected_page = total_pages
+    start = (selected_page - 1) * page_size
+    page_jobs = selected_jobs[start : start + page_size]
+    invalid_job_count = len(_invalid_job_ids(all_jobs, meta_index))
     return templates.TemplateResponse(
         "jobs.html",
-        {"request": request, "groups": grouped},
+        {
+            "request": request,
+            "jobs": page_jobs,
+            "tabs": tabs,
+            "active_tab": selected_tab,
+            "page": selected_page,
+            "total_pages": total_pages,
+            "total_jobs": total_jobs,
+            "invalid_job_count": invalid_job_count,
+        },
     )
 
 
@@ -2237,6 +2308,17 @@ async def retry_job(job_id: str, rule_template: str = Form("default")) -> Redire
     new_job = _create_job("retry", job.book_id, rule_template)
     _run_regenerate(new_job, base, job.book_id, rule_template)
     return RedirectResponse(url=f"/jobs", status_code=303)
+
+
+@app.post("/jobs/cleanup-invalid")
+async def cleanup_invalid_jobs(tab: str = Form("running")) -> RedirectResponse:
+    selected_tab = tab if tab in {"running", "success", "failed"} else "running"
+    base = library_dir()
+    meta_index = {meta.book_id: meta for meta in _all_book_meta(base)}
+    stale_ids = _invalid_job_ids(list_jobs(), meta_index)
+    if stale_ids:
+        delete_jobs(stale_ids)
+    return RedirectResponse(url=f"/jobs?tab={selected_tab}", status_code=303)
 
 
 @app.get("/rules", response_class=HTMLResponse)
@@ -2385,7 +2467,7 @@ async def theme_new(request: Request) -> Response:
         suffix = uuid.uuid4().hex[:8]
         theme_id = f"theme-{suffix}"
 
-    css = DEFAULT_EPUB_CSS
+    css = ""
     try:
         default_theme = get_theme(DEFAULT_THEME_ID)
         if default_theme.css.strip():
