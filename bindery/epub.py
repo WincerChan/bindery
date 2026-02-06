@@ -413,11 +413,12 @@ def _update_epub_preserve_documents(
     meta: Metadata,
     *,
     cover_path: Optional[Path],
-    css_text: str,
+    css_text: Optional[str],
 ) -> bool:
     cover_ok = bool(cover_path and cover_path.exists())
-    css_clean = (css_text or "").strip()
-    if not cover_ok and not css_clean:
+    css_requested = css_text is not None
+    css_clean = css_text.strip() if isinstance(css_text, str) else ""
+    if not cover_ok and not css_requested:
         return False
 
     with zipfile.ZipFile(epub_file, "r") as src:
@@ -488,37 +489,36 @@ def _update_epub_preserve_documents(
         replacements: dict[str, bytes] = {}
         remove_members: set[str] = set()
 
-        bindery_items = [
-            item
-            for item in manifest_items
-            if Path(str(item.attrib.get("href") or "")).name.lower() in BINDERY_CSS_BASENAMES
-            or str(item.attrib.get("id") or "").startswith("bindery-css")
-        ]
-        for item in bindery_items:
-            href = str(item.attrib.get("href") or "").strip()
-            if href:
-                member = _resolve_opf_href(opf_path, href)
-                if member:
-                    remove_members.add(member)
-            manifest.remove(item)
-
         css_member: Optional[str] = None
-        if css_clean:
-            package_root = _derive_package_root_from_docs(doc_members)
-            css_member = _canonical_zip_member((package_root / "Styles" / BINDERY_CSS_NAME).as_posix())
-            css_href = posixpath.relpath(css_member, start=opf_dir_start)
-            css_item_id = "bindery-css"
-            suffix = 1
-            while css_item_id in items_by_id:
-                css_item_id = f"bindery-css-{suffix}"
-                suffix += 1
-            css_item = ET.SubElement(manifest, f"{{{OPF_NS}}}item")
-            css_item.set("id", css_item_id)
-            css_item.set("href", css_href)
-            css_item.set("media-type", "text/css")
-            replacements[css_member] = css_clean.encode("utf-8")
-        else:
-            css_item = None
+        if css_requested:
+            bindery_items = [
+                item
+                for item in manifest_items
+                if Path(str(item.attrib.get("href") or "")).name.lower() in BINDERY_CSS_BASENAMES
+                or str(item.attrib.get("id") or "").startswith("bindery-css")
+            ]
+            for item in bindery_items:
+                href = str(item.attrib.get("href") or "").strip()
+                if href:
+                    member = _resolve_opf_href(opf_path, href)
+                    if member:
+                        remove_members.add(member)
+                manifest.remove(item)
+
+            if css_clean:
+                package_root = _derive_package_root_from_docs(doc_members)
+                css_member = _canonical_zip_member((package_root / "Styles" / BINDERY_CSS_NAME).as_posix())
+                css_href = posixpath.relpath(css_member, start=opf_dir_start)
+                css_item_id = "bindery-css"
+                suffix = 1
+                while css_item_id in items_by_id:
+                    css_item_id = f"bindery-css-{suffix}"
+                    suffix += 1
+                css_item = ET.SubElement(manifest, f"{{{OPF_NS}}}item")
+                css_item.set("id", css_item_id)
+                css_item.set("href", css_href)
+                css_item.set("media-type", "text/css")
+                replacements[css_member] = css_clean.encode("utf-8")
 
         cover_meta_id: Optional[str] = None
         if cover_ok and cover_path is not None:
@@ -571,14 +571,15 @@ def _update_epub_preserve_documents(
 
             replacements[cover_member] = cover_bytes
 
-        for member in doc_members:
-            info = next((it for it in infos if _canonical_zip_member(it.filename) == member), None)
-            if info is None:
-                continue
-            original_text = src.read(info.filename).decode("utf-8", errors="replace")
-            href = _relative_href(member, css_member) if css_member else None
-            patched = _patch_doc_html_bindery_css(original_text, href)
-            replacements[member] = patched.encode("utf-8")
+        if css_requested:
+            for member in doc_members:
+                info = next((it for it in infos if _canonical_zip_member(it.filename) == member), None)
+                if info is None:
+                    continue
+                original_text = src.read(info.filename).decode("utf-8", errors="replace")
+                href = _relative_href(member, css_member) if css_member else None
+                patched = _patch_doc_html_bindery_css(original_text, href)
+                replacements[member] = patched.encode("utf-8")
 
         _apply_metadata_to_opf_root(
             root,
@@ -776,9 +777,10 @@ def update_epub_metadata(
     css_text: Optional[str] = None,
 ) -> None:
     cover_ok = bool(cover_path and cover_path.exists())
+    css_requested = css_text is not None
     css_clean = css_text.strip() if isinstance(css_text, str) else ""
     # Keep original chapter XHTML untouched when only OPF metadata changes are required.
-    if not cover_ok and not css_clean:
+    if not cover_ok and not css_requested:
         # Make non-canonical archive members recoverable before patching OPF.
         _read_epub_resilient(epub_file)
         if _update_epub_metadata_opf_only(epub_file, meta, keep_cover=True):
@@ -786,7 +788,7 @@ def update_epub_metadata(
             return
     # For EPUB writeback with cover/css updates, prefer zip-level patching
     # so original chapter head/style can be preserved.
-    if _update_epub_preserve_documents(epub_file, meta, cover_path=cover_path, css_text=css_clean):
+    if _update_epub_preserve_documents(epub_file, meta, cover_path=cover_path, css_text=css_text):
         _normalize_epub_archive_paths(epub_file)
         return
 
@@ -796,8 +798,8 @@ def update_epub_metadata(
     _add_metadata(book, meta)
     if cover_ok:
         book.set_cover(cover_path.name, cover_path.read_bytes())
-    if css_text is not None:
-        _apply_bindery_css_overlay(book, css_text)
+    if css_requested:
+        _apply_bindery_css_overlay(book, css_clean)
     epub.write_epub(str(epub_file), book, {"epub3_pages": False})
     _normalize_epub_archive_paths(epub_file)
 

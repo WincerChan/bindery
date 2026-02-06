@@ -503,6 +503,33 @@ class BuildEpubTests(unittest.TestCase):
             self.assertEqual(extracted["author"], "新作者")
             self.assertEqual(extracted["description"], "新简介")
 
+    def test_update_epub_metadata_clears_existing_bindery_css_when_css_empty(self) -> None:
+        new_meta = Metadata(
+            book_id="clear-bindery-css-id",
+            title="新书名",
+            author="新作者",
+            language="zh-CN",
+            description="新简介",
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            self._create_external_epub_with_inline_style(output_path, book_id="clear-bindery-css-id")
+
+            update_epub_metadata(output_path, new_meta, css_text="p{font-size:18px;}")
+            update_epub_metadata(output_path, new_meta, css_text="")
+
+            html_text = self._read_any_chapter_html(output_path)
+            self.assertIn("<style>p{color:#d00;}</style>", html_text)
+            self.assertNotIn("bindery.css", html_text)
+            self.assertNotIn("bindery-overlay.css", html_text)
+            with zipfile.ZipFile(output_path, "r") as zf:
+                names = zf.namelist()
+                self.assertFalse(any(name.endswith("/Styles/bindery.css") for name in names))
+                self.assertFalse(any(name.endswith("/Styles/bindery-overlay.css") for name in names))
+
     def test_update_epub_metadata_with_cover_preserves_inline_head_styles(self) -> None:
         new_meta = Metadata(
             book_id="cover-only-id",
