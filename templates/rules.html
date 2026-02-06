@@ -3,11 +3,14 @@
 {% block title %}规则 · Bindery{% endblock %}
 
 {% block content %}
-{% set initial_rule = rules[0].rule_id if rules else "default" %}
-{% set initial_theme = themes[0].theme_id if themes else "" %}
+{% if error %}
+  <div class="max-w-6xl mx-auto mb-4 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+    {{ error }}
+  </div>
+{% endif %}
 <div
   class="h-[calc(100vh-140px)] flex flex-col lg:flex-row gap-6"
-  x-data="{ tab: 'parsing', ruleId: '{{ initial_rule }}', themeId: '{{ initial_theme }}' }"
+  x-data="{ tab: '{{ initial_tab }}', ruleId: '{{ initial_rule }}', themeId: '{{ initial_theme }}' }"
 >
   <div class="w-full lg:w-64 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden">
     <div class="p-2 border-b border-slate-200 grid grid-cols-2 gap-1 bg-slate-50">
@@ -40,6 +43,9 @@
             <button
               type="button"
               @click="ruleId = '{{ rule.rule_id }}'"
+              hx-get="/rules/{{ rule.rule_id }}/editor"
+              hx-target="#rule-editor"
+              hx-swap="innerHTML"
               :class="ruleId === '{{ rule.rule_id }}' ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200' : 'text-slate-600 hover:bg-slate-50'"
               class="w-full text-left px-3 py-3 rounded-lg text-sm flex items-center justify-between group transition-colors"
             >
@@ -72,136 +78,62 @@
 
     <div class="p-3 border-t border-slate-200 bg-white">
       <div class="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          disabled
-          class="w-full py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg opacity-50 cursor-not-allowed"
-          x-text="tab === 'parsing' ? '+ 新增规则' : '+ 新增样式'"
-        ></button>
-        <button
-          type="button"
-          disabled
-          class="w-full py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-lg opacity-50 cursor-not-allowed border border-slate-200"
-          x-text="tab === 'parsing' ? '删除规则' : '删除样式'"
-        ></button>
-      </div>
-      <div class="mt-2 text-[11px] text-slate-400 leading-relaxed">
-        当前暂不支持新增/删除；可先查看与测试现有模板。
+        <form x-show="tab === 'parsing'" action="/rules/new" method="post">
+          <button class="w-full py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors" type="submit">+ 新增规则</button>
+        </form>
+        <form
+          x-show="tab === 'parsing'"
+          x-bind:action="'/rules/' + ruleId + '/delete'"
+          method="post"
+          onsubmit="return confirm('确定要删除这个规则模板吗？');"
+        >
+          <button
+            class="w-full py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-200 transition-colors"
+            type="submit"
+            :disabled="ruleId === 'default'"
+            :class="ruleId === 'default' ? 'opacity-50 cursor-not-allowed hover:bg-slate-100' : 'cursor-pointer'"
+          >删除规则</button>
+        </form>
+
+        <form x-show="tab === 'themes'" action="/themes/new" method="post">
+          <button class="w-full py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors" type="submit">+ 新增样式</button>
+        </form>
+        <form
+          x-show="tab === 'themes'"
+          x-bind:action="'/themes/' + themeId + '/delete'"
+          method="post"
+          onsubmit="return confirm('确定要删除这个样式模板吗？');"
+        >
+          <button
+            class="w-full py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-200 transition-colors"
+            type="submit"
+            :disabled="themeId === 'default'"
+            :class="themeId === 'default' ? 'opacity-50 cursor-not-allowed hover:bg-slate-100' : 'cursor-pointer'"
+          >删除样式</button>
+        </form>
       </div>
     </div>
   </div>
 
   <div class="flex-1 flex flex-col gap-6 min-h-0">
     <div x-show="tab === 'parsing'" class="flex-1 flex flex-col gap-4 min-h-0">
-      <div class="bg-white border border-slate-200 rounded-xl p-4">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-bold text-slate-900">规则测试台</h2>
-            <p class="text-sm text-slate-500 mt-1">粘贴 sample 文本并即时查看 TOC 预览。</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white border border-slate-200 rounded-xl p-4 min-h-0">
-        {% for rule in rules %}
-          <div x-show="ruleId === '{{ rule.rule_id }}'" class="space-y-4">
-            <div class="flex items-start justify-between gap-4">
-              <div class="min-w-0">
-                <h2 class="text-lg font-bold text-slate-900 truncate">解析规则</h2>
-                <p class="text-sm text-slate-500 mt-1 truncate">{{ rule.description or "—" }}</p>
-              </div>
-              <div class="text-right shrink-0">
-                <div class="text-sm font-semibold text-slate-900">{{ rule.name }}</div>
-                <div class="text-xs text-slate-400 font-mono">v{{ rule.version }} · {{ rule.rule_id }}</div>
-              </div>
-            </div>
-
-            <div class="grid md:grid-cols-2 gap-4">
-              <div class="space-y-2">
-                <div class="text-xs font-semibold text-slate-500 uppercase">章节正则</div>
-                <div class="space-y-1">
-                  {% for pattern in rule.rules.config.chapter_patterns %}
-                    <div class="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1 break-words">{{ pattern }}</div>
-                  {% endfor %}
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <div class="text-xs font-semibold text-slate-500 uppercase">卷/部正则</div>
-                <div class="space-y-1">
-                  {% for pattern in rule.rules.config.volume_patterns %}
-                    <div class="font-mono text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1 break-words">{{ pattern }}</div>
-                  {% endfor %}
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <div class="text-xs font-semibold text-slate-500 uppercase">特殊标题</div>
-                <div class="flex flex-wrap gap-1">
-                  {% for kw in rule.rules.config.special_headings %}
-                    <span class="px-2 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded text-slate-600">{{ kw }}</span>
-                  {% endfor %}
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <div class="text-xs font-semibold text-slate-500 uppercase">阈值与过滤</div>
-                <div class="grid grid-cols-2 gap-2">
-                  <div class="bg-slate-50 border border-slate-200 rounded p-2">
-                    <div class="text-[10px] text-slate-400 uppercase tracking-wide">标题最大长度</div>
-                    <div class="text-sm font-mono text-slate-700 mt-1">{{ rule.rules.config.heading_max_len }}</div>
-                  </div>
-                  <div class="bg-slate-50 border border-slate-200 rounded p-2">
-                    <div class="text-[10px] text-slate-400 uppercase tracking-wide">标题最大逗号数</div>
-                    <div class="text-sm font-mono text-slate-700 mt-1">{{ rule.rules.config.heading_max_commas }}</div>
-                  </div>
-                </div>
-                <div class="bg-slate-50 border border-slate-200 rounded p-2">
-                  <div class="text-[10px] text-slate-400 uppercase tracking-wide">候选过滤正则</div>
-                  <div class="text-xs font-mono text-slate-700 mt-1 break-words">{{ rule.rules.config.skip_candidate_re }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-
-      <div class="bg-white border border-slate-200 rounded-xl p-4">
-        <form action="/rules/test" method="post" hx-post="/rules/test" hx-target="#rules-preview" class="space-y-4">
-          <div class="grid md:grid-cols-2 gap-4">
-            <div class="space-y-1">
-              <label class="text-xs font-semibold text-slate-500 uppercase">规则模板</label>
-              <select
-                name="rule_template"
-                x-model="ruleId"
-                class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              >
-                {% for rule in rules %}
-                  <option value="{{ rule.rule_id }}">{{ rule.name }} · v{{ rule.version }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">Sample 文本</label>
-            <textarea name="sample" rows="8" placeholder="粘贴一段文本" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
-          </div>
-          <div class="flex gap-2">
-            <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors" type="submit">运行测试</button>
-          </div>
-        </form>
-      </div>
-
-      <div id="rules-preview" class="bg-white border border-slate-200 rounded-xl p-4">
-        {% include "partials/rules_preview.html" %}
-      </div>
+      {% if rules %}
+        <div
+          id="rule-editor"
+          hx-get="/rules/{{ initial_rule }}/editor"
+          hx-trigger="load"
+          class="min-h-0"
+        ></div>
+      {% else %}
+        <div class="bg-white border border-slate-200 rounded-xl p-6 text-sm text-slate-500 text-center">暂无规则模板。</div>
+      {% endif %}
     </div>
 
     <div x-show="tab === 'themes'" class="flex-1 min-h-0">
       {% if themes %}
         <div
           id="theme-editor"
-          hx-get="/themes/{{ themes[0].theme_id }}/editor"
+          hx-get="/themes/{{ initial_theme }}/editor"
           hx-trigger="load"
           class="min-h-0"
         ></div>

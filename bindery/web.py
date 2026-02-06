@@ -7,6 +7,7 @@ import tempfile
 import traceback
 import urllib.request
 import urllib.parse
+import uuid
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -30,9 +31,9 @@ from .epub import (
     update_epub_metadata,
 )
 from .models import Book, Job, Metadata, Volume
-from .parsing import decode_text, parse_book
-from .rules import get_rule, load_rule_templates
-from .themes import compose_css, get_theme, load_theme_templates
+from .parsing import DEFAULT_RULE_CONFIG, decode_text, parse_book
+from .rules import RuleTemplateError, get_rule, load_rule_templates, rules_dir, validate_rule_template_json
+from .themes import compose_css, get_theme, load_theme_templates, themes_dir
 from .storage import (
     archive_book,
     archive_book_dir,
@@ -98,6 +99,12 @@ def _now_iso() -> str:
 
 def _is_htmx(request: Request) -> bool:
     return request.headers.get("HX-Request") == "true"
+
+
+def _htmx_redirect(url: str) -> HTMLResponse:
+    response = HTMLResponse("")
+    response.headers["HX-Redirect"] = url
+    return response
 
 
 def _parse_tags(raw: str) -> list[str]:
@@ -332,6 +339,31 @@ def _require_theme(theme_id: str):
         if theme.theme_id == theme_id:
             return theme
     raise HTTPException(status_code=404, detail="Theme not found")
+
+
+def _require_rule_template(rule_id: str):
+    for rule in load_rule_templates():
+        if rule.rule_id == rule_id:
+            return rule
+    raise HTTPException(status_code=404, detail="Rule not found")
+
+
+def _all_book_meta(base: Path) -> list[Metadata]:
+    return list_books(base) + list_archived_books(base)
+
+
+def _rule_referenced(base: Path, rule_id: str) -> bool:
+    for meta in _all_book_meta(base):
+        if (meta.rule_template or "").strip() == rule_id:
+            return True
+    return False
+
+
+def _theme_referenced(base: Path, theme_id: str) -> bool:
+    for meta in _all_book_meta(base):
+        if (meta.theme_template or "").strip() == theme_id:
+            return True
+    return False
 
 
 def _build_metadata(
@@ -1724,10 +1756,191 @@ async def retry_job(job_id: str, rule_template: str = Form("default")) -> Redire
 async def rules_view(request: Request) -> HTMLResponse:
     rules = load_rule_templates()
     themes = load_theme_templates()
+    error = (request.query_params.get("error") or "").strip() or None
+    tab = (request.query_params.get("tab") or "parsing").strip()
+    if tab not in {"parsing", "themes"}:
+        tab = "parsing"
+
+    requested_rule = (request.query_params.get("rule_id") or "").strip()
+    initial_rule = requested_rule if any(r.rule_id == requested_rule for r in rules) else (rules[0].rule_id if rules else "default")
+
+    requested_theme = (request.query_params.get("theme_id") or "").strip()
+    initial_theme = requested_theme if any(t.theme_id == requested_theme for t in themes) else (themes[0].theme_id if themes else "default")
     return templates.TemplateResponse(
         "rules.html",
-        {"request": request, "rules": rules, "themes": themes},
+        {
+            "request": request,
+            "rules": rules,
+            "themes": themes,
+            "error": error,
+            "initial_tab": tab,
+            "initial_rule": initial_rule,
+            "initial_theme": initial_theme,
+        },
     )
+
+
+@app.get("/rules/{rule_id}/editor", response_class=HTMLResponse)
+async def rule_editor(request: Request, rule_id: str) -> HTMLResponse:
+    rule = _require_rule_template(rule_id)
+    try:
+        raw_json = rule.file_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Failed to read rule file") from exc
+    return templates.TemplateResponse(
+        "partials/rule_editor.html",
+        {"request": request, "rule": rule, "raw_json": raw_json, "saved": False, "error": None, "preview": None},
+    )
+
+
+@app.post("/rules/{rule_id}/editor", response_class=HTMLResponse)
+async def rule_editor_save(request: Request, rule_id: str, config_json: str = Form("")) -> HTMLResponse:
+    rule = _require_rule_template(rule_id)
+    try:
+        data = validate_rule_template_json(rule_id, config_json)
+    except RuleTemplateError as exc:
+        return templates.TemplateResponse(
+            "partials/rule_editor.html",
+            {
+                "request": request,
+                "rule": rule,
+                "raw_json": config_json,
+                "saved": False,
+                "error": str(exc),
+                "preview": None,
+            },
+        )
+    rule.file_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    rule = _require_rule_template(rule_id)
+    raw_json = rule.file_path.read_text(encoding="utf-8")
+    return templates.TemplateResponse(
+        "partials/rule_editor.html",
+        {"request": request, "rule": rule, "raw_json": raw_json, "saved": True, "error": None, "preview": None},
+    )
+
+
+@app.post("/rules/new")
+async def rule_new(request: Request) -> Response:
+    base = rules_dir()
+    suffix = uuid.uuid4().hex[:8]
+    rule_id = f"custom-{suffix}"
+    while (base / f"{rule_id}.json").exists():
+        suffix = uuid.uuid4().hex[:8]
+        rule_id = f"custom-{suffix}"
+
+    seed = None
+    default_file = base / "default.json"
+    if default_file.exists():
+        try:
+            seed = json.loads(default_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            seed = None
+    if isinstance(seed, dict):
+        try:
+            seed = validate_rule_template_json("default", json.dumps(seed, ensure_ascii=False))
+        except RuleTemplateError:
+            seed = None
+    if not isinstance(seed, dict):
+        seed = {
+            "id": DEFAULT_RULE_CONFIG.rule_id,
+            "name": DEFAULT_RULE_CONFIG.name,
+            "description": "默认切章规则",
+            "version": "1",
+            "chapter_patterns": list(DEFAULT_RULE_CONFIG.chapter_patterns),
+            "volume_patterns": list(DEFAULT_RULE_CONFIG.volume_patterns),
+            "special_headings": list(DEFAULT_RULE_CONFIG.special_headings),
+            "heading_max_len": DEFAULT_RULE_CONFIG.heading_max_len,
+            "heading_max_commas": DEFAULT_RULE_CONFIG.heading_max_commas,
+            "skip_candidate_re": DEFAULT_RULE_CONFIG.skip_candidate_re,
+        }
+
+    seed["id"] = rule_id
+    seed["name"] = "新规则"
+    seed["description"] = "自定义切章规则"
+    seed["version"] = "1"
+    (base / f"{rule_id}.json").write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    redirect_url = f"/rules?tab=parsing&rule_id={rule_id}"
+    if _is_htmx(request):
+        return _htmx_redirect(redirect_url)
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@app.post("/rules/{rule_id}/delete")
+async def rule_delete(request: Request, rule_id: str) -> Response:
+    if rule_id == "default":
+        raise HTTPException(status_code=400, detail="默认模板不可删除")
+    rule = _require_rule_template(rule_id)
+    base = library_dir()
+    if _rule_referenced(base, rule_id):
+        msg = urllib.parse.quote("模板已被书籍引用，无法删除")
+        redirect_url = f"/rules?tab=parsing&rule_id={rule_id}&error={msg}"
+        if _is_htmx(request):
+            return _htmx_redirect(redirect_url)
+        return RedirectResponse(url=redirect_url, status_code=303)
+    try:
+        rule.file_path.unlink(missing_ok=False)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Rule file missing") from exc
+
+    redirect_url = "/rules?tab=parsing&rule_id=default"
+    if _is_htmx(request):
+        return _htmx_redirect(redirect_url)
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@app.post("/themes/new")
+async def theme_new(request: Request) -> Response:
+    base = themes_dir()
+    suffix = uuid.uuid4().hex[:8]
+    theme_id = f"theme-{suffix}"
+    while (base / f"{theme_id}.json").exists():
+        suffix = uuid.uuid4().hex[:8]
+        theme_id = f"theme-{suffix}"
+
+    css = DEFAULT_EPUB_CSS
+    try:
+        default_theme = get_theme(DEFAULT_THEME_ID)
+        if default_theme.css.strip():
+            css = default_theme.css
+    except Exception:
+        pass
+    data = {
+        "id": theme_id,
+        "name": "新样式",
+        "description": "自定义渲染主题",
+        "version": "1",
+        "css": css,
+    }
+    (base / f"{theme_id}.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    redirect_url = f"/rules?tab=themes&theme_id={theme_id}"
+    if _is_htmx(request):
+        return _htmx_redirect(redirect_url)
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@app.post("/themes/{theme_id}/delete")
+async def theme_delete(request: Request, theme_id: str) -> Response:
+    if theme_id == DEFAULT_THEME_ID:
+        raise HTTPException(status_code=400, detail="默认模板不可删除")
+    theme = _require_theme(theme_id)
+    base = library_dir()
+    if _theme_referenced(base, theme_id):
+        msg = urllib.parse.quote("模板已被书籍引用，无法删除")
+        redirect_url = f"/rules?tab=themes&theme_id={theme_id}&error={msg}"
+        if _is_htmx(request):
+            return _htmx_redirect(redirect_url)
+        return RedirectResponse(url=redirect_url, status_code=303)
+    try:
+        theme.file_path.unlink(missing_ok=False)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Theme file missing") from exc
+
+    redirect_url = "/rules?tab=themes&theme_id=default"
+    if _is_htmx(request):
+        return _htmx_redirect(redirect_url)
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @app.get("/themes/{theme_id}/editor", response_class=HTMLResponse)

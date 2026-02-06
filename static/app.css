@@ -500,6 +500,9 @@
   .min-h-\[240px\] {
     min-height: 240px;
   }
+  .min-h-\[320px\] {
+    min-height: 320px;
+  }
   .min-h-screen {
     min-height: 100vh;
   }
@@ -806,6 +809,9 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .overflow-auto {
+    overflow: auto;
+  }
   .overflow-hidden {
     overflow: hidden;
   }
@@ -900,6 +906,9 @@
   }
   .border-slate-300 {
     border-color: var(--color-slate-300);
+  }
+  .border-slate-600 {
+    border-color: var(--color-slate-600);
   }
   .border-slate-700 {
     border-color: var(--color-slate-700);
@@ -1297,6 +1306,9 @@
   .text-indigo-100 {
     color: var(--color-indigo-100);
   }
+  .text-indigo-200 {
+    color: var(--color-indigo-200);
+  }
   .text-indigo-600 {
     color: var(--color-indigo-600);
   }
@@ -1317,6 +1329,9 @@
   }
   .text-red-800 {
     color: var(--color-red-800);
+  }
+  .text-slate-100 {
+    color: var(--color-slate-100);
   }
   .text-slate-200 {
     color: var(--color-slate-200);
@@ -1532,6 +1547,11 @@
   .file\:text-slate-700 {
     &::file-selector-button {
       color: var(--color-slate-700);
+    }
+  }
+  .placeholder\:text-slate-500 {
+    &::placeholder {
+      color: var(--color-slate-500);
     }
   }
   .last\:border-0 {

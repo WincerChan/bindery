@@ -1,0 +1,99 @@
+<div class="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col min-h-0">
+  <div class="p-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-white">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2">
+        <h3 class="font-bold text-slate-900 truncate">{{ rule.name }}</h3>
+        <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded border border-green-200">v{{ rule.version }}</span>
+      </div>
+      <div class="text-xs text-slate-500 mt-1 truncate">{{ rule.description or "—" }}</div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      {% if saved %}
+        <span class="px-2 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 rounded border border-emerald-200">已保存</span>
+      {% endif %}
+      <form
+        action="/rules/{{ rule.rule_id }}/delete"
+        method="post"
+        hx-post="/rules/{{ rule.rule_id }}/delete"
+        hx-swap="none"
+        onsubmit="return confirm('确定要删除这个规则模板吗？');"
+      >
+        <button
+          class="px-3 py-2 text-sm bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 font-medium transition-colors"
+          type="submit"
+          {% if rule.rule_id == "default" %}disabled{% endif %}
+        >删除</button>
+      </form>
+      <button form="rule-form" class="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm rounded-lg hover:bg-slate-900" type="submit">
+        保存
+      </button>
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="px-4 py-3 border-b border-red-200 bg-red-50 text-red-700 text-sm">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <div class="flex-1 grid grid-cols-12 gap-4 p-4 min-h-0">
+    <form
+      id="rule-form"
+      action="/rules/{{ rule.rule_id }}/editor"
+      method="post"
+      hx-post="/rules/{{ rule.rule_id }}/editor"
+      hx-target="#rule-editor"
+      hx-swap="innerHTML"
+      class="col-span-12 lg:col-span-5 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden min-h-0"
+    >
+      <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 text-xs font-mono text-slate-500 flex justify-between">
+        <span>CONFIG JSON</span>
+        <span class="text-indigo-600 font-bold">PARSER</span>
+      </div>
+      <textarea
+        name="config_json"
+        class="flex-1 w-full p-4 font-mono text-xs resize-none focus:outline-none text-slate-700 min-h-[320px]"
+        placeholder="{\n  \"id\": \"default\",\n  \"name\": \"默认\",\n  \"chapter_patterns\": [\"...\"],\n  \"volume_patterns\": [\"...\"],\n  \"special_headings\": [\"...\"],\n  \"heading_max_len\": 40,\n  \"heading_max_commas\": 1,\n  \"skip_candidate_re\": \"...\"\n}"
+      >{{ raw_json }}</textarea>
+      <div class="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-200 bg-white">
+        保存会直接写入 <span class="font-mono text-slate-700">rules/{{ rule.rule_id }}.json</span>，并校验 JSON 与正则可用性。
+      </div>
+    </form>
+
+    <div class="col-span-12 lg:col-span-7 bg-slate-800 border border-slate-700 rounded-xl flex flex-col overflow-hidden shadow-inner min-h-0">
+      <div class="bg-slate-900 px-4 py-2 border-b border-slate-700 text-xs font-mono text-slate-300 flex justify-between items-center">
+        <span>TEST BENCH</span>
+        <span class="text-indigo-200">使用当前已保存模板运行</span>
+      </div>
+      <div class="p-4 space-y-3 min-h-0 flex-1 flex flex-col">
+        <form
+          action="/rules/test"
+          method="post"
+          hx-post="/rules/test"
+          hx-target="#rule-test-preview"
+          hx-swap="innerHTML"
+          class="space-y-3"
+        >
+          <input type="hidden" name="rule_template" value="{{ rule.rule_id }}" />
+          <div class="space-y-1">
+            <label class="text-[11px] font-semibold text-slate-300 uppercase">Sample 文本</label>
+            <textarea
+              name="sample"
+              rows="8"
+              placeholder="粘贴一段文本（用于验证切章效果）"
+              class="w-full px-3 py-2 border border-slate-600 rounded-lg text-sm bg-slate-800 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+            ></textarea>
+          </div>
+          <div class="flex gap-2">
+            <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors" type="submit">运行测试</button>
+          </div>
+        </form>
+
+        <div id="rule-test-preview" class="bg-white border border-slate-200 rounded-xl p-4 overflow-auto flex-1 min-h-0">
+          {% include "partials/rules_preview.html" %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

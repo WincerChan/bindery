@@ -3,22 +3,25 @@ from pathlib import Path
 
 
 class RulesUiTests(unittest.TestCase):
-    def test_rules_template_has_actions_and_rule_details(self) -> None:
+    def test_rules_template_has_actions_and_editors(self) -> None:
         root = Path(__file__).resolve().parent.parent
         tpl = (root / "templates" / "rules.html").read_text(encoding="utf-8")
 
-        # Sidebar actions
-        self.assertIn("新增", tpl)
-        self.assertIn("删除", tpl)
+        # CRUD actions
+        self.assertIn('action="/rules/new"', tpl)
+        self.assertIn("'/rules/' + ruleId + '/delete'", tpl)
+        self.assertIn('action="/themes/new"', tpl)
+        self.assertIn("'/themes/' + themeId + '/delete'", tpl)
 
-        # Rule detail panel
-        self.assertIn("解析规则", tpl)
-        self.assertIn("章节正则", tpl)
-        self.assertIn("卷/部正则", tpl)
-        self.assertIn("特殊标题", tpl)
-        self.assertIn("候选过滤正则", tpl)
+        # Rule editor (HTMX loaded)
+        self.assertIn('id="rule-editor"', tpl)
+        self.assertIn('hx-get="/rules/{{ rule.rule_id }}/editor"', tpl)
+        self.assertIn('hx-get="/rules/{{ initial_rule }}/editor"', tpl)
+
+        # Theme editor (HTMX loaded)
+        self.assertIn('id="theme-editor"', tpl)
+        self.assertIn('hx-get="/themes/{{ initial_theme }}/editor"', tpl)
 
 
 if __name__ == "__main__":
     unittest.main()
-

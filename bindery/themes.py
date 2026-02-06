@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -21,7 +22,8 @@ class ThemeTemplate:
 
 
 def themes_dir() -> Path:
-    path = BASE_DIR / "themes"
+    env = os.getenv("BINDERY_THEMES_DIR")
+    path = Path(env) if env else BASE_DIR / "themes"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -82,4 +84,3 @@ def compose_css(theme_css: str | None, custom_css: str | None) -> str:
     if custom_css and custom_css.strip():
         parts.append(custom_css.strip())
     return "\n\n".join(parts).strip()
-
