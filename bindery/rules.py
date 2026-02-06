@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Optional
 
 from .parsing import DEFAULT_RULE_CONFIG, RuleConfig, RuleSet, build_rules
-from .storage import library_dir
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RULES_DIR_ENV = "BINDERY_RULES_DIR"
 TEMPLATES_DIR_ENV = "BINDERY_TEMPLATE_DIR"
-LEGACY_RULES_DIR = BASE_DIR / "rules"
+DEFAULT_RUNTIME_TEMPLATES_DIR = BASE_DIR / ".bindery-user-templates"
+SEED_RULES_DIR = BASE_DIR / "bindery-templates" / "rules"
 
 
 @dataclass(frozen=True)
@@ -139,42 +139,25 @@ def rules_dir() -> Path:
         path = Path(env)
     else:
         path = _templates_parent_dir() / "rules"
-        _migrate_legacy_rules(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def _templates_parent_dir() -> Path:
     env = os.getenv(TEMPLATES_DIR_ENV)
-    path = Path(env) if env else library_dir() / "templates"
+    path = Path(env) if env else DEFAULT_RUNTIME_TEMPLATES_DIR
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def _migrate_legacy_rules(target: Path) -> None:
-    source = LEGACY_RULES_DIR
-    try:
-        if source.resolve() == target.resolve():
-            return
-    except OSError:
-        return
-    if not source.exists():
-        return
-    target.mkdir(parents=True, exist_ok=True)
-    for file_path in source.glob("*.json"):
-        dst = target / file_path.name
-        if dst.exists():
-            continue
-        try:
-            shutil.copy2(file_path, dst)
-        except OSError:
-            continue
 
 
 def ensure_default_rules() -> None:
     path = rules_dir()
     default_file = path / "default.json"
     if default_file.exists():
+        return
+    seed_default = SEED_RULES_DIR / "default.json"
+    if seed_default.exists():
+        shutil.copy2(seed_default, default_file)
         return
     data = {
         "id": DEFAULT_RULE_CONFIG.rule_id,

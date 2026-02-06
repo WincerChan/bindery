@@ -7,8 +7,9 @@ Wants=network-online.target
 Image=ghcr.io/replace-me/bindery:latest
 ContainerName=bindery
 PublishPort=5670:5670
-Volume=bindery-library.volume:/data/library:Z
+Volume=bindery-library.volume:/data:Z
 Environment=BINDERY_LIBRARY_DIR=/data/library
+Environment=BINDERY_TEMPLATE_DIR=/data/templates
 EnvironmentFile=/etc/bindery/bindery.env
 AutoUpdate=registry
 

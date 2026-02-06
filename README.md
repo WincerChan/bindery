@@ -12,7 +12,8 @@ uv run honcho start
 
 默认书库目录：`./library`，可用 `BINDERY_LIBRARY_DIR` 自定义。
 SQLite 默认路径：`./library/bindery.db`，可用 `BINDERY_DB_PATH` 自定义。
-规则/主题默认目录：`./library/templates/{rules,themes}`，
+规则/主题默认目录（运行时可写）：`./.bindery-user-templates/{rules,themes}`，
+种子模板目录（Git 跟踪）：`./bindery-templates/{rules,themes}`，
 可用 `BINDERY_TEMPLATE_DIR` 统一设置父目录，
 也可分别用 `BINDERY_RULES_DIR` / `BINDERY_THEMES_DIR` 覆盖。
 
@@ -47,7 +48,7 @@ PY
 
 ## 容器部署
 
-- `Containerfile`：生产镜像定义，默认监听 `5670`，并将数据目录设为 `/data/library`。
+- `Containerfile`：生产镜像定义，默认监听 `5670`，并将数据目录设为 `/data/library`，模板目录设为 `/data/templates`。
 - GHCR 推送：`.github/workflows/publish-ghcr.yml` 会在 `main/master` 或 `v*` tag push 时自动构建并推送镜像到 `ghcr.io/<owner>/<repo>`。
 - Quadlet 示例：
   - `deploy/quadlet/bindery-library.volume`

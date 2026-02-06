@@ -8,7 +8,8 @@ class DeployFilesTests(unittest.TestCase):
         content = (root / "Containerfile").read_text(encoding="utf-8")
         self.assertIn("FROM python:3.12-slim", content)
         self.assertIn("BINDERY_LIBRARY_DIR=/data/library", content)
-        self.assertIn('VOLUME ["/data/library"]', content)
+        self.assertIn("BINDERY_TEMPLATE_DIR=/data/templates", content)
+        self.assertIn('VOLUME ["/data"]', content)
         self.assertIn('CMD ["uv", "run", "uvicorn", "bindery.web:app"', content)
 
     def test_workflow_pushes_to_ghcr(self) -> None:
@@ -25,9 +26,17 @@ class DeployFilesTests(unittest.TestCase):
         container_unit = (root / "deploy" / "quadlet" / "bindery.container").read_text(encoding="utf-8")
         volume_unit = (root / "deploy" / "quadlet" / "bindery-library.volume").read_text(encoding="utf-8")
         self.assertIn("PublishPort=5670:5670", container_unit)
-        self.assertIn("Volume=bindery-library.volume:/data/library:Z", container_unit)
+        self.assertIn("Volume=bindery-library.volume:/data:Z", container_unit)
+        self.assertIn("Environment=BINDERY_TEMPLATE_DIR=/data/templates", container_unit)
         self.assertIn("EnvironmentFile=/etc/bindery/bindery.env", container_unit)
         self.assertIn("VolumeName=bindery-library", volume_unit)
+
+    def test_gitignore_keeps_uv_lock_trackable(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        content = (root / ".gitignore").read_text(encoding="utf-8")
+        lines = {line.strip() for line in content.splitlines()}
+        self.assertNotIn("uv.lock", lines)
+        self.assertIn(".bindery-user-templates/", lines)
 
 
 if __name__ == "__main__":

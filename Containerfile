@@ -20,18 +20,18 @@ RUN uv sync --frozen --no-dev
 
 COPY templates ./templates
 COPY static ./static
-COPY rules ./rules
-COPY themes ./themes
+COPY bindery-templates ./bindery-templates
 
 RUN useradd --create-home --uid 10001 app \
-    && mkdir -p /data/library \
-    && chown -R app:app /app /data/library
+    && mkdir -p /data/library /data/templates \
+    && chown -R app:app /app /data
 
-ENV BINDERY_LIBRARY_DIR=/data/library
+ENV BINDERY_LIBRARY_DIR=/data/library \
+    BINDERY_TEMPLATE_DIR=/data/templates
 
 USER app
 
 EXPOSE 5670
-VOLUME ["/data/library"]
+VOLUME ["/data"]
 
 CMD ["uv", "run", "uvicorn", "bindery.web:app", "--host", "0.0.0.0", "--port", "5670"]

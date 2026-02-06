@@ -7,12 +7,51 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from .storage import library_dir
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 THEMES_DIR_ENV = "BINDERY_THEMES_DIR"
 TEMPLATES_DIR_ENV = "BINDERY_TEMPLATE_DIR"
-LEGACY_THEMES_DIR = BASE_DIR / "themes"
+DEFAULT_RUNTIME_TEMPLATES_DIR = BASE_DIR / ".bindery-user-templates"
+SEED_THEMES_DIR = BASE_DIR / "bindery-templates" / "themes"
+DEFAULT_THEME_CSS = """body {
+  line-height: 1.75;
+}
+p {
+  text-indent: 2rem;
+  margin: 0 0 0.8em;
+}
+.chapter-header {
+  margin: 1.25em 0 1em;
+}
+.chapter-stamp {
+  display: inline-block;
+  margin: 0 0 0.45em;
+  padding: 0.1em 0.5em;
+  font-size: 0.72em;
+  letter-spacing: 0.1em;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  text-indent: 0;
+}
+.chapter-title {
+  margin: 0;
+  font-size: 1.42em;
+  font-weight: 760;
+  line-height: 1.28;
+}
+.front-matter p.author {
+  text-align: center;
+  text-indent: 0;
+  margin: 0 0 1.5em;
+}
+.front-matter p.intro-label {
+  text-indent: 0;
+  font-weight: 700;
+  margin: 1.2em 0 0.6em;
+}
+.volume p, .volume .chapter-title {
+  text-indent: 0;
+}
+"""
 
 
 @dataclass(frozen=True)
@@ -31,36 +70,15 @@ def themes_dir() -> Path:
         path = Path(env)
     else:
         path = _templates_parent_dir() / "themes"
-        _migrate_legacy_themes(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def _templates_parent_dir() -> Path:
     env = os.getenv(TEMPLATES_DIR_ENV)
-    path = Path(env) if env else library_dir() / "templates"
+    path = Path(env) if env else DEFAULT_RUNTIME_TEMPLATES_DIR
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def _migrate_legacy_themes(target: Path) -> None:
-    source = LEGACY_THEMES_DIR
-    try:
-        if source.resolve() == target.resolve():
-            return
-    except OSError:
-        return
-    if not source.exists():
-        return
-    target.mkdir(parents=True, exist_ok=True)
-    for file_path in source.glob("*.json"):
-        dst = target / file_path.name
-        if dst.exists():
-            continue
-        try:
-            shutil.copy2(file_path, dst)
-        except OSError:
-            continue
 
 
 def ensure_default_themes() -> None:
@@ -68,16 +86,16 @@ def ensure_default_themes() -> None:
     default_file = path / "default.json"
     if default_file.exists():
         return
-    bundled = BASE_DIR / "themes" / "default.json"
-    if bundled.exists():
-        shutil.copyfile(bundled, default_file)
+    seed_default = SEED_THEMES_DIR / "default.json"
+    if seed_default.exists():
+        shutil.copy2(seed_default, default_file)
         return
     data = {
         "id": "default",
         "name": "默认样式",
         "description": "生成 EPUB 的默认排版（可全局复用）",
         "version": "1",
-        "css": "",
+        "css": DEFAULT_THEME_CSS,
     }
     default_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 

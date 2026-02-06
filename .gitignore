@@ -3,7 +3,7 @@ __pycache__/
 .venv/
 .uv/
 .uv-cache/
-uv.lock
+.bindery-user-templates/
 library/
 bindery.db
 bindery.egg-info/
