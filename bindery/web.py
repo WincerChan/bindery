@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .auth import SESSION_COOKIE, configured_hash, is_authenticated, sign_in, sign_out, verify_password
+from .css import validate_css
 from .db import create_job, get_job, init_db, list_jobs, update_job
 from .epub import (
     DEFAULT_EPUB_CSS,
@@ -940,6 +941,20 @@ async def ingest(
 
     cover_bytes = await cover_file.read() if cover_file else None
     cover_name = cover_file.filename if cover_file else None
+    css_error = validate_css(custom_css)
+    if css_error:
+        rules = load_rule_templates()
+        themes = load_theme_templates()
+        return templates.TemplateResponse(
+            "ingest.html",
+            {
+                "request": request,
+                "rules": rules,
+                "themes": themes,
+                "error": f"自定义 CSS 校验失败：{css_error}",
+                "custom_css": custom_css,
+            },
+        )
 
     base = library_dir()
     created_books: list[dict] = []
@@ -1560,6 +1575,23 @@ async def save_edit(
     meta.published = published.strip() or None
     meta.isbn = isbn.strip() or None
     meta.rating = _parse_rating(rating)
+    css_error = validate_css(custom_css)
+    if css_error:
+        meta.custom_css = custom_css.strip() or None
+        rules = load_rule_templates()
+        themes = load_theme_templates()
+        template = "partials/meta_edit.html" if _is_htmx(request) else "edit.html"
+        return templates.TemplateResponse(
+            template,
+            {
+                "request": request,
+                "book": _book_view(meta, base),
+                "book_id": book_id,
+                "rules": rules,
+                "themes": themes,
+                "error": f"自定义 CSS 校验失败：{css_error}",
+            },
+        )
     if meta.source_type != "epub":
         meta.rule_template = rule_template.strip() or meta.rule_template or "default"
     raw_theme = theme_template.strip()
@@ -1955,6 +1987,24 @@ async def theme_editor(request: Request, theme_id: str) -> HTMLResponse:
 @app.post("/themes/{theme_id}/editor", response_class=HTMLResponse)
 async def theme_editor_save(request: Request, theme_id: str, css: str = Form("")) -> HTMLResponse:
     theme = _require_theme(theme_id)
+    css_error = validate_css(css)
+    if css_error:
+        return templates.TemplateResponse(
+            "partials/theme_editor.html",
+            {
+                "request": request,
+                "theme": theme.__class__(
+                    theme_id=theme.theme_id,
+                    name=theme.name,
+                    description=theme.description,
+                    version=theme.version,
+                    file_path=theme.file_path,
+                    css=css,
+                ),
+                "saved": False,
+                "error": f"主题 CSS 校验失败：{css_error}",
+            },
+        )
     try:
         data = json.loads(theme.file_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:

@@ -15,6 +15,11 @@
         转换后进入书库
       </div>
     </div>
+    {% if error %}
+      <div class="mt-4 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+        {{ error }}
+      </div>
+    {% endif %}
   </section>
 
   <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -133,13 +138,21 @@
         <details class="border border-slate-200 rounded-xl p-4 bg-slate-50/30">
           <summary class="cursor-pointer text-sm font-medium text-slate-700">高级：针对本书追加 CSS</summary>
           <div class="mt-4 space-y-2">
-            <div class="text-xs text-slate-500">这段 CSS 会追加在主题之后，优先生效。</div>
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-xs text-slate-500">这段 CSS 会追加在主题之后，优先生效。</div>
+              <button
+                type="button"
+                class="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+                data-format-target="ingest-custom-css"
+              >格式化</button>
+            </div>
             <textarea
+              id="ingest-custom-css"
               name="custom_css"
               rows="8"
               class="w-full p-3 font-mono text-xs border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
               placeholder="/* 例如：body { font-family: 'Noto Serif SC'; } */"
-            ></textarea>
+            >{{ custom_css or '' }}</textarea>
           </div>
         </details>
       </div>
@@ -173,6 +186,106 @@
     });
     dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragging'));
     dropzone.addEventListener('drop', () => dropzone.classList.remove('dragging'));
+  });
+
+  const formatCssText = (raw) => {
+    if (!raw) return '';
+    let out = '';
+    let indent = 0;
+    let inString = null;
+    let inComment = false;
+    let escape = false;
+    let pendingSpace = false;
+    const indentUnit = '  ';
+    const pushIndent = () => {
+      out += indentUnit.repeat(Math.max(0, indent));
+    };
+    const flushSpace = () => {
+      if (pendingSpace && out && !out.endsWith(' ') && !out.endsWith('\n')) out += ' ';
+      pendingSpace = false;
+    };
+    for (let i = 0; i < raw.length; i += 1) {
+      const ch = raw[i];
+      const next = raw[i + 1];
+      if (inComment) {
+        out += ch;
+        if (ch === '*' && next === '/') {
+          out += '/';
+          i += 1;
+          inComment = false;
+          out += '\n';
+          pushIndent();
+        }
+        continue;
+      }
+      if (inString) {
+        out += ch;
+        if (escape) {
+          escape = false;
+        } else if (ch === '\\') {
+          escape = true;
+        } else if (ch === inString) {
+          inString = null;
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        flushSpace();
+        inString = ch;
+        out += ch;
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        flushSpace();
+        inComment = true;
+        out += '/*';
+        i += 1;
+        continue;
+      }
+      if (/\s/.test(ch)) {
+        pendingSpace = true;
+        continue;
+      }
+      if (ch === '{') {
+        out = out.trimEnd();
+        out += ' {\n';
+        indent += 1;
+        pushIndent();
+        continue;
+      }
+      if (ch === '}') {
+        out = out.trimEnd();
+        indent = Math.max(0, indent - 1);
+        out += '\n';
+        pushIndent();
+        out += '}';
+        const rest = raw.slice(i + 1).trim();
+        if (rest) {
+          out += '\n';
+          pushIndent();
+        }
+        continue;
+      }
+      if (ch === ';') {
+        out = out.trimEnd();
+        out += ';\n';
+        pushIndent();
+        continue;
+      }
+      flushSpace();
+      out += ch;
+    }
+    return out.trim();
+  };
+
+  document.querySelectorAll('[data-format-target]').forEach((btn) => {
+    const targetId = btn.dataset.formatTarget;
+    if (!targetId) return;
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    btn.addEventListener('click', () => {
+      target.value = formatCssText(target.value);
+    });
   });
 </script>
 {% endblock %}

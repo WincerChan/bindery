@@ -34,6 +34,100 @@
         '</html>';
       if (this.$refs.frame) this.$refs.frame.srcdoc = html;
     },
+    formatCssText(raw) {
+      if (!raw) return '';
+      let out = '';
+      let indent = 0;
+      let inString = null;
+      let inComment = false;
+      let escape = false;
+      let pendingSpace = false;
+      const indentUnit = '  ';
+      const pushIndent = () => {
+        out += indentUnit.repeat(Math.max(0, indent));
+      };
+      const flushSpace = () => {
+        if (pendingSpace && out && !out.endsWith(' ') && !out.endsWith('\n')) out += ' ';
+        pendingSpace = false;
+      };
+      for (let i = 0; i < raw.length; i += 1) {
+        const ch = raw[i];
+        const next = raw[i + 1];
+        if (inComment) {
+          out += ch;
+          if (ch === '*' && next === '/') {
+            out += '/';
+            i += 1;
+            inComment = false;
+            out += '\n';
+            pushIndent();
+          }
+          continue;
+        }
+        if (inString) {
+          out += ch;
+          if (escape) {
+            escape = false;
+          } else if (ch === '\\') {
+            escape = true;
+          } else if (ch === inString) {
+            inString = null;
+          }
+          continue;
+        }
+        if (ch === '&quot;' || ch === "'") {
+          flushSpace();
+          inString = ch;
+          out += ch;
+          continue;
+        }
+        if (ch === '/' && next === '*') {
+          flushSpace();
+          inComment = true;
+          out += '/*';
+          i += 1;
+          continue;
+        }
+        if (/\s/.test(ch)) {
+          pendingSpace = true;
+          continue;
+        }
+        if (ch === '{') {
+          out = out.trimEnd();
+          out += ' {\n';
+          indent += 1;
+          pushIndent();
+          continue;
+        }
+        if (ch === '}') {
+          out = out.trimEnd();
+          indent = Math.max(0, indent - 1);
+          out += '\n';
+          pushIndent();
+          out += '}';
+          const rest = raw.slice(i + 1).trim();
+          if (rest) {
+            out += '\n';
+            pushIndent();
+          }
+          continue;
+        }
+        if (ch === ';') {
+          out = out.trimEnd();
+          out += ';\n';
+          pushIndent();
+          continue;
+        }
+        flushSpace();
+        out += ch;
+      }
+      return out.trim();
+    },
+    formatCss() {
+      this.css = this.formatCssText(this.css);
+      if (this.$refs.cssInput) this.$refs.cssInput.value = this.css;
+      this.updatePreview();
+    },
   }"
   x-init="init()"
 >
@@ -49,11 +143,21 @@
       {% if saved %}
         <span class="px-2 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 rounded border border-emerald-200">已保存</span>
       {% endif %}
+      <button
+        type="button"
+        class="flex items-center gap-2 px-3 py-2 bg-white text-slate-700 text-sm rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"
+        @click="formatCss()"
+      >格式化</button>
       <button form="theme-form" class="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm rounded-lg hover:bg-slate-900 cursor-pointer" type="submit">
         保存
       </button>
     </div>
   </div>
+  {% if error %}
+    <div class="px-4 py-2 text-sm text-red-700 bg-red-50 border-b border-red-200">
+      {{ error }}
+    </div>
+  {% endif %}
 
   <form
     id="theme-form"
