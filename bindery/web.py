@@ -297,6 +297,7 @@ def _job_action_label(action: str) -> str:
     labels = {
         "upload": "上传并转换",
         "upload-epub": "EPUB 入库",
+        "edit-writeback": "编辑并写回",
         "regenerate": "重新生成",
         "retry": "重试生成",
         "ingest": "入库检查",
@@ -867,6 +868,30 @@ def _process_queued_ingest_task(task: dict) -> None:
         return
 
     base = library_dir()
+    kind = str(task.get("kind") or "unknown")
+    if kind == "edit-writeback":
+        book_id = str(task.get("book_id") or job.book_id or "").strip()
+        if not book_id:
+            _update_job(job_id, status="failed", stage="失败", message="缺少书籍 ID")
+            return
+        cover_bytes = task.get("cover_bytes")
+        cover_name = task.get("cover_name")
+        cover_url = str(task.get("cover_url") or "").strip()
+        try:
+            _run_edit_writeback(
+                job,
+                base,
+                book_id,
+                cover_bytes=cover_bytes if isinstance(cover_bytes, bytes) else None,
+                cover_name=cover_name if isinstance(cover_name, str) else None,
+                cover_url=cover_url,
+            )
+        except Exception:
+            current = get_job(job_id)
+            if current and current.status == "running":
+                _update_job(job_id, status="failed", stage="失败", message="后台处理失败", log=traceback.format_exc())
+        return
+
     payload_path = Path(str(task.get("payload_path") or ""))
     try:
         data = payload_path.read_bytes()
@@ -876,7 +901,6 @@ def _process_queued_ingest_task(task: dict) -> None:
         return
 
     filename = str(task.get("filename") or "upload")
-    kind = str(task.get("kind") or "unknown")
     content_type = task.get("content_type")
     detected_kind = _detect_source_type(filename, content_type if isinstance(content_type, str) else None, data)
     if detected_kind != kind:
@@ -1185,6 +1209,93 @@ def _run_epub_ingest(
         return meta
     except Exception:
         _update_job(job.id, status="failed", stage="失败", message="导入失败", log=traceback.format_exc())
+        raise
+
+
+def _run_edit_writeback(
+    job: Job,
+    base: Path,
+    book_id: str,
+    *,
+    cover_bytes: Optional[bytes],
+    cover_name: Optional[str],
+    cover_url: str,
+) -> Metadata:
+    try:
+        _update_job(job.id, stage="写元数据")
+        meta = load_metadata(base, book_id)
+        book = load_book(base, book_id)
+        cover_changed = False
+        cover_path_obj: Optional[Path] = None
+
+        if cover_bytes:
+            meta.cover_file = save_cover_bytes(base, book_id, cover_bytes, cover_name)
+            cover_path_obj = cover_path(base, book_id, meta.cover_file)
+            cover_changed = True
+        elif cover_url:
+            _update_job(job.id, stage="下载封面")
+            with urllib.request.urlopen(cover_url, timeout=10) as response:
+                downloaded = response.read()
+            if not downloaded:
+                raise ValueError("封面 URL 下载为空")
+            resolved_name = Path(urllib.parse.urlparse(cover_url).path).name or "cover"
+            meta.cover_file = save_cover_bytes(base, book_id, downloaded, resolved_name)
+            cover_path_obj = cover_path(base, book_id, meta.cover_file)
+            cover_changed = True
+
+        epub_file = epub_path(base, book_id)
+        if meta.source_type != "epub":
+            if not cover_changed and epub_file.exists():
+                extracted_cover = None
+                extracted_cover_error = False
+                try:
+                    extracted_cover = extract_cover(epub_file)
+                except Exception:
+                    extracted_cover_error = True
+                if extracted_cover:
+                    cover_data, extracted_name = extracted_cover
+                    meta.cover_file = save_cover_bytes(base, book_id, cover_data, extracted_name)
+                elif not extracted_cover_error:
+                    meta.cover_file = None
+            if meta.cover_file:
+                cover_path_obj = cover_path(base, book_id, meta.cover_file)
+
+        _update_job(job.id, stage="写回 EPUB")
+        if meta.source_type == "epub":
+            update_epub_metadata(
+                epub_file,
+                meta,
+                cover_path_obj if cover_changed else None,
+                css_text=_compose_css_text(meta),
+            )
+        else:
+            build_epub(book, meta, epub_file, cover_path_obj, css_text=_compose_css_text(meta))
+
+        _update_job(job.id, stage="刷新封面")
+        extracted_cover = None
+        extracted_cover_error = False
+        try:
+            extracted_cover = extract_cover(epub_file)
+        except Exception:
+            extracted_cover_error = True
+        if extracted_cover:
+            cover_data, extracted_name = extracted_cover
+            meta.cover_file = save_cover_bytes(base, book_id, cover_data, extracted_name)
+        elif not extracted_cover_error:
+            meta.cover_file = None
+
+        _update_meta_synced(meta)
+        save_metadata(meta, base)
+        _update_job(job.id, status="success", stage="完成", message="完成")
+        return meta
+    except Exception:
+        try:
+            meta = load_metadata(base, book_id)
+            _update_meta_failed(meta)
+            save_metadata(meta, base)
+        except Exception:
+            pass
+        _update_job(job.id, status="failed", stage="失败", message="写回失败", log=traceback.format_exc())
         raise
 
 
@@ -2437,9 +2548,6 @@ async def save_edit(
 
     cover_bytes: Optional[bytes] = None
     cover_name: Optional[str] = None
-    cover_changed = False
-    cover_path_obj: Optional[Path] = None
-
     cover_url = cover_url.strip()
     cover_error: Optional[str] = None
     if cover_file is not None:
@@ -2449,15 +2557,6 @@ async def save_edit(
         else:
             cover_bytes = data
             cover_name = cover_file.filename or "cover"
-    elif cover_url:
-        try:
-            with urllib.request.urlopen(cover_url, timeout=10) as response:
-                cover_bytes = response.read()
-            cover_name = Path(urllib.parse.urlparse(cover_url).path).name or "cover"
-            if not cover_bytes:
-                cover_error = "封面 URL 下载为空"
-        except Exception as exc:
-            cover_error = f"封面 URL 下载失败：{exc}"
 
     if cover_error:
         rules = load_rule_templates()
@@ -2475,63 +2574,25 @@ async def save_edit(
             },
         )
 
-    if cover_bytes:
-        meta.cover_file = save_cover_bytes(base, book_id, cover_bytes, cover_name)
-        cover_path_obj = cover_path(base, book_id, meta.cover_file)
-        cover_changed = True
-
     save_metadata(meta, base)
-    epub_file = epub_path(base, book_id)
-    if meta.source_type != "epub":
-        if not cover_changed:
-            extracted_cover = None
-            extracted_cover_error = False
-            if epub_file.exists():
-                try:
-                    extracted_cover = extract_cover(epub_file)
-                except Exception:
-                    extracted_cover_error = True
-                if extracted_cover:
-                    cover_data, extracted_name = extracted_cover
-                    meta.cover_file = save_cover_bytes(base, book_id, cover_data, extracted_name)
-                elif not extracted_cover_error:
-                    meta.cover_file = None
-            if meta.cover_file:
-                cover_path_obj = cover_path(base, book_id, meta.cover_file)
+    job = _create_job("edit-writeback", book_id, meta.rule_template)
+    _update_job(job.id, stage="排队中", message="等待后台处理")
+    _ensure_ingest_worker_started()
+    _ingest_queue.put(
+        {
+            "job_id": job.id,
+            "kind": "edit-writeback",
+            "book_id": book_id,
+            "cover_bytes": cover_bytes,
+            "cover_name": cover_name,
+            "cover_url": cover_url,
+        }
+    )
 
-    if meta.source_type == "epub":
-        # 默认不改封面；当提交封面时一并写回到 EPUB 本体。
-        update_epub_metadata(
-            epub_file,
-            meta,
-            cover_path_obj if cover_changed else None,
-            css_text=_compose_css_text(meta),
-        )
-    else:
-        build_epub(book, meta, epub_file, cover_path_obj, css_text=_compose_css_text(meta))
-
-    # 保存后始终从 EPUB 刷新封面缓存，保证详情页封面只来源于书籍本体。
-    extracted_cover = None
-    extracted_cover_error = False
-    try:
-        extracted_cover = extract_cover(epub_file)
-    except Exception:
-        extracted_cover_error = True
-    if extracted_cover:
-        cover_data, cover_name = extracted_cover
-        meta.cover_file = save_cover_bytes(base, book_id, cover_data, cover_name)
-    elif not extracted_cover_error:
-        meta.cover_file = None
-    _update_meta_synced(meta)
-    save_metadata(meta, base)
-
+    redirect_url = "/jobs?tab=running"
     if _is_htmx(request):
-        return templates.TemplateResponse(
-            "partials/meta_view.html",
-            {"request": request, "book": _book_view(meta, base), "book_id": book_id},
-        )
-
-    return RedirectResponse(url=f"/book/{book_id}", status_code=303)
+        return _htmx_redirect(redirect_url)
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @app.post("/book/{book_id}/regenerate")
