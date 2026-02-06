@@ -3,13 +3,18 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 from .parsing import DEFAULT_RULE_CONFIG, RuleConfig, RuleSet, build_rules
+from .storage import library_dir
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+RULES_DIR_ENV = "BINDERY_RULES_DIR"
+TEMPLATES_DIR_ENV = "BINDERY_TEMPLATE_DIR"
+LEGACY_RULES_DIR = BASE_DIR / "rules"
 
 
 @dataclass(frozen=True)
@@ -129,10 +134,41 @@ def validate_rule_template_json(rule_id: str, raw_json: str) -> dict:
 
 
 def rules_dir() -> Path:
-    env = os.getenv("BINDERY_RULES_DIR")
-    path = Path(env) if env else BASE_DIR / "rules"
+    env = os.getenv(RULES_DIR_ENV)
+    if env:
+        path = Path(env)
+    else:
+        path = _templates_parent_dir() / "rules"
+        _migrate_legacy_rules(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _templates_parent_dir() -> Path:
+    env = os.getenv(TEMPLATES_DIR_ENV)
+    path = Path(env) if env else library_dir() / "templates"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _migrate_legacy_rules(target: Path) -> None:
+    source = LEGACY_RULES_DIR
+    try:
+        if source.resolve() == target.resolve():
+            return
+    except OSError:
+        return
+    if not source.exists():
+        return
+    target.mkdir(parents=True, exist_ok=True)
+    for file_path in source.glob("*.json"):
+        dst = target / file_path.name
+        if dst.exists():
+            continue
+        try:
+            shutil.copy2(file_path, dst)
+        except OSError:
+            continue
 
 
 def ensure_default_rules() -> None:

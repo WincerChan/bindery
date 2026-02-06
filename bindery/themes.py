@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from .storage import library_dir
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+THEMES_DIR_ENV = "BINDERY_THEMES_DIR"
+TEMPLATES_DIR_ENV = "BINDERY_TEMPLATE_DIR"
+LEGACY_THEMES_DIR = BASE_DIR / "themes"
 
 
 @dataclass(frozen=True)
@@ -21,10 +26,41 @@ class ThemeTemplate:
 
 
 def themes_dir() -> Path:
-    env = os.getenv("BINDERY_THEMES_DIR")
-    path = Path(env) if env else BASE_DIR / "themes"
+    env = os.getenv(THEMES_DIR_ENV)
+    if env:
+        path = Path(env)
+    else:
+        path = _templates_parent_dir() / "themes"
+        _migrate_legacy_themes(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _templates_parent_dir() -> Path:
+    env = os.getenv(TEMPLATES_DIR_ENV)
+    path = Path(env) if env else library_dir() / "templates"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _migrate_legacy_themes(target: Path) -> None:
+    source = LEGACY_THEMES_DIR
+    try:
+        if source.resolve() == target.resolve():
+            return
+    except OSError:
+        return
+    if not source.exists():
+        return
+    target.mkdir(parents=True, exist_ok=True)
+    for file_path in source.glob("*.json"):
+        dst = target / file_path.name
+        if dst.exists():
+            continue
+        try:
+            shutil.copy2(file_path, dst)
+        except OSError:
+            continue
 
 
 def ensure_default_themes() -> None:

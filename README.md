@@ -11,7 +11,10 @@ uv run honcho start
 ```
 
 默认书库目录：`./library`，可用 `BINDERY_LIBRARY_DIR` 自定义。
-SQLite 默认路径：`./bindery.db`，可用 `BINDERY_DB_PATH` 自定义。
+SQLite 默认路径：`./library/bindery.db`，可用 `BINDERY_DB_PATH` 自定义。
+规则/主题默认目录：`./library/templates/{rules,themes}`，
+可用 `BINDERY_TEMPLATE_DIR` 统一设置父目录，
+也可分别用 `BINDERY_RULES_DIR` / `BINDERY_THEMES_DIR` 覆盖。
 
 支持直接上传 EPUB 入库（不会重新转换），阅读器使用 EPUB 内容进行模拟展示。
 
