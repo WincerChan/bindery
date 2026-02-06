@@ -25,6 +25,13 @@ class LibraryUiTests(unittest.TestCase):
         self.assertNotIn("pb-3 mt-auto", tpl)
         self.assertNotIn("/regenerate", tpl)
 
+    def test_book_card_supports_list_layout(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        tpl = (root / "templates" / "partials" / "book_card.html").read_text(encoding="utf-8")
+        self.assertIn('data-book-layout="grid"', tpl)
+        self.assertIn('data-book-layout="list"', tpl)
+        self.assertIn('href="/book/{{ book.book_id }}/preview"', tpl)
+
     def test_index_grid_is_compact(self) -> None:
         root = Path(__file__).resolve().parent.parent
         index = (root / "templates" / "index.html").read_text(encoding="utf-8")

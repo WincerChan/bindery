@@ -96,17 +96,33 @@
 <script>
   const viewToggle = document.querySelector('[data-view-toggle]');
   const library = document.getElementById('library');
+  function applyLibraryView(view) {
+    if (!library) return;
+    library.dataset.view = view;
+    library.querySelectorAll('[data-book-layout]').forEach((node) => {
+      const layout = node.dataset.bookLayout;
+      if (layout === 'grid') node.classList.toggle('hidden', view === 'list');
+      if (layout === 'list') node.classList.toggle('hidden', view !== 'list');
+    });
+  }
+
   if (viewToggle && library) {
     const stored = localStorage.getItem('bindery-view') || 'grid';
-    library.dataset.view = stored;
+    applyLibraryView(stored);
     viewToggle.querySelectorAll('.toggle-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.view === stored);
       btn.addEventListener('click', () => {
         const view = btn.dataset.view;
-        library.dataset.view = view;
+        applyLibraryView(view);
         localStorage.setItem('bindery-view', view);
         viewToggle.querySelectorAll('.toggle-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
       });
+    });
+
+    document.body.addEventListener('htmx:afterSwap', (event) => {
+      if (event.target && event.target.id === 'library') {
+        applyLibraryView(library.dataset.view || stored);
+      }
     });
   }
 </script>

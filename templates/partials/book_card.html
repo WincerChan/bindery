@@ -1,58 +1,121 @@
-<article class="group bg-white rounded-xl shadow-sm hover:shadow-md border border-slate-200 overflow-hidden transition-shadow flex flex-col" id="book-{{ book.book_id }}">
-  <div class="relative aspect-[2/3] bg-slate-100 overflow-hidden">
-    {% if book.cover_url %}
-      <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-    {% else %}
-      <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
-        <div class="w-12 h-12 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500 font-bold text-xl mb-3">B</div>
-        <span class="text-xs font-mono line-clamp-2">{{ book.title }}</span>
-      </div>
-    {% endif %}
-
-    <div class="absolute top-3 left-3 z-10">
-      {% if book.status_class == "ok" %}
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-green-100 text-green-700 border-green-200">
-          {{ book.status_label }}
-        </span>
-      {% elif book.status_class == "failed" %}
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-red-100 text-red-700 border-red-200">
-          {{ book.status_label }}
-        </span>
+<article class="book-card group bg-white rounded-xl shadow-sm hover:shadow-md border border-slate-200 overflow-hidden transition-shadow flex flex-col" id="book-{{ book.book_id }}">
+  <div data-book-layout="grid" class="flex flex-col h-full">
+    <div class="relative aspect-[2/3] bg-slate-100 overflow-hidden">
+      {% if book.cover_url %}
+        <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
       {% else %}
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-amber-100 text-amber-700 border-amber-200">
-          {{ book.status_label }}
-        </span>
+        <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
+          <div class="w-12 h-12 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500 font-bold text-xl mb-3">B</div>
+          <span class="text-xs font-mono line-clamp-2">{{ book.title }}</span>
+        </div>
       {% endif %}
-    </div>
 
-    <a
-      href="/book/{{ book.book_id }}"
-      class="absolute inset-0 z-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-      aria-label="打开详情"
-    ></a>
+      <div class="absolute top-3 left-3 z-10">
+        {% if book.status_class == "ok" %}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-green-100 text-green-700 border-green-200">
+            {{ book.status_label }}
+          </span>
+        {% elif book.status_class == "failed" %}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-red-100 text-red-700 border-red-200">
+            {{ book.status_label }}
+          </span>
+        {% else %}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-amber-100 text-amber-700 border-amber-200">
+            {{ book.status_label }}
+          </span>
+        {% endif %}
+      </div>
 
-    <div class="absolute inset-x-0 bottom-0 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
-      <div class="p-3 bg-gradient-to-t from-slate-900/70 via-slate-900/20 to-transparent">
-        <div class="grid grid-cols-2 gap-2">
-          <a
-            class="w-full h-9 inline-flex items-center justify-center px-3 text-xs font-medium bg-white/90 text-slate-900 rounded-lg hover:bg-white transition-colors"
-            href="/book/{{ book.book_id }}/download"
-          >下载</a>
-          <form action="/book/{{ book.book_id }}/archive" method="post" class="m-0 min-w-0">
-            <button
-              class="w-full h-9 inline-flex items-center justify-center px-3 text-xs font-medium bg-white/90 text-red-700 rounded-lg hover:bg-white transition-colors cursor-pointer"
-              type="submit"
-            >归档</button>
-          </form>
+      <a
+        href="/book/{{ book.book_id }}"
+        class="absolute inset-0 z-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+        aria-label="打开详情"
+      ></a>
+
+      <div class="absolute inset-x-0 bottom-0 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
+        <div class="p-3 bg-gradient-to-t from-slate-900/70 via-slate-900/20 to-transparent">
+          <div class="grid grid-cols-2 gap-2">
+            <a
+              class="w-full h-9 inline-flex items-center justify-center px-3 text-xs font-medium bg-white/90 text-slate-900 rounded-lg hover:bg-white transition-colors"
+              href="/book/{{ book.book_id }}/download"
+            >下载</a>
+            <form action="/book/{{ book.book_id }}/archive" method="post" class="m-0 min-w-0">
+              <button
+                class="w-full h-9 inline-flex items-center justify-center px-3 text-xs font-medium bg-white/90 text-red-700 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                type="submit"
+              >归档</button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
+
+    <a href="/book/{{ book.book_id }}" class="block p-3 flex-1 flex flex-col focus:outline-none focus:ring-2 focus:ring-indigo-500/50" aria-label="打开详情">
+      <div class="flex items-center gap-2 mb-1">
+        <h3 class="text-sm font-semibold text-slate-900 truncate" title="{{ book.title }}">{{ book.title }}</h3>
+        <span class="text-xs text-slate-500 truncate">{{ book.author or "未知" }}</span>
+      </div>
+    </a>
   </div>
 
-  <a href="/book/{{ book.book_id }}" class="block p-3 flex-1 flex flex-col focus:outline-none focus:ring-2 focus:ring-indigo-500/50" aria-label="打开详情">
-    <div class="flex items-center gap-2 mb-1">
-      <h3 class="text-sm font-semibold text-slate-900 truncate" title="{{ book.title }}">{{ book.title }}</h3>
-      <span class="text-xs text-slate-500 truncate">{{ book.author or "未知" }}</span>
+  <div data-book-layout="list" class="hidden">
+    <div class="flex flex-col sm:flex-row sm:items-stretch gap-4 sm:h-[108px]">
+      <a href="/book/{{ book.book_id }}" class="flex items-stretch gap-4 flex-1 min-w-0 h-full">
+        <div class="w-[72px] h-[108px] rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shadow-sm shrink-0">
+          {% if book.cover_url %}
+            <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover" loading="lazy" />
+          {% else %}
+            <div class="w-full h-full flex items-center justify-center text-slate-500 font-bold text-sm">B</div>
+          {% endif %}
+        </div>
+
+        <div class="min-w-0 flex-1 flex flex-col justify-center pr-0 sm:pr-4 leading-tight">
+          <div class="flex items-center gap-2 min-w-0">
+            <h3 class="min-w-0 text-sm sm:text-base font-semibold text-slate-900 truncate" title="{{ book.title }}">{{ book.title }}</h3>
+            <span class="min-w-0 text-xs sm:text-sm text-slate-500 truncate">{{ book.author or "未知" }}</span>
+            {% if book.status_class == "ok" %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border bg-green-100 text-green-700 border-green-200 shrink-0">
+                {{ book.status_label }}
+              </span>
+            {% elif book.status_class == "failed" %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border bg-red-100 text-red-700 border-red-200 shrink-0">
+                {{ book.status_label }}
+              </span>
+            {% else %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border bg-amber-100 text-amber-700 border-amber-200 shrink-0">
+                {{ book.status_label }}
+              </span>
+            {% endif %}
+          </div>
+
+          {% set meta = namespace(sep="") %}
+          <div class="mt-0.5 text-xs text-slate-500 truncate">
+            {% if book.language %}{{ meta.sep }}语言 {{ book.language }}{% set meta.sep = " · " %}{% endif %}
+            {% if book.series %}{{ meta.sep }}系列 {{ book.series }}{% set meta.sep = " · " %}{% endif %}
+            {% if book.publisher %}{{ meta.sep }}出版社 {{ book.publisher }}{% set meta.sep = " · " %}{% endif %}
+            {% if book.published %}{{ meta.sep }}出版 {{ book.published[:10] }}{% set meta.sep = " · " %}{% endif %}
+            {% if book.isbn %}{{ meta.sep }}ISBN {{ book.isbn }}{% set meta.sep = " · " %}{% endif %}
+            {% if book.tags %}{{ meta.sep }}标签 {{ book.tags[:3] | join(", ") }}{% endif %}
+          </div>
+        </div>
+      </a>
+
+      <div class="flex items-center gap-2 shrink-0 pr-4 sm:h-full">
+        <a
+          class="px-3 py-2 text-xs font-medium bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+          href="/book/{{ book.book_id }}/preview"
+        >阅读</a>
+        <a
+          class="px-3 py-2 text-xs font-medium bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+          href="/book/{{ book.book_id }}/download"
+        >下载</a>
+        <form action="/book/{{ book.book_id }}/archive" method="post" class="m-0">
+          <button
+            class="px-3 py-2 text-xs font-medium bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+            type="submit"
+          >归档</button>
+        </form>
+      </div>
     </div>
-  </a>
+  </div>
 </article>
