@@ -25,12 +25,12 @@
           <div class="mt-3 text-xs text-slate-400 font-mono truncate" title="{{ book.book_id }}">{{ book.book_id }}</div>
           <div class="mt-auto pt-3 flex flex-wrap gap-2">
             <form action="/book/{{ book.book_id }}/restore" method="post" class="m-0">
-              <button class="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors" type="submit">
+              <button class="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors cursor-pointer" type="submit">
                 恢复
               </button>
             </form>
             <form action="/book/{{ book.book_id }}/delete" method="post" onsubmit="return confirm('确定永久删除？');" class="m-0">
-              <button class="px-3 py-1.5 text-xs font-medium bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors" type="submit">
+              <button class="px-3 py-1.5 text-xs font-medium bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer" type="submit">
                 删除
               </button>
             </form>

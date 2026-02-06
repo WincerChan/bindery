@@ -29,7 +29,8 @@ class LibraryUiTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         index = (root / "templates" / "index.html").read_text(encoding="utf-8")
         self.assertIn("gap-5", index)
-        self.assertIn("xl:data-[view=grid]:grid-cols-6", index)
+        self.assertIn("grid-cols-auto-180", index)
+        self.assertIn("data-[view=list]:!grid-cols-1", index)
 
 
 if __name__ == "__main__":

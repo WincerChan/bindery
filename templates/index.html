@@ -42,7 +42,7 @@
       <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200" data-view-toggle>
         <button
           type="button"
-          class="toggle-btn p-1.5 rounded text-slate-500 hover:text-slate-700 transition-colors [&.active]:bg-white [&.active]:shadow-sm [&.active]:text-indigo-600"
+          class="toggle-btn p-1.5 rounded text-slate-500 hover:text-slate-700 transition-colors cursor-pointer [&.active]:bg-white [&.active]:shadow-sm [&.active]:text-indigo-600"
           data-view="grid"
           aria-label="封面墙"
           title="封面墙"
@@ -56,7 +56,7 @@
         </button>
         <button
           type="button"
-          class="toggle-btn p-1.5 rounded text-slate-500 hover:text-slate-700 transition-colors [&.active]:bg-white [&.active]:shadow-sm [&.active]:text-indigo-600"
+          class="toggle-btn p-1.5 rounded text-slate-500 hover:text-slate-700 transition-colors cursor-pointer [&.active]:bg-white [&.active]:shadow-sm [&.active]:text-indigo-600"
           data-view="list"
           aria-label="列表"
           title="列表"
@@ -87,7 +87,7 @@
   <div
     id="library"
     data-view="grid"
-    class="grid gap-5 data-[view=grid]:grid-cols-2 sm:data-[view=grid]:grid-cols-3 md:data-[view=grid]:grid-cols-4 lg:data-[view=grid]:grid-cols-5 xl:data-[view=grid]:grid-cols-6 data-[view=list]:grid-cols-1"
+    class="grid gap-5 grid-cols-auto-180 data-[view=list]:!grid-cols-1"
   >
     {% include "partials/library.html" %}
   </div>

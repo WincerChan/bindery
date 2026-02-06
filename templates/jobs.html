@@ -70,7 +70,7 @@
                 {% endif %}
                 {% if job.status == 'failed' and job.book_id %}
                   <form action="/jobs/{{ job.id }}/retry" method="post">
-                    <button class="px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors" type="submit">
+                    <button class="px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer" type="submit">
                       一键重试
                     </button>
                   </form>

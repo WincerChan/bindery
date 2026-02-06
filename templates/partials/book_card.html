@@ -1,4 +1,3 @@
-{% set rating = book.rating or 0 %}
 <article class="group bg-white rounded-xl shadow-sm hover:shadow-md border border-slate-200 overflow-hidden transition-shadow flex flex-col" id="book-{{ book.book_id }}">
   <div class="relative aspect-[2/3] bg-slate-100 overflow-hidden">
     {% if book.cover_url %}
@@ -51,15 +50,9 @@
   </div>
 
   <a href="/book/{{ book.book_id }}" class="block p-3 flex-1 flex flex-col focus:outline-none focus:ring-2 focus:ring-indigo-500/50" aria-label="打开详情">
-    <div class="flex justify-between items-start gap-2 mb-1">
-      <h3 class="text-sm font-semibold text-slate-900 truncate pr-2" title="{{ book.title }}">{{ book.title }}</h3>
-      {% if rating %}
-        <div class="text-xs text-amber-500 shrink-0">
-          {% for _ in range(rating) %}★{% endfor %}
-          {% for _ in range(5 - rating) %}☆{% endfor %}
-        </div>
-      {% endif %}
+    <div class="flex items-center gap-2 mb-1">
+      <h3 class="text-sm font-semibold text-slate-900 truncate" title="{{ book.title }}">{{ book.title }}</h3>
+      <span class="text-xs text-slate-500 truncate">{{ book.author or "未知" }}</span>
     </div>
-    <p class="text-xs text-slate-500 truncate">{{ book.author or "未知" }}</p>
   </a>
 </article>

@@ -3,3 +3,9 @@
 
 /* Scan FastAPI/Jinja templates for class names. */
 @source "../templates/**/*.html";
+
+@layer components {
+  .grid-cols-auto-180 {
+    grid-template-columns: repeat(auto-fill, 180px);
+  }
+}
