@@ -5,24 +5,11 @@
 {% block content %}
 <div class="max-w-4xl mx-auto space-y-8">
   <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">入库</h1>
-        <p class="text-sm text-slate-500 mt-1">一个上传框：支持 TXT/EPUB；系统自动判定并执行转换/导入。</p>
-      </div>
-      <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full border border-slate-200 text-xs font-medium text-slate-600">
-        <span class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
-        转换后进入书库
-      </div>
-    </div>
     {% if error %}
-      <div class="mt-4 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
         {{ error }}
       </div>
     {% endif %}
-  </section>
-
-  <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
     <form id="ingest-form" action="/ingest" method="post" enctype="multipart/form-data" class="space-y-6">
       <div
         data-dropzone
