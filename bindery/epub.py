@@ -1059,11 +1059,91 @@ def _normalize_spine_and_toc(book: epub.EpubBook) -> None:
         book.toc = docs
 
 
+def _toc_entry_title(entry: object) -> Optional[str]:
+    title = getattr(entry, "title", None)
+    if not title and hasattr(entry, "get_title"):
+        try:
+            title = entry.get_title()
+        except Exception:
+            title = None
+    if not title:
+        return None
+    text = str(title).strip()
+    return text or None
+
+
+def _toc_entry_href(entry: object) -> Optional[str]:
+    href = getattr(entry, "href", None)
+    if not href:
+        href = getattr(entry, "file_name", None)
+    if not href and hasattr(entry, "get_name"):
+        try:
+            href = entry.get_name()
+        except Exception:
+            href = None
+    if not href:
+        return None
+    text = str(href).strip()
+    if not text:
+        return None
+    return text.split("#", 1)[0].strip() or None
+
+
+def _path_lookup_keys(path: str) -> list[str]:
+    normalized = _canonical_zip_member(path)
+    if not normalized:
+        return []
+    keys: list[str] = [normalized]
+    if normalized.startswith("EPUB/"):
+        keys.append(normalized[5:])
+    keys.append(PurePosixPath(normalized).name)
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for key in keys:
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(key)
+    return deduped
+
+
+def _toc_title_index(book: epub.EpubBook) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+
+    def register(entry: object) -> None:
+        title = _toc_entry_title(entry)
+        href = _toc_entry_href(entry)
+        if not title or not href:
+            return
+        for key in _path_lookup_keys(href):
+            mapping.setdefault(key, title)
+
+    def walk(entries: list | tuple) -> None:
+        for entry in entries:
+            if isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[1], (list, tuple)):
+                register(entry[0])
+                walk(entry[1])
+                continue
+            register(entry)
+
+    toc_entries = book.toc if isinstance(book.toc, (list, tuple)) else []
+    walk(toc_entries)
+    return mapping
+
+
 def list_epub_sections(epub_file: Path) -> list[EpubSection]:
     book = _read_epub_resilient(epub_file)
+    toc_titles = _toc_title_index(book)
     sections: list[EpubSection] = []
     for item in _spine_items(book):
-        title = getattr(item, "title", None)
+        item_path = item.get_name() or ""
+        title = None
+        for key in _path_lookup_keys(item_path):
+            if key in toc_titles:
+                title = toc_titles[key]
+                break
+        if not title:
+            title = getattr(item, "title", None)
         if not title and hasattr(item, "get_title"):
             try:
                 title = item.get_title()
@@ -1080,7 +1160,7 @@ def list_epub_sections(epub_file: Path) -> list[EpubSection]:
         if not title:
             name = item.get_name() or "section"
             title = Path(name).stem
-        sections.append(EpubSection(title=title, item_path=item.get_name()))
+        sections.append(EpubSection(title=title, item_path=item_path))
     return sections
 
 
