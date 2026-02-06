@@ -69,6 +69,7 @@ KEEP_BOOK_THEME_ID = "__book__"
 LIBRARY_PAGE_SIZE = 28
 INGEST_ASYNC_BATCH_THRESHOLD = 8
 INGEST_QUEUE_DIR = ".ingest-queue"
+DOUBAN_REFERER = "https://book.douban.com"
 
 _ingest_queue: "queue.Queue[dict]" = queue.Queue()
 _ingest_worker_started = False
@@ -356,6 +357,34 @@ def _compose_css_text(meta: Metadata) -> str:
 
 def _normalize_css_text(text: str) -> str:
     return (text or "").replace("\r\n", "\n").strip()
+
+
+def _is_douban_host(hostname: str) -> bool:
+    host = (hostname or "").strip().lower()
+    return host in {"douban.com", "doubanio.com"} or host.endswith(".douban.com") or host.endswith(".doubanio.com")
+
+
+def _download_cover_from_url(cover_url: str, timeout: float = 10.0) -> tuple[bytes, str]:
+    url = (cover_url or "").strip()
+    if not url:
+        raise ValueError("Missing URL")
+    parsed = urllib.parse.urlparse(url)
+    headers: dict[str, str] = {}
+    if _is_douban_host(parsed.hostname or ""):
+        headers["Referer"] = DOUBAN_REFERER
+
+    request_obj: urllib.request.Request | str
+    if headers:
+        request_obj = urllib.request.Request(url, headers=headers)
+    else:
+        request_obj = url
+
+    with urllib.request.urlopen(request_obj, timeout=timeout) as response:
+        data = response.read()
+    if not data:
+        raise ValueError("封面 URL 下载为空")
+    filename = Path(parsed.path).name or "cover"
+    return data, filename
 
 
 def _style_css_path(names: list[str]) -> Optional[str]:
@@ -1235,11 +1264,7 @@ def _run_edit_writeback(
             cover_changed = True
         elif cover_url:
             _update_job(job.id, stage="下载封面")
-            with urllib.request.urlopen(cover_url, timeout=10) as response:
-                downloaded = response.read()
-            if not downloaded:
-                raise ValueError("封面 URL 下载为空")
-            resolved_name = Path(urllib.parse.urlparse(cover_url).path).name or "cover"
+            downloaded, resolved_name = _download_cover_from_url(cover_url)
             meta.cover_file = save_cover_bytes(base, book_id, downloaded, resolved_name)
             cover_path_obj = cover_path(base, book_id, meta.cover_file)
             cover_changed = True
@@ -2169,11 +2194,10 @@ async def upload_cover_url(
     _require_book(base, book_id)
     if not cover_url:
         raise HTTPException(status_code=400, detail="Missing URL")
-    with urllib.request.urlopen(cover_url, timeout=10) as response:
-        data = response.read()
-        filename = Path(urllib.parse.urlparse(cover_url).path).name
-    if not data:
-        raise HTTPException(status_code=400, detail="Empty cover")
+    try:
+        data, filename = _download_cover_from_url(cover_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     meta = load_metadata(base, book_id)
     meta.cover_file = save_cover_bytes(base, book_id, data, filename)
     meta.updated_at = _now_iso()
@@ -2632,7 +2656,7 @@ async def set_read_status(
     meta = load_metadata(base, book_id)
     normalized = read.strip().lower()
     meta.read = normalized in {"1", "true", "yes", "on"}
-    meta.updated_at = _now_iso()
+    meta.read_updated_at = _now_iso()
     save_metadata(meta, base)
 
     if _is_htmx(request):
