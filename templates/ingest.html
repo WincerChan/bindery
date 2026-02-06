@@ -11,6 +11,7 @@
       </div>
     {% endif %}
     <form id="ingest-form" action="/ingest" method="post" enctype="multipart/form-data" class="space-y-6">
+      <input type="hidden" name="dedupe_mode" value="keep" data-dedupe-mode />
       <div
         data-dropzone
         class="relative border-2 border-dashed rounded-xl p-12 text-center transition-all border-slate-300 hover:border-indigo-400 bg-white [&.dragging]:border-indigo-500 [&.dragging]:bg-indigo-50"
@@ -39,59 +40,17 @@
           </div>
         </div>
       </div>
+      <div data-file-feedback class="hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"></div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div class="space-y-1">
-          <label class="text-xs font-semibold text-slate-500 uppercase">语言</label>
-          <input class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="language" value="" placeholder="留空自动" />
-        </div>
-        <div class="space-y-1">
-          <label class="text-xs font-semibold text-slate-500 uppercase">星级</label>
-          <input class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" type="number" name="rating" min="0" max="5" step="1" />
-        </div>
         <div class="space-y-1">
           <label class="text-xs font-semibold text-slate-500 uppercase">封面（可选）</label>
           <input class="w-full text-sm text-slate-700 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200" type="file" name="cover_file" accept="image/*" />
         </div>
       </div>
-
-      <details class="border border-slate-200 rounded-xl p-4 bg-slate-50/30">
-        <summary class="cursor-pointer text-sm font-medium text-slate-700">覆盖元数据（可选）</summary>
-        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">书名</label>
-            <input class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="title" placeholder="留空则自动/沿用" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">作者</label>
-            <input class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="author" placeholder="留空则自动/沿用" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">系列</label>
-            <input class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="series" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">出版社</label>
-            <input class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="publisher" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">标签</label>
-            <input class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="tags" placeholder="例如：科幻, 太空歌剧" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">发表时间</label>
-            <input class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" type="date" name="published" />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">ISBN</label>
-            <input class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" type="text" name="isbn" />
-          </div>
-        </div>
-        <div class="mt-4 space-y-1">
-          <label class="text-xs font-semibold text-slate-500 uppercase">内容简介</label>
-          <textarea class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" name="description" rows="3"></textarea>
-        </div>
-      </details>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        入库页不再编辑元数据；请在入库后进入书籍详情页进行编辑并写回 EPUB。
+      </div>
 
       <div class="pt-5 border-t border-slate-100 space-y-4">
         <div>
@@ -146,6 +105,7 @@
 
       <div class="flex flex-wrap gap-2">
         <button
+          data-ingest-preview
           class="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
           type="button"
           hx-post="/ingest/preview"
@@ -155,8 +115,9 @@
         >
           预览解析
         </button>
-        <button class="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer" type="submit">开始入库</button>
+        <button data-ingest-submit class="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer" type="submit">开始入库</button>
       </div>
+      <div data-ingest-status class="hidden text-xs text-indigo-600">正在提交入库任务，请稍候...</div>
     </form>
 
     <div id="ingest-preview" class="mt-4 bg-white border border-slate-200 rounded-xl p-4">
@@ -166,6 +127,14 @@
 </div>
 
 <script>
+  const ingestForm = document.getElementById('ingest-form');
+  const fileInput = ingestForm ? ingestForm.querySelector('input[name="files"]') : null;
+  const fileFeedback = ingestForm ? ingestForm.querySelector('[data-file-feedback]') : null;
+  const ingestPreviewBtn = ingestForm ? ingestForm.querySelector('[data-ingest-preview]') : null;
+  const ingestSubmitBtn = ingestForm ? ingestForm.querySelector('[data-ingest-submit]') : null;
+  const ingestStatus = ingestForm ? ingestForm.querySelector('[data-ingest-status]') : null;
+  const dedupeModeInput = ingestForm ? ingestForm.querySelector('[data-dedupe-mode]') : null;
+
   document.querySelectorAll('[data-dropzone]').forEach((dropzone) => {
     dropzone.addEventListener('dragover', (event) => {
       event.preventDefault();
@@ -274,5 +243,42 @@
       target.value = formatCssText(target.value);
     });
   });
+
+  const setSelectedFilesFeedback = () => {
+    if (!fileInput || !fileFeedback) return;
+    const files = Array.from(fileInput.files || []);
+    if (!files.length) {
+      fileFeedback.classList.add('hidden');
+      fileFeedback.textContent = '';
+      return;
+    }
+    const names = files.map((f) => f.name).join('、');
+    fileFeedback.textContent = files.length === 1 ? `已选择：${names}` : `已选择 ${files.length} 个文件：${names}`;
+    fileFeedback.classList.remove('hidden');
+  };
+
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      setSelectedFilesFeedback();
+      if (ingestPreviewBtn) ingestPreviewBtn.click();
+    });
+  }
+
+  if (ingestForm && ingestSubmitBtn) {
+    ingestForm.addEventListener('submit', () => {
+      if (dedupeModeInput) dedupeModeInput.value = 'keep';
+      const hasDuplicateHit = Boolean(document.querySelector('#ingest-preview [data-duplicate-hit="1"]'));
+      if (hasDuplicateHit && dedupeModeInput) {
+        const shouldNormalize = window.confirm(
+          '检测到疑似重复书籍。\n点击“确定”将归一到已入库书籍并跳过重复入库；点击“取消”将继续新建。'
+        );
+        dedupeModeInput.value = shouldNormalize ? 'normalize' : 'keep';
+      }
+      ingestSubmitBtn.disabled = true;
+      ingestSubmitBtn.textContent = '入库中...';
+      ingestSubmitBtn.classList.add('opacity-70', 'cursor-not-allowed');
+      if (ingestStatus) ingestStatus.classList.remove('hidden');
+    });
+  }
 </script>
 {% endblock %}

@@ -15,6 +15,28 @@
         {{ error }}
       </div>
     {% endif %}
+    {% if info %}
+      <div class="rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 px-3 py-2 text-sm">
+        {{ info }}
+      </div>
+    {% endif %}
+    {% if lookup_sources and lookup_sources|length > 1 %}
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 flex flex-wrap items-center gap-2">
+        <span>可选来源：</span>
+        {% for item in lookup_sources %}
+          <button
+            type="button"
+            data-apply-source="{{ item.id }}"
+            data-source-label="{{ item.label }}"
+            class="px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 transition-colors cursor-pointer {% if item.selected == 'true' %}border-indigo-300 text-indigo-700 bg-indigo-50{% endif %}"
+          >{{ item.label }}{% if item.selected == 'true' %}（已应用）{% endif %}</button>
+        {% endfor %}
+      </div>
+    {% endif %}
+    <input type="hidden" name="metadata_source" data-metadata-source value="{{ lookup_selected_source or '' }}" />
+    <script type="application/json" id="lookup-changed-fields">{{ lookup_changed_fields | default([], true) | tojson }}</script>
+    <script type="application/json" id="lookup-candidates-data">{{ lookup_candidates | default({}, true) | tojson }}</script>
+    <input type="hidden" data-lookup-allow-cover-fill value="{{ 'true' if lookup_allow_cover_fill else 'false' }}" />
 
     <div class="flex flex-col lg:flex-row gap-6">
       <div class="w-[180px] shrink-0">
@@ -47,9 +69,19 @@
           </div>
           <div class="flex items-center gap-2">
             <a class="px-4 py-2 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors" href="/book/{{ book_id }}">取消</a>
+            <button
+              type="button"
+              data-fetch-metadata
+              hx-post="/book/{{ book_id }}/metadata/fetch"
+              hx-target="#meta-panel"
+              hx-swap="outerHTML"
+              hx-include="#meta-edit-form"
+              class="px-4 py-2 text-sm bg-white border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-50 font-medium transition-colors cursor-pointer"
+            >自动填充信息</button>
             <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm transition-colors cursor-pointer" type="submit">保存并写回</button>
           </div>
         </div>
+        <div data-fetch-status class="hidden text-xs text-indigo-600">正在从 Amazon / 豆瓣检索，请稍候...</div>
 
         <div class="flex flex-wrap gap-4">
           <div class="space-y-1 min-w-[220px] flex-1">
@@ -58,6 +90,7 @@
               class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-sm text-slate-900 bg-white"
               contenteditable="true"
               data-edit-field="title"
+              data-autofill-target="title"
               data-singleline="true"
               role="textbox"
               aria-label="书名"
@@ -71,6 +104,7 @@
               class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
               contenteditable="true"
               data-edit-field="author"
+              data-autofill-target="author"
               data-singleline="true"
               role="textbox"
               aria-label="作者"
@@ -84,6 +118,7 @@
               class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
               contenteditable="true"
               data-edit-field="language"
+              data-autofill-target="language"
               data-singleline="true"
               role="textbox"
               aria-label="语言"
@@ -125,6 +160,7 @@
               class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
               contenteditable="true"
               data-edit-field="publisher"
+              data-autofill-target="publisher"
               data-singleline="true"
               role="textbox"
               aria-label="出版社"
@@ -138,6 +174,7 @@
               class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
               contenteditable="true"
               data-edit-field="tags"
+              data-autofill-target="tags"
               data-singleline="true"
               role="textbox"
               aria-label="标签（逗号分隔）"
@@ -151,6 +188,7 @@
               class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
               contenteditable="true"
               data-edit-field="published"
+              data-autofill-target="published"
               data-singleline="true"
               role="textbox"
               aria-label="发表时间"
@@ -164,6 +202,7 @@
               class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white font-mono"
               contenteditable="true"
               data-edit-field="isbn"
+              data-autofill-target="isbn"
               data-singleline="true"
               role="textbox"
               aria-label="ISBN"
@@ -187,7 +226,9 @@
               class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
               type="url"
               name="cover_url"
+              data-autofill-target="cover_url"
               placeholder="https://example.com/cover.jpg"
+              value="{{ book.cover_fetch_url or '' }}"
             />
             <p class="text-[11px] text-slate-500">可选：保存时会下载并写回到 EPUB。</p>
           </div>
@@ -197,6 +238,7 @@
               class="min-h-[120px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm leading-relaxed text-slate-700 bg-white whitespace-pre-wrap"
               contenteditable="true"
               data-edit-field="description"
+              data-autofill-target="description"
               data-multiline="true"
               role="textbox"
               aria-label="内容简介"
@@ -275,6 +317,16 @@
       const ratingLabel = form.querySelector("[data-rating-label]");
       const ratingStars = Array.from(form.querySelectorAll("[data-rating-star]"));
       const formatButtons = Array.from(form.querySelectorAll("[data-format-target]"));
+      const fetchButtons = Array.from(form.querySelectorAll("[data-fetch-metadata]"));
+      const fetchStatus = form.querySelector("[data-fetch-status]");
+      const metadataSourceInput = form.querySelector("[data-metadata-source]");
+      const sourceButtons = Array.from(form.querySelectorAll("[data-apply-source]"));
+      const autofillTargets = Array.from(form.querySelectorAll("[data-autofill-target]"));
+      const changedFieldsScript = form.querySelector("#lookup-changed-fields");
+      const candidatesScript = form.querySelector("#lookup-candidates-data");
+      const allowCoverFillInput = form.querySelector("[data-lookup-allow-cover-fill]");
+      const lookupCandidates = candidatesScript ? JSON.parse(candidatesScript.textContent || "{}") : {};
+      const allowCoverFill = allowCoverFillInput ? allowCoverFillInput.value === "true" : false;
 
       const normalize = (value) => String(value || "").replace(/\u00a0/g, " ").replace(/\r\n/g, "\n");
       const indentUnit = "  ";
@@ -407,6 +459,77 @@
         if (ratingLabel) ratingLabel.textContent = numeric ? `${numeric} 星` : "未评分";
       }
 
+      function setAutofillHighlight(fields) {
+        const changed = new Set(Array.isArray(fields) ? fields : []);
+        autofillTargets.forEach((target) => {
+          const key = target.dataset.autofillTarget;
+          const active = changed.has(key);
+          target.classList.toggle("bg-amber-50", active);
+          target.classList.toggle("ring-2", active);
+          target.classList.toggle("ring-amber-300", active);
+          target.classList.toggle("border-amber-300", active);
+        });
+      }
+
+      function updateSourceButtons(selectedSource) {
+        sourceButtons.forEach((btn) => {
+          const source = (btn.dataset.applySource || "").trim();
+          const label = btn.dataset.sourceLabel || source;
+          const active = source && source === selectedSource;
+          btn.classList.toggle("border-indigo-300", active);
+          btn.classList.toggle("text-indigo-700", active);
+          btn.classList.toggle("bg-indigo-50", active);
+          btn.classList.toggle("border-slate-300", !active);
+          btn.classList.toggle("bg-white", !active);
+          btn.textContent = active ? `${label}（已应用）` : label;
+        });
+      }
+
+      function setEditableValue(fieldKey, nextValue) {
+        const fieldEl = form.querySelector(`[data-edit-field="${fieldKey}"]`);
+        const target = form.querySelector(`[data-edit-target="${fieldKey}"]`);
+        if (!fieldEl || !target) return false;
+        const value = String(nextValue || "");
+        const current = String(target.value || "");
+        if (current === value) return false;
+        fieldEl.innerText = value;
+        syncField(fieldEl);
+        return true;
+      }
+
+      function setInputValue(selector, nextValue) {
+        const input = form.querySelector(selector);
+        if (!input) return false;
+        const value = String(nextValue || "");
+        if (String(input.value || "") === value) return false;
+        input.value = value;
+        return true;
+      }
+
+      function applyLookupSource(source) {
+        const candidate = lookupCandidates[source];
+        if (!candidate) return;
+        const changed = [];
+        if (setEditableValue("title", candidate.title)) changed.push("title");
+        if (setEditableValue("author", candidate.author)) changed.push("author");
+        if (setEditableValue("language", candidate.language)) changed.push("language");
+        if (setEditableValue("description", candidate.description)) changed.push("description");
+        if (setEditableValue("publisher", candidate.publisher)) changed.push("publisher");
+        if (setEditableValue("published", candidate.published)) changed.push("published");
+        if (setEditableValue("isbn", candidate.isbn)) changed.push("isbn");
+        const tagsValue = Array.isArray(candidate.tags) ? candidate.tags.join(", ") : "";
+        if (setEditableValue("tags", tagsValue)) changed.push("tags");
+        if (allowCoverFill && source === "douban" && candidate.cover_url) {
+          const coverInput = form.querySelector('input[name="cover_url"]');
+          if (coverInput && !String(coverInput.value || "").trim()) {
+            if (setInputValue('input[name="cover_url"]', candidate.cover_url)) changed.push("cover_url");
+          }
+        }
+        if (metadataSourceInput) metadataSourceInput.value = source;
+        updateSourceButtons(source);
+        setAutofillHighlight(changed);
+      }
+
       fields.forEach((fieldEl) => {
         syncField(fieldEl);
         fieldEl.addEventListener("input", () => syncField(fieldEl));
@@ -438,6 +561,58 @@
           target.value = formatCssText(target.value);
         });
       });
+
+      if (changedFieldsScript) {
+        try {
+          const changed = JSON.parse(changedFieldsScript.textContent || "[]");
+          setAutofillHighlight(changed);
+        } catch (_err) {
+          setAutofillHighlight([]);
+        }
+      } else {
+        setAutofillHighlight([]);
+      }
+
+      function setFetchPending(active) {
+        fetchButtons.forEach((btn) => {
+          const idleLabel = btn.dataset.idleLabel || btn.textContent.trim() || "自动填充信息";
+          btn.dataset.idleLabel = idleLabel;
+          btn.disabled = active;
+          btn.textContent = active ? "请求中..." : idleLabel;
+          btn.classList.toggle("opacity-70", active);
+          btn.classList.toggle("cursor-not-allowed", active);
+        });
+        if (fetchStatus) {
+          fetchStatus.classList.toggle("hidden", !active);
+        }
+      }
+
+      fetchButtons.forEach((btn) => {
+        const idleLabel = btn.textContent.trim() || "自动填充信息";
+        btn.dataset.idleLabel = idleLabel;
+        btn.addEventListener("click", () => {
+          if (metadataSourceInput) {
+            metadataSourceInput.value = "";
+          }
+          fields.forEach((fieldEl) => syncField(fieldEl));
+          setFetchPending(true);
+        });
+        btn.addEventListener("htmx:afterRequest", () => setFetchPending(false));
+        btn.addEventListener("htmx:responseError", () => setFetchPending(false));
+        btn.addEventListener("htmx:sendError", () => setFetchPending(false));
+      });
+
+      sourceButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const source = (btn.dataset.applySource || "").trim();
+          if (!source) return;
+          applyLookupSource(source);
+        });
+      });
+
+      if (metadataSourceInput && metadataSourceInput.value) {
+        updateSourceButtons(metadataSourceInput.value);
+      }
 
       form.addEventListener("submit", (event) => {
         fields.forEach((fieldEl) => syncField(fieldEl));

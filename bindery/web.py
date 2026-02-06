@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 import re
 import tempfile
 import traceback
@@ -32,6 +33,7 @@ from .epub import (
     update_epub_metadata,
 )
 from .models import Book, Job, Metadata, Volume
+from .metadata_lookup import LookupMetadata, lookup_book_metadata_candidates
 from .parsing import DEFAULT_RULE_CONFIG, decode_text, parse_book
 from .rules import RuleTemplateError, get_rule, load_rule_templates, rules_dir, validate_rule_template_json
 from .themes import compose_css, get_theme, load_theme_templates, themes_dir
@@ -68,6 +70,7 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+logger = logging.getLogger("bindery.metadata")
 
 
 @app.on_event("startup")
@@ -173,6 +176,78 @@ def _detect_source_type(filename: str, content_type: Optional[str], data: bytes)
 def _safe_filename(value: str) -> str:
     cleaned = re.sub(r"[^0-9a-zA-Z\u4e00-\u9fff]+", "_", value).strip("_")
     return cleaned or "book"
+
+
+def _normalize_identity_text(value: Optional[str]) -> str:
+    cleaned = re.sub(r"[^0-9a-zA-Z\u4e00-\u9fff]+", "", (value or "").strip().lower())
+    return cleaned
+
+
+def _normalize_isbn(value: Optional[str]) -> str:
+    return re.sub(r"[^0-9Xx]+", "", (value or "")).upper()
+
+
+def _match_duplicate_reason(
+    candidate_title: Optional[str],
+    candidate_author: Optional[str],
+    candidate_isbn: Optional[str],
+    existing: Metadata,
+) -> Optional[str]:
+    candidate_isbn_key = _normalize_isbn(candidate_isbn)
+    existing_isbn_key = _normalize_isbn(existing.isbn)
+    if candidate_isbn_key and existing_isbn_key and candidate_isbn_key == existing_isbn_key:
+        return "ISBN"
+
+    candidate_title_key = _normalize_identity_text(candidate_title)
+    existing_title_key = _normalize_identity_text(existing.title)
+    if not candidate_title_key or not existing_title_key or candidate_title_key != existing_title_key:
+        return None
+
+    candidate_author_key = _normalize_identity_text(candidate_author)
+    existing_author_key = _normalize_identity_text(existing.author)
+    if candidate_author_key and existing_author_key and candidate_author_key == existing_author_key:
+        return "标题+作者"
+    if not candidate_author_key and not existing_author_key:
+        return "标题"
+    return None
+
+
+def _find_duplicate_books(
+    base: Path,
+    title: Optional[str],
+    author: Optional[str],
+    isbn: Optional[str],
+    *,
+    limit: int = 3,
+) -> list[dict]:
+    matches: list[dict] = []
+    for existing in list_books(base):
+        reason = _match_duplicate_reason(title, author, isbn, existing)
+        if not reason:
+            continue
+        matches.append(
+            {
+                "book_id": existing.book_id,
+                "title": existing.title,
+                "author": existing.author or "未知",
+                "reason": reason,
+            }
+        )
+        if len(matches) >= limit:
+            break
+    return matches
+
+
+def _find_first_duplicate_meta(
+    base: Path,
+    title: Optional[str],
+    author: Optional[str],
+    isbn: Optional[str],
+) -> Optional[Metadata]:
+    for existing in list_books(base):
+        if _match_duplicate_reason(title, author, isbn, existing):
+            return existing
+    return None
 
 
 def _book_sections(book: Book) -> list[dict]:
@@ -326,6 +401,158 @@ def _book_view(meta: Metadata, base: Path) -> dict:
     if meta.cover_file and not meta.archived:
         data["cover_url"] = f"/book/{meta.book_id}/cover"
     return data
+
+
+def _build_edit_draft_view(
+    meta: Metadata,
+    base: Path,
+    book: Book,
+    *,
+    title: str,
+    author: str,
+    language: str,
+    description: str,
+    series: str,
+    publisher: str,
+    tags: str,
+    published: str,
+    isbn: str,
+    rating: str,
+    rule_template: str,
+    theme_template: str,
+    custom_css: str,
+    cover_url: str,
+) -> dict:
+    draft = _book_view(meta, base)
+    draft["title"] = title.strip() or book.title or meta.title or "未命名"
+    draft["author"] = author.strip() or None
+    draft["language"] = language.strip() or "zh-CN"
+    draft["description"] = description.strip() or None
+    draft["series"] = series.strip() or None
+    draft["publisher"] = publisher.strip() or None
+    draft["tags"] = _parse_tags(tags)
+    draft["published"] = published.strip() or None
+    draft["isbn"] = isbn.strip() or None
+    draft["rating"] = _parse_rating(rating)
+    draft["custom_css"] = custom_css.strip() or None
+    draft["cover_fetch_url"] = cover_url.strip() or draft.get("cover_fetch_url") or ""
+
+    if meta.source_type != "epub":
+        draft["rule_template"] = rule_template.strip() or draft.get("rule_template") or "default"
+
+    raw_theme = theme_template.strip()
+    if raw_theme:
+        if meta.source_type == "epub" and raw_theme == KEEP_BOOK_THEME_ID:
+            draft["theme_template"] = KEEP_BOOK_THEME_ID
+            draft["effective_theme_template"] = None
+        else:
+            selected_theme = raw_theme if raw_theme != KEEP_BOOK_THEME_ID else DEFAULT_THEME_ID
+            draft["theme_template"] = selected_theme
+            draft["effective_theme_template"] = selected_theme
+
+    return draft
+
+
+def _lookup_result_view(
+    query: str,
+    source_name: str,
+    draft_book: dict,
+    lookup_errors: list[str],
+    *,
+    source_cover_url: Optional[str] = None,
+) -> dict:
+    return {
+        "query": query,
+        "source": source_name,
+        "title": draft_book.get("title"),
+        "author": draft_book.get("author"),
+        "language": draft_book.get("language"),
+        "publisher": draft_book.get("publisher"),
+        "published": draft_book.get("published"),
+        "isbn": draft_book.get("isbn"),
+        "cover_url": source_cover_url,
+        "applied_cover_url": draft_book.get("cover_fetch_url"),
+        "tags": list(draft_book.get("tags") or []),
+        "description": draft_book.get("description"),
+        "errors": lookup_errors[:2],
+    }
+
+
+def _lookup_source_label(source_id: str) -> str:
+    return {"douban": "豆瓣", "amazon": "Amazon"}.get(source_id, source_id)
+
+
+def _lookup_sources_view(candidates: dict[str, LookupMetadata], selected_source: Optional[str]) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for source_id in ("douban", "amazon"):
+        if source_id not in candidates:
+            continue
+        items.append(
+            {
+                "id": source_id,
+                "label": _lookup_source_label(source_id),
+                "selected": "true" if source_id == selected_source else "false",
+            }
+        )
+    return items
+
+
+def _lookup_candidates_payload(candidates: dict[str, LookupMetadata]) -> dict[str, dict]:
+    payload: dict[str, dict] = {}
+    for source_id, item in candidates.items():
+        payload[source_id] = {
+            "source": source_id,
+            "title": item.title or "",
+            "author": item.author or "",
+            "language": item.language or "",
+            "description": item.description or "",
+            "publisher": item.publisher or "",
+            "tags": list(item.tags or []),
+            "published": item.published or "",
+            "isbn": item.isbn or "",
+            "cover_url": item.cover_url or "",
+        }
+    return payload
+
+
+def _apply_lookup_metadata_to_draft(
+    draft_book: dict,
+    result: LookupMetadata,
+    *,
+    allow_cover_fill: bool,
+) -> list[str]:
+    changed_fields: list[str] = []
+
+    def apply_value(field: str, value: Optional[str]) -> None:
+        if not value:
+            return
+        current = draft_book.get(field)
+        if current != value:
+            draft_book[field] = value
+            changed_fields.append(field)
+
+    apply_value("title", result.title)
+    apply_value("author", result.author)
+    apply_value("language", result.language)
+    apply_value("description", result.description)
+    apply_value("publisher", result.publisher)
+    apply_value("published", result.published)
+    apply_value("isbn", result.isbn)
+
+    if result.tags:
+        tags = list(result.tags)
+        if list(draft_book.get("tags") or []) != tags:
+            draft_book["tags"] = tags
+            changed_fields.append("tags")
+
+    if allow_cover_fill and result.source == "douban" and result.cover_url:
+        cover_url = result.cover_url.strip()
+        current_cover = str(draft_book.get("cover_fetch_url") or "").strip()
+        if current_cover != cover_url:
+            draft_book["cover_fetch_url"] = cover_url
+            changed_fields.append("cover_url")
+
+    return changed_fields
 
 
 def _require_book(base: Path, book_id: str) -> None:
@@ -816,6 +1043,7 @@ async def ingest_preview(
                     "output": "—",
                     "path": str(base / "<自动ID>"),
                     "error": "空文件",
+                    "duplicates": [],
                 }
             )
             continue
@@ -841,9 +1069,11 @@ async def ingest_preview(
                             "output": filename,
                             "path": str(base / "<自动ID>"),
                             "error": "解析 EPUB 失败",
+                            "duplicates": [],
                         }
                     )
                     continue
+            duplicates = _find_duplicate_books(base, meta.get("title"), meta.get("author"), meta.get("isbn"))
             previews.append(
                 {
                     "filename": filename,
@@ -855,6 +1085,7 @@ async def ingest_preview(
                     "toc": [section.title for section in sections[:10]],
                     "output": filename,
                     "path": str(base / "<自动ID>"),
+                    "duplicates": duplicates,
                 }
             )
             continue
@@ -876,10 +1107,12 @@ async def ingest_preview(
                         "output": "—",
                         "path": str(base / "<自动ID>"),
                         "error": "文本为空或无法解码",
+                        "duplicates": [],
                     }
                 )
                 continue
             book = parse_book(text, Path(filename).stem, rule.rules)
+            duplicates = _find_duplicate_books(base, book.title, book.author, None)
             previews.append(
                 {
                     "filename": filename,
@@ -891,6 +1124,7 @@ async def ingest_preview(
                     "toc": _toc_preview(book, 10),
                     "output": f"{_safe_filename(book.title)}.epub",
                     "path": str(base / "<自动ID>"),
+                    "duplicates": duplicates,
                 }
             )
             continue
@@ -907,6 +1141,7 @@ async def ingest_preview(
                 "output": "—",
                 "path": str(base / "<自动ID>"),
                 "error": "不支持的文件类型（仅支持 .txt / .epub）",
+                "duplicates": [],
             }
         )
 
@@ -934,6 +1169,7 @@ async def ingest(
     rule_template: str = Form("default"),
     theme_template: str = Form(""),
     custom_css: str = Form(""),
+    dedupe_mode: str = Form("keep"),
     cover_file: Optional[UploadFile] = File(None),
 ) -> HTMLResponse:
     if not files:
@@ -958,6 +1194,7 @@ async def ingest(
 
     base = library_dir()
     created_books: list[dict] = []
+    dedupe_mode = "normalize" if dedupe_mode == "normalize" else "keep"
     for upload_file in files:
         filename = upload_file.filename or "upload"
         data = await upload_file.read()
@@ -968,6 +1205,24 @@ async def ingest(
 
         kind = _detect_source_type(filename, upload_file.content_type, data)
         if kind == "epub":
+            if dedupe_mode == "normalize":
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".epub") as tmp:
+                        tmp.write(data)
+                        tmp.flush()
+                        extracted = extract_epub_metadata(Path(tmp.name), Path(filename).stem)
+                    duplicate_meta = _find_first_duplicate_meta(
+                        base,
+                        title.strip() or extracted.get("title") or Path(filename).stem,
+                        author.strip() or extracted.get("author"),
+                        isbn.strip() or extracted.get("isbn"),
+                    )
+                    if duplicate_meta:
+                        created_books.append(_book_view(duplicate_meta, base))
+                        continue
+                except Exception:
+                    # 去重探测失败时回退到常规入库流程，避免影响主流程可用性。
+                    pass
             book_id = new_book_id()
             job = _create_job("upload-epub", book_id, None)
             try:
@@ -1009,6 +1264,23 @@ async def ingest(
                 _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 文本为空或无法解码", log=None)
                 continue
             source_name = Path(filename).stem
+            if dedupe_mode == "normalize":
+                try:
+                    dedupe_rule = get_rule(rule_template)
+                    dedupe_book = parse_book(text, source_name, dedupe_rule.rules)
+                    duplicate_meta = _find_first_duplicate_meta(
+                        base,
+                        title.strip() or dedupe_book.title,
+                        author.strip() or dedupe_book.author,
+                        isbn.strip() or None,
+                    )
+                    if duplicate_meta:
+                        created_books.append(_book_view(duplicate_meta, base))
+                        continue
+                except RuleTemplateError:
+                    pass
+                except Exception:
+                    pass
             book_id = new_book_id()
             job = _create_job("upload", book_id, rule_template)
             try:
@@ -1052,6 +1324,11 @@ async def ingest(
             "partials/library.html",
             {"request": request, "books": created_books},
         )
+
+    if len(created_books) == 1:
+        target_book_id = str(created_books[0].get("book_id") or "").strip()
+        if target_book_id:
+            return RedirectResponse(url=f"/book/{target_book_id}/edit", status_code=303)
 
     return RedirectResponse(url="/jobs", status_code=303)
 
@@ -1533,6 +1810,184 @@ async def edit_metadata(request: Request, book_id: str) -> HTMLResponse:
             "book_id": book_id,
             "rules": rules,
             "themes": themes,
+        },
+    )
+
+
+@app.post("/book/{book_id}/metadata/fetch", response_class=HTMLResponse)
+async def fetch_metadata(
+    request: Request,
+    book_id: str,
+    title: str = Form(""),
+    author: str = Form(""),
+    language: str = Form(""),
+    description: str = Form(""),
+    series: str = Form(""),
+    publisher: str = Form(""),
+    tags: str = Form(""),
+    published: str = Form(""),
+    isbn: str = Form(""),
+    rating: str = Form(""),
+    rule_template: str = Form(""),
+    theme_template: str = Form(""),
+    custom_css: str = Form(""),
+    cover_url: str = Form(""),
+    metadata_source: str = Form(""),
+) -> HTMLResponse:
+    base = library_dir()
+    _require_book(base, book_id)
+    meta = load_metadata(base, book_id)
+    book = load_book(base, book_id)
+
+    rules = load_rule_templates()
+    themes = load_theme_templates()
+    template = "partials/meta_edit.html" if _is_htmx(request) else "edit.html"
+
+    draft_book = _build_edit_draft_view(
+        meta,
+        base,
+        book,
+        title=title,
+        author=author,
+        language=language,
+        description=description,
+        series=series,
+        publisher=publisher,
+        tags=tags,
+        published=published,
+        isbn=isbn,
+        rating=rating,
+        rule_template=rule_template,
+        theme_template=theme_template,
+        custom_css=custom_css,
+        cover_url=cover_url,
+    )
+
+    query = str(draft_book.get("title") or "").strip()
+    candidates, best_source, lookup_errors, lookup_attempts = lookup_book_metadata_candidates(query)
+    if not candidates:
+        detail = "；".join(lookup_errors[:2]) if lookup_errors else "未返回可用结果"
+        logger.warning(
+            "metadata lookup failed book_id=%s query=%r detail=%s attempts=%r",
+            book_id,
+            query,
+            detail,
+            lookup_attempts,
+        )
+        print(
+            f"[bindery] metadata lookup failed book_id={book_id} query={query!r} "
+            f"detail={detail} attempts={lookup_attempts!r}"
+        )
+        return templates.TemplateResponse(
+            template,
+            {
+                "request": request,
+                "book": draft_book,
+                "book_id": book_id,
+                "rules": rules,
+                "themes": themes,
+                "error": f"未能从 Amazon/豆瓣获取元数据：{detail}",
+                "lookup_attempts": lookup_attempts,
+                "lookup_sources": [],
+                "lookup_selected_source": "",
+                "lookup_changed_fields": [],
+                "lookup_candidates": {},
+                "lookup_allow_cover_fill": False,
+            },
+        )
+
+    selected_source = metadata_source.strip().lower()
+    if selected_source not in candidates:
+        selected_source = best_source or ""
+    result = candidates.get(selected_source)
+    if not result:
+        detail = "；".join(lookup_errors[:2]) if lookup_errors else "未返回可用结果"
+        return templates.TemplateResponse(
+            template,
+            {
+                "request": request,
+                "book": draft_book,
+                "book_id": book_id,
+                "rules": rules,
+                "themes": themes,
+                "error": f"未能从 Amazon/豆瓣获取元数据：{detail}",
+                "lookup_attempts": lookup_attempts,
+                "lookup_sources": [],
+                "lookup_selected_source": "",
+                "lookup_changed_fields": [],
+                "lookup_candidates": {},
+                "lookup_allow_cover_fill": False,
+            },
+        )
+
+    has_existing_cover = bool(meta.cover_file or draft_book.get("cover_url"))
+    has_manual_cover_fetch_url = bool(str(draft_book.get("cover_fetch_url") or "").strip())
+    allow_cover_fill = (not has_existing_cover) and (not has_manual_cover_fetch_url)
+    changed_fields = _apply_lookup_metadata_to_draft(
+        draft_book,
+        result,
+        allow_cover_fill=allow_cover_fill,
+    )
+
+    source_name = _lookup_source_label(result.source)
+    if len(candidates) > 1:
+        info = f"已自动使用 {source_name} 填充字段，可切换来源后再次应用。"
+    else:
+        info = f"已从 {source_name} 自动填充字段，请检查后再保存并写回。"
+    if "cover_url" in changed_fields:
+        info += "（已回填豆瓣封面 URL）"
+    if lookup_errors:
+        info += "（另一个来源返回失败）"
+    lookup_result = _lookup_result_view(
+        query,
+        source_name,
+        draft_book,
+        lookup_errors,
+        source_cover_url=result.cover_url,
+    )
+    logger.info(
+        "metadata lookup success book_id=%s query=%r source=%s title=%r author=%r language=%r publisher=%r published=%r isbn=%r source_cover_url=%r applied_cover_url=%r tags=%r errors=%r attempts=%r",
+        book_id,
+        lookup_result["query"],
+        result.source,
+        lookup_result["title"],
+        lookup_result["author"],
+        lookup_result["language"],
+        lookup_result["publisher"],
+        lookup_result["published"],
+        lookup_result["isbn"],
+        lookup_result["cover_url"],
+        lookup_result["applied_cover_url"],
+        lookup_result["tags"],
+        lookup_result["errors"],
+        lookup_attempts,
+    )
+    print(
+        f"[bindery] metadata lookup success book_id={book_id} query={lookup_result['query']!r} "
+        f"source={result.source} title={lookup_result['title']!r} author={lookup_result['author']!r} "
+        f"publisher={lookup_result['publisher']!r} published={lookup_result['published']!r} "
+        f"isbn={lookup_result['isbn']!r} source_cover_url={lookup_result['cover_url']!r} "
+        f"applied_cover_url={lookup_result['applied_cover_url']!r} "
+        f"tags={lookup_result['tags']!r} "
+        f"errors={lookup_result['errors']!r} attempts={lookup_attempts!r}"
+    )
+
+    return templates.TemplateResponse(
+        template,
+        {
+            "request": request,
+            "book": draft_book,
+            "book_id": book_id,
+            "rules": rules,
+            "themes": themes,
+            "info": info,
+            "lookup_result": lookup_result,
+            "lookup_attempts": lookup_attempts,
+            "lookup_sources": _lookup_sources_view(candidates, result.source),
+            "lookup_selected_source": result.source,
+            "lookup_changed_fields": changed_fields,
+            "lookup_candidates": _lookup_candidates_payload(candidates),
+            "lookup_allow_cover_fill": allow_cover_fill,
         },
     )
 

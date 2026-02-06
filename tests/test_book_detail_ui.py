@@ -39,6 +39,18 @@ class BookDetailUiTests(unittest.TestCase):
         self.assertIn('data-edit-field="title"', edit)
         self.assertIn('data-rating-star="{{ i }}"', edit)
         self.assertIn('data-rating-input', edit)
+        self.assertIn('data-fetch-metadata', edit)
+        self.assertIn('hx-post="/book/{{ book_id }}/metadata/fetch"', edit)
+        self.assertIn('name="metadata_source"', edit)
+        self.assertIn("data-apply-source", edit)
+        self.assertIn("lookup_sources", edit)
+        self.assertIn("lookup-changed-fields", edit)
+        self.assertIn("lookup-candidates-data", edit)
+        self.assertIn("data-lookup-allow-cover-fill", edit)
+        self.assertIn("applyLookupSource", edit)
+        self.assertIn("data-autofill-target", edit)
+        self.assertIn("book.cover_fetch_url", edit)
+        self.assertIn("data-fetch-status", edit)
 
 
 if __name__ == "__main__":
