@@ -33,6 +33,7 @@ from .epub import (
     extract_epub_metadata,
     list_epub_sections,
     load_epub_item,
+    strip_webp_assets_and_refs,
     update_epub_metadata,
 )
 from .models import Book, Job, Metadata, Volume
@@ -369,6 +370,14 @@ def _normalize_sort(value: str) -> str:
     return "created" if (value or "").strip().lower() == "created" else "updated"
 
 
+def _is_true_flag(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if not isinstance(value, str):
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _safe_internal_redirect_target(target: object, fallback: str) -> str:
     raw = target.strip() if isinstance(target, str) else ""
     if not raw:
@@ -488,7 +497,7 @@ def _ensure_book_epub_css(base: Path, meta: Metadata) -> None:
     css_text = _compose_css_text(meta)
     if meta.source_type == "epub":
         # 不覆盖封面：保持 EPUB 本体。
-        update_epub_metadata(epub_file, meta, None, css_text=css_text)
+        update_epub_metadata(epub_file, meta, None, css_text=css_text, strip_webp_assets=True)
     else:
         book = load_book(base, meta.book_id)
         cover_path_obj = cover_path(base, meta.book_id, meta.cover_file) if meta.cover_file else None
@@ -1056,6 +1065,7 @@ def _process_queued_ingest_task(task: dict) -> None:
         cover_bytes = task.get("cover_bytes")
         cover_name = task.get("cover_name")
         cover_url = str(task.get("cover_url") or "").strip()
+        strip_original_css = bool(task.get("strip_original_css"))
         try:
             _run_edit_writeback(
                 job,
@@ -1064,6 +1074,7 @@ def _process_queued_ingest_task(task: dict) -> None:
                 cover_bytes=cover_bytes if isinstance(cover_bytes, bytes) else None,
                 cover_name=cover_name if isinstance(cover_name, str) else None,
                 cover_url=cover_url,
+                strip_original_css=strip_original_css,
             )
         except Exception:
             current = get_job(job_id)
@@ -1338,6 +1349,7 @@ def _run_epub_ingest(
         epub_file = epub_path(base, book_id)
         epub_file.parent.mkdir(parents=True, exist_ok=True)
         epub_file.write_bytes(epub_bytes)
+        strip_webp_assets_and_refs(epub_file)
 
         extracted = extract_epub_metadata(epub_file, Path(filename or "upload").stem)
         meta = _build_metadata_from_epub(
@@ -1380,7 +1392,7 @@ def _run_epub_ingest(
 
         if needs_rewrite:
             _update_job(job.id, stage="写回 EPUB")
-            update_epub_metadata(epub_file, meta, cover_path_obj, css_text=css_text)
+            update_epub_metadata(epub_file, meta, cover_path_obj, css_text=css_text, strip_webp_assets=True)
 
         _update_meta_synced(meta)
         save_metadata(meta, base)
@@ -1399,6 +1411,7 @@ def _run_edit_writeback(
     cover_bytes: Optional[bytes],
     cover_name: Optional[str],
     cover_url: str,
+    strip_original_css: bool,
 ) -> Metadata:
     try:
         _update_job(job.id, stage="写元数据")
@@ -1442,6 +1455,8 @@ def _run_edit_writeback(
                 meta,
                 cover_path_obj if cover_changed else None,
                 css_text=_compose_css_text(meta),
+                strip_original_css=strip_original_css,
+                strip_webp_assets=True,
             )
         else:
             build_epub(book, meta, epub_file, cover_path_obj, css_text=_compose_css_text(meta))
@@ -2270,7 +2285,13 @@ async def upload_cover(request: Request, book_id: str, cover: UploadFile = File(
 
     cover_path_obj = cover_path(base, book_id, meta.cover_file)
     if meta.source_type == "epub":
-        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj, css_text=_compose_css_text(meta))
+        update_epub_metadata(
+            epub_path(base, book_id),
+            meta,
+            cover_path_obj,
+            css_text=_compose_css_text(meta),
+            strip_webp_assets=True,
+        )
     else:
         book = load_book(base, book_id)
         build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=_compose_css_text(meta))
@@ -2303,7 +2324,13 @@ async def upload_cover_url(
 
     cover_path_obj = cover_path(base, book_id, meta.cover_file)
     if meta.source_type == "epub":
-        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj, css_text=_compose_css_text(meta))
+        update_epub_metadata(
+            epub_path(base, book_id),
+            meta,
+            cover_path_obj,
+            css_text=_compose_css_text(meta),
+            strip_webp_assets=True,
+        )
     else:
         book = load_book(base, book_id)
         build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=_compose_css_text(meta))
@@ -2328,7 +2355,13 @@ async def extract_cover_view(book_id: str) -> RedirectResponse:
 
     cover_path_obj = cover_path(base, book_id, meta.cover_file)
     if meta.source_type == "epub":
-        update_epub_metadata(epub_path(base, book_id), meta, cover_path_obj, css_text=_compose_css_text(meta))
+        update_epub_metadata(
+            epub_path(base, book_id),
+            meta,
+            cover_path_obj,
+            css_text=_compose_css_text(meta),
+            strip_webp_assets=True,
+        )
     else:
         book = load_book(base, book_id)
         build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=_compose_css_text(meta))
@@ -2429,6 +2462,7 @@ async def edit_metadata(request: Request, book_id: str) -> HTMLResponse:
             "book_id": book_id,
             "rules": rules,
             "themes": themes,
+            "strip_original_css": False,
             "return_to": return_to,
             "return_to_query": return_to_query,
         },
@@ -2452,6 +2486,7 @@ async def fetch_metadata(
     rule_template: str = Form(""),
     theme_template: str = Form(""),
     custom_css: str = Form(""),
+    strip_original_css: str = Form(""),
     cover_url: str = Form(""),
     metadata_source: str = Form(""),
     return_to: str = Form(""),
@@ -2466,6 +2501,7 @@ async def fetch_metadata(
     rules = load_rule_templates()
     themes = load_theme_templates()
     template = "partials/meta_edit.html" if _is_htmx(request) else "edit.html"
+    strip_original_css_enabled = _is_true_flag(strip_original_css)
 
     draft_book = _build_edit_draft_view(
         meta,
@@ -2517,6 +2553,7 @@ async def fetch_metadata(
                 "lookup_changed_fields": [],
                 "lookup_candidates": {},
                 "lookup_allow_cover_fill": False,
+                "strip_original_css": strip_original_css_enabled,
                 "return_to": safe_return_to,
                 "return_to_query": return_to_query,
             },
@@ -2543,6 +2580,7 @@ async def fetch_metadata(
                 "lookup_changed_fields": [],
                 "lookup_candidates": {},
                 "lookup_allow_cover_fill": False,
+                "strip_original_css": strip_original_css_enabled,
                 "return_to": safe_return_to,
                 "return_to_query": return_to_query,
             },
@@ -2616,6 +2654,7 @@ async def fetch_metadata(
             "lookup_changed_fields": changed_fields,
             "lookup_candidates": _lookup_candidates_payload(candidates),
             "lookup_allow_cover_fill": allow_cover_fill,
+            "strip_original_css": strip_original_css_enabled,
             "return_to": safe_return_to,
             "return_to_query": return_to_query,
         },
@@ -2640,6 +2679,7 @@ async def save_edit(
     rule_template: str = Form(""),
     theme_template: str = Form(""),
     custom_css: str = Form(""),
+    strip_original_css: str = Form(""),
     cover_file: Optional[UploadFile] = File(None),
     cover_url: str = Form(""),
     return_to: str = Form(""),
@@ -2650,6 +2690,7 @@ async def save_edit(
     return_to_query = f"?return_to={urllib.parse.quote(safe_return_to, safe='')}" if safe_return_to != "/" else ""
     meta = load_metadata(base, book_id)
     book = load_book(base, book_id)
+    strip_original_css_enabled = _is_true_flag(strip_original_css)
 
     meta.title = title.strip() or book.title or "未命名"
     meta.author = author.strip() or None
@@ -2678,6 +2719,7 @@ async def save_edit(
                 "rules": rules,
                 "themes": themes,
                 "error": f"自定义 CSS 校验失败：{css_error}",
+                "strip_original_css": strip_original_css_enabled,
                 "return_to": safe_return_to,
                 "return_to_query": return_to_query,
             },
@@ -2720,6 +2762,7 @@ async def save_edit(
                 "rules": rules,
                 "themes": themes,
                 "error": cover_error,
+                "strip_original_css": strip_original_css_enabled,
                 "return_to": safe_return_to,
                 "return_to_query": return_to_query,
             },
@@ -2737,6 +2780,7 @@ async def save_edit(
             "cover_bytes": cover_bytes,
             "cover_name": cover_name,
             "cover_url": cover_url,
+            "strip_original_css": strip_original_css_enabled,
         }
     )
 

@@ -5,7 +5,14 @@ import zipfile
 
 from ebooklib import epub
 
-from bindery.epub import build_epub, epub_base_href, extract_epub_metadata, list_epub_sections, update_epub_metadata
+from bindery.epub import (
+    build_epub,
+    epub_base_href,
+    extract_epub_metadata,
+    list_epub_sections,
+    strip_webp_assets_and_refs,
+    update_epub_metadata,
+)
 from bindery.epub import load_epub_item
 from bindery.models import Book, Chapter, Metadata
 
@@ -84,6 +91,143 @@ class BuildEpubTests(unittest.TestCase):
                 if candidate in names:
                     return zf.read(candidate).decode("utf-8", errors="replace")
         raise AssertionError("chapter html not found")
+
+    def _create_external_epub_with_linked_style(self, output_path: Path, *, book_id: str) -> None:
+        chapter_html = (
+            "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"zh-CN\">"
+            "<head>"
+            "<meta charset=\"utf-8\" />"
+            "<title>第一章</title>"
+            "<link rel=\"stylesheet\" type=\"text/css\" href=\"../Styles/book.css\" />"
+            "<style>p{color:#d00;}</style>"
+            "</head>"
+            "<body><p>正文</p></body></html>"
+        )
+        with zipfile.ZipFile(output_path, "w") as zf:
+            zf.writestr("mimetype", b"application/epub+zip", compress_type=zipfile.ZIP_STORED)
+            zf.writestr(
+                "META-INF/container.xml",
+                (
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                    "<container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\">"
+                    "<rootfiles><rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\"/>"
+                    "</rootfiles></container>"
+                ),
+            )
+            zf.writestr(
+                "OEBPS/content.opf",
+                (
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                    "<package xmlns=\"http://www.idpf.org/2007/opf\" unique-identifier=\"BookId\" version=\"3.0\">"
+                    "<metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">"
+                    f"<dc:identifier id=\"BookId\">urn:uuid:{book_id}</dc:identifier>"
+                    "<dc:title>旧书名</dc:title>"
+                    "<dc:language>zh-CN</dc:language>"
+                    "<dc:creator>旧作者</dc:creator>"
+                    "</metadata>"
+                    "<manifest>"
+                    "<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>"
+                    "<item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>"
+                    "<item id=\"c1\" href=\"Text/ch1.xhtml\" media-type=\"application/xhtml+xml\"/>"
+                    "<item id=\"s1\" href=\"Styles/book.css\" media-type=\"text/css\"/>"
+                    "</manifest>"
+                    "<spine toc=\"ncx\"><itemref idref=\"c1\"/></spine>"
+                    "</package>"
+                ),
+            )
+            zf.writestr(
+                "OEBPS/nav.xhtml",
+                (
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                    "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>nav</title></head><body>"
+                    "<nav epub:type=\"toc\" xmlns:epub=\"http://www.idpf.org/2007/ops\"><ol>"
+                    "<li><a href=\"Text/ch1.xhtml\">第一章</a></li>"
+                    "</ol></nav></body></html>"
+                ),
+            )
+            zf.writestr(
+                "OEBPS/toc.ncx",
+                (
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                    "<ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\">"
+                    "<head></head><docTitle><text>旧书名</text></docTitle><navMap>"
+                    "<navPoint id=\"navPoint-1\" playOrder=\"1\"><navLabel><text>第一章</text></navLabel>"
+                    "<content src=\"Text/ch1.xhtml\"/></navPoint></navMap></ncx>"
+                ),
+            )
+            zf.writestr("OEBPS/Styles/book.css", "body{font-family:serif;}")
+            zf.writestr("OEBPS/Text/ch1.xhtml", chapter_html)
+
+    def _create_external_epub_with_webp_refs(self, output_path: Path, *, book_id: str) -> None:
+        chapter_html = (
+            "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"zh-CN\">"
+            "<head><meta charset=\"utf-8\" /><title>第一章</title></head>"
+            "<body>"
+            "<img src=\"../Images/a.webp\" alt=\"a\" />"
+            "<picture><source srcset=\"../Images/b.webp\" type=\"image/webp\" /><img src=\"../Images/fallback.jpg\" /></picture>"
+            "<a href=\"../Images/c.webp\">下载</a>"
+            "</body></html>"
+        )
+        with zipfile.ZipFile(output_path, "w") as zf:
+            zf.writestr("mimetype", b"application/epub+zip", compress_type=zipfile.ZIP_STORED)
+            zf.writestr(
+                "META-INF/container.xml",
+                (
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                    "<container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\">"
+                    "<rootfiles><rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\"/>"
+                    "</rootfiles></container>"
+                ),
+            )
+            zf.writestr(
+                "OEBPS/content.opf",
+                (
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                    "<package xmlns=\"http://www.idpf.org/2007/opf\" unique-identifier=\"BookId\" version=\"3.0\">"
+                    "<metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">"
+                    f"<dc:identifier id=\"BookId\">urn:uuid:{book_id}</dc:identifier>"
+                    "<dc:title>旧书名</dc:title>"
+                    "<dc:language>zh-CN</dc:language>"
+                    "<dc:creator>旧作者</dc:creator>"
+                    "</metadata>"
+                    "<manifest>"
+                    "<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>"
+                    "<item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>"
+                    "<item id=\"c1\" href=\"Text/ch1.xhtml\" media-type=\"application/xhtml+xml\"/>"
+                    "<item id=\"w1\" href=\"Images/a.webp\" media-type=\"image/webp\"/>"
+                    "<item id=\"w2\" href=\"Images/b.webp\" media-type=\"image/webp\"/>"
+                    "<item id=\"w3\" href=\"Images/c.webp\" media-type=\"image/webp\"/>"
+                    "<item id=\"j1\" href=\"Images/fallback.jpg\" media-type=\"image/jpeg\"/>"
+                    "</manifest>"
+                    "<spine toc=\"ncx\"><itemref idref=\"c1\"/></spine>"
+                    "</package>"
+                ),
+            )
+            zf.writestr(
+                "OEBPS/nav.xhtml",
+                (
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                    "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>nav</title></head><body>"
+                    "<nav epub:type=\"toc\" xmlns:epub=\"http://www.idpf.org/2007/ops\"><ol>"
+                    "<li><a href=\"Text/ch1.xhtml\">第一章</a></li>"
+                    "</ol></nav></body></html>"
+                ),
+            )
+            zf.writestr(
+                "OEBPS/toc.ncx",
+                (
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                    "<ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\">"
+                    "<head></head><docTitle><text>旧书名</text></docTitle><navMap>"
+                    "<navPoint id=\"navPoint-1\" playOrder=\"1\"><navLabel><text>第一章</text></navLabel>"
+                    "<content src=\"Text/ch1.xhtml\"/></navPoint></navMap></ncx>"
+                ),
+            )
+            zf.writestr("OEBPS/Text/ch1.xhtml", chapter_html)
+            zf.writestr("OEBPS/Images/a.webp", b"RIFF....WEBP")
+            zf.writestr("OEBPS/Images/b.webp", b"RIFF....WEBP")
+            zf.writestr("OEBPS/Images/c.webp", b"RIFF....WEBP")
+            zf.writestr("OEBPS/Images/fallback.jpg", b"\xff\xd8\xff\xd9")
 
     def test_epub_base_href_tracks_item_directory(self) -> None:
         self.assertEqual(epub_base_href("/book/abc/epub/", "chapter.xhtml"), "/book/abc/epub/")
@@ -581,6 +725,46 @@ class BuildEpubTests(unittest.TestCase):
                 self.assertTrue(any(name.endswith("/Styles/bindery.css") for name in names))
                 css_name = next(name for name in names if name.endswith("/Styles/bindery.css"))
                 self.assertIn("font-size:18px", zf.read(css_name).decode("utf-8", errors="replace"))
+
+    def test_update_epub_metadata_can_strip_original_css(self) -> None:
+        new_meta = Metadata(
+            book_id="strip-original-css-id",
+            title="新书名",
+            author="新作者",
+            language="zh-CN",
+            description="新简介",
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            self._create_external_epub_with_linked_style(output_path, book_id="strip-original-css-id")
+            update_epub_metadata(output_path, new_meta, css_text="", strip_original_css=True)
+
+            html_text = self._read_any_chapter_html(output_path)
+            self.assertNotIn("rel=\"stylesheet\"", html_text)
+            self.assertNotIn("<style>", html_text)
+
+            with zipfile.ZipFile(output_path, "r") as zf:
+                names = zf.namelist()
+                self.assertFalse(any(name.endswith("/Styles/book.css") for name in names))
+                self.assertFalse(any(name.endswith("/Styles/bindery.css") for name in names))
+
+    def test_strip_webp_assets_and_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            self._create_external_epub_with_webp_refs(output_path, book_id="strip-webp-id")
+
+            changed = strip_webp_assets_and_refs(output_path)
+            self.assertTrue(changed)
+
+            with zipfile.ZipFile(output_path, "r") as zf:
+                names = zf.namelist()
+                self.assertFalse(any(name.lower().endswith(".webp") for name in names))
+                html_text = self._read_any_chapter_html(output_path)
+                self.assertNotIn(".webp", html_text.lower())
+                self.assertIn("fallback.jpg", html_text)
 
     def test_load_epub_item_preserves_head_links(self) -> None:
         book = Book(title="旧标题", author="旧作者", intro=None)

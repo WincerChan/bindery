@@ -285,6 +285,21 @@
               <p class="text-[11px] text-slate-500">会作为最后一层 CSS 追加（用于字体/边距等统一化）。</p>
             </div>
             <div class="space-y-2 border border-slate-200 rounded-xl p-4 bg-slate-50/30">
+              <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  name="strip_original_css"
+                  value="1"
+                  class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  {% if strip_original_css %}checked{% endif %}
+                />
+                <span class="font-medium">清除原书 CSS（link/style）</span>
+              </label>
+              <div class="text-xs text-slate-500">
+                仅本次写回生效：会移除 EPUB 原有样式表链接、内联 &lt;style&gt; 和 CSS 资源文件，再按“渲染主题 + 本书追加 CSS”重新注入。
+              </div>
+            </div>
+            <div class="space-y-2 border border-slate-200 rounded-xl p-4 bg-slate-50/30">
               <div class="flex items-center justify-between gap-2">
                 <div class="text-sm font-medium text-slate-700">高级：针对本书追加 CSS</div>
                 <button

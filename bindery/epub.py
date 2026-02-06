@@ -181,6 +181,32 @@ def _strip_bindery_css_links(html_text: str) -> str:
     )
 
 
+def _strip_stylesheet_links(html_text: str) -> str:
+    patterns = [
+        r"<link\b[^>]*\brel\s*=\s*['\"][^'\"]*\bstylesheet\b[^'\"]*['\"][^>]*>\s*",
+        r"<link\b[^>]*\brel\s*=\s*stylesheet\b[^>]*>\s*",
+    ]
+    text = html_text
+    for pattern in patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+    return text
+
+
+def _strip_inline_style_blocks(html_text: str) -> str:
+    return re.sub(r"<style\b[^>]*>.*?</style>\s*", "", html_text, flags=re.IGNORECASE | re.DOTALL)
+
+
+def _strip_xml_stylesheet_pi(html_text: str) -> str:
+    return re.sub(r"<\?xml-stylesheet\b[^>]*\?>\s*", "", html_text, flags=re.IGNORECASE)
+
+
+def _strip_all_css_html(html_text: str) -> str:
+    text = _strip_xml_stylesheet_pi(html_text)
+    text = _strip_stylesheet_links(text)
+    text = _strip_inline_style_blocks(text)
+    return text
+
+
 def _append_stylesheet_link(html_text: str, href: str) -> str:
     safe_href = html.escape(href, quote=True)
     link_tag = f'<link rel="stylesheet" type="text/css" href="{safe_href}" />'
@@ -200,11 +226,190 @@ def _append_stylesheet_link(html_text: str, href: str) -> str:
     return f"<head>{link_tag}</head>{html_text}"
 
 
-def _patch_doc_html_bindery_css(html_text: str, href: Optional[str]) -> str:
-    stripped = _strip_bindery_css_links(html_text)
+def _patch_doc_html_bindery_css(html_text: str, href: Optional[str], *, strip_original_css: bool = False) -> str:
+    if strip_original_css:
+        stripped = _strip_all_css_html(html_text)
+    else:
+        stripped = _strip_bindery_css_links(html_text)
     if not href:
         return stripped
     return _append_stylesheet_link(stripped, href)
+
+
+def _is_webp_manifest_item(item: ET.Element) -> bool:
+    href = str(item.attrib.get("href") or "").strip().lower()
+    media_type = str(item.attrib.get("media-type") or "").strip().lower()
+    return href.endswith(".webp") or media_type == "image/webp"
+
+
+def _strip_webp_refs_from_html(html_text: str) -> str:
+    # Remove common webp-only media nodes and attributes in XHTML/HTML chapters.
+    text = re.sub(
+        r"<source\b[^>]*(?:src|srcset)\s*=\s*['\"][^'\"]*\.webp(?:[?#][^'\"]*)?['\"][^>]*>\s*",
+        "",
+        html_text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"<img\b[^>]*\bsrc\s*=\s*['\"][^'\"]*\.webp(?:[?#][^'\"]*)?['\"][^>]*>\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\s+(?:src|href|poster|data-src)\s*=\s*(['\"])[^'\"]*\.webp(?:[?#][^'\"]*)?\1",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\s+srcset\s*=\s*(['\"])[^'\"]*\.webp[^'\"]*\1",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return text
+
+
+def strip_webp_assets_and_refs(epub_file: Path) -> bool:
+    if not epub_file.exists():
+        return False
+
+    with zipfile.ZipFile(epub_file, "r") as src:
+        infos = src.infolist()
+        try:
+            opf_path = _opf_path_from_container(src)
+        except Exception:
+            return False
+
+        opf_info = next((info for info in infos if _canonical_zip_member(info.filename) == opf_path), None)
+        if opf_info is None:
+            return False
+
+        root = ET.fromstring(src.read(opf_info.filename))
+        manifest = root.find(f"{{{OPF_NS}}}manifest")
+        if manifest is None:
+            manifest = _find_first_child_by_local_name(root, "manifest")
+        if manifest is None:
+            return False
+
+        manifest_items = [item for item in list(manifest) if _tag_local_name(item.tag) == "item"]
+        remove_members: set[str] = set()
+        replacements: dict[str, bytes] = {}
+        changed = False
+
+        doc_members: list[str] = []
+        for item in manifest_items:
+            href = str(item.attrib.get("href") or "").strip()
+            media_type = str(item.attrib.get("media-type") or "").strip().lower()
+            if href and media_type in {"application/xhtml+xml", "text/html"}:
+                member = _resolve_opf_href(opf_path, href)
+                if member:
+                    doc_members.append(member)
+
+            if _is_webp_manifest_item(item):
+                if href:
+                    member = _resolve_opf_href(opf_path, href)
+                    if member:
+                        remove_members.add(member)
+                manifest.remove(item)
+                changed = True
+
+        for member in doc_members:
+            info = next((it for it in infos if _canonical_zip_member(it.filename) == member), None)
+            if info is None:
+                continue
+            original_text = src.read(info.filename).decode("utf-8", errors="replace")
+            patched = _strip_webp_refs_from_html(original_text)
+            if patched != original_text:
+                replacements[member] = patched.encode("utf-8")
+                changed = True
+
+        if not changed:
+            return False
+
+        replacements[opf_path] = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        entries: list[tuple[zipfile.ZipInfo, bytes]] = [(info, src.read(info.filename)) for info in infos]
+
+    tmp_handle = tempfile.NamedTemporaryFile(
+        prefix=f"{epub_file.stem}.",
+        suffix=".epub",
+        dir=str(epub_file.parent),
+        delete=False,
+    )
+    tmp_path = Path(tmp_handle.name)
+    tmp_handle.close()
+
+    written: set[str] = set()
+    try:
+        with zipfile.ZipFile(tmp_path, "w") as dst:
+            for info, payload in entries:
+                canonical = _canonical_zip_member(info.filename)
+                if canonical in remove_members and canonical not in replacements:
+                    continue
+                content = replacements.get(canonical, payload)
+                if canonical == "mimetype":
+                    dst.writestr("mimetype", content, compress_type=zipfile.ZIP_STORED)
+                    written.add(canonical)
+                    continue
+                zinfo = zipfile.ZipInfo(info.filename, date_time=info.date_time)
+                zinfo.compress_type = info.compress_type
+                zinfo.comment = info.comment
+                zinfo.extra = info.extra
+                zinfo.internal_attr = info.internal_attr
+                zinfo.external_attr = info.external_attr
+                zinfo.create_system = info.create_system
+                zinfo.create_version = info.create_version
+                zinfo.extract_version = info.extract_version
+                zinfo.flag_bits = info.flag_bits
+                dst.writestr(zinfo, content)
+                written.add(canonical)
+
+            for canonical, content in replacements.items():
+                if canonical in written:
+                    continue
+                zinfo = zipfile.ZipInfo(canonical)
+                zinfo.compress_type = zipfile.ZIP_DEFLATED
+                dst.writestr(zinfo, content)
+
+        tmp_path.replace(epub_file)
+        _normalize_epub_archive_paths(epub_file)
+        return True
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+
+
+def _strip_original_css_from_book(book: epub.EpubBook) -> None:
+    kept_items: list[ebooklib.epub.EpubItem] = []
+    for item in book.get_items():
+        media_type = str(getattr(item, "media_type", "") or "").strip().lower()
+        if item.get_type() == ebooklib.ITEM_STYLE or media_type == "text/css":
+            continue
+        kept_items.append(item)
+    book.items = kept_items
+
+    for item in _spine_items(book):
+        if not isinstance(item, epub.EpubHtml):
+            continue
+
+        filtered_links = []
+        for link in item.links:
+            rel = str(link.get("rel") or "").strip().lower()
+            if "stylesheet" in rel.split():
+                continue
+            filtered_links.append(link)
+        item.links = filtered_links
+
+        try:
+            content = item.get_content()
+        except Exception:
+            content = getattr(item, "content", "")
+        if isinstance(content, bytes):
+            text = content.decode("utf-8", errors="replace")
+        else:
+            text = str(content)
+        item.content = _strip_all_css_html(text)
 
 
 def _guess_image_media_type(name: str) -> str:
@@ -414,11 +619,12 @@ def _update_epub_preserve_documents(
     *,
     cover_path: Optional[Path],
     css_text: Optional[str],
+    strip_original_css: bool = False,
 ) -> bool:
     cover_ok = bool(cover_path and cover_path.exists())
     css_requested = css_text is not None
     css_clean = css_text.strip() if isinstance(css_text, str) else ""
-    if not cover_ok and not css_requested:
+    if not cover_ok and not css_requested and not strip_original_css:
         return False
 
     with zipfile.ZipFile(epub_file, "r") as src:
@@ -490,14 +696,18 @@ def _update_epub_preserve_documents(
         remove_members: set[str] = set()
 
         css_member: Optional[str] = None
-        if css_requested:
-            bindery_items = [
-                item
-                for item in manifest_items
-                if Path(str(item.attrib.get("href") or "")).name.lower() in BINDERY_CSS_BASENAMES
-                or str(item.attrib.get("id") or "").startswith("bindery-css")
-            ]
-            for item in bindery_items:
+        if css_requested or strip_original_css:
+            removable_css_items: list[ET.Element] = []
+            for item in manifest_items:
+                item_id = str(item.attrib.get("id") or "")
+                href_name = Path(str(item.attrib.get("href") or "")).name.lower()
+                media_type = str(item.attrib.get("media-type") or "").strip().lower()
+                is_bindery_css = href_name in BINDERY_CSS_BASENAMES or item_id.startswith("bindery-css")
+                is_any_css = media_type == "text/css"
+                if is_bindery_css or (strip_original_css and is_any_css):
+                    removable_css_items.append(item)
+
+            for item in removable_css_items:
                 href = str(item.attrib.get("href") or "").strip()
                 if href:
                     member = _resolve_opf_href(opf_path, href)
@@ -505,7 +715,7 @@ def _update_epub_preserve_documents(
                         remove_members.add(member)
                 manifest.remove(item)
 
-            if css_clean:
+            if css_requested and css_clean:
                 package_root = _derive_package_root_from_docs(doc_members)
                 css_member = _canonical_zip_member((package_root / "Styles" / BINDERY_CSS_NAME).as_posix())
                 css_href = posixpath.relpath(css_member, start=opf_dir_start)
@@ -571,14 +781,14 @@ def _update_epub_preserve_documents(
 
             replacements[cover_member] = cover_bytes
 
-        if css_requested:
+        if css_requested or strip_original_css:
             for member in doc_members:
                 info = next((it for it in infos if _canonical_zip_member(it.filename) == member), None)
                 if info is None:
                     continue
                 original_text = src.read(info.filename).decode("utf-8", errors="replace")
                 href = _relative_href(member, css_member) if css_member else None
-                patched = _patch_doc_html_bindery_css(original_text, href)
+                patched = _patch_doc_html_bindery_css(original_text, href, strip_original_css=strip_original_css)
                 replacements[member] = patched.encode("utf-8")
 
         _apply_metadata_to_opf_root(
@@ -775,12 +985,17 @@ def update_epub_metadata(
     cover_path: Optional[Path] = None,
     *,
     css_text: Optional[str] = None,
+    strip_original_css: bool = False,
+    strip_webp_assets: bool = False,
 ) -> None:
+    if strip_webp_assets:
+        strip_webp_assets_and_refs(epub_file)
+
     cover_ok = bool(cover_path and cover_path.exists())
     css_requested = css_text is not None
     css_clean = css_text.strip() if isinstance(css_text, str) else ""
     # Keep original chapter XHTML untouched when only OPF metadata changes are required.
-    if not cover_ok and not css_requested:
+    if not cover_ok and not css_requested and not strip_original_css:
         # Make non-canonical archive members recoverable before patching OPF.
         _read_epub_resilient(epub_file)
         if _update_epub_metadata_opf_only(epub_file, meta, keep_cover=True):
@@ -788,7 +1003,13 @@ def update_epub_metadata(
             return
     # For EPUB writeback with cover/css updates, prefer zip-level patching
     # so original chapter head/style can be preserved.
-    if _update_epub_preserve_documents(epub_file, meta, cover_path=cover_path, css_text=css_text):
+    if _update_epub_preserve_documents(
+        epub_file,
+        meta,
+        cover_path=cover_path,
+        css_text=css_text,
+        strip_original_css=strip_original_css,
+    ):
         _normalize_epub_archive_paths(epub_file)
         return
 
@@ -798,6 +1019,8 @@ def update_epub_metadata(
     _add_metadata(book, meta)
     if cover_ok:
         book.set_cover(cover_path.name, cover_path.read_bytes())
+    if strip_original_css:
+        _strip_original_css_from_book(book)
     if css_requested:
         _apply_bindery_css_overlay(book, css_clean)
     epub.write_epub(str(epub_file), book, {"epub3_pages": False})
