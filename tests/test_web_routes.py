@@ -39,6 +39,7 @@ class WebRoutesTests(unittest.TestCase):
         self.assertIn('name="custom_css"', ingest)
         self.assertIn("data-file-feedback", ingest)
         self.assertIn("data-ingest-submit", ingest)
+        self.assertIn("data-ingest-preview-status", ingest)
         self.assertIn("data-ingest-status", ingest)
         self.assertIn('name="dedupe_mode"', ingest)
         self.assertIn("data-dedupe-mode", ingest)

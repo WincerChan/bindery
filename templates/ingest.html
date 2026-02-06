@@ -111,6 +111,7 @@
         </button>
         <button data-ingest-submit class="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer" type="submit">开始入库</button>
       </div>
+      <div data-ingest-preview-status class="hidden text-xs text-indigo-600">正在解析文件，请稍候...</div>
       <div data-ingest-status class="hidden text-xs text-indigo-600">正在提交入库任务，请稍候...</div>
     </form>
 
@@ -126,6 +127,7 @@
   const fileFeedback = ingestForm ? ingestForm.querySelector('[data-file-feedback]') : null;
   const ingestPreviewBtn = ingestForm ? ingestForm.querySelector('[data-ingest-preview]') : null;
   const ingestSubmitBtn = ingestForm ? ingestForm.querySelector('[data-ingest-submit]') : null;
+  const ingestPreviewStatus = ingestForm ? ingestForm.querySelector('[data-ingest-preview-status]') : null;
   const ingestStatus = ingestForm ? ingestForm.querySelector('[data-ingest-status]') : null;
   const dedupeModeInput = ingestForm ? ingestForm.querySelector('[data-dedupe-mode]') : null;
 
@@ -251,10 +253,48 @@
     fileFeedback.classList.remove('hidden');
   };
 
+  const selectedFileCount = () => {
+    if (!fileInput) return 0;
+    return Array.from(fileInput.files || []).length;
+  };
+
+  const setPreviewLoading = (loading) => {
+    if (!ingestPreviewBtn) return;
+    if (loading) {
+      ingestPreviewBtn.disabled = true;
+      ingestPreviewBtn.textContent = '解析中...';
+      ingestPreviewBtn.classList.add('opacity-70', 'cursor-not-allowed');
+      if (ingestPreviewStatus) {
+        const count = selectedFileCount();
+        ingestPreviewStatus.textContent = count > 0
+          ? `正在解析 ${count} 个文件，请稍候...`
+          : '正在解析文件，请稍候...';
+        ingestPreviewStatus.classList.remove('hidden');
+      }
+      return;
+    }
+    ingestPreviewBtn.disabled = false;
+    ingestPreviewBtn.textContent = '预览解析';
+    ingestPreviewBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+    if (ingestPreviewStatus) ingestPreviewStatus.classList.add('hidden');
+  };
+
   if (fileInput) {
     fileInput.addEventListener('change', () => {
       setSelectedFilesFeedback();
       if (ingestPreviewBtn) ingestPreviewBtn.click();
+    });
+  }
+
+  if (ingestPreviewBtn) {
+    ingestPreviewBtn.addEventListener('htmx:beforeRequest', () => {
+      setPreviewLoading(true);
+    });
+    ingestPreviewBtn.addEventListener('htmx:afterRequest', () => {
+      setPreviewLoading(false);
+    });
+    ingestPreviewBtn.addEventListener('htmx:responseError', () => {
+      setPreviewLoading(false);
     });
   }
 
@@ -271,7 +311,13 @@
       ingestSubmitBtn.disabled = true;
       ingestSubmitBtn.textContent = '入库中...';
       ingestSubmitBtn.classList.add('opacity-70', 'cursor-not-allowed');
-      if (ingestStatus) ingestStatus.classList.remove('hidden');
+      if (ingestStatus) {
+        const count = selectedFileCount();
+        ingestStatus.textContent = count > 0
+          ? `正在提交 ${count} 个文件的入库任务，请稍候...`
+          : '正在提交入库任务，请稍候...';
+        ingestStatus.classList.remove('hidden');
+      }
     });
   }
 </script>

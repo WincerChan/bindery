@@ -24,6 +24,8 @@ class LibraryUiTests(unittest.TestCase):
         self.assertIn("group-hover:pointer-events-auto", tpl)
         self.assertNotIn("pb-3 mt-auto", tpl)
         self.assertNotIn("/regenerate", tpl)
+        self.assertIn('book.status_class != "ok"', tpl)
+        self.assertNotIn('book.status_class == "ok"', tpl)
 
     def test_book_card_supports_list_layout(self) -> None:
         root = Path(__file__).resolve().parent.parent
@@ -61,6 +63,11 @@ class LibraryUiTests(unittest.TestCase):
         self.assertIn('hx-target="#library-section"', section)
         self.assertIn('hx-vals=\'{"page":"{{ prev_page }}"}\'', section)
         self.assertIn('hx-vals=\'{"page":"{{ next_page }}"}\'', section)
+
+    def test_auto_grid_column_uses_flexible_width(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        css = (root / "static" / "tailwind.css").read_text(encoding="utf-8")
+        self.assertIn("repeat(auto-fill, minmax(180px, 1fr))", css)
 
 
 if __name__ == "__main__":

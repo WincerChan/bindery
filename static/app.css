@@ -66,7 +66,6 @@
     --spacing: 0.25rem;
     --container-sm: 24rem;
     --container-lg: 32rem;
-    --container-3xl: 48rem;
     --container-4xl: 56rem;
     --container-5xl: 64rem;
     --container-6xl: 72rem;
@@ -1954,11 +1953,6 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  .lg\:grid-cols-3 {
-    @media (width >= 64rem) {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
   .lg\:grid-cols-4 {
     @media (width >= 64rem) {
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2023,7 +2017,7 @@
 }
 @layer components {
   .grid-cols-auto-180 {
-    grid-template-columns: repeat(auto-fill, 180px);
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
 }
 @property --tw-translate-x {

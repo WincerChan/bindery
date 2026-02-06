@@ -6,6 +6,6 @@
 
 @layer components {
   .grid-cols-auto-180 {
-    grid-template-columns: repeat(auto-fill, 180px);
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
 }
