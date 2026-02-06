@@ -2,6 +2,7 @@ import unittest
 import urllib.request
 from unittest.mock import patch
 
+from bindery.metadata_lookup import USER_AGENT
 from bindery.web import _download_cover_from_url
 
 
@@ -19,7 +20,8 @@ class CoverDownloadHeaderTests(unittest.TestCase):
             request_obj = mocked_urlopen.call_args.args[0]
             self.assertIsInstance(request_obj, urllib.request.Request)
             headers = {name.lower(): value for name, value in request_obj.header_items()}
-            self.assertEqual(headers.get("referer"), "https://book.douban.com")
+            self.assertEqual(headers.get("referer"), "https://book.douban.com/")
+            self.assertEqual(headers.get("user-agent"), USER_AGENT)
 
     def test_download_non_douban_cover_uses_plain_url(self) -> None:
         with patch("bindery.web.urllib.request.urlopen") as mocked_urlopen:

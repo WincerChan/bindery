@@ -139,6 +139,21 @@ class MetadataLookupTests(unittest.TestCase):
             "https://img9.doubanio.com/view/subject/l/public/s1234567.jpg",
         )
 
+    def test_parse_douban_subject_html_publisher_fallback_keeps_spaces(self) -> None:
+        html = """
+        <html>
+          <body>
+            <div id="info">
+              <span class="pl">出版社:</span> Random House Children's Books
+              <br />
+              <span class="pl">出版年:</span> 2010-01
+            </div>
+          </body>
+        </html>
+        """
+        metadata = parse_douban_subject_html(html)
+        self.assertEqual(metadata.publisher, "Random House Children's Books")
+
     def test_parse_amazon_product_html_from_ld_json(self) -> None:
         html = """
         <html>
@@ -169,6 +184,51 @@ class MetadataLookupTests(unittest.TestCase):
         self.assertEqual(metadata.published, "1965-08-01")
         self.assertEqual(metadata.isbn, "9780441172719")
         self.assertIn("science fiction", metadata.tags)
+
+    def test_parse_amazon_product_html_falls_back_without_ld_json(self) -> None:
+        html = """
+        <html>
+          <head>
+            <meta name="title" content="Amazon.com: Pirates Past Noon: 9780679824251: Osborne, Mary Pope: Books" />
+          </head>
+          <body>
+            <span id="productTitle">Pirates Past Noon (Magic Tree House, No. 4)</span>
+            <div id="bylineInfo">
+              <a>Mary Pope Osborne</a>
+              <span class="contribution"><span>(作者)</span></span>
+              <a>Sal Murdocca</a>
+              <span class="contribution"><span>(插图作者)</span></span>
+            </div>
+            <div id="bookDescription_feature_div">
+              <span class="a-expander-partial-collapse-content">
+                Jack and Annie are in deep trouble when the Magic Tree House whisks them back to the days of
+                desert islands, secret maps, hidden gold, and ruthless pirates.
+              </span>
+            </div>
+
+            <div id="rpi-attribute-book_details-publisher">
+              <div class="rpi-attribute-value"><span>Random House Children's Books</span></div>
+            </div>
+            <div id="rpi-attribute-book_details-publication_date">
+              <div class="rpi-attribute-value"><span>1994-03-08</span></div>
+            </div>
+            <div id="rpi-attribute-book_details-language">
+              <div class="rpi-attribute-value"><span>English</span></div>
+            </div>
+            <div id="rpi-attribute-book_details-isbn13">
+              <div class="rpi-attribute-value"><span>978-0679824251</span></div>
+            </div>
+          </body>
+        </html>
+        """
+        metadata = parse_amazon_product_html(html)
+        self.assertEqual(metadata.title, "Pirates Past Noon (Magic Tree House, No. 4)")
+        self.assertEqual(metadata.author, "Mary Pope Osborne, Sal Murdocca")
+        self.assertEqual(metadata.publisher, "Random House Children's Books")
+        self.assertEqual(metadata.language, "English")
+        self.assertEqual(metadata.published, "1994-03-08")
+        self.assertEqual(metadata.isbn, "978-0679824251")
+        self.assertIn("Magic Tree House", metadata.description or "")
 
     def test_lookup_verbose_reports_both_sources(self) -> None:
         with (

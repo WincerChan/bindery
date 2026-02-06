@@ -55,6 +55,13 @@ class LibraryUiTests(unittest.TestCase):
         self.assertIn("data-bulk-select-all", index)
         self.assertIn("data-bulk-clear", index)
 
+    def test_index_has_read_filter_toggle(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        index = (root / "templates" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('name="read_filter"', index)
+        self.assertIn("data-read-filter-toggle", index)
+        self.assertIn("仅看未读", index)
+
     def test_index_has_pagination_controls(self) -> None:
         root = Path(__file__).resolve().parent.parent
         index = (root / "templates" / "index.html").read_text(encoding="utf-8")

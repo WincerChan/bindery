@@ -40,6 +40,12 @@
         <option value="created" {% if sort == 'created' %}selected{% endif %}>最近导入</option>
         <option value="updated" {% if sort == 'updated' %}selected{% endif %}>最近修改</option>
       </select>
+      <input type="hidden" name="read_filter" value="{{ read_filter }}" />
+      <a
+        href="/?sort={{ sort }}&q={{ q|urlencode }}&read_filter={{ 'all' if read_filter == 'unread' else 'unread' }}"
+        data-read-filter-toggle
+        class="h-9 px-3 inline-flex items-center justify-center rounded-lg border text-sm font-medium transition-colors cursor-pointer {{ 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' if read_filter == 'unread' else 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50' }}"
+      >{{ '未读过滤：开' if read_filter == 'unread' else '仅看未读' }}</a>
       <input type="hidden" name="page" value="{{ page }}" data-page-input />
 
       <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200" data-view-toggle>

@@ -193,6 +193,114 @@ def _pick_image_url(value: Any) -> Optional[str]:
     return None
 
 
+def _extract_amazon_rpi_value(html: str, key: str) -> Optional[str]:
+    pattern = (
+        r'<div[^>]+id=["\']rpi-attribute-'
+        + re.escape(key)
+        + r'["\'][^>]*>.*?'
+        + r'<div[^>]+rpi-attribute-value[^>]*>\s*<span>(.*?)</span>'
+    )
+    match = re.search(pattern, html, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return None
+    return _clean_text(match.group(1))
+
+
+def _extract_amazon_product_title(html: str) -> Optional[str]:
+    match = re.search(
+        r'<span[^>]+id=["\']productTitle["\'][^>]*>(.*?)</span>',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if match:
+        return _clean_text(match.group(1))
+
+    meta_match = re.search(
+        r'<meta[^>]+name=["\']title["\'][^>]+content=["\'](.*?)["\'][^>]*>',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not meta_match:
+        return None
+    raw = _clean_text(meta_match.group(1)) or ""
+    # e.g. "Amazon.com: Pirates Past Noon ...: 8601...: Author: 图书"
+    title_match = re.search(r"Amazon\.com[:：]\s*(.+?)(?:\s*:\s*[0-9Xx-]{10,20}\b|$)", raw, flags=re.IGNORECASE)
+    if title_match:
+        return _clean_text(title_match.group(1))
+    return raw or None
+
+
+def _extract_amazon_byline_authors(html: str) -> Optional[str]:
+    block_match = re.search(
+        r'<div[^>]+id=["\']bylineInfo["\'][^>]*>(.*?)</div>',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not block_match:
+        return None
+    block = block_match.group(1)
+    names: list[str] = []
+    seen: set[str] = set()
+    for match in re.finditer(r"<a[^>]*>(.*?)</a>", block, flags=re.IGNORECASE | re.DOTALL):
+        name = _clean_text(match.group(1))
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    if not names:
+        return None
+    return ", ".join(names)
+
+
+def _extract_amazon_description(html: str) -> Optional[str]:
+    try:
+        document = lxml_html.fromstring(html)
+    except (etree.ParserError, ValueError):
+        return None
+
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    for xpath in (
+        "//*[@id='bookDescription_feature_div']//span[contains(@class,'a-expander-partial-collapse-content')]",
+        "//*[@id='bookDescription_feature_div']//div[contains(@class,'a-expander-content')]",
+        "//*[@id='bookDescription_feature_div']",
+    ):
+        nodes = document.xpath(xpath)
+        for node in nodes:
+            if not isinstance(node, etree._Element):
+                continue
+            text = _clean_text(node.text_content())
+            if not text or len(text) < 40:
+                continue
+            key = text.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append(text)
+
+    if candidates:
+        return max(candidates, key=len)
+
+    bullets: list[str] = []
+    bullet_seen: set[str] = set()
+    for node in document.xpath("//*[@id='feature-bullets']//span[contains(@class,'a-list-item')]"):
+        if not isinstance(node, etree._Element):
+            continue
+        text = _clean_text(node.text_content())
+        if not text or len(text) < 12:
+            continue
+        key = text.lower()
+        if key in bullet_seen:
+            continue
+        bullet_seen.add(key)
+        bullets.append(text)
+
+    if bullets:
+        return "\n".join(f"- {item}" for item in bullets[:6])
+    return None
+
+
 def _html_fragment_to_markdownish(raw_html: str) -> Optional[str]:
     if not raw_html:
         return None
@@ -307,7 +415,10 @@ def parse_douban_subject_html(html: str) -> LookupMetadata:
 
     page_text = _clean_text(html) or ""
     if not metadata.publisher:
-        publisher_match = re.search(r"出版社[:：]\s*([^\s]+)", page_text)
+        publisher_match = re.search(
+            r"出版社[:：]\s*(.+?)(?=\s+(?:作者|原作名|副标题|译者|出版年|页数|定价|装帧|丛书|ISBN|统一书号|出品方|品牌方)[:：]|$)",
+            page_text,
+        )
         if publisher_match:
             metadata.publisher = _clean_text(publisher_match.group(1))
     if not metadata.isbn:
@@ -345,6 +456,23 @@ def parse_amazon_product_html(html: str) -> LookupMetadata:
         if metadata.title:
             break
 
+    if not metadata.title:
+        metadata.title = _extract_amazon_product_title(html) or metadata.title
+    if not metadata.author:
+        metadata.author = _extract_amazon_byline_authors(html) or metadata.author
+    if not metadata.description:
+        metadata.description = _extract_amazon_description(html) or metadata.description
+    if not metadata.publisher:
+        metadata.publisher = _extract_amazon_rpi_value(html, "book_details-publisher") or metadata.publisher
+    if not metadata.published:
+        metadata.published = _clean_date(_extract_amazon_rpi_value(html, "book_details-publication_date")) or metadata.published
+    if not metadata.language:
+        metadata.language = _clean_text(_extract_amazon_rpi_value(html, "book_details-language")) or metadata.language
+    if not metadata.isbn:
+        isbn13 = _clean_isbn(_extract_amazon_rpi_value(html, "book_details-isbn13"))
+        isbn10 = _clean_isbn(_extract_amazon_rpi_value(html, "book_details-isbn10"))
+        metadata.isbn = isbn13 or isbn10 or metadata.isbn
+
     page_text = _clean_text(html) or ""
     if not metadata.publisher:
         publisher_match = re.search(r"Publisher[:：]\s*([^\n\r]+?)\s{2,}", page_text)
@@ -362,6 +490,16 @@ def parse_amazon_product_html(html: str) -> LookupMetadata:
         language_match = re.search(r"Language[:：]\s*([A-Za-z\- ]+)", page_text)
         if language_match:
             metadata.language = _clean_text(language_match.group(1))
+    if not metadata.description:
+        meta_match = re.search(
+            r"<meta[^>]+name=[\"']description[\"'][^>]+content=[\"'](.*?)[\"'][^>]*>",
+            html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if meta_match:
+            desc = _clean_text(meta_match.group(1))
+            if desc and not desc.lower().startswith("amazon.com:"):
+                metadata.description = desc
 
     return metadata
 

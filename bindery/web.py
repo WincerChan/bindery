@@ -8,6 +8,7 @@ import re
 import threading
 import tempfile
 import traceback
+import urllib.error
 import urllib.request
 import urllib.parse
 import uuid
@@ -34,7 +35,7 @@ from .epub import (
     update_epub_metadata,
 )
 from .models import Book, Job, Metadata, Volume
-from .metadata_lookup import LookupMetadata, lookup_book_metadata_candidates
+from .metadata_lookup import USER_AGENT, LookupMetadata, lookup_book_metadata_candidates
 from .parsing import DEFAULT_RULE_CONFIG, decode_text, parse_book
 from .rules import RuleTemplateError, get_rule, load_rule_templates, rules_dir, validate_rule_template_json
 from .themes import compose_css, get_theme, load_theme_templates, themes_dir
@@ -69,7 +70,7 @@ KEEP_BOOK_THEME_ID = "__book__"
 LIBRARY_PAGE_SIZE = 28
 INGEST_ASYNC_BATCH_THRESHOLD = 8
 INGEST_QUEUE_DIR = ".ingest-queue"
-DOUBAN_REFERER = "https://book.douban.com"
+DOUBAN_REFERER = "https://book.douban.com/"
 
 _ingest_queue: "queue.Queue[dict]" = queue.Queue()
 _ingest_worker_started = False
@@ -359,6 +360,10 @@ def _normalize_css_text(text: str) -> str:
     return (text or "").replace("\r\n", "\n").strip()
 
 
+def _normalize_read_filter(value: str) -> str:
+    return "unread" if (value or "").strip().lower() == "unread" else "all"
+
+
 def _is_douban_host(hostname: str) -> bool:
     host = (hostname or "").strip().lower()
     return host in {"douban.com", "doubanio.com"} or host.endswith(".douban.com") or host.endswith(".doubanio.com")
@@ -370,8 +375,14 @@ def _download_cover_from_url(cover_url: str, timeout: float = 10.0) -> tuple[byt
         raise ValueError("Missing URL")
     parsed = urllib.parse.urlparse(url)
     headers: dict[str, str] = {}
-    if _is_douban_host(parsed.hostname or ""):
+    is_douban = _is_douban_host(parsed.hostname or "")
+    if is_douban:
         headers["Referer"] = DOUBAN_REFERER
+        headers["User-Agent"] = USER_AGENT
+        headers["Accept"] = "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+        headers["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.8"
+        headers["Cache-Control"] = "no-cache"
+        headers["Pragma"] = "no-cache"
 
     request_obj: urllib.request.Request | str
     if headers:
@@ -379,8 +390,17 @@ def _download_cover_from_url(cover_url: str, timeout: float = 10.0) -> tuple[byt
     else:
         request_obj = url
 
-    with urllib.request.urlopen(request_obj, timeout=timeout) as response:
-        data = response.read()
+    try:
+        with urllib.request.urlopen(request_obj, timeout=timeout) as response:
+            data = response.read()
+    except urllib.error.HTTPError as exc:
+        if is_douban:
+            raise ValueError(f"豆瓣封面下载失败（HTTP {exc.code}）: {url}") from exc
+        raise ValueError(f"封面下载失败（HTTP {exc.code}）: {url}") from exc
+    except urllib.error.URLError as exc:
+        if is_douban:
+            raise ValueError(f"豆瓣封面下载失败（网络异常）: {exc.reason}") from exc
+        raise ValueError(f"封面下载失败（网络异常）: {exc.reason}") from exc
     if not data:
         raise ValueError("封面 URL 下载为空")
     filename = Path(parsed.path).name or "cover"
@@ -1398,8 +1418,9 @@ async def logout(request: Request) -> RedirectResponse:
     return response
 
 
-def _library_page_data(base: Path, sort: str, q: str, page: int) -> dict:
+def _library_page_data(base: Path, sort: str, q: str, page: int, read_filter: str) -> dict:
     books = list_books(base)
+    selected_read_filter = _normalize_read_filter(read_filter)
     if q:
         q_lower = q.lower()
         books = [
@@ -1407,6 +1428,8 @@ def _library_page_data(base: Path, sort: str, q: str, page: int) -> dict:
             for book in books
             if (book.title and q_lower in book.title.lower()) or (book.author and q_lower in book.author.lower())
         ]
+    if selected_read_filter == "unread":
+        books = [book for book in books if not book.read]
     if sort == "created":
         books.sort(key=lambda item: item.created_at, reverse=True)
     else:
@@ -1428,13 +1451,20 @@ def _library_page_data(base: Path, sort: str, q: str, page: int) -> dict:
         "has_next": current_page < total_pages,
         "prev_page": current_page - 1,
         "next_page": current_page + 1,
+        "read_filter": selected_read_filter,
     }
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, sort: str = "updated", q: str = "", page: int = 1) -> HTMLResponse:
+async def index(
+    request: Request,
+    sort: str = "updated",
+    q: str = "",
+    page: int = 1,
+    read_filter: str = "all",
+) -> HTMLResponse:
     base = library_dir()
-    payload = _library_page_data(base, sort, q, page)
+    payload = _library_page_data(base, sort, q, page, read_filter)
     return templates.TemplateResponse(
         "index.html",
         {"request": request, "sort": sort, "q": q, **payload},
@@ -1811,9 +1841,15 @@ async def ingest(
 
 
 @app.get("/library", response_class=HTMLResponse)
-async def library_partial(request: Request, sort: str = "updated", q: str = "", page: int = 1) -> HTMLResponse:
+async def library_partial(
+    request: Request,
+    sort: str = "updated",
+    q: str = "",
+    page: int = 1,
+    read_filter: str = "all",
+) -> HTMLResponse:
     base = library_dir()
-    payload = _library_page_data(base, sort, q, page)
+    payload = _library_page_data(base, sort, q, page, read_filter)
     return templates.TemplateResponse(
         "partials/library_section.html",
         {"request": request, "sort": sort, "q": q, **payload},
