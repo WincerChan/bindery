@@ -402,6 +402,16 @@ def _no_store_headers() -> dict[str, str]:
     }
 
 
+def _edge_bypass_browser_revalidate_headers() -> dict[str, str]:
+    # Browser may store, but must revalidate with origin; CDN must not cache.
+    return {
+        "Cache-Control": "private, no-cache, must-revalidate",
+        "CDN-Cache-Control": "no-store",
+        "Cloudflare-CDN-Cache-Control": "no-store",
+        "Pragma": "no-cache",
+    }
+
+
 def _normalize_search_text(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip()
 
@@ -2329,7 +2339,7 @@ async def cover(book_id: str) -> FileResponse:
     path = cover_path(base, book_id, meta.cover_file)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Cover missing")
-    return FileResponse(path)
+    return FileResponse(path, headers=_edge_bypass_browser_revalidate_headers())
 
 
 @app.post("/book/{book_id}/cover/upload")
@@ -2516,7 +2526,7 @@ async def epub_item(book_id: str, item_path: str) -> Response:
         content, media_type = load_epub_item(epub_file, item_path, base_href)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Item not found")
-    return Response(content=content, media_type=media_type, headers=_no_store_headers())
+    return Response(content=content, media_type=media_type, headers=_edge_bypass_browser_revalidate_headers())
 
 
 @app.get("/book/{book_id}/search")
