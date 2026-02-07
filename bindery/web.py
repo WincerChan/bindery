@@ -2382,8 +2382,10 @@ async def preview_first(request: Request, book_id: str) -> RedirectResponse:
         raise HTTPException(status_code=404, detail="No sections")
     return_to = _safe_internal_redirect_target(request.query_params.get("return_to", ""), "")
     target = f"/book/{book_id}/preview/0"
+    query_params: dict[str, str] = {"resume": "1"}
     if return_to:
-        target += f"?return_to={urllib.parse.quote(return_to, safe='')}"
+        query_params["return_to"] = return_to
+    target += f"?{urllib.parse.urlencode(query_params)}"
     return RedirectResponse(url=target, status_code=303)
 
 

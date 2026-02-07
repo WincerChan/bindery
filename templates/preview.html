@@ -246,6 +246,7 @@
             href="/book/{{ book.book_id }}/preview/{{ item.index }}{{ return_to_query }}"
             class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors {% if item.index == section_index %}bg-indigo-50 text-indigo-700{% else %}text-slate-700 hover:bg-slate-50{% endif %}"
             @click="tocOpen = false"
+            {% if item.index == section_index %}data-current-toc="1"{% endif %}
             title="{{ item.title }}"
           >
             <span class="truncate">{{ item.title }}</span>
@@ -316,6 +317,12 @@
 <script>
   function binderyReader() {
     const storageKey = "bindery:reader";
+    const progressStoragePrefix = "bindery:reader:progress:";
+    const bookId = {{ book.book_id|tojson }};
+    const sectionIndex = {{ section_index }};
+    const tocCount = {{ toc | length }};
+    const returnTo = {{ return_to|tojson }};
+    const sectionBaseUrl = "/book/{{ book.book_id }}/preview/";
     const fonts = {
       serif: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
       sans: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
@@ -328,8 +335,12 @@
       mint: "#ecfdf5",
     };
     const maxPageWidth = 600;
-    const prevChapterUrl = {% if prev_idx is not none %}"/book/{{ book.book_id }}/preview/{{ prev_idx }}{{ return_to_query }}"{% else %}null{% endif %};
-    const nextChapterUrl = {% if next_idx is not none %}"/book/{{ book.book_id }}/preview/{{ next_idx }}{{ return_to_query }}"{% else %}null{% endif %};
+    const prevChapterIndex = {% if prev_idx is not none %}{{ prev_idx }}{% else %}null{% endif %};
+    const nextChapterIndex = {% if next_idx is not none %}{{ next_idx }}{% else %}null{% endif %};
+    const urlParams = new URLSearchParams(window.location.search);
+    const resumeRequested = urlParams.get("resume") === "1";
+    const navReason = (urlParams.get("nav") || "").toLowerCase();
+    const explicitPageParam = (urlParams.get("page") || "").toLowerCase();
 
     function clampInt(value, min, max, fallback) {
       const n = Number.parseInt(String(value || ""), 10);
@@ -361,69 +372,174 @@
       }
     }
 
-	    return {
-	      tocOpen: false,
-	      settingsOpen: false,
-	      readerBg: "book",
-	      styleMode: "book",
-	      fontFamily: "serif",
-	      fontSize: 18,
-	      lineHeight: 1.85,
-	      timeNow: "",
-	      page: 1,
-	      pageCount: 1,
-	      prevChapterUrl: prevChapterUrl,
-	      nextChapterUrl: nextChapterUrl,
-	      _jumpToLast: false,
-	      _clockTimer: null,
-	      _scrollRaf: null,
-	      _snapTimer: null,
-	      _resizeTimer: null,
-	      _updateTimeNow() {
-	        try {
-	          this.timeNow = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-	        } catch {
-	          const now = new Date();
-	          const hh = String(now.getHours()).padStart(2, "0");
-	          const mm = String(now.getMinutes()).padStart(2, "0");
-	          this.timeNow = hh + ":" + mm;
-	        }
-	      },
-	      _persist() {
-	        saveSettings({
-	          readerBg: this.readerBg,
-	          styleMode: this.styleMode,
-	          fontFamily: this.fontFamily,
+    function progressKey(id) {
+      return progressStoragePrefix + id;
+    }
+
+    function loadProgress(id) {
+      try {
+        const raw = localStorage.getItem(progressKey(id));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return null;
+        return parsed;
+      } catch {
+        return null;
+      }
+    }
+
+    function saveProgress(id, data) {
+      try {
+        localStorage.setItem(progressKey(id), JSON.stringify(data));
+      } catch {
+        // ignore
+      }
+    }
+
+    function sectionUrl(index, extraParams) {
+      const params = new URLSearchParams();
+      if (returnTo && returnTo !== "/") params.set("return_to", returnTo);
+      if (extraParams && typeof extraParams === "object") {
+        for (const [k, v] of Object.entries(extraParams)) {
+          if (v === undefined || v === null || v === "") continue;
+          params.set(k, String(v));
+        }
+      }
+      const query = params.toString();
+      return query ? `${sectionBaseUrl}${index}?${query}` : `${sectionBaseUrl}${index}`;
+    }
+
+    return {
+      tocOpen: false,
+      settingsOpen: false,
+      readerBg: "book",
+      styleMode: "book",
+      fontFamily: "serif",
+      fontSize: 18,
+      lineHeight: 1.85,
+      timeNow: "",
+      page: 1,
+      pageCount: 1,
+      bookId,
+      sectionIndex,
+      tocCount,
+      prevChapterIndex,
+      nextChapterIndex,
+      _jumpToLast: false,
+      _resumePage: null,
+      _clockTimer: null,
+      _scrollEndTimer: null,
+      _resizeTimer: null,
+      _progressTimer: null,
+      _hasAppliedLayout: false,
+      _updateTimeNow() {
+        try {
+          this.timeNow = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        } catch {
+          const now = new Date();
+          const hh = String(now.getHours()).padStart(2, "0");
+          const mm = String(now.getMinutes()).padStart(2, "0");
+          this.timeNow = hh + ":" + mm;
+        }
+      },
+      _persist() {
+        saveSettings({
+          readerBg: this.readerBg,
+          styleMode: this.styleMode,
+          fontFamily: this.fontFamily,
           fontSize: this.fontSize,
           lineHeight: this.lineHeight,
         });
-	      },
-	      init() {
-	        this._jumpToLast = new URLSearchParams(window.location.search).get("page") === "last";
-	        this._updateTimeNow();
-	        this._clockTimer = setInterval(() => this._updateTimeNow(), 30 * 1000);
-	
-	        const saved = loadSettings();
-	        if (saved) {
-	          if (typeof saved.readerBg === "string") this.readerBg = saved.readerBg;
+      },
+      _persistProgressNow() {
+        saveProgress(this.bookId, {
+          section: this.sectionIndex,
+          page: Math.max(1, Number(this.page) || 1),
+          pageCount: Math.max(1, Number(this.pageCount) || 1),
+          updatedAt: Date.now(),
+        });
+      },
+      _persistProgressSoon() {
+        if (this._progressTimer) clearTimeout(this._progressTimer);
+        this._progressTimer = setTimeout(() => this._persistProgressNow(), 120);
+      },
+      _scrollCurrentTocIntoView() {
+        this.$nextTick(() => {
+          const current = this.$root.querySelector("[data-current-toc='1']");
+          if (!current || typeof current.scrollIntoView !== "function") return;
+          current.scrollIntoView({ block: "center", inline: "nearest" });
+        });
+      },
+      _cleanupTransientQuery() {
+        try {
+          const url = new URL(window.location.href);
+          let changed = false;
+          if (url.searchParams.has("page")) {
+            url.searchParams.delete("page");
+            changed = true;
+          }
+          if (url.searchParams.has("resume")) {
+            url.searchParams.delete("resume");
+            changed = true;
+          }
+          if (url.searchParams.has("nav")) {
+            url.searchParams.delete("nav");
+            changed = true;
+          }
+          if (changed) history.replaceState({}, "", url);
+        } catch {
+          // ignore
+        }
+      },
+      init() {
+        this._jumpToLast = explicitPageParam === "last";
+        this._updateTimeNow();
+        this._clockTimer = setInterval(() => this._updateTimeNow(), 30 * 1000);
+
+        const saved = loadSettings();
+        if (saved) {
+          if (typeof saved.readerBg === "string") this.readerBg = saved.readerBg;
           if (saved.styleMode === "custom") this.styleMode = "custom";
           if (saved.fontFamily && fonts[saved.fontFamily]) this.fontFamily = saved.fontFamily;
           this.fontSize = clampInt(saved.fontSize, 12, 28, 18);
           this.lineHeight = clampFloat(saved.lineHeight, 1.45, 2.2, 1.85);
         }
 
+        const progress = loadProgress(this.bookId);
+        if (
+          resumeRequested &&
+          progress &&
+          Number.isInteger(progress.section) &&
+          progress.section >= 0 &&
+          progress.section < this.tocCount &&
+          progress.section !== this.sectionIndex
+        ) {
+          window.location.replace(sectionUrl(progress.section));
+          return;
+        }
+        if (resumeRequested && progress && Number.isInteger(progress.page) && progress.section === this.sectionIndex) {
+          this._resumePage = Math.max(1, progress.page);
+        }
+        if (navReason === "prev" || navReason === "next") {
+          this._jumpToLast = false;
+          this._resumePage = 1;
+        }
+
         const frame = this.$refs.frame;
         if (frame) {
           frame.addEventListener("load", () => this.applyToFrame());
-          // Best-effort for cached loads.
           setTimeout(() => this.applyToFrame(), 0);
         }
 
         window.addEventListener("keydown", (evt) => this.onKeydown(evt));
         window.addEventListener("resize", () => this.onResize());
+        window.addEventListener("beforeunload", () => this._persistProgressNow());
 
         this.$watch("tocOpen", () => {
-          if (this.tocOpen) this.settingsOpen = false;
+          if (this.tocOpen) {
+            this.settingsOpen = false;
+            this._scrollCurrentTocIntoView();
+          }
         });
 
         this.$watch("settingsOpen", () => {
@@ -450,6 +566,10 @@
           this._persist();
           this.applyToFrame();
         });
+        this.$watch("page", () => this._persistProgressSoon());
+
+        this._scrollCurrentTocIntoView();
+        this._persistProgressSoon();
       },
       onResize() {
         if (this._resizeTimer) clearTimeout(this._resizeTimer);
@@ -491,10 +611,10 @@
         }
       },
       canPagePrev() {
-        return this.page > 1 || !!this.prevChapterUrl;
+        return this.page > 1 || this.prevChapterIndex !== null;
       },
       canPageNext() {
-        return this.page < this.pageCount || !!this.nextChapterUrl;
+        return this.page < this.pageCount || this.nextChapterIndex !== null;
       },
       pagePrev() {
         const scroller = this.getScroller();
@@ -502,9 +622,9 @@
           this.scrollToPage(this.page - 1, "smooth");
           return;
         }
-        if (this.prevChapterUrl) {
-          const sep = this.prevChapterUrl.includes("?") ? "&" : "?";
-          window.location.href = this.prevChapterUrl + sep + "page=last";
+        if (this.prevChapterIndex !== null) {
+          this._persistProgressNow();
+          window.location.href = sectionUrl(this.prevChapterIndex, { nav: "prev" });
         }
       },
       pageNext() {
@@ -513,7 +633,10 @@
           this.scrollToPage(this.page + 1, "smooth");
           return;
         }
-        if (this.nextChapterUrl) window.location.href = this.nextChapterUrl;
+        if (this.nextChapterIndex !== null) {
+          this._persistProgressNow();
+          window.location.href = sectionUrl(this.nextChapterIndex, { nav: "next" });
+        }
       },
       decFont() {
         this.fontSize = Math.max(12, this.fontSize - 1);
@@ -551,6 +674,7 @@
           const clamped = Math.max(1, Math.min(count, desiredPage));
           this.page = clamped;
           scroller.scrollTo({ left: (clamped - 1) * width, top: 0, behavior: behavior });
+          this._persistProgressSoon();
         });
       },
       _attachScrollListener() {
@@ -600,7 +724,7 @@
         body.appendChild(scroller);
       },
       _updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg) {
-        if (!doc) return;
+        if (!doc || !doc.body) return;
         doc.documentElement.style.setProperty("--bindery-page-max-width", maxPageWidth + "px");
         doc.documentElement.style.setProperty("--bindery-page-padding-x", paddingX + "px");
         doc.documentElement.style.setProperty("--bindery-page-padding-y", paddingY + "px");
@@ -613,8 +737,30 @@
         if (!scroller) return;
         const width = scroller.clientWidth || maxPageWidth;
         const columnWidth = Math.max(240, width - 2 * paddingX);
+        const columnGap = paddingX > 0 ? Math.max(6, Math.round(paddingX * 1.1)) : 0;
         doc.documentElement.style.setProperty("--bindery-column-width", columnWidth + "px");
-        doc.documentElement.style.setProperty("--bindery-column-gap", paddingX * 2 + "px");
+        doc.documentElement.style.setProperty("--bindery-column-gap", columnGap + "px");
+
+        const pages = doc.getElementById("bindery-reader-pages");
+        if (this.styleMode === "custom") {
+          doc.body.style.setProperty("font-family", family, "important");
+          doc.body.style.setProperty("font-size", size + "px", "important");
+          doc.body.style.setProperty("line-height", String(lineHeight), "important");
+          if (pages) {
+            pages.style.setProperty("font-family", family, "important");
+            pages.style.setProperty("font-size", size + "px", "important");
+            pages.style.setProperty("line-height", String(lineHeight), "important");
+          }
+        } else {
+          doc.body.style.removeProperty("font-family");
+          doc.body.style.removeProperty("font-size");
+          doc.body.style.removeProperty("line-height");
+          if (pages) {
+            pages.style.removeProperty("font-family");
+            pages.style.removeProperty("font-size");
+            pages.style.removeProperty("line-height");
+          }
+        }
       },
       applyToFrame() {
         const frame = this.$refs.frame;
@@ -636,8 +782,8 @@
         const family = fonts[this.fontFamily] || fonts.serif;
         const size = clampInt(this.fontSize, 12, 28, 18);
         const lineHeight = clampFloat(this.lineHeight, 1.45, 2.2, 1.85);
-        const paddingX = this.styleMode === "custom" ? 22 : 0;
-        const paddingY = this.styleMode === "custom" ? 24 : 0;
+        const paddingX = this.styleMode === "custom" ? 10 : 0;
+        const paddingY = this.styleMode === "custom" ? 12 : 0;
         const themeOn = this.readerBg !== "book";
         const themeBg = bgColors[this.readerBg] || bgColors.slate;
 
@@ -650,6 +796,7 @@
           "body{overflow:hidden!important;}" +
           "html.bindery-theme-on,html.bindery-theme-on body{background:var(--bindery-reader-bg)!important;}" +
           "html.bindery-mode-custom body{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;}" +
+          "html.bindery-mode-custom #bindery-reader-pages,html.bindery-mode-custom #bindery-reader-pages p,html.bindery-mode-custom #bindery-reader-pages li,html.bindery-mode-custom #bindery-reader-pages div,html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages blockquote,html.bindery-mode-custom #bindery-reader-pages td,html.bindery-mode-custom #bindery-reader-pages th{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;}" +
           "#bindery-reader-scroller{height:100%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:smooth;scrollbar-width:none;}" +
           "#bindery-reader-scroller::-webkit-scrollbar{display:none;}" +
           "#bindery-reader-pages{height:100%!important;box-sizing:border-box!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding:var(--bindery-page-padding-y,0px) var(--bindery-page-padding-x,0px)!important;}" +
@@ -661,18 +808,17 @@
           this._attachScrollListener();
           this._attachFrameKeyListener(doc);
 
-          const desired = this._jumpToLast ? 99999 : this.page;
-          this.refreshPagination({ desiredPage: desired, behavior: "auto" });
+          let desired = this.page;
           if (this._jumpToLast) {
-            this._jumpToLast = false;
-            try {
-              const url = new URL(window.location.href);
-              url.searchParams.delete("page");
-              history.replaceState({}, "", url);
-            } catch {
-              // ignore
-            }
+            desired = 99999;
+          } else if (Number.isInteger(this._resumePage) && this._resumePage > 0) {
+            desired = this._resumePage;
           }
+
+          this.refreshPagination({ desiredPage: desired, behavior: "auto" });
+          this._jumpToLast = false;
+          this._resumePage = null;
+          this._cleanupTransientQuery();
         });
       },
     };
