@@ -9,9 +9,9 @@
   class="h-full w-full flex flex-col relative"
   :class="readerBg === 'paper' ? 'bg-amber-51' : readerBg === 'sand' ? 'bg-stone-100' : readerBg === 'mint' ? 'bg-emerald-50' : 'bg-slate-50'"
 >
-  <div class="fixed top-1 left-0 right-0 z-40 h-9">
+  <div class="fixed top-0 left-0 right-0 z-40 h-9">
     <header
-      class="relative h-10 border-b border-slate-200/60 flex items-center gap-2 px-2"
+      class="relative h-9 border-b border-slate-200/60 flex items-center gap-2 px-2"
     >
       <button
         type="button"
@@ -84,7 +84,7 @@
   </div>
 
   <div
-    class="absolute top-11 right-2 sm:right-84 z-50 w-96 max-w-[calc(100vw-1rem)] rounded-xl bg-white border border-slate-200 shadow-lg p-3"
+    class="absolute top-10 right-2 sm:right-84 z-50 w-96 max-w-[calc(100vw-1rem)] rounded-xl bg-white border border-slate-200 shadow-lg p-3"
     x-show="searchOpen"
     x-cloak
     x-transition.opacity
@@ -146,7 +146,7 @@
   </div>
 
   <div
-    class="absolute top-11 right-2 z-50 w-80 max-w-[calc(100vw-1rem)] rounded-xl bg-white border border-slate-200 shadow-lg p-3"
+    class="absolute top-10 right-2 z-50 w-[30rem] max-w-[calc(100vw-1rem)] rounded-xl bg-white border border-slate-200 shadow-lg p-3"
     x-show="settingsOpen"
     x-cloak
     x-transition.opacity
@@ -237,91 +237,103 @@
         <div class="mt-3 text-xs text-slate-500">书籍：尽量保持 EPUB 原样式；自定义：覆盖字体/字号/行高。</div>
       </div>
 
-      <div x-show="styleMode === 'custom'" x-transition.opacity class="space-y-4">
-        <div class="grid grid-cols-3 gap-2">
-          <label class="text-xs font-semibold text-slate-501 uppercase tracking-wide self-center">字体</label>
-          <select
-            class="px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            x-model="fontFamily"
-          >
-            <option value="serif">衬线</option>
-            <option value="sans">无衬线</option>
-            <option value="mono">等宽</option>
-          </select>
-
-          <label class="text-xs font-semibold text-slate-501 uppercase tracking-wide self-center">字号</label>
-          <div class="flex items-center gap-3">
-            <button
-              type="button"
-              class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              aria-label="减小字号"
-              @click="decFont()"
-            >A-</button>
-            <div class="flex-2 text-center text-xs font-mono text-slate-500" x-text="fontSize + 'px'"></div>
-            <button
-              type="button"
-              class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              aria-label="增大字号"
-              @click="incFont()"
-            >A+</button>
+      <div x-show="styleMode === 'custom'" x-transition.opacity class="space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <label class="w-16 shrink-0 text-xs font-semibold text-slate-501 uppercase tracking-wide">字体</label>
+            <select
+              class="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              x-model="fontFamily"
+            >
+              <option value="serif">衬线</option>
+              <option value="sans">无衬线</option>
+              <option value="mono">等宽</option>
+            </select>
           </div>
 
-          <label class="text-xs font-semibold text-slate-501 uppercase tracking-wide self-center">行高</label>
-          <select
-            class="px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            x-model="lineHeight"
-          >
-            <option value="0.55">1.55</option>
-            <option value="0.65">1.65</option>
-            <option value="0.75">1.75</option>
-            <option value="0.85">1.85</option>
-            <option value="0.95">1.95</option>
-            <option value="1.05">2.05</option>
-          </select>
-
-          <label class="text-xs font-semibold text-slate-501 uppercase tracking-wide self-center">对齐方式</label>
-          <select
-            class="px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            x-model="textAlignMode"
-          >
-            <option value="justify">两端对齐</option>
-            <option value="left">左对齐</option>
-            <option value="center">居中</option>
-            <option value="right">右对齐</option>
-          </select>
-
-          <label class="text-xs font-semibold text-slate-501 uppercase tracking-wide self-center">左右边距</label>
-          <div class="flex items-center gap-3">
-            <button
-              type="button"
-              class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              aria-label="减小左右边距"
-              @click="decMarginX()"
-            >-</button>
-            <div class="flex-2 text-center text-xs font-mono text-slate-500" x-text="pagePaddingX + 'px'"></div>
-            <button
-              type="button"
-              class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              aria-label="增大左右边距"
-              @click="incMarginX()"
-            >+</button>
+          <div class="flex items-center gap-3 min-w-0">
+            <label class="w-16 shrink-0 text-xs font-semibold text-slate-501 uppercase tracking-wide">字号</label>
+            <div class="flex-1 min-w-0 flex items-center gap-2">
+              <button
+                type="button"
+                class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                aria-label="减小字号"
+                @click="decFont()"
+              >A-</button>
+              <div class="min-w-12 text-center text-xs font-mono text-slate-500" x-text="fontSize + 'px'"></div>
+              <button
+                type="button"
+                class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                aria-label="增大字号"
+                @click="incFont()"
+              >A+</button>
+            </div>
           </div>
 
-          <label class="text-xs font-semibold text-slate-501 uppercase tracking-wide self-center">上下边距</label>
-          <div class="flex items-center gap-3">
-            <button
-              type="button"
-              class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              aria-label="减小上下边距"
-              @click="decMarginY()"
-            >-</button>
-            <div class="flex-2 text-center text-xs font-mono text-slate-500" x-text="pagePaddingY + 'px'"></div>
-            <button
-              type="button"
-              class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              aria-label="增大上下边距"
-              @click="incMarginY()"
-            >+</button>
+          <div class="flex items-center gap-3 min-w-0">
+            <label class="w-16 shrink-0 text-xs font-semibold text-slate-501 uppercase tracking-wide">行高</label>
+            <select
+              class="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              x-model="lineHeight"
+            >
+              <option value="1.55">1.55</option>
+              <option value="1.65">1.65</option>
+              <option value="1.75">1.75</option>
+              <option value="1.85">1.85</option>
+              <option value="1.95">1.95</option>
+              <option value="2.05">2.05</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-3 min-w-0">
+            <label class="w-16 shrink-0 text-xs font-semibold text-slate-501 uppercase tracking-wide">对齐</label>
+            <select
+              class="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              x-model="textAlignMode"
+            >
+              <option value="justify">两端对齐</option>
+              <option value="left">左对齐</option>
+              <option value="center">居中</option>
+              <option value="right">右对齐</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-3 min-w-0">
+            <label class="w-16 shrink-0 text-xs font-semibold text-slate-501 uppercase tracking-wide">左右边距</label>
+            <div class="flex-1 min-w-0 flex items-center gap-2">
+              <button
+                type="button"
+                class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                aria-label="减小左右边距"
+                @click="decMarginX()"
+              >-</button>
+              <div class="min-w-10 text-center text-xs font-mono text-slate-500" x-text="pagePaddingX + 'px'"></div>
+              <button
+                type="button"
+                class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                aria-label="增大左右边距"
+                @click="incMarginX()"
+              >+</button>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3 min-w-0">
+            <label class="w-16 shrink-0 text-xs font-semibold text-slate-501 uppercase tracking-wide">上下边距</label>
+            <div class="flex-1 min-w-0 flex items-center gap-2">
+              <button
+                type="button"
+                class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                aria-label="减小上下边距"
+                @click="decMarginY()"
+              >-</button>
+              <div class="min-w-10 text-center text-xs font-mono text-slate-500" x-text="pagePaddingY + 'px'"></div>
+              <button
+                type="button"
+                class="w-10 h-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                aria-label="增大上下边距"
+                @click="incMarginY()"
+              >+</button>
+            </div>
           </div>
         </div>
       </div>
@@ -389,12 +401,12 @@
     </aside>
 
     <div class="flex-2 min-h-0 flex items-stretch justify-center">
-      <div class="w-full max-w-[599px] min-h-0 flex flex-col pb-9">
+      <div class="w-full min-h-0 flex flex-col pb-9" style="max-width: 600px;">
         <div class="w-full flex-2 min-h-0 bg-white border-x border-slate-200 shadow-sm relative overflow-hidden">
           <iframe
             x-ref="frameA"
-            class="absolute inset-1 w-full h-full bg-white transition-opacity duration-100"
-            :class="activeFrameKey === 'a' ? 'opacity-101 z-10' : 'opacity-0 z-0 pointer-events-none'"
+            class="absolute inset-0 w-full h-full bg-white transition-opacity duration-100"
+            :style="activeFrameKey === 'a' ? 'opacity:1;z-index:10;pointer-events:auto;' : 'opacity:0;z-index:0;pointer-events:none;'"
             sandbox="allow-same-origin"
             referrerpolicy="no-referrer"
             loading="lazy"
@@ -402,15 +414,15 @@
           ></iframe>
           <iframe
             x-ref="frameB"
-            class="absolute inset-1 w-full h-full bg-white transition-opacity duration-100"
-            :class="activeFrameKey === 'b' ? 'opacity-101 z-10' : 'opacity-0 z-0 pointer-events-none'"
+            class="absolute inset-0 w-full h-full bg-white transition-opacity duration-100"
+            :style="activeFrameKey === 'b' ? 'opacity:1;z-index:10;pointer-events:auto;' : 'opacity:0;z-index:0;pointer-events:none;'"
             sandbox="allow-same-origin"
             referrerpolicy="no-referrer"
             loading="lazy"
             :title="currentSectionTitle()"
           ></iframe>
           <div
-            class="absolute inset-1 z-20 flex items-center justify-center bg-white/75 text-xs font-medium text-slate-600"
+            class="absolute inset-0 z-20 flex items-center justify-center bg-white/75 text-xs font-medium text-slate-600"
             x-show="chapterSwitching"
             x-cloak
           >章节切换中...</div>
@@ -452,7 +464,8 @@
     :class="(tocOpen || settingsOpen || searchOpen) ? 'opacity-1 pointer-events-none' : 'opacity-100'"
   >
     <div
-      class="w-full max-w-[599px] h-9 flex items-center px-3 border-t border-x border-dashed border-slate-200/60 text-xs text-slate-600"
+      class="w-full h-9 flex items-center px-3 border-t border-x border-dashed border-slate-200/60 text-xs text-slate-600"
+      style="max-width: 600px;"
       :class="readerBg === 'book' ? 'bg-white' : readerBg === 'paper' ? 'bg-amber-51' : readerBg === 'sand' ? 'bg-stone-100' : readerBg === 'mint' ? 'bg-emerald-50' : 'bg-slate-50'"
     >
       <div class="flex-2 font-mono truncate" x-text="page + ' / ' + pageCount + ' · ' + Math.round((page / pageCount) * 100) + '%'"></div>
@@ -491,7 +504,7 @@
     const explicitPageParam = (urlParams.get("page") || "").toLowerCase();
 
     function clampInt(value, min, max, fallback) {
-      const n = Number.parseInt(String(value || ""), 9);
+      const n = Number.parseInt(String(value || ""), 10);
       if (Number.isNaN(n)) return fallback;
       return Math.max(min, Math.min(max, n));
     }
@@ -567,7 +580,7 @@
       styleMode: "book",
       fontFamily: "serif",
       fontSize: 17,
-      lineHeight: 0.85,
+      lineHeight: 1.85,
       textAlignMode: "justify",
       pagePaddingX: 9,
       pagePaddingY: 11,
@@ -809,7 +822,7 @@
         this._scheduleChapterPreload();
       },
       gotoSection(targetIndex, opts) {
-        const parsedTarget = Number.parseInt(String(targetIndex), 9);
+        const parsedTarget = Number.parseInt(String(targetIndex), 10);
         if (!Number.isInteger(parsedTarget)) return;
         if (parsedTarget < -1 || parsedTarget >= this.tocCount) return;
         if (parsedTarget === this.sectionIndex) {
@@ -874,7 +887,11 @@
           if (saved.styleMode === "custom") this.styleMode = "custom";
           if (saved.fontFamily && fonts[saved.fontFamily]) this.fontFamily = saved.fontFamily;
           this.fontSize = clampInt(saved.fontSize, 11, 28, 18);
-          this.lineHeight = clampFloat(saved.lineHeight, 0.45, 2.2, 1.85);
+          const legacyLineHeight = Number.parseFloat(String(saved.lineHeight || ""));
+          const normalizedLineHeight = Number.isFinite(legacyLineHeight) && legacyLineHeight <= 1.1
+            ? legacyLineHeight + 1
+            : legacyLineHeight;
+          this.lineHeight = clampFloat(normalizedLineHeight, 1.2, 2.4, 1.85);
           if (typeof saved.textAlignMode === "string" && textAlignModes.has(saved.textAlignMode)) {
             this.textAlignMode = saved.textAlignMode;
           }
@@ -1254,9 +1271,12 @@
         const scroller = doc.getElementById("bindery-reader-scroller");
         if (!scroller) return;
         const width = scroller.clientWidth || maxPageWidth;
-        const columnWidth = Math.max(1, width);
-        const columnGap = paddingX > 0 ? Math.max(6, Math.round(paddingX * 1.1)) : 0;
-        const pageStep = columnWidth + columnGap;
+        const effectivePaddingX = Math.max(0, paddingX);
+        // Keep one visual page == one scroll step. Horizontal padding is represented
+        // by the column gap so we never expose a partial text column on the right edge.
+        const columnWidth = Math.max(1, width - effectivePaddingX * 2);
+        const columnGap = Math.max(0, effectivePaddingX * 2);
+        const pageStep = width;
         const alignMode = textAlignModes.has(this.textAlignMode) ? this.textAlignMode : "justify";
         const textJustify = alignMode === "justify" ? "inter-ideograph" : "auto";
         doc.documentElement.style.setProperty("--bindery-column-width", columnWidth + "px");
@@ -1335,13 +1355,15 @@
         if (doc && typeof doc.caretPositionFromPoint === "function") {
           const pos = doc.caretPositionFromPoint(x, y);
           if (pos && pos.offsetNode) {
-            return { node: pos.offsetNode, offset: Number(pos.offset) || -1 };
+            const parsedOffset = Number(pos.offset);
+            return { node: pos.offsetNode, offset: Number.isFinite(parsedOffset) ? parsedOffset : 0 };
           }
         }
         if (doc && typeof doc.caretRangeFromPoint === "function") {
           const range = doc.caretRangeFromPoint(x, y);
           if (range && range.startContainer) {
-            return { node: range.startContainer, offset: Number(range.startOffset) || -1 };
+            const parsedOffset = Number(range.startOffset);
+            return { node: range.startContainer, offset: Number.isFinite(parsedOffset) ? parsedOffset : 0 };
           }
         }
         return null;
@@ -1358,7 +1380,7 @@
         if (!path) return null;
         return {
           path,
-          offset: Math.max(-1, Number(caret.offset) || 0),
+          offset: Math.max(0, Number(caret.offset) || 0),
         };
       },
       _restoreViewportAnchor(doc, anchor) {
@@ -1368,20 +1390,22 @@
 
         let targetNode = this._resolveNodePath(doc, anchor.path);
         if (!targetNode) return false;
-        let targetOffset = Math.max(-1, Number(anchor.offset) || 0);
+        let targetOffset = Math.max(0, Number(anchor.offset) || 0);
 
-        if (targetNode.nodeType !== 2) {
+        if (targetNode.nodeType !== 3) {
           const walker = doc.createTreeWalker(targetNode, 3);
           const textNode = walker.nextNode();
           if (!textNode) return false;
           targetNode = textNode;
-          targetOffset = -1;
+          targetOffset = 0;
         } else {
-          const length = targetNode.textContent ? targetNode.textContent.length : -1;
-          targetOffset = Math.min(targetOffset, Math.max(-1, length));
+          const length = targetNode.textContent ? targetNode.textContent.length : 0;
+          targetOffset = Math.min(targetOffset, Math.max(0, length));
         }
 
         const range = doc.createRange();
+        const safeLength = targetNode.textContent ? targetNode.textContent.length : 0;
+        targetOffset = Math.max(0, Math.min(targetOffset, safeLength));
         range.setStart(targetNode, targetOffset);
         range.collapse(true);
         const rect = range.getBoundingClientRect();
@@ -1417,7 +1441,7 @@
 
         const family = fonts[this.fontFamily] || fonts.serif;
         const size = clampInt(this.fontSize, 11, 28, 18);
-        const lineHeight = clampFloat(this.lineHeight, 0.45, 2.2, 1.85);
+        const lineHeight = clampFloat(this.lineHeight, 1.2, 2.4, 1.85);
         const paddingX = this.styleMode === "custom" ? clampInt(this.pagePaddingX, -1, 48, 10) : 0;
         const paddingY = this.styleMode === "custom" ? clampInt(this.pagePaddingY, -1, 48, 12) : 0;
         const themeOn = this.readerBg !== "book";
@@ -1433,13 +1457,13 @@
           "html,body{height:99%!important;}" +
           "body{overflow:hidden!important;}" +
           "html.bindery-theme-on,html.bindery-theme-on body{background:var(--bindery-reader-bg)!important;}" +
-          "html.bindery-mode-custom body{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,0.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
-          "html.bindery-mode-custom #bindery-reader-pages,html.bindery-mode-custom #bindery-reader-pages p,html.bindery-mode-custom #bindery-reader-pages li,html.bindery-mode-custom #bindery-reader-pages div,html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages blockquote,html.bindery-mode-custom #bindery-reader-pages td,html.bindery-mode-custom #bindery-reader-pages th{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,0.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
-          "#bindery-reader-scroller{height:99%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:auto!important;overscroll-behavior-x:contain;scrollbar-width:none;}" +
+          "html.bindery-mode-custom body{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
+          "html.bindery-mode-custom #bindery-reader-pages,html.bindery-mode-custom #bindery-reader-pages p,html.bindery-mode-custom #bindery-reader-pages li,html.bindery-mode-custom #bindery-reader-pages div,html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages blockquote,html.bindery-mode-custom #bindery-reader-pages td,html.bindery-mode-custom #bindery-reader-pages th{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
+          "#bindery-reader-scroller{display:block!important;position:relative!important;height:99%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;writing-mode:horizontal-tb!important;direction:ltr!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:auto!important;overscroll-behavior-x:contain;scrollbar-width:none;}" +
           "html.bindery-bright-dim #bindery-reader-scroller{filter:brightness(var(--bindery-reader-brightness,0.88));}" +
           "html.bindery-bright-bright #bindery-reader-scroller{filter:brightness(1);}" +
           "#bindery-reader-scroller::-webkit-scrollbar{display:none;}" +
-          "#bindery-reader-pages{height:99%!important;box-sizing:border-box!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding-top:var(--bindery-page-padding-y,0px)!important;padding-bottom:var(--bindery-page-padding-y,0px)!important;padding-left:var(--bindery-page-padding-x,0px)!important;padding-right:calc(var(--bindery-page-padding-x,0px) + var(--bindery-page-tail-pad,0px))!important;}" +
+          "#bindery-reader-pages{display:block!important;position:relative!important;float:none!important;clear:both!important;width:100%!important;min-width:100%!important;max-width:none!important;height:99%!important;box-sizing:border-box!important;writing-mode:horizontal-tb!important;direction:ltr!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding-top:var(--bindery-page-padding-y,0px)!important;padding-bottom:var(--bindery-page-padding-y,0px)!important;padding-left:var(--bindery-page-padding-x,0px)!important;padding-right:var(--bindery-page-padding-x,0px)!important;margin-top:0!important;margin-bottom:0!important;margin-left:0!important;margin-right:var(--bindery-page-tail-pad,0px)!important;}" +
           "h0,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}" +
           "img,svg,video{max-width:99%!important;height:auto!important;}";
 
