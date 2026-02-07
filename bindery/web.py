@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import html
 import json
 import logging
 import queue
@@ -18,7 +19,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -77,6 +78,8 @@ DOUBAN_REFERER = "https://book.douban.com/"
 _ingest_queue: "queue.Queue[dict]" = queue.Queue()
 _ingest_worker_started = False
 _ingest_worker_lock = threading.Lock()
+_search_index_cache_lock = threading.Lock()
+_search_index_cache: dict[str, dict[str, object]] = {}
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -398,6 +401,91 @@ def _no_store_headers() -> dict[str, str]:
         "Pragma": "no-cache",
         "Expires": "0",
     }
+
+
+def _normalize_search_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "")).strip()
+
+
+def _extract_text_from_html_bytes(content: bytes) -> str:
+    text = content.decode("utf-8", errors="replace")
+    text = re.sub(r"(?is)<script\b[^>]*>.*?</script>", " ", text)
+    text = re.sub(r"(?is)<style\b[^>]*>.*?</style>", " ", text)
+    text = re.sub(r"(?s)<[^>]+>", " ", text)
+    text = html.unescape(text)
+    return _normalize_search_text(text)
+
+
+def _search_index_signature(epub_file: Path) -> tuple[int, int]:
+    stat = epub_file.stat()
+    return (stat.st_mtime_ns, stat.st_size)
+
+
+def _build_book_search_index(epub_file: Path) -> list[dict[str, object]]:
+    sections = list_epub_sections(epub_file)
+    index: list[dict[str, object]] = []
+    for idx, section in enumerate(sections):
+        try:
+            content, media_type = load_epub_item(epub_file, section.item_path, "")
+        except FileNotFoundError:
+            continue
+        if "html" not in (media_type or "").lower():
+            continue
+        plain_text = _extract_text_from_html_bytes(content)
+        if not plain_text:
+            continue
+        index.append(
+            {
+                "index": idx,
+                "title": section.title or f"章节 {idx + 1}",
+                "text": plain_text,
+                "text_lower": plain_text.lower(),
+            }
+        )
+    return index
+
+
+def _get_book_search_index(book_id: str, epub_file: Path) -> list[dict[str, object]]:
+    signature = _search_index_signature(epub_file)
+    with _search_index_cache_lock:
+        cached = _search_index_cache.get(book_id)
+        if cached and cached.get("signature") == signature:
+            payload = cached.get("index")
+            if isinstance(payload, list):
+                return payload
+
+    built = _build_book_search_index(epub_file)
+    with _search_index_cache_lock:
+        _search_index_cache[book_id] = {"signature": signature, "index": built}
+    return built
+
+
+def _search_hits(index: list[dict[str, object]], query: str, limit: int) -> list[dict[str, object]]:
+    query_raw = _normalize_search_text(query)
+    if not query_raw:
+        return []
+    query_lower = query_raw.lower()
+    results: list[dict[str, object]] = []
+    for item in index:
+        text = str(item.get("text") or "")
+        text_lower = str(item.get("text_lower") or "")
+        match_at = text_lower.find(query_lower)
+        if match_at < 0:
+            continue
+        start = max(0, match_at - 30)
+        end = min(len(text), match_at + len(query_raw) + 70)
+        snippet = ("..." if start > 0 else "") + text[start:end] + ("..." if end < len(text) else "")
+        results.append(
+            {
+                "index": int(item.get("index") or 0),
+                "title": str(item.get("title") or ""),
+                "offset": match_at,
+                "snippet": snippet,
+            }
+        )
+        if len(results) >= limit:
+            break
+    return results
 
 
 def _library_return_to_url(sort: str, q: str, page: int, read_filter: str) -> str:
@@ -2465,6 +2553,27 @@ async def epub_item(book_id: str, item_path: str) -> Response:
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Item not found")
     return Response(content=content, media_type=media_type, headers=_no_store_headers())
+
+
+@app.get("/book/{book_id}/search")
+async def search_book(
+    book_id: str,
+    q: str = Query(default="", min_length=0, max_length=200),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict[str, object]:
+    base = library_dir()
+    _require_book(base, book_id)
+    query = _normalize_search_text(q)
+    if not query:
+        return {"query": "", "hits": [], "indexed_sections": 0}
+
+    epub_file = epub_path(base, book_id)
+    if not epub_file.exists():
+        raise HTTPException(status_code=404, detail="EPUB missing")
+
+    index = _get_book_search_index(book_id, epub_file)
+    hits = _search_hits(index, query, limit)
+    return {"query": query, "hits": hits, "indexed_sections": len(index)}
 
 
 @app.get("/book/{book_id}/edit", response_class=HTMLResponse)
