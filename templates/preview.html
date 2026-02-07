@@ -43,9 +43,7 @@
       >返回详情</a>
 
       <div class="absolute inset-0 flex items-center justify-center px-20 sm:px-24 pointer-events-none">
-        <div class="max-w-full truncate text-[13px] font-semibold text-slate-900">
-          {{ book.title }} · {{ section.title }}
-        </div>
+        <div class="max-w-full truncate text-[13px] font-semibold text-slate-900" x-text="bookTitle + ' · ' + currentSectionTitle()"></div>
       </div>
 
       <button
@@ -223,7 +221,7 @@
           <div class="min-w-0 flex-1">
             <div class="text-sm font-semibold text-slate-900 truncate">{{ book.title }}</div>
             <div class="text-xs text-slate-500 truncate mt-0.5">{{ book.author or "未知" }}</div>
-            <div class="text-xs text-slate-500 mt-2">共 {{ toc | length }} 节 · 当前 {{ section_index + 1 }}</div>
+            <div class="text-xs text-slate-500 mt-2" x-text="'共 ' + tocCount + ' 节 · 当前 ' + (sectionIndex + 1)"></div>
           </div>
 
           <button
@@ -244,9 +242,10 @@
         {% for item in toc %}
           <a
             href="/book/{{ book.book_id }}/preview/{{ item.index }}{{ return_to_query }}"
-            class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors {% if item.index == section_index %}bg-indigo-50 text-indigo-700{% else %}text-slate-700 hover:bg-slate-50{% endif %}"
-            @click="tocOpen = false"
-            {% if item.index == section_index %}data-current-toc="1"{% endif %}
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-slate-700 hover:bg-slate-50"
+            :class="sectionIndex === {{ item.index }} ? 'bg-indigo-50 text-indigo-700' : ''"
+            @click.prevent="gotoSection({{ item.index }}, { desiredPage: 1 })"
+            :data-current-toc="sectionIndex === {{ item.index }} ? '1' : null"
             title="{{ item.title }}"
           >
             <span class="truncate">{{ item.title }}</span>
@@ -257,16 +256,30 @@
 
     <div class="flex-1 min-h-0 flex items-stretch justify-center">
       <div class="w-full max-w-[600px] min-h-0 flex flex-col pb-9">
-        <div class="w-full flex-1 min-h-0 bg-white border-x border-slate-200 shadow-sm flex flex-col">
+        <div class="w-full flex-1 min-h-0 bg-white border-x border-slate-200 shadow-sm relative overflow-hidden">
           <iframe
-            x-ref="frame"
-            class="w-full flex-1 min-h-0 bg-white"
-            src="{{ section.content_url }}"
+            x-ref="frameA"
+            class="absolute inset-0 w-full h-full bg-white transition-opacity duration-100"
+            :class="activeFrameKey === 'a' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'"
             sandbox="allow-same-origin"
             referrerpolicy="no-referrer"
             loading="lazy"
-            title="{{ section.title }}"
+            :title="currentSectionTitle()"
           ></iframe>
+          <iframe
+            x-ref="frameB"
+            class="absolute inset-0 w-full h-full bg-white transition-opacity duration-100"
+            :class="activeFrameKey === 'b' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'"
+            sandbox="allow-same-origin"
+            referrerpolicy="no-referrer"
+            loading="lazy"
+            :title="currentSectionTitle()"
+          ></iframe>
+          <div
+            class="absolute inset-0 z-20 flex items-center justify-center bg-white/75 text-xs font-medium text-slate-600"
+            x-show="chapterSwitching"
+            x-cloak
+          >章节切换中...</div>
         </div>
       </div>
     </div>
@@ -319,8 +332,10 @@
     const storageKey = "bindery:reader";
     const progressStoragePrefix = "bindery:reader:progress:";
     const bookId = {{ book.book_id|tojson }};
-    const sectionIndex = {{ section_index }};
-    const tocCount = {{ toc | length }};
+    const bookTitle = {{ book.title|tojson }};
+    const sectionsData = {{ sections_payload|tojson }};
+    const initialSectionIndex = {{ section_index }};
+    const tocCount = sectionsData.length;
     const returnTo = {{ return_to|tojson }};
     const sectionBaseUrl = "/book/{{ book.book_id }}/preview/";
     const fonts = {
@@ -335,8 +350,6 @@
       mint: "#ecfdf5",
     };
     const maxPageWidth = 600;
-    const prevChapterIndex = {% if prev_idx is not none %}{{ prev_idx }}{% else %}null{% endif %};
-    const nextChapterIndex = {% if next_idx is not none %}{{ next_idx }}{% else %}null{% endif %};
     const urlParams = new URLSearchParams(window.location.search);
     const resumeRequested = urlParams.get("resume") === "1";
     const navReason = (urlParams.get("nav") || "").toLowerCase();
@@ -412,6 +425,7 @@
     return {
       tocOpen: false,
       settingsOpen: false,
+      chapterSwitching: false,
       readerBg: "book",
       styleMode: "book",
       fontFamily: "serif",
@@ -421,18 +435,32 @@
       page: 1,
       pageCount: 1,
       bookId,
-      sectionIndex,
+      bookTitle,
+      sections: sectionsData,
+      sectionIndex: initialSectionIndex,
       tocCount,
-      prevChapterIndex,
-      nextChapterIndex,
+      activeFrameKey: "a",
       _jumpToLast: false,
       _resumePage: null,
+      _lastChapterDirection: 1,
       _clockTimer: null,
       _scrollEndTimer: null,
       _resizeTimer: null,
       _progressTimer: null,
-      _hasAppliedLayout: false,
-      _applyingLayout: false,
+      _idlePreloadToken: null,
+      _pendingSwitch: null,
+      _prefetchCache: {},
+      _prefetchInflight: {},
+      _frameState: {
+        a: { section: null, ready: false, desiredPage: 1 },
+        b: { section: null, ready: false, desiredPage: 1 },
+      },
+      _frameApplied: { a: false, b: false },
+      _frameApplying: { a: false, b: false },
+      currentSectionTitle() {
+        const section = this.sections[this.sectionIndex];
+        return section ? section.title : "";
+      },
       _updateTimeNow() {
         try {
           this.timeNow = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -464,8 +492,21 @@
         if (this._progressTimer) clearTimeout(this._progressTimer);
         this._progressTimer = setTimeout(() => this._persistProgressNow(), 120);
       },
+      _otherFrameKey(key) {
+        return key === "a" ? "b" : "a";
+      },
+      getFrame(key) {
+        return key === "a" ? this.$refs.frameA : this.$refs.frameB;
+      },
+      getActiveFrame() {
+        return this.getFrame(this.activeFrameKey);
+      },
       _applyLayoutWithAnchor() {
-        this.applyToFrame({ preserveAnchor: true });
+        this.applyToFrame({ frameKey: this.activeFrameKey, preserveAnchor: true });
+        const bufferKey = this._otherFrameKey(this.activeFrameKey);
+        if (this._frameState[bufferKey].ready) {
+          this.applyToFrame({ frameKey: bufferKey, primeOnly: true });
+        }
       },
       _scrollCurrentTocIntoView() {
         this.$nextTick(() => {
@@ -473,6 +514,158 @@
           if (!current || typeof current.scrollIntoView !== "function") return;
           current.scrollIntoView({ block: "center", inline: "nearest" });
         });
+      },
+      _sectionIndexFromLocation() {
+        const match = window.location.pathname.match(/\/preview\/(\d+)\/?$/);
+        if (!match) return null;
+        const parsed = Number.parseInt(match[1], 10);
+        if (!Number.isInteger(parsed)) return null;
+        if (parsed < 0 || parsed >= this.tocCount) return null;
+        return parsed;
+      },
+      _scheduleIdle(task, timeout = 600) {
+        if ("requestIdleCallback" in window) {
+          return window.requestIdleCallback(task, { timeout });
+        }
+        return window.setTimeout(() => task({ didTimeout: false, timeRemaining: () => 0 }), 120);
+      },
+      _cancelIdle(token) {
+        if (token == null) return;
+        if ("cancelIdleCallback" in window) {
+          window.cancelIdleCallback(token);
+          return;
+        }
+        window.clearTimeout(token);
+      },
+      _prefetchSectionHtml(index) {
+        if (!Number.isInteger(index) || index < 0 || index >= this.tocCount) return;
+        if (this._prefetchCache[index] || this._prefetchInflight[index]) return;
+        const section = this.sections[index];
+        if (!section || !section.content_url) return;
+        this._prefetchInflight[index] = true;
+        fetch(section.content_url, { credentials: "same-origin" })
+          .then((response) => (response.ok ? response.text() : ""))
+          .then((html) => {
+            if (html) this._prefetchCache[index] = html;
+          })
+          .catch(() => {
+            // ignore
+          })
+          .finally(() => {
+            delete this._prefetchInflight[index];
+          });
+      },
+      _loadSectionIntoFrame(frameKey, targetIndex, desiredPage) {
+        const frame = this.getFrame(frameKey);
+        const section = this.sections[targetIndex];
+        if (!frame || !section) return;
+        const state = this._frameState[frameKey];
+        if (state.section === targetIndex && state.ready) return;
+        state.section = targetIndex;
+        state.desiredPage = Math.max(1, Number.parseInt(String(desiredPage || 1), 10) || 1);
+        state.ready = false;
+
+        const cached = this._prefetchCache[targetIndex];
+        if (cached) {
+          frame.removeAttribute("src");
+          frame.srcdoc = cached;
+          return;
+        }
+        frame.removeAttribute("srcdoc");
+        frame.src = section.content_url;
+      },
+      _updateHistoryForSection(targetIndex, mode) {
+        const target = sectionUrl(targetIndex);
+        if (mode === "replace") {
+          history.replaceState({ section: targetIndex }, "", target);
+          return;
+        }
+        history.pushState({ section: targetIndex }, "", target);
+      },
+      _scheduleChapterPreload() {
+        if (this._idlePreloadToken) this._cancelIdle(this._idlePreloadToken);
+        this._idlePreloadToken = this._scheduleIdle(() => {
+          const preferred = this.sectionIndex + (this._lastChapterDirection >= 0 ? 1 : -1);
+          const fallback = this.sectionIndex + (this._lastChapterDirection >= 0 ? -1 : 1);
+          let target = preferred;
+          if (target < 0 || target >= this.tocCount) {
+            target = fallback;
+          }
+          if (target < 0 || target >= this.tocCount) return;
+          const bufferKey = this._otherFrameKey(this.activeFrameKey);
+          this._prefetchSectionHtml(target);
+          this._loadSectionIntoFrame(bufferKey, target, 1);
+        });
+      },
+      _bindFrameLoad(frameKey) {
+        const frame = this.getFrame(frameKey);
+        if (!frame || frame.dataset.binderyFrameListener) return;
+        frame.dataset.binderyFrameListener = "1";
+        frame.addEventListener("load", () => this._onFrameLoaded(frameKey));
+      },
+      _onFrameLoaded(frameKey) {
+        const state = this._frameState[frameKey];
+        if (!state || state.section === null) return;
+        const primeOnly = frameKey !== this.activeFrameKey;
+        this.applyToFrame({
+          frameKey,
+          preserveAnchor: false,
+          primeOnly,
+          desiredPage: state.desiredPage,
+          onDone: () => {
+            state.ready = true;
+            const pending = this._pendingSwitch;
+            if (pending && pending.frameKey === frameKey && pending.sectionIndex === state.section) {
+              this._activateFrame(frameKey, pending.sectionIndex, pending.desiredPage, pending.historyMode);
+            }
+          },
+        });
+      },
+      _activateFrame(frameKey, targetIndex, desiredPage, historyMode) {
+        this.activeFrameKey = frameKey;
+        this.sectionIndex = targetIndex;
+        this.page = 1;
+        this.pageCount = 1;
+        this.chapterSwitching = false;
+        this._pendingSwitch = null;
+        this.refreshPagination({ desiredPage: desiredPage || 1, behavior: "auto" });
+        this._persistProgressSoon();
+        this._scrollCurrentTocIntoView();
+        this._updateHistoryForSection(targetIndex, historyMode || "push");
+        this._scheduleChapterPreload();
+      },
+      gotoSection(targetIndex, opts) {
+        const parsedTarget = Number.parseInt(String(targetIndex), 10);
+        if (!Number.isInteger(parsedTarget)) return;
+        if (parsedTarget < 0 || parsedTarget >= this.tocCount) return;
+        if (parsedTarget === this.sectionIndex) {
+          if (opts && Number.isInteger(opts.desiredPage)) {
+            this.scrollToPage(Math.max(1, opts.desiredPage), "auto");
+          }
+          this.tocOpen = false;
+          return;
+        }
+
+        const desiredPage = opts && Number.isInteger(opts.desiredPage) ? Math.max(1, opts.desiredPage) : 1;
+        const historyMode = (opts && opts.historyMode) || "push";
+        this._lastChapterDirection = parsedTarget > this.sectionIndex ? 1 : -1;
+        this.tocOpen = false;
+
+        const bufferKey = this._otherFrameKey(this.activeFrameKey);
+        const bufferState = this._frameState[bufferKey];
+        if (bufferState.section === parsedTarget && bufferState.ready) {
+          this._activateFrame(bufferKey, parsedTarget, desiredPage, historyMode);
+          return;
+        }
+
+        this.chapterSwitching = true;
+        this._pendingSwitch = {
+          frameKey: bufferKey,
+          sectionIndex: parsedTarget,
+          desiredPage,
+          historyMode,
+        };
+        this._loadSectionIntoFrame(bufferKey, parsedTarget, desiredPage);
       },
       _cleanupTransientQuery() {
         try {
@@ -490,7 +683,7 @@
             url.searchParams.delete("nav");
             changed = true;
           }
-          if (changed) history.replaceState({}, "", url);
+          if (changed) history.replaceState({ section: this.sectionIndex }, "", url);
         } catch {
           // ignore
         }
@@ -510,16 +703,12 @@
         }
 
         const progress = loadProgress(this.bookId);
-        if (
-          resumeRequested &&
-          progress &&
-          Number.isInteger(progress.section) &&
-          progress.section >= 0 &&
-          progress.section < this.tocCount &&
-          progress.section !== this.sectionIndex
-        ) {
-          window.location.replace(sectionUrl(progress.section));
-          return;
+        const pathSection = this._sectionIndexFromLocation();
+        if (Number.isInteger(pathSection) && pathSection >= 0 && pathSection < this.tocCount) {
+          this.sectionIndex = pathSection;
+        }
+        if (resumeRequested && progress && Number.isInteger(progress.section) && progress.section >= 0 && progress.section < this.tocCount) {
+          this.sectionIndex = progress.section;
         }
         if (resumeRequested && progress && Number.isInteger(progress.page) && progress.section === this.sectionIndex) {
           this._resumePage = Math.max(1, progress.page);
@@ -529,15 +718,26 @@
           this._resumePage = 1;
         }
 
-        const frame = this.$refs.frame;
-        if (frame) {
-          frame.addEventListener("load", () => this.applyToFrame());
-          setTimeout(() => this.applyToFrame(), 0);
+        this._bindFrameLoad("a");
+        this._bindFrameLoad("b");
+
+        let initialPage = 1;
+        if (this._jumpToLast) {
+          initialPage = 99999;
+        } else if (Number.isInteger(this._resumePage) && this._resumePage > 0) {
+          initialPage = this._resumePage;
         }
+        this._loadSectionIntoFrame(this.activeFrameKey, this.sectionIndex, initialPage);
+        this._updateHistoryForSection(this.sectionIndex, "replace");
 
         window.addEventListener("keydown", (evt) => this.onKeydown(evt));
         window.addEventListener("resize", () => this.onResize());
         window.addEventListener("beforeunload", () => this._persistProgressNow());
+        window.addEventListener("popstate", () => {
+          const target = this._sectionIndexFromLocation();
+          if (target === null || target === this.sectionIndex) return;
+          this.gotoSection(target, { desiredPage: 1, historyMode: "replace" });
+        });
 
         this.$watch("tocOpen", () => {
           if (this.tocOpen) {
@@ -574,6 +774,7 @@
 
         this._scrollCurrentTocIntoView();
         this._persistProgressSoon();
+        this._scheduleChapterPreload();
       },
       onResize() {
         if (this._resizeTimer) clearTimeout(this._resizeTimer);
@@ -615,10 +816,10 @@
         }
       },
       canPagePrev() {
-        return this.page > 1 || this.prevChapterIndex !== null;
+        return this.page > 1 || this.sectionIndex > 0;
       },
       canPageNext() {
-        return this.page < this.pageCount || this.nextChapterIndex !== null;
+        return this.page < this.pageCount || this.sectionIndex < this.tocCount - 1;
       },
       pagePrev() {
         const scroller = this.getScroller();
@@ -626,10 +827,7 @@
           this.scrollByPages(-1);
           return;
         }
-        if (this.prevChapterIndex !== null) {
-          this._persistProgressNow();
-          window.location.href = sectionUrl(this.prevChapterIndex, { nav: "prev" });
-        }
+        if (this.sectionIndex > 0) this.gotoSection(this.sectionIndex - 1, { desiredPage: 1 });
       },
       pageNext() {
         const scroller = this.getScroller();
@@ -637,10 +835,7 @@
           this.scrollByPages(1);
           return;
         }
-        if (this.nextChapterIndex !== null) {
-          this._persistProgressNow();
-          window.location.href = sectionUrl(this.nextChapterIndex, { nav: "next" });
-        }
+        if (this.sectionIndex < this.tocCount - 1) this.gotoSection(this.sectionIndex + 1, { desiredPage: 1 });
       },
       decFont() {
         this.fontSize = Math.max(12, this.fontSize - 1);
@@ -648,8 +843,8 @@
       incFont() {
         this.fontSize = Math.min(28, this.fontSize + 1);
       },
-      getScroller() {
-        const frame = this.$refs.frame;
+      getScroller(frameKey) {
+        const frame = frameKey ? this.getFrame(frameKey) : this.getActiveFrame();
         if (!frame || !frame.contentDocument) return null;
         return frame.contentDocument.getElementById("bindery-reader-scroller");
       },
@@ -706,7 +901,8 @@
         }
         this._persistProgressSoon();
       },
-      _onScrollerSettled(scroller) {
+      _onScrollerSettled(scroller, frameKey) {
+        if (frameKey !== this.activeFrameKey) return;
         if (!scroller) return;
         const metrics = this._computePageMetrics(scroller);
         if (!metrics) return;
@@ -719,18 +915,19 @@
         }
         this._persistProgressSoon();
       },
-      _attachScrollListener() {
-        const scroller = this.getScroller();
+      _attachScrollListener(frameKey) {
+        const scroller = this.getScroller(frameKey);
         if (!scroller) return;
         if (scroller.dataset.binderyScrollListener) return;
         scroller.dataset.binderyScrollListener = "1";
         const settle = () => {
+          if (frameKey !== this.activeFrameKey) return;
           if (this._scrollEndTimer) clearTimeout(this._scrollEndTimer);
-          this._scrollEndTimer = setTimeout(() => this._onScrollerSettled(scroller), 90);
+          this._scrollEndTimer = setTimeout(() => this._onScrollerSettled(scroller, frameKey), 90);
         };
         scroller.addEventListener("scroll", settle, { passive: true });
         if ("onscrollend" in scroller) {
-          scroller.addEventListener("scrollend", () => this._onScrollerSettled(scroller), { passive: true });
+          scroller.addEventListener("scrollend", () => this._onScrollerSettled(scroller, frameKey), { passive: true });
         }
       },
       _attachFrameKeyListener(doc) {
@@ -888,15 +1085,16 @@
         return true;
       },
       applyToFrame(opts) {
-        if (this._applyingLayout) return;
-        const frame = this.$refs.frame;
+        const frameKey = (opts && opts.frameKey) || this.activeFrameKey;
+        if (this._frameApplying[frameKey]) return;
+        const frame = this.getFrame(frameKey);
         if (!frame || !frame.contentDocument) return;
         const doc = frame.contentDocument;
         const head = doc.head || doc.getElementsByTagName("head")[0];
         if (!head) return;
         if (!doc.body) return;
-        this._applyingLayout = true;
-        const preserveAnchor = !!(opts && opts.preserveAnchor && this._hasAppliedLayout);
+        this._frameApplying[frameKey] = true;
+        const preserveAnchor = !!(opts && opts.preserveAnchor && frameKey === this.activeFrameKey && this._frameApplied[frameKey]);
         const anchor = preserveAnchor ? this._captureViewportAnchor(doc) : null;
 
         this._mountPagedLayout(doc);
@@ -935,15 +1133,11 @@
         requestAnimationFrame(() => {
           try {
             this._updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg);
-            this._attachScrollListener();
+            this._attachScrollListener(frameKey);
             this._attachFrameKeyListener(doc);
 
-            let desired = this.page;
-            if (this._jumpToLast) {
-              desired = 99999;
-            } else if (Number.isInteger(this._resumePage) && this._resumePage > 0) {
-              desired = this._resumePage;
-            }
+            let desired = Number.isInteger(opts && opts.desiredPage) ? opts.desiredPage : this.page;
+            if (desired <= 0) desired = 1;
             if (preserveAnchor && anchor) {
               this.refreshPagination({ syncFromScroll: true });
               const restored = this._restoreViewportAnchor(doc, anchor);
@@ -953,14 +1147,24 @@
                 this.refreshPagination({ desiredPage: desired, behavior: "auto" });
               }
             } else {
-              this.refreshPagination({ desiredPage: desired, behavior: "auto" });
+              if (opts && opts.primeOnly) {
+                const scroller = this.getScroller(frameKey);
+                const metrics = scroller ? this._computePageMetrics(scroller) : null;
+                if (scroller && metrics) {
+                  const clamped = Math.max(1, Math.min(metrics.count, desired));
+                  scroller.scrollTo({ left: (clamped - 1) * metrics.width, top: 0, behavior: "auto" });
+                }
+              } else {
+                this.refreshPagination({ desiredPage: desired, behavior: "auto" });
+              }
             }
             this._jumpToLast = false;
             this._resumePage = null;
-            this._hasAppliedLayout = true;
+            this._frameApplied[frameKey] = true;
             this._cleanupTransientQuery();
           } finally {
-            this._applyingLayout = false;
+            this._frameApplying[frameKey] = false;
+            if (opts && typeof opts.onDone === "function") opts.onDone();
           }
         });
       },
