@@ -23,6 +23,15 @@ class EpubSection:
     item_path: str
 
 
+@dataclass
+class EpubSectionDocument:
+    index: int
+    title: str
+    item_path: str
+    content: bytes
+    media_type: str
+
+
 BINDERY_CSS_NAME = "bindery.css"
 CHAPTER_STAMP_RE = re.compile(
     r"^\s*(第[0-9零〇一二两三四五六七八九十百千万亿\d]+章)\s*[:：、.\-·]?\s*(.+)\s*$"
@@ -1356,37 +1365,69 @@ def _toc_title_index(book: epub.EpubBook) -> dict[str, str]:
     return mapping
 
 
+def _resolve_spine_item_title(item: ebooklib.epub.EpubItem, toc_titles: dict[str, str], fallback_index: int) -> str:
+    item_path = item.get_name() or ""
+    title = None
+    for key in _path_lookup_keys(item_path):
+        if key in toc_titles:
+            title = toc_titles[key]
+            break
+    if not title:
+        title = getattr(item, "title", None)
+    if not title and hasattr(item, "get_title"):
+        try:
+            title = item.get_title()
+        except Exception:
+            title = None
+    content_text = None
+    if not title:
+        try:
+            content_text = item.get_content().decode("utf-8", errors="replace")
+        except Exception:
+            content_text = None
+        if content_text:
+            title = _extract_title_from_html(content_text)
+    if not title:
+        name = item.get_name() or "section"
+        title = Path(name).stem
+    return title or f"章节 {fallback_index + 1}"
+
+
 def list_epub_sections(epub_file: Path) -> list[EpubSection]:
     book = _read_epub_resilient(epub_file)
     toc_titles = _toc_title_index(book)
     sections: list[EpubSection] = []
-    for item in _spine_items(book):
+    for idx, item in enumerate(_spine_items(book)):
         item_path = item.get_name() or ""
-        title = None
-        for key in _path_lookup_keys(item_path):
-            if key in toc_titles:
-                title = toc_titles[key]
-                break
-        if not title:
-            title = getattr(item, "title", None)
-        if not title and hasattr(item, "get_title"):
-            try:
-                title = item.get_title()
-            except Exception:
-                title = None
-        content_text = None
-        if not title:
-            try:
-                content_text = item.get_content().decode("utf-8", errors="replace")
-            except Exception:
-                content_text = None
-            if content_text:
-                title = _extract_title_from_html(content_text)
-        if not title:
-            name = item.get_name() or "section"
-            title = Path(name).stem
+        title = _resolve_spine_item_title(item, toc_titles, idx)
         sections.append(EpubSection(title=title, item_path=item_path))
     return sections
+
+
+def list_epub_section_documents(epub_file: Path) -> list[EpubSectionDocument]:
+    """Load EPUB once and return spine document payloads for search/analysis."""
+    book = _read_epub_resilient(epub_file)
+    toc_titles = _toc_title_index(book)
+    documents: list[EpubSectionDocument] = []
+    for idx, item in enumerate(_spine_items(book)):
+        item_path = item.get_name() or ""
+        title = _resolve_spine_item_title(item, toc_titles, idx)
+        content = getattr(item, "content", None)
+        if content is None:
+            content = item.get_content()
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+        media_type = item.media_type or "application/octet-stream"
+        documents.append(
+            EpubSectionDocument(
+                index=idx,
+                title=title,
+                item_path=item_path,
+                content=content,
+                media_type=media_type,
+            )
+        )
+    return documents
 
 
 def load_epub_item(epub_file: Path, item_path: str, base_href: str) -> tuple[bytes, str]:

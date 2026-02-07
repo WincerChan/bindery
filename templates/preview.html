@@ -7,15 +7,17 @@
 <div
   x-data="binderyReader()"
   class="h-full w-full flex flex-col relative"
-  :class="readerBg === 'paper' ? 'bg-amber-51' : readerBg === 'sand' ? 'bg-stone-100' : readerBg === 'mint' ? 'bg-emerald-50' : 'bg-slate-50'"
+  :class="brightnessMode === 'dim' ? 'bg-slate-900 text-slate-100' : (readerBg === 'paper' ? 'bg-amber-51 text-slate-900' : readerBg === 'sand' ? 'bg-stone-100 text-slate-900' : readerBg === 'mint' ? 'bg-emerald-50 text-slate-900' : 'bg-slate-50 text-slate-900')"
 >
   <div class="fixed top-0 left-0 right-0 z-40 h-9">
     <header
-      class="relative h-9 border-b border-slate-200/60 flex items-center gap-2 px-2"
+      class="relative h-9 border-b flex items-center gap-2 px-2 backdrop-blur-sm"
+      :class="brightnessMode === 'dim' ? 'bg-slate-900/96 border-slate-700 text-slate-100' : 'bg-white/92 border-slate-200/60 text-slate-700'"
     >
       <button
         type="button"
-        class="inline-flex items-center justify-center w-9 h-8 rounded-lg hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+        class="inline-flex items-center justify-center w-9 h-8 rounded-lg transition-colors cursor-pointer text-current"
+        :class="brightnessMode === 'dim' ? 'hover:bg-slate-800' : 'hover:bg-slate-100'"
         aria-label="切换目录"
         @click="tocOpen = !tocOpen"
       >
@@ -28,7 +30,8 @@
 
       <a
         href="{{ detail_url }}"
-        class="sm:hidden inline-flex items-center justify-center w-9 h-8 rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
+        class="sm:hidden inline-flex items-center justify-center w-9 h-8 rounded-lg transition-colors text-current"
+        :class="brightnessMode === 'dim' ? 'hover:bg-slate-800' : 'hover:bg-slate-100'"
         aria-label="返回详情"
         title="返回详情"
       >
@@ -39,16 +42,18 @@
 
       <a
         href="{{ detail_url }}"
-        class="hidden sm:inline-flex items-center h-9 px-2 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+        class="hidden sm:inline-flex items-center h-9 px-2 rounded-lg text-xs font-medium transition-colors text-current"
+        :class="brightnessMode === 'dim' ? 'hover:bg-slate-800' : 'hover:bg-slate-100'"
       >返回详情</a>
 
       <div class="absolute inset-1 flex items-center justify-center px-20 sm:px-24 pointer-events-none">
-        <div class="max-w-full truncate text-[12px] font-semibold text-slate-900" x-text="bookTitle + ' · ' + currentSectionTitle()"></div>
+        <div class="max-w-full truncate text-[12px] font-semibold text-current" x-text="bookTitle + ' · ' + currentSectionTitle()"></div>
       </div>
 
       <button
         type="button"
-        class="inline-flex items-center justify-center w-9 h-8 rounded-lg hover:bg-slate-100 text-slate-700 transition-colors ml-auto cursor-pointer"
+        class="inline-flex items-center justify-center w-9 h-8 rounded-lg transition-colors ml-auto cursor-pointer text-current"
+        :class="brightnessMode === 'dim' ? 'hover:bg-slate-800' : 'hover:bg-slate-100'"
         aria-label="全文检索"
         title="全文检索"
         @click="searchOpen = !searchOpen"
@@ -61,7 +66,8 @@
 
       <button
         type="button"
-        class="inline-flex items-center justify-center w-9 h-8 rounded-lg hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+        class="inline-flex items-center justify-center w-9 h-8 rounded-lg transition-colors cursor-pointer text-current"
+        :class="brightnessMode === 'dim' ? 'hover:bg-slate-800' : 'hover:bg-slate-100'"
         aria-label="设置"
         title="设置"
         @click="settingsOpen = !settingsOpen"
@@ -84,17 +90,19 @@
   </div>
 
   <div
-    class="absolute top-10 right-2 sm:right-84 z-50 w-96 max-w-[calc(100vw-1rem)] rounded-xl bg-white border border-slate-200 shadow-lg p-3"
+    class="absolute top-10 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-2 z-50 w-96 max-w-[calc(100vw-1rem)] rounded-xl border shadow-lg p-3"
+    :class="brightnessMode === 'dim' ? 'bg-slate-800 border-slate-600 text-slate-100' : 'bg-white border-slate-200 text-slate-900'"
     x-show="searchOpen"
     x-cloak
     x-transition.opacity
     @click.outside="searchOpen = false"
   >
     <div class="flex items-center justify-between gap-3">
-      <div class="text-xs font-semibold text-slate-501 uppercase tracking-wide">全文检索</div>
+      <div class="text-xs font-semibold uppercase tracking-wide" :class="brightnessMode === 'dim' ? 'text-slate-300' : 'text-slate-501'">全文检索</div>
       <button
         type="button"
-        class="w-10 h-9 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+        class="w-10 h-9 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+        :class="brightnessMode === 'dim' ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-slate-100 text-slate-700'"
         aria-label="关闭检索"
         @click="searchOpen = false"
       >
@@ -108,13 +116,14 @@
     <form class="mt-3 flex items-center gap-2" @submit.prevent="runSearch()">
       <input
         type="text"
-        class="flex-2 px-3 py-2 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        class="flex-2 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+        :class="brightnessMode === 'dim' ? 'bg-slate-900 text-slate-100 border-slate-600 placeholder:text-slate-400' : 'bg-white text-slate-900 border-slate-200 placeholder:text-slate-400'"
         x-model.trim="searchQuery"
         placeholder="输入关键词，回车检索"
       />
       <button
         type="submit"
-        class="px-3 h-10 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        class="px-3 h-10 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="searchBusy || !searchQuery"
       >
         <span x-show="!searchBusy">检索</span>
@@ -122,41 +131,45 @@
       </button>
       <button
         type="button"
-        class="px-3 h-10 rounded-lg border border-slate-200 text-slate-700 text-sm hover:bg-slate-50 transition-colors cursor-pointer"
+        class="px-3 h-10 rounded-lg border text-sm transition-colors cursor-pointer"
+        :class="brightnessMode === 'dim' ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'"
         @click="clearSearch()"
       >清空</button>
     </form>
 
-    <div class="mt-2 text-xs text-slate-500" x-show="searchQuery && !searchBusy" x-text="'命中章节：' + searchResults.length + ' · 已索引章节：' + searchIndexedSections"></div>
+    <div class="mt-2 text-xs" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'" x-show="searchQuery && !searchBusy" x-text="'命中章节：' + searchResults.length + ' · 已索引章节：' + searchIndexedSections"></div>
     <div class="mt-2 text-xs text-red-600" x-show="searchError" x-text="searchError"></div>
 
     <div class="mt-3 max-h-72 overflow-y-auto space-y-1">
       <template x-for="item in searchResults" :key="item.index + ':' + item.offset">
         <button
           type="button"
-          class="w-full text-left rounded-lg px-3 py-2 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors cursor-pointer"
+          class="w-full text-left rounded-lg px-3 py-2 border border-transparent transition-colors cursor-pointer"
+          :class="brightnessMode === 'dim' ? 'hover:bg-slate-700 hover:border-slate-600' : 'hover:bg-slate-50 hover:border-slate-200'"
           @click="openSearchResult(item)"
         >
-          <div class="text-sm font-medium text-slate-900 truncate" x-text="item.title"></div>
-          <div class="text-xs text-slate-500 mt-1 line-clamp-2" x-text="item.snippet"></div>
+          <div class="text-sm font-medium truncate" :class="brightnessMode === 'dim' ? 'text-slate-100' : 'text-slate-900'" x-text="item.title"></div>
+          <div class="text-xs mt-1 line-clamp-2" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'" x-text="item.snippet"></div>
         </button>
       </template>
-      <div class="text-xs text-slate-500 py-2" x-show="!searchBusy && searchQuery && searchResults.length === 0">未命中</div>
+      <div class="text-xs py-2" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'" x-show="!searchBusy && searchQuery && searchResults.length === 0">未命中</div>
     </div>
   </div>
 
   <div
-    class="absolute top-10 right-2 z-50 w-[30rem] max-w-[calc(100vw-1rem)] rounded-xl bg-white border border-slate-200 shadow-lg p-3"
+    class="absolute top-10 right-2 z-50 w-[30rem] max-w-[calc(100vw-1rem)] rounded-xl border shadow-lg p-3"
+    :class="brightnessMode === 'dim' ? 'bg-slate-800 border-slate-600 text-slate-100' : 'bg-white border-slate-200 text-slate-900'"
     x-show="settingsOpen"
     x-cloak
     x-transition.opacity
     @click.outside="settingsOpen = false"
   >
     <div class="flex items-center justify-between gap-3">
-      <div class="text-xs font-semibold text-slate-501 uppercase tracking-wide">设置</div>
+      <div class="text-xs font-semibold uppercase tracking-wide" :class="brightnessMode === 'dim' ? 'text-slate-300' : 'text-slate-501'">设置</div>
       <button
         type="button"
-        class="w-10 h-9 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+        class="w-10 h-9 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+        :class="brightnessMode === 'dim' ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-slate-100 text-slate-700'"
         aria-label="关闭设置"
         @click="settingsOpen = false"
       >
@@ -169,72 +182,72 @@
 
     <div class="mt-4 space-y-3">
       <div>
-        <div class="text-xs font-semibold text-slate-501 uppercase tracking-wide">背景</div>
+        <div class="text-xs font-semibold uppercase tracking-wide" :class="brightnessMode === 'dim' ? 'text-slate-300' : 'text-slate-501'">背景</div>
         <div class="mt-3 grid grid-cols-3 gap-2">
           <button
             type="button"
             class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
-            :class="readerBg === 'book' ? 'border-indigo-501 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            :class="readerBg === 'book' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
             @click="readerBg = 'book'"
           >书籍</button>
           <button
             type="button"
             class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
-            :class="readerBg === 'slate' ? 'border-indigo-501 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            :class="readerBg === 'slate' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
             @click="readerBg = 'slate'"
           >灰白</button>
           <button
             type="button"
             class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
-            :class="readerBg === 'paper' ? 'border-indigo-501 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            :class="readerBg === 'paper' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
             @click="readerBg = 'paper'"
           >纸张</button>
           <button
             type="button"
             class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
-            :class="readerBg === 'sand' ? 'border-indigo-501 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            :class="readerBg === 'sand' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
             @click="readerBg = 'sand'"
           >砂岩</button>
           <button
             type="button"
             class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
-            :class="readerBg === 'mint' ? 'border-indigo-501 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'"
+            :class="readerBg === 'mint' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
             @click="readerBg = 'mint'"
           >薄荷</button>
         </div>
-        <div class="mt-3 flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200">
+        <div class="mt-3 flex items-center gap-1 p-1 rounded-xl border" :class="brightnessMode === 'dim' ? 'bg-slate-700 border-slate-600' : 'bg-slate-100 border-slate-200'">
           <button
             type="button"
             class="flex-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-            :class="brightnessMode === 'bright' ? 'bg-white text-slate-901 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+            :class="brightnessMode === 'bright' ? 'bg-white text-slate-901 shadow-sm' : (brightnessMode === 'dim' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900')"
             @click="brightnessMode = 'bright'"
-          >明亮</button>
+          >亮色</button>
           <button
             type="button"
             class="flex-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-            :class="brightnessMode === 'dim' ? 'bg-white text-slate-901 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+            :class="brightnessMode === 'dim' ? 'bg-slate-800 text-slate-100 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
             @click="brightnessMode = 'dim'"
-          >柔和</button>
+          >暗色</button>
         </div>
       </div>
 
       <div>
-        <div class="text-xs font-semibold text-slate-501 uppercase tracking-wide">样式</div>
-        <div class="mt-3 flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200">
+        <div class="text-xs font-semibold uppercase tracking-wide" :class="brightnessMode === 'dim' ? 'text-slate-300' : 'text-slate-501'">样式</div>
+        <div class="mt-3 flex items-center gap-1 p-1 rounded-xl border" :class="brightnessMode === 'dim' ? 'bg-slate-700 border-slate-600' : 'bg-slate-100 border-slate-200'">
           <button
             type="button"
             class="flex-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-            :class="styleMode === 'book' ? 'bg-white text-slate-901 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+            :class="styleMode === 'book' ? (brightnessMode === 'dim' ? 'bg-slate-800 text-slate-100 shadow-sm' : 'bg-white text-slate-901 shadow-sm') : (brightnessMode === 'dim' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900')"
             @click="styleMode = 'book'"
           >书籍</button>
           <button
             type="button"
             class="flex-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-            :class="styleMode === 'custom' ? 'bg-white text-slate-901 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+            :class="styleMode === 'custom' ? (brightnessMode === 'dim' ? 'bg-slate-800 text-slate-100 shadow-sm' : 'bg-white text-slate-901 shadow-sm') : (brightnessMode === 'dim' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900')"
             @click="styleMode = 'custom'"
           >自定义</button>
         </div>
-        <div class="mt-3 text-xs text-slate-500">书籍：尽量保持 EPUB 原样式；自定义：覆盖字体/字号/行高。</div>
+        <div class="mt-3 text-xs" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'">书籍：尽量保持 EPUB 原样式；自定义：覆盖字体/字号/行高。</div>
       </div>
 
       <div x-show="styleMode === 'custom'" x-transition.opacity class="space-y-3">
@@ -242,7 +255,7 @@
           <div class="flex items-center gap-3 min-w-0">
             <label class="w-16 shrink-0 text-xs font-semibold text-slate-501 uppercase tracking-wide">字体</label>
             <select
-              class="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               x-model="fontFamily"
             >
               <option value="serif">衬线</option>
@@ -273,7 +286,7 @@
           <div class="flex items-center gap-3 min-w-0">
             <label class="w-16 shrink-0 text-xs font-semibold text-slate-501 uppercase tracking-wide">行高</label>
             <select
-              class="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               x-model="lineHeight"
             >
               <option value="1.55">1.55</option>
@@ -288,7 +301,7 @@
           <div class="flex items-center gap-3 min-w-0">
             <label class="w-16 shrink-0 text-xs font-semibold text-slate-501 uppercase tracking-wide">对齐</label>
             <select
-              class="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               x-model="textAlignMode"
             >
               <option value="justify">两端对齐</option>
@@ -350,29 +363,33 @@
     ></div>
 
     <aside
-      class="absolute inset-y-1 left-0 z-50 w-72 bg-white border-r border-slate-200 overflow-y-auto transform transition-transform duration-200 ease-out"
+      class="absolute inset-y-1 left-0 z-50 w-72 border-r overflow-y-auto transform transition-transform duration-200 ease-out"
       x-cloak
-      :class="tocOpen ? 'translate-x-1' : '-translate-x-full'"
+      :class="(tocOpen ? 'translate-x-1' : '-translate-x-full') + (brightnessMode === 'dim' ? ' bg-slate-900 border-slate-700' : ' bg-white border-slate-200')"
     >
-      <div class="sticky top-1 bg-white border-b border-slate-200 p-3">
+      <div class="sticky top-1 border-b p-3" :class="brightnessMode === 'dim' ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'">
         <div class="flex items-start gap-4">
-          <div class="w-13 aspect-[2/3] rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shadow-sm shrink-0">
+          <div
+            class="w-13 aspect-[2/3] rounded-lg overflow-hidden border shadow-sm shrink-0"
+            :class="brightnessMode === 'dim' ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-slate-100'"
+          >
             {% if book.cover_url %}
               <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover" loading="lazy" />
             {% else %}
-              <div class="w-full h-full flex items-center justify-center text-slate-501 font-bold text-sm">B</div>
+              <div class="w-full h-full flex items-center justify-center font-bold text-sm" :class="brightnessMode === 'dim' ? 'text-slate-300' : 'text-slate-501'">B</div>
             {% endif %}
           </div>
 
           <div class="min-w-1 flex-1">
-            <div class="text-sm font-semibold text-slate-901 truncate">{{ book.title }}</div>
-            <div class="text-xs text-slate-501 truncate mt-0.5">{{ book.author or "未知" }}</div>
-            <div class="text-xs text-slate-501 mt-2" x-text="'共 ' + tocCount + ' 节 · 当前 ' + (sectionIndex + 1)"></div>
+            <div class="text-sm font-semibold truncate" :class="brightnessMode === 'dim' ? 'text-slate-100' : 'text-slate-901'">{{ book.title }}</div>
+            <div class="text-xs truncate mt-0.5" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-501'">{{ book.author or "未知" }}</div>
+            <div class="text-xs mt-2" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-501'" x-text="'共 ' + tocCount + ' 节 · 当前 ' + (sectionIndex + 1)"></div>
           </div>
 
           <button
             type="button"
-            class="w-10 h-9 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+            class="w-10 h-9 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+            :class="brightnessMode === 'dim' ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-100 text-slate-700'"
             aria-label="关闭目录"
             @click="tocOpen = false"
           >
@@ -388,8 +405,8 @@
         {% for item in toc %}
           <a
             href="/book/{{ book.book_id }}/preview/{{ item.index }}{{ return_to_query }}"
-            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-slate-700 hover:bg-slate-50"
-            :class="sectionIndex === {{ item.index }} ? 'bg-indigo-51 text-indigo-700' : ''"
+            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
+            :class="sectionIndex === {{ item.index }} ? (brightnessMode === 'dim' ? 'bg-sky-900/60 text-sky-100 ring-1 ring-sky-700' : 'bg-sky-50 text-sky-700 ring-1 ring-sky-200') : (brightnessMode === 'dim' ? 'text-slate-200 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50')"
             @click.prevent="gotoSection({{ item.index }}, { desiredPage: 0 })"
             :data-current-toc="sectionIndex === {{ item.index }} ? '0' : null"
             title="{{ item.title }}"
@@ -402,10 +419,14 @@
 
     <div class="flex-2 min-h-0 flex items-stretch justify-center">
       <div class="w-full min-h-0 flex flex-col pb-9" style="max-width: 600px;">
-        <div class="w-full flex-2 min-h-0 bg-white border-x border-slate-200 shadow-sm relative overflow-hidden">
+        <div
+          class="w-full flex-2 min-h-0 border-x shadow-sm relative overflow-hidden"
+          :class="brightnessMode === 'dim' ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'"
+        >
           <iframe
             x-ref="frameA"
-            class="absolute inset-0 w-full h-full bg-white transition-opacity duration-100"
+            class="absolute inset-0 w-full h-full transition-opacity duration-100"
+            :class="brightnessMode === 'dim' ? 'bg-slate-900' : 'bg-white'"
             :style="activeFrameKey === 'a' ? 'opacity:1;z-index:10;pointer-events:auto;' : 'opacity:0;z-index:0;pointer-events:none;'"
             sandbox="allow-same-origin"
             referrerpolicy="no-referrer"
@@ -414,7 +435,8 @@
           ></iframe>
           <iframe
             x-ref="frameB"
-            class="absolute inset-0 w-full h-full bg-white transition-opacity duration-100"
+            class="absolute inset-0 w-full h-full transition-opacity duration-100"
+            :class="brightnessMode === 'dim' ? 'bg-slate-900' : 'bg-white'"
             :style="activeFrameKey === 'b' ? 'opacity:1;z-index:10;pointer-events:auto;' : 'opacity:0;z-index:0;pointer-events:none;'"
             sandbox="allow-same-origin"
             referrerpolicy="no-referrer"
@@ -422,7 +444,8 @@
             :title="currentSectionTitle()"
           ></iframe>
           <div
-            class="absolute inset-0 z-20 flex items-center justify-center bg-white/75 text-xs font-medium text-slate-600"
+            class="absolute inset-0 z-20 flex items-center justify-center text-xs font-medium"
+            :class="brightnessMode === 'dim' ? 'bg-slate-900/75 text-slate-200' : 'bg-white/75 text-slate-600'"
             x-show="chapterSwitching"
             x-cloak
           >章节切换中...</div>
@@ -433,12 +456,12 @@
 
   <button
     type="button"
-    class="fixed left-5 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 border border-slate-200 shadow-sm text-slate-800 hover:bg-white transition-opacity flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+    class="fixed left-5 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full border shadow-sm transition-opacity flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
     aria-label="上一页"
     title="上一页（← / PageUp）"
     @click="pagePrev()"
     :disabled="!canPagePrev()"
-    :class="(tocOpen || settingsOpen || searchOpen) ? 'opacity-1 pointer-events-none' : 'opacity-100'"
+    :class="[(tocOpen || settingsOpen || searchOpen) ? 'opacity-1 pointer-events-none' : 'opacity-100', brightnessMode === 'dim' ? 'bg-slate-800/90 border-slate-600 text-slate-100 hover:bg-slate-700' : 'bg-white/90 border-slate-200 text-slate-800 hover:bg-white']"
   >
     <svg viewBox="-1 0 24 24" fill="none" class="w-6 h-6" aria-hidden="true">
       <path d="M14 18 9 12l6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -447,12 +470,12 @@
 
   <button
     type="button"
-    class="fixed right-5 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 border border-slate-200 shadow-sm text-slate-800 hover:bg-white transition-opacity flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+    class="fixed right-5 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full border shadow-sm transition-opacity flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
     aria-label="下一页"
     title="下一页（→ / PageDown / 空格）"
     @click="pageNext()"
     :disabled="!canPageNext()"
-    :class="(tocOpen || settingsOpen || searchOpen) ? 'opacity-1 pointer-events-none' : 'opacity-100'"
+    :class="[(tocOpen || settingsOpen || searchOpen) ? 'opacity-1 pointer-events-none' : 'opacity-100', brightnessMode === 'dim' ? 'bg-slate-800/90 border-slate-600 text-slate-100 hover:bg-slate-700' : 'bg-white/90 border-slate-200 text-slate-800 hover:bg-white']"
   >
     <svg viewBox="-1 0 24 24" fill="none" class="w-6 h-6" aria-hidden="true">
       <path d="m8 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -464,9 +487,9 @@
     :class="(tocOpen || settingsOpen || searchOpen) ? 'opacity-1 pointer-events-none' : 'opacity-100'"
   >
     <div
-      class="w-full h-9 flex items-center px-3 border-t border-x border-dashed border-slate-200/60 text-xs text-slate-600"
+      class="w-full h-9 flex items-center px-3 border-t border-x border-dashed text-xs"
       style="max-width: 600px;"
-      :class="readerBg === 'book' ? 'bg-white' : readerBg === 'paper' ? 'bg-amber-51' : readerBg === 'sand' ? 'bg-stone-100' : readerBg === 'mint' ? 'bg-emerald-50' : 'bg-slate-50'"
+      :class="brightnessMode === 'dim' ? 'bg-slate-900 border-slate-700/80 text-slate-300' : (readerBg === 'book' ? 'bg-white border-slate-200/60 text-slate-600' : readerBg === 'paper' ? 'bg-amber-51 border-slate-200/60 text-slate-600' : readerBg === 'sand' ? 'bg-stone-100 border-slate-200/60 text-slate-600' : readerBg === 'mint' ? 'bg-emerald-50 border-slate-200/60 text-slate-600' : 'bg-slate-50 border-slate-200/60 text-slate-600')"
     >
       <div class="flex-2 font-mono truncate" x-text="page + ' / ' + pageCount + ' · ' + Math.round((page / pageCount) * 100) + '%'"></div>
       <div class="font-mono tabular-nums" x-text="timeNow"></div>
@@ -490,11 +513,19 @@
       sans: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
       mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     };
-    const bgColors = {
+    const brightBgColors = {
+      book: "#ffffff",
       slate: "#f7fafc",
       paper: "#fffbeb",
       sand: "#f4f5f4",
       mint: "#ecfdf4",
+    };
+    const dimBgColors = {
+      book: "#0f172a",
+      slate: "#111827",
+      paper: "#1f2937",
+      sand: "#242a35",
+      mint: "#10241d",
     };
     const textAlignModes = new Set(["justify", "left", "center", "right"]);
     const maxPageWidth = 599;
@@ -1257,7 +1288,7 @@
         scroller.appendChild(pages);
         body.appendChild(scroller);
       },
-      _updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg) {
+      _updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg, themeText) {
         if (!doc || !doc.body) return;
         doc.documentElement.style.setProperty("--bindery-page-max-width", maxPageWidth + "px");
         doc.documentElement.style.setProperty("--bindery-page-padding-x", paddingX + "px");
@@ -1266,7 +1297,7 @@
         doc.documentElement.style.setProperty("--bindery-font-size", size + "px");
         doc.documentElement.style.setProperty("--bindery-line-height", String(lineHeight));
         doc.documentElement.style.setProperty("--bindery-reader-bg", themeBg);
-        doc.documentElement.style.setProperty("--bindery-reader-brightness", this.brightnessMode === "dim" ? "0.88" : "1");
+        doc.documentElement.style.setProperty("--bindery-reader-text", themeText);
 
         const scroller = doc.getElementById("bindery-reader-scroller");
         if (!scroller) return;
@@ -1444,24 +1475,20 @@
         const lineHeight = clampFloat(this.lineHeight, 1.2, 2.4, 1.85);
         const paddingX = this.styleMode === "custom" ? clampInt(this.pagePaddingX, -1, 48, 10) : 0;
         const paddingY = this.styleMode === "custom" ? clampInt(this.pagePaddingY, -1, 48, 12) : 0;
-        const themeOn = this.readerBg !== "book";
-        const themeBg = bgColors[this.readerBg] || bgColors.slate;
+        const bgPalette = this.brightnessMode === "dim" ? dimBgColors : brightBgColors;
+        const themeBg = bgPalette[this.readerBg] || bgPalette.book;
+        const themeText = this.brightnessMode === "dim" ? "#e5e7eb" : "#111827";
 
         doc.documentElement.classList.toggle("bindery-mode-custom", this.styleMode === "custom");
         doc.documentElement.classList.toggle("bindery-mode-book", this.styleMode !== "custom");
-        doc.documentElement.classList.toggle("bindery-theme-on", themeOn);
-        doc.documentElement.classList.toggle("bindery-bright-dim", this.brightnessMode === "dim");
-        doc.documentElement.classList.toggle("bindery-bright-bright", this.brightnessMode !== "dim");
 
         style.textContent =
           "html,body{height:99%!important;}" +
           "body{overflow:hidden!important;}" +
-          "html.bindery-theme-on,html.bindery-theme-on body{background:var(--bindery-reader-bg)!important;}" +
-          "html.bindery-mode-custom body{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
-          "html.bindery-mode-custom #bindery-reader-pages,html.bindery-mode-custom #bindery-reader-pages p,html.bindery-mode-custom #bindery-reader-pages li,html.bindery-mode-custom #bindery-reader-pages div,html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages blockquote,html.bindery-mode-custom #bindery-reader-pages td,html.bindery-mode-custom #bindery-reader-pages th{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
-          "#bindery-reader-scroller{display:block!important;position:relative!important;height:99%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;writing-mode:horizontal-tb!important;direction:ltr!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:auto!important;overscroll-behavior-x:contain;scrollbar-width:none;}" +
-          "html.bindery-bright-dim #bindery-reader-scroller{filter:brightness(var(--bindery-reader-brightness,0.88));}" +
-          "html.bindery-bright-bright #bindery-reader-scroller{filter:brightness(1);}" +
+          "html,body{background:var(--bindery-reader-bg)!important;}" +
+          "html.bindery-mode-custom body{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;color:var(--bindery-reader-text,#111827)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
+          "html.bindery-mode-custom #bindery-reader-pages,html.bindery-mode-custom #bindery-reader-pages p,html.bindery-mode-custom #bindery-reader-pages li,html.bindery-mode-custom #bindery-reader-pages div,html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages blockquote,html.bindery-mode-custom #bindery-reader-pages td,html.bindery-mode-custom #bindery-reader-pages th{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;color:var(--bindery-reader-text,#111827)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
+          "#bindery-reader-scroller{display:block!important;position:relative!important;height:99%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;background:var(--bindery-reader-bg)!important;writing-mode:horizontal-tb!important;direction:ltr!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:auto!important;overscroll-behavior-x:contain;scrollbar-width:none;}" +
           "#bindery-reader-scroller::-webkit-scrollbar{display:none;}" +
           "#bindery-reader-pages{display:block!important;position:relative!important;float:none!important;clear:both!important;width:100%!important;min-width:100%!important;max-width:none!important;height:99%!important;box-sizing:border-box!important;writing-mode:horizontal-tb!important;direction:ltr!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding-top:var(--bindery-page-padding-y,0px)!important;padding-bottom:var(--bindery-page-padding-y,0px)!important;padding-left:var(--bindery-page-padding-x,0px)!important;padding-right:var(--bindery-page-padding-x,0px)!important;margin-top:0!important;margin-bottom:0!important;margin-left:0!important;margin-right:var(--bindery-page-tail-pad,0px)!important;}" +
           "h0,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}" +
@@ -1469,7 +1496,7 @@
 
         requestAnimationFrame(() => {
           try {
-            this._updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg);
+            this._updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg, themeText);
             this._attachScrollListener(frameKey);
             this._attachFrameKeyListener(doc);
 
