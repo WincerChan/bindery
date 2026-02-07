@@ -391,6 +391,15 @@ def _safe_internal_redirect_target(target: object, fallback: str) -> str:
     return urllib.parse.urlunparse(("", "", path, "", parsed.query, ""))
 
 
+def _no_store_headers() -> dict[str, str]:
+    return {
+        "Cache-Control": "no-store, max-age=0",
+        "CDN-Cache-Control": "no-store",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+
+
 def _library_return_to_url(sort: str, q: str, page: int, read_filter: str) -> str:
     safe_page = max(1, page)
     params = {
@@ -2386,7 +2395,9 @@ async def preview_first(request: Request, book_id: str) -> RedirectResponse:
     if return_to:
         query_params["return_to"] = return_to
     target += f"?{urllib.parse.urlencode(query_params)}"
-    return RedirectResponse(url=target, status_code=303)
+    response = RedirectResponse(url=target, status_code=303)
+    response.headers.update(_no_store_headers())
+    return response
 
 
 @app.get("/book/{book_id}/preview/{section_index}", response_class=HTMLResponse)
@@ -2427,6 +2438,7 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
             "hide_nav": True,
             "main_class": "h-screen w-screen p-0",
         },
+        headers=_no_store_headers(),
     )
 
 
@@ -2443,7 +2455,7 @@ async def epub_item(book_id: str, item_path: str) -> Response:
         content, media_type = load_epub_item(epub_file, item_path, base_href)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Item not found")
-    return Response(content=content, media_type=media_type)
+    return Response(content=content, media_type=media_type, headers=_no_store_headers())
 
 
 @app.get("/book/{book_id}/edit", response_class=HTMLResponse)

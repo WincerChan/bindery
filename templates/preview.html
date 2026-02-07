@@ -432,6 +432,7 @@
       _resizeTimer: null,
       _progressTimer: null,
       _hasAppliedLayout: false,
+      _applyingLayout: false,
       _updateTimeNow() {
         try {
           this.timeNow = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -462,6 +463,9 @@
       _persistProgressSoon() {
         if (this._progressTimer) clearTimeout(this._progressTimer);
         this._progressTimer = setTimeout(() => this._persistProgressNow(), 120);
+      },
+      _applyLayoutWithAnchor() {
+        this.applyToFrame({ preserveAnchor: true });
       },
       _scrollCurrentTocIntoView() {
         this.$nextTick(() => {
@@ -548,23 +552,23 @@
 
         this.$watch("readerBg", () => {
           this._persist();
-          this.applyToFrame();
+          this._applyLayoutWithAnchor();
         });
         this.$watch("styleMode", () => {
           this._persist();
-          this.applyToFrame();
+          this._applyLayoutWithAnchor();
         });
         this.$watch("fontFamily", () => {
           this._persist();
-          this.applyToFrame();
+          this._applyLayoutWithAnchor();
         });
         this.$watch("fontSize", () => {
           this._persist();
-          this.applyToFrame();
+          this._applyLayoutWithAnchor();
         });
         this.$watch("lineHeight", () => {
           this._persist();
-          this.applyToFrame();
+          this._applyLayoutWithAnchor();
         });
         this.$watch("page", () => this._persistProgressSoon());
 
@@ -574,7 +578,7 @@
       onResize() {
         if (this._resizeTimer) clearTimeout(this._resizeTimer);
         this._resizeTimer = setTimeout(() => {
-          this.applyToFrame();
+          this._applyLayoutWithAnchor();
         }, 150);
       },
       onKeydown(evt) {
@@ -619,7 +623,7 @@
       pagePrev() {
         const scroller = this.getScroller();
         if (scroller && this.page > 1) {
-          this.scrollToPage(this.page - 1, "smooth");
+          this.scrollByPages(-1);
           return;
         }
         if (this.prevChapterIndex !== null) {
@@ -630,7 +634,7 @@
       pageNext() {
         const scroller = this.getScroller();
         if (scroller && this.page < this.pageCount) {
-          this.scrollToPage(this.page + 1, "smooth");
+          this.scrollByPages(1);
           return;
         }
         if (this.nextChapterIndex !== null) {
@@ -658,48 +662,76 @@
         scroller.scrollTo({ left: (clamped - 1) * width, top: 0, behavior: behavior || "auto" });
         this.page = clamped;
       },
+      scrollByPages(delta) {
+        const scroller = this.getScroller();
+        if (!scroller) return;
+        const width = scroller.clientWidth;
+        if (width <= 0) return;
+        const current = Math.round(scroller.scrollLeft / width) + 1;
+        const target = Math.max(1, Math.min(this.pageCount, current + delta));
+        this.scrollToPage(target, "auto");
+      },
+      _computePageMetrics(scroller) {
+        const width = scroller.clientWidth;
+        if (width <= 0) return null;
+        const sw = Math.max(0, scroller.scrollWidth - 1);
+        const count = Math.max(1, Math.ceil(sw / width));
+        return { width, count };
+      },
+      _pageFromScroll(scroller, pageCount) {
+        const width = scroller.clientWidth || 1;
+        const raw = Math.round(scroller.scrollLeft / width) + 1;
+        return Math.max(1, Math.min(pageCount, raw));
+      },
       refreshPagination(opts) {
         const scroller = this.getScroller();
         if (!scroller) return;
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return;
+
+        this.pageCount = metrics.count;
+
+        if (opts && opts.syncFromScroll) {
+          this.page = this._pageFromScroll(scroller, this.pageCount);
+          this._persistProgressSoon();
+          return;
+        }
+
         const desiredPage = opts && opts.desiredPage ? opts.desiredPage : this.page;
         const behavior = opts && opts.behavior ? opts.behavior : "auto";
-
-        requestAnimationFrame(() => {
-          const width = scroller.clientWidth;
-          if (width <= 0) return;
-          const sw = Math.max(0, scroller.scrollWidth - 1);
-          const count = Math.max(1, Math.ceil(sw / width));
-          this.pageCount = count;
-
-          const clamped = Math.max(1, Math.min(count, desiredPage));
-          this.page = clamped;
-          scroller.scrollTo({ left: (clamped - 1) * width, top: 0, behavior: behavior });
-          this._persistProgressSoon();
-        });
+        const clamped = Math.max(1, Math.min(this.pageCount, desiredPage));
+        this.page = clamped;
+        if (!(opts && opts.skipScroll)) {
+          scroller.scrollTo({ left: (clamped - 1) * metrics.width, top: 0, behavior: behavior });
+        }
+        this._persistProgressSoon();
+      },
+      _onScrollerSettled(scroller) {
+        if (!scroller) return;
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return;
+        this.pageCount = metrics.count;
+        const settled = this._pageFromScroll(scroller, this.pageCount);
+        this.page = settled;
+        const targetLeft = (settled - 1) * metrics.width;
+        if (Math.abs(scroller.scrollLeft - targetLeft) > 1) {
+          scroller.scrollTo({ left: targetLeft, top: 0, behavior: "auto" });
+        }
+        this._persistProgressSoon();
       },
       _attachScrollListener() {
         const scroller = this.getScroller();
         if (!scroller) return;
         if (scroller.dataset.binderyScrollListener) return;
         scroller.dataset.binderyScrollListener = "1";
-
-        scroller.addEventListener(
-          "scroll",
-          () => {
-            if (this._snapTimer) clearTimeout(this._snapTimer);
-            this._snapTimer = setTimeout(() => {
-              this.scrollToPage(this.page, "auto");
-            }, 120);
-
-            if (this._scrollRaf) cancelAnimationFrame(this._scrollRaf);
-            this._scrollRaf = requestAnimationFrame(() => {
-              const width = scroller.clientWidth || 1;
-              const idx = Math.round(scroller.scrollLeft / width) + 1;
-              this.page = Math.max(1, Math.min(this.pageCount, idx));
-            });
-          },
-          { passive: true },
-        );
+        const settle = () => {
+          if (this._scrollEndTimer) clearTimeout(this._scrollEndTimer);
+          this._scrollEndTimer = setTimeout(() => this._onScrollerSettled(scroller), 90);
+        };
+        scroller.addEventListener("scroll", settle, { passive: true });
+        if ("onscrollend" in scroller) {
+          scroller.addEventListener("scrollend", () => this._onScrollerSettled(scroller), { passive: true });
+        }
       },
       _attachFrameKeyListener(doc) {
         if (!doc || !doc.documentElement) return;
@@ -762,13 +794,110 @@
           }
         }
       },
-      applyToFrame() {
+      _serializeNodePath(doc, node) {
+        if (!doc || !node) return null;
+        const path = [];
+        let cursor = node;
+        while (cursor && cursor !== doc.documentElement) {
+          const parent = cursor.parentNode;
+          if (!parent || !parent.childNodes) return null;
+          const siblings = parent.childNodes;
+          let index = -1;
+          for (let i = 0; i < siblings.length; i += 1) {
+            if (siblings[i] === cursor) {
+              index = i;
+              break;
+            }
+          }
+          if (index < 0) return null;
+          path.push(index);
+          cursor = parent;
+        }
+        if (cursor !== doc.documentElement) return null;
+        return path.reverse();
+      },
+      _resolveNodePath(doc, path) {
+        if (!doc || !Array.isArray(path)) return null;
+        let cursor = doc.documentElement;
+        for (const index of path) {
+          if (!cursor || !cursor.childNodes || index < 0 || index >= cursor.childNodes.length) return null;
+          cursor = cursor.childNodes[index];
+        }
+        return cursor || null;
+      },
+      _getCaretPosition(doc, x, y) {
+        if (doc && typeof doc.caretPositionFromPoint === "function") {
+          const pos = doc.caretPositionFromPoint(x, y);
+          if (pos && pos.offsetNode) {
+            return { node: pos.offsetNode, offset: Number(pos.offset) || 0 };
+          }
+        }
+        if (doc && typeof doc.caretRangeFromPoint === "function") {
+          const range = doc.caretRangeFromPoint(x, y);
+          if (range && range.startContainer) {
+            return { node: range.startContainer, offset: Number(range.startOffset) || 0 };
+          }
+        }
+        return null;
+      },
+      _captureViewportAnchor(doc) {
+        const scroller = doc && doc.getElementById ? doc.getElementById("bindery-reader-scroller") : null;
+        if (!scroller) return null;
+        const rect = scroller.getBoundingClientRect();
+        const x = rect.left + Math.min(24, Math.max(8, rect.width * 0.05));
+        const y = rect.top + Math.min(24, Math.max(8, rect.height * 0.05));
+        const caret = this._getCaretPosition(doc, x, y);
+        if (!caret || !caret.node) return null;
+        const path = this._serializeNodePath(doc, caret.node);
+        if (!path) return null;
+        return {
+          path,
+          offset: Math.max(0, Number(caret.offset) || 0),
+        };
+      },
+      _restoreViewportAnchor(doc, anchor) {
+        if (!doc || !anchor || !Array.isArray(anchor.path)) return false;
+        const scroller = doc.getElementById("bindery-reader-scroller");
+        if (!scroller) return false;
+
+        let targetNode = this._resolveNodePath(doc, anchor.path);
+        if (!targetNode) return false;
+        let targetOffset = Math.max(0, Number(anchor.offset) || 0);
+
+        if (targetNode.nodeType !== 3) {
+          const walker = doc.createTreeWalker(targetNode, 4);
+          const textNode = walker.nextNode();
+          if (!textNode) return false;
+          targetNode = textNode;
+          targetOffset = 0;
+        } else {
+          const length = targetNode.textContent ? targetNode.textContent.length : 0;
+          targetOffset = Math.min(targetOffset, Math.max(0, length));
+        }
+
+        const range = doc.createRange();
+        range.setStart(targetNode, targetOffset);
+        range.collapse(true);
+        const rect = range.getBoundingClientRect();
+        if (!rect) return false;
+
+        const scrollerRect = scroller.getBoundingClientRect();
+        const deltaX = rect.left - scrollerRect.left - 8;
+        const nextLeft = Math.max(0, scroller.scrollLeft + deltaX);
+        scroller.scrollTo({ left: nextLeft, top: 0, behavior: "auto" });
+        return true;
+      },
+      applyToFrame(opts) {
+        if (this._applyingLayout) return;
         const frame = this.$refs.frame;
         if (!frame || !frame.contentDocument) return;
         const doc = frame.contentDocument;
         const head = doc.head || doc.getElementsByTagName("head")[0];
         if (!head) return;
         if (!doc.body) return;
+        this._applyingLayout = true;
+        const preserveAnchor = !!(opts && opts.preserveAnchor && this._hasAppliedLayout);
+        const anchor = preserveAnchor ? this._captureViewportAnchor(doc) : null;
 
         this._mountPagedLayout(doc);
 
@@ -797,28 +926,42 @@
           "html.bindery-theme-on,html.bindery-theme-on body{background:var(--bindery-reader-bg)!important;}" +
           "html.bindery-mode-custom body{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;}" +
           "html.bindery-mode-custom #bindery-reader-pages,html.bindery-mode-custom #bindery-reader-pages p,html.bindery-mode-custom #bindery-reader-pages li,html.bindery-mode-custom #bindery-reader-pages div,html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages blockquote,html.bindery-mode-custom #bindery-reader-pages td,html.bindery-mode-custom #bindery-reader-pages th{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;}" +
-          "#bindery-reader-scroller{height:100%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:smooth;scrollbar-width:none;}" +
+          "#bindery-reader-scroller{height:100%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:auto!important;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;}" +
           "#bindery-reader-scroller::-webkit-scrollbar{display:none;}" +
-          "#bindery-reader-pages{height:100%!important;box-sizing:border-box!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding:var(--bindery-page-padding-y,0px) var(--bindery-page-padding-x,0px)!important;}" +
+          "#bindery-reader-pages{height:100%!important;box-sizing:border-box!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding:var(--bindery-page-padding-y,0px) var(--bindery-page-padding-x,0px)!important;scroll-snap-align:start;}" +
           "h1,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}" +
           "img,svg,video{max-width:100%!important;height:auto!important;}";
 
         requestAnimationFrame(() => {
-          this._updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg);
-          this._attachScrollListener();
-          this._attachFrameKeyListener(doc);
+          try {
+            this._updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg);
+            this._attachScrollListener();
+            this._attachFrameKeyListener(doc);
 
-          let desired = this.page;
-          if (this._jumpToLast) {
-            desired = 99999;
-          } else if (Number.isInteger(this._resumePage) && this._resumePage > 0) {
-            desired = this._resumePage;
+            let desired = this.page;
+            if (this._jumpToLast) {
+              desired = 99999;
+            } else if (Number.isInteger(this._resumePage) && this._resumePage > 0) {
+              desired = this._resumePage;
+            }
+            if (preserveAnchor && anchor) {
+              this.refreshPagination({ syncFromScroll: true });
+              const restored = this._restoreViewportAnchor(doc, anchor);
+              if (restored) {
+                this.refreshPagination({ syncFromScroll: true });
+              } else {
+                this.refreshPagination({ desiredPage: desired, behavior: "auto" });
+              }
+            } else {
+              this.refreshPagination({ desiredPage: desired, behavior: "auto" });
+            }
+            this._jumpToLast = false;
+            this._resumePage = null;
+            this._hasAppliedLayout = true;
+            this._cleanupTransientQuery();
+          } finally {
+            this._applyingLayout = false;
           }
-
-          this.refreshPagination({ desiredPage: desired, behavior: "auto" });
-          this._jumpToLast = false;
-          this._resumePage = null;
-          this._cleanupTransientQuery();
         });
       },
     };

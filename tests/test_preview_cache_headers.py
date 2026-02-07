@@ -10,11 +10,11 @@ from starlette.requests import Request
 from bindery.epub import build_epub
 from bindery.models import Book, Chapter, Metadata
 from bindery.storage import save_book, save_metadata
-from bindery.web import preview_first
+from bindery.web import epub_item, preview
 
 
-class PreviewResumeTests(unittest.TestCase):
-    def test_preview_first_redirects_with_resume_flag(self) -> None:
+class PreviewCacheHeadersTests(unittest.TestCase):
+    def test_preview_and_epub_item_responses_are_no_store(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             previous = os.environ.get("BINDERY_LIBRARY_DIR")
             os.environ["BINDERY_LIBRARY_DIR"] = tmp
@@ -36,25 +36,22 @@ class PreviewResumeTests(unittest.TestCase):
                 save_metadata(meta, base)
                 build_epub(book, meta, base / book_id / "book.epub")
 
-                request = Request(
+                preview_request = Request(
                     {
                         "type": "http",
                         "method": "GET",
-                        "path": f"/book/{book_id}/preview",
-                        "query_string": b"return_to=%2Fjobs%3Ftab%3Dsuccess",
+                        "path": f"/book/{book_id}/preview/0",
+                        "query_string": b"",
                         "headers": [],
                     }
                 )
-                response = asyncio.run(preview_first(request, book_id))
-                self.assertEqual(response.status_code, 303)
-                location = response.headers.get("location", "")
-                self.assertIn("/book/", location)
-                self.assertIn("/preview/0?", location)
-                self.assertIn("resume=1", location)
-                self.assertIn("return_to=%2Fjobs%3Ftab%3Dsuccess", location)
-                cache_control = response.headers.get("cache-control", "")
-                self.assertIn("no-store", cache_control)
-                self.assertEqual(response.headers.get("cdn-cache-control"), "no-store")
+                preview_response = asyncio.run(preview(preview_request, book_id, 0))
+                self.assertIn("no-store", preview_response.headers.get("cache-control", ""))
+                self.assertEqual(preview_response.headers.get("cdn-cache-control"), "no-store")
+
+                item_response = asyncio.run(epub_item(book_id, "section_0001.xhtml"))
+                self.assertIn("no-store", item_response.headers.get("cache-control", ""))
+                self.assertEqual(item_response.headers.get("cdn-cache-control"), "no-store")
             finally:
                 if previous is None:
                     os.environ.pop("BINDERY_LIBRARY_DIR", None)

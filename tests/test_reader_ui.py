@@ -34,6 +34,12 @@ class ReaderUiTests(unittest.TestCase):
         self.assertIn("resumeRequested", tpl)
         self.assertIn("scrollIntoView", tpl)
         self.assertIn("navReason", tpl)
+        self.assertIn("scroll-snap-type:x mandatory", tpl)
+        self.assertIn("_captureViewportAnchor", tpl)
+        self.assertIn("_restoreViewportAnchor", tpl)
+        self.assertIn('scroller.addEventListener("scrollend"', tpl)
+        self.assertNotIn("_snapTimer", tpl)
+        self.assertNotIn("_scrollRaf", tpl)
         self.assertNotIn("md:opacity-0", tpl)
         self.assertNotIn("md:group-hover:opacity-100", tpl)
 
