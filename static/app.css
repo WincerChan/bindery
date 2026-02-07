@@ -910,6 +910,15 @@
   .bg-amber-100 {
     background-color: var(--color-amber-100);
   }
+  .bg-amber-200 {
+    background-color: var(--color-amber-200);
+  }
+  .bg-amber-500\/35 {
+    background-color: color-mix(in srgb, oklch(76.9% 0.188 70.08) 35%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-amber-500) 35%, transparent);
+    }
+  }
   .bg-black\/30 {
     background-color: color-mix(in srgb, #000 30%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
@@ -1080,6 +1089,9 @@
   .p-12 {
     padding: calc(var(--spacing) * 12);
   }
+  .px-0\.5 {
+    padding-inline: calc(var(--spacing) * 0.5);
+  }
   .px-2 {
     padding-inline: calc(var(--spacing) * 2);
   }
@@ -1232,6 +1244,9 @@
   .whitespace-pre-wrap {
     white-space: pre-wrap;
   }
+  .text-amber-100 {
+    color: var(--color-amber-100);
+  }
   .text-amber-500 {
     color: var(--color-amber-500);
   }
@@ -1240,6 +1255,9 @@
   }
   .text-amber-800 {
     color: var(--color-amber-800);
+  }
+  .text-amber-900 {
+    color: var(--color-amber-900);
   }
   .text-blue-700 {
     color: var(--color-blue-700);

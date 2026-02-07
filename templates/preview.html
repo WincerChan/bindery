@@ -148,8 +148,8 @@
           :class="brightnessMode === 'dim' ? 'hover:bg-slate-700 hover:border-slate-600' : 'hover:bg-slate-50 hover:border-slate-200'"
           @click="openSearchResult(item)"
         >
-          <div class="text-sm font-medium truncate" :class="brightnessMode === 'dim' ? 'text-slate-100' : 'text-slate-900'" x-text="item.title"></div>
-          <div class="text-xs mt-1 line-clamp-2" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'" x-text="item.snippet"></div>
+          <div class="text-sm font-medium truncate" :class="brightnessMode === 'dim' ? 'text-slate-100' : 'text-slate-900'" x-html="highlightSearchText(item.title)"></div>
+          <div class="text-xs mt-1 line-clamp-2" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'" x-html="highlightSearchText(item.snippet)"></div>
         </button>
       </template>
       <div class="text-xs py-2" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'" x-show="!searchBusy && searchQuery && searchResults.length === 0">未命中</div>
@@ -1087,6 +1087,43 @@
         this.searchResults = [];
         this.searchIndexedSections = 0;
       },
+      _escapeHtml(text) {
+        return String(text || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      },
+      _searchMarkClass() {
+        return this.brightnessMode === "dim"
+          ? "bg-amber-500/35 text-amber-100 px-0.5 rounded"
+          : "bg-amber-200 text-amber-900 px-0.5 rounded";
+      },
+      highlightSearchText(value) {
+        const source = String(value || "");
+        const query = (this.searchQuery || "").trim();
+        if (!source) return "";
+        if (!query) return this._escapeHtml(source);
+        const sourceLower = source.toLowerCase();
+        const queryLower = query.toLowerCase();
+        const queryLen = query.length;
+        if (queryLen <= 0) return this._escapeHtml(source);
+        let cursor = 0;
+        let idx = sourceLower.indexOf(queryLower, cursor);
+        if (idx < 0) return this._escapeHtml(source);
+
+        const marker = this._searchMarkClass();
+        let out = "";
+        while (idx > -1) {
+          out += this._escapeHtml(source.slice(cursor, idx));
+          out += `<mark class="${marker}">${this._escapeHtml(source.slice(idx, idx + queryLen))}</mark>`;
+          cursor = idx + queryLen;
+          idx = sourceLower.indexOf(queryLower, cursor);
+        }
+        out += this._escapeHtml(source.slice(cursor));
+        return out;
+      },
       openSearchResult(item) {
         if (!item || !Number.isInteger(item.index)) return;
         this.searchOpen = false;
@@ -1487,11 +1524,13 @@
           "body{overflow:hidden!important;}" +
           "html,body{background:var(--bindery-reader-bg)!important;}" +
           "html.bindery-mode-custom body{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;color:var(--bindery-reader-text,#111827)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
-          "html.bindery-mode-custom #bindery-reader-pages,html.bindery-mode-custom #bindery-reader-pages p,html.bindery-mode-custom #bindery-reader-pages li,html.bindery-mode-custom #bindery-reader-pages div,html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages blockquote,html.bindery-mode-custom #bindery-reader-pages td,html.bindery-mode-custom #bindery-reader-pages th{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;color:var(--bindery-reader-text,#111827)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
+          "html.bindery-mode-custom #bindery-reader-pages,html.bindery-mode-custom #bindery-reader-pages p,html.bindery-mode-custom #bindery-reader-pages li,html.bindery-mode-custom #bindery-reader-pages div,html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages b,html.bindery-mode-custom #bindery-reader-pages strong,html.bindery-mode-custom #bindery-reader-pages blockquote,html.bindery-mode-custom #bindery-reader-pages td,html.bindery-mode-custom #bindery-reader-pages th,html.bindery-mode-custom #bindery-reader-pages h1,html.bindery-mode-custom #bindery-reader-pages h2,html.bindery-mode-custom #bindery-reader-pages h3,html.bindery-mode-custom #bindery-reader-pages h4,html.bindery-mode-custom #bindery-reader-pages h5,html.bindery-mode-custom #bindery-reader-pages h6{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;color:var(--bindery-reader-text,#111827)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
+          "html.bindery-mode-custom #bindery-reader-pages h1,html.bindery-mode-custom #bindery-reader-pages h2,html.bindery-mode-custom #bindery-reader-pages h3,html.bindery-mode-custom #bindery-reader-pages h4,html.bindery-mode-custom #bindery-reader-pages h5,html.bindery-mode-custom #bindery-reader-pages h6{background-color:transparent!important;background-image:none!important;}" +
+          "html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages b,html.bindery-mode-custom #bindery-reader-pages strong{background-color:transparent!important;background-image:none!important;}" +
           "#bindery-reader-scroller{display:block!important;position:relative!important;height:99%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;background:var(--bindery-reader-bg)!important;writing-mode:horizontal-tb!important;direction:ltr!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:auto!important;overscroll-behavior-x:contain;scrollbar-width:none;}" +
           "#bindery-reader-scroller::-webkit-scrollbar{display:none;}" +
           "#bindery-reader-pages{display:block!important;position:relative!important;float:none!important;clear:both!important;width:100%!important;min-width:100%!important;max-width:none!important;height:99%!important;box-sizing:border-box!important;writing-mode:horizontal-tb!important;direction:ltr!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding-top:var(--bindery-page-padding-y,0px)!important;padding-bottom:var(--bindery-page-padding-y,0px)!important;padding-left:var(--bindery-page-padding-x,0px)!important;padding-right:var(--bindery-page-padding-x,0px)!important;margin-top:0!important;margin-bottom:0!important;margin-left:0!important;margin-right:var(--bindery-page-tail-pad,0px)!important;}" +
-          "h0,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}" +
+          "h1,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}" +
           "img,svg,video{max-width:99%!important;height:auto!important;}";
 
         requestAnimationFrame(() => {
