@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import io
+import itertools
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 from .models import Book, Chapter, Volume
 
@@ -277,17 +279,13 @@ def normalize_content_line(line: str) -> str:
     return s.replace("\u3000", "")
 
 
-def parse_book(text: str, source_name: str, rules: Optional[RuleSet] = None) -> Book:
-    rules = rules or DEFAULT_RULES
-    lines = text.splitlines()
-    title, author, intro, skip_idx = parse_metadata(lines, rules)
+def _iter_text_lines(text: str) -> Iterable[str]:
+    with io.StringIO(text) as stream:
+        for raw in stream:
+            yield raw.rstrip("\r\n")
 
-    body_lines = [line for idx, line in enumerate(lines) if idx not in skip_idx]
-    while body_lines and not body_lines[0].strip():
-        body_lines.pop(0)
 
-    book = Book(title=title or source_name, author=author, intro=intro)
-
+def _parse_body_lines(book: Book, body_lines: Iterable[str], rules: RuleSet) -> None:
     current_volume: Optional[Volume] = None
     current_chapter: Optional[Chapter] = None
 
@@ -332,5 +330,42 @@ def parse_book(text: str, source_name: str, rules: Optional[RuleSet] = None) -> 
             else:
                 current_chapter = book.root_chapters[-1]
             current_chapter.lines.append(content)
+
+
+def parse_book(text: str, source_name: str, rules: Optional[RuleSet] = None) -> Book:
+    rules = rules or DEFAULT_RULES
+    lines_iter = _iter_text_lines(text)
+
+    prelude_lines: list[str] = []
+    first_heading_line: Optional[str] = None
+    first_heading_next: Optional[str] = None
+
+    prev_line: Optional[str] = None
+    current_line = next(lines_iter, None)
+    next_line = next(lines_iter, None)
+
+    while current_line is not None:
+        if classify_heading(current_line, prev_line, next_line, rules) is not None:
+            first_heading_line = current_line
+            first_heading_next = next_line
+            break
+        prelude_lines.append(current_line)
+        prev_line = current_line
+        current_line = next_line
+        next_line = next(lines_iter, None)
+
+    title, author, intro, skip_idx = parse_metadata(prelude_lines, rules)
+    book = Book(title=title or source_name, author=author, intro=intro)
+
+    prelude_body_iter = (line for idx, line in enumerate(prelude_lines) if idx not in skip_idx)
+    if first_heading_line is None:
+        body_iter = prelude_body_iter
+    else:
+        heading_head = [first_heading_line]
+        if first_heading_next is not None:
+            heading_head.append(first_heading_next)
+        body_iter = itertools.chain(prelude_body_iter, heading_head, lines_iter)
+
+    _parse_body_lines(book, body_iter, rules)
 
     return book

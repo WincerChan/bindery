@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package
+  xmlns="http://www.idpf.org/2007/opf"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  version="3.0"
+  unique-identifier="BookId"
+>
+  <metadata>
+    <dc:identifier id="BookId">{{ identifier_urn }}</dc:identifier>
+{% if identifier %}
+    <dc:identifier id="identifier">{{ identifier }}</dc:identifier>
+{% endif %}
+{% if isbn %}
+    <dc:identifier id="isbn">{{ isbn }}</dc:identifier>
+{% endif %}
+    <dc:title>{{ title }}</dc:title>
+    <dc:language>{{ language }}</dc:language>
+{% if author %}
+    <dc:creator>{{ author }}</dc:creator>
+{% endif %}
+{% if description %}
+    <dc:description>{{ description }}</dc:description>
+{% endif %}
+{% if publisher %}
+    <dc:publisher>{{ publisher }}</dc:publisher>
+{% endif %}
+{% if published %}
+    <dc:date>{{ published }}</dc:date>
+{% endif %}
+{% for tag in tags %}
+    <dc:subject>{{ tag }}</dc:subject>
+{% endfor %}
+{% if series %}
+    <meta property="belongs-to-collection">{{ series }}</meta>
+{% endif %}
+{% if rating is not none %}
+    <meta name="rating">{{ rating }}</meta>
+{% endif %}
+    <meta property="dcterms:modified">{{ modified }}</meta>
+{% if cover_item_id %}
+    <meta name="cover" content="{{ cover_item_id }}" />
+{% endif %}
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav" />
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />
+    <item id="style" href="Styles/style.css" media-type="text/css" />
+{% if cover_href and cover_media_type and cover_item_id %}
+    <item id="{{ cover_item_id }}" href="{{ cover_href }}" media-type="{{ cover_media_type }}" properties="cover-image" />
+{% endif %}
+{% for section in sections %}
+    <item id="{{ section.item_id }}" href="{{ section.href }}" media-type="application/xhtml+xml" />
+{% endfor %}
+  </manifest>
+  <spine toc="ncx">
+{% for section in sections %}
+    <itemref idref="{{ section.item_id }}" />
+{% endfor %}
+  </spine>
+</package>

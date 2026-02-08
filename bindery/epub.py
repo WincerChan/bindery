@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from functools import lru_cache
 import html
 import posixpath
 import re
@@ -10,6 +11,7 @@ import tempfile
 from typing import Iterable, Optional
 import zipfile
 import xml.etree.ElementTree as ET
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from lxml import etree as LXML_ET
 
 from ebooklib import epub
@@ -42,6 +44,15 @@ class _ZipManifestItem:
     member_path: str
 
 
+@dataclass
+class _BuildSection:
+    item_id: str
+    title: str
+    href: str
+    file_name: str
+    content: str
+
+
 BINDERY_CSS_NAME = "bindery.css"
 CHAPTER_STAMP_RE = re.compile(
     r"^\s*(第[0-9零〇一二两三四五六七八九十百千万亿\d]+章)\s*[:：、.\-·]?\s*(.+)\s*$"
@@ -50,6 +61,24 @@ CONTAINER_NS = "urn:oasis:names:tc:opendocument:xmlns:container"
 OPF_NS = epub.NAMESPACES["OPF"]
 DC_NS = epub.NAMESPACES["DC"]
 BINDERY_CSS_BASENAMES = {"bindery.css", "bindery-overlay.css"}
+EPUB_TEMPLATES_DIR = Path(__file__).resolve().parent / "epub_templates"
+
+
+@lru_cache(maxsize=1)
+def _epub_template_env() -> Environment:
+    return Environment(
+        loader=FileSystemLoader(str(EPUB_TEMPLATES_DIR)),
+        autoescape=select_autoescape(
+            enabled_extensions=("xml", "xhtml", "html"),
+            default_for_string=False,
+        ),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+
+
+def _render_epub_template(template_name: str, **context: object) -> str:
+    return _epub_template_env().get_template(template_name).render(**context)
 
 
 def _canonical_zip_member(name: str) -> str:
@@ -197,6 +226,26 @@ def _locate_zip_member(index: dict[str, str], member_path: str) -> Optional[tupl
     for candidate in _path_lookup_keys(normalized):
         if candidate in index:
             return candidate, index[candidate]
+    basename = PurePosixPath(canonical).name
+    if basename:
+        basename_matches = [
+            (key, actual)
+            for key, actual in index.items()
+            if PurePosixPath(key).name == basename
+        ]
+        if len(basename_matches) == 1:
+            return basename_matches[0]
+        if len(basename_matches) > 1:
+            preferred_suffixes = (
+                f"/Text/{basename}",
+                f"/text/{basename}",
+                f"/{basename}",
+            )
+            for suffix in preferred_suffixes:
+                for key, actual in basename_matches:
+                    if key.endswith(suffix):
+                        return key, actual
+            return basename_matches[0]
     return None
 
 
@@ -1150,58 +1199,28 @@ def _split_chapter_title(title: str, kind: str) -> tuple[Optional[str], str]:
 
 
 def _render_section(title: str, lines: Iterable[str], lang: str, kind: str = "chapter") -> str:
-    paragraphs = []
-    for line in lines:
-        if not line:
-            continue
-        paragraphs.append(f"    <p>{html.escape(line)}</p>")
-    body = "\n".join(paragraphs) if paragraphs else ""
+    paragraphs = [line for line in lines if line]
     stamp, main_title = _split_chapter_title(title, kind)
-    heading_parts: list[str] = ["    <header class=\"chapter-header\">"]
-    if stamp:
-        heading_parts.append(f"      <p class=\"chapter-stamp\">{html.escape(stamp)}</p>")
-    heading_parts.append(f"      <h1 class=\"chapter-title\">{html.escape(main_title)}</h1>")
-    heading_parts.append("    </header>")
-    heading = "\n".join(heading_parts)
-    return (
-        "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"{lang}\">\n"
-        "  <head>\n"
-        "    <meta charset=\"utf-8\" />\n"
-        "    <title>{title}</title>\n"
-        "    <link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\" />\n"
-        "  </head>\n"
-        "  <body class=\"{kind}\">\n"
-        "{heading}\n"
-        "{body}\n"
-        "  </body>\n"
-        "</html>\n"
-    ).format(lang=lang, title=html.escape(title), heading=heading, body=body, kind=kind)
+    return _render_epub_template(
+        "section.xhtml.j2",
+        lang=lang,
+        title=title,
+        kind=kind,
+        stamp=stamp,
+        main_title=main_title,
+        paragraphs=paragraphs,
+    )
 
 
 def _render_intro(title: str, author: Optional[str], intro: str, lang: str) -> str:
-    paragraphs = []
-    if author:
-        paragraphs.append(f"    <p class=\"author\">作者：{html.escape(author)}</p>")
-    paragraphs.append("    <p class=\"intro-label\">简介</p>")
-    for raw in intro.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        paragraphs.append(f"    <p>{html.escape(line)}</p>")
-    body = "\n".join(paragraphs)
-    return (
-        "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"{lang}\">\n"
-        "  <head>\n"
-        "    <meta charset=\"utf-8\" />\n"
-        "    <title>{title}</title>\n"
-        "    <link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\" />\n"
-        "  </head>\n"
-        "  <body class=\"front-matter\">\n"
-        "    <h1>{title}</h1>\n"
-        "{body}\n"
-        "  </body>\n"
-        "</html>\n"
-    ).format(lang=lang, title=html.escape(title), body=body)
+    paragraphs = [raw.strip() for raw in intro.splitlines() if raw.strip()]
+    return _render_epub_template(
+        "intro.xhtml.j2",
+        lang=lang,
+        title=title,
+        author=author,
+        paragraphs=paragraphs,
+    )
 
 
 def _add_metadata(book: epub.EpubBook, meta: Metadata) -> None:
@@ -1266,6 +1285,16 @@ def _clear_metadata(book: epub.EpubBook, *, keep_cover: bool = False) -> None:
         book.metadata[opf_ns] = opf
 
 
+def _safe_epub_member_name(filename: str, fallback: str) -> str:
+    raw_name = Path(filename or "").name
+    cleaned = re.sub(r"[^0-9A-Za-z._-]+", "_", raw_name).strip("._")
+    if not cleaned:
+        return fallback
+    if "." not in cleaned and "." in fallback:
+        cleaned = f"{cleaned}{Path(fallback).suffix}"
+    return cleaned
+
+
 def update_epub_metadata(
     epub_file: Path,
     meta: Metadata,
@@ -1321,78 +1350,106 @@ def build_epub(
     cover_path: Optional[Path] = None,
     css_text: Optional[str] = None,
 ) -> None:
-    epub_book = epub.EpubBook()
-    _add_metadata(epub_book, meta)
-
-    css = css_text.strip() if css_text and css_text.strip() else ""
-    style_item = epub.EpubItem(uid="style", file_name="style.css", media_type="text/css", content=css)
-    epub_book.add_item(style_item)
-
-    if cover_path and cover_path.exists():
-        cover_bytes = cover_path.read_bytes()
-        epub_book.set_cover(cover_path.name, cover_bytes)
-
-    docs: list[epub.EpubHtml] = []
-    toc: list[object] = []
-    spine: list[object] = ["nav"]
     lang = meta.language or "zh-CN"
-
+    css = css_text.strip() if css_text and css_text.strip() else ""
+    sections: list[_BuildSection] = []
     section_index = 1
 
-    def make_doc(title: str, lines: Iterable[str], kind: str = "chapter") -> epub.EpubHtml:
+    def add_section(title: str, lines: Iterable[str], kind: str = "chapter") -> None:
         nonlocal section_index
-        file_name = f"section_{section_index:04d}.xhtml"
+        file_name = f"Text/section_{section_index:04d}.xhtml"
+        item_id = f"sec{section_index:04d}"
         section_index += 1
-        doc = epub.EpubHtml(title=title, file_name=file_name, lang=lang)
-        doc.content = _render_section(title, lines, lang, kind=kind)
-        doc.add_item(style_item)
-        docs.append(doc)
-        return doc
+        sections.append(
+            _BuildSection(
+                item_id=item_id,
+                title=title,
+                href=file_name,
+                file_name=file_name,
+                content=_render_section(title, lines, lang, kind=kind),
+            )
+        )
 
     if book_data.intro:
-        intro_doc = epub.EpubHtml(title="简介", file_name="section_0000.xhtml", lang=lang)
-        intro_doc.content = _render_intro(meta.title, meta.author or book_data.author, book_data.intro, lang)
-        intro_doc.add_item(style_item)
-        docs.append(intro_doc)
-        toc.append(intro_doc)
-        spine.append(intro_doc)
+        intro_file = "Text/section_0000.xhtml"
+        sections.append(
+            _BuildSection(
+                item_id="sec0000",
+                title="简介",
+                href=intro_file,
+                file_name=intro_file,
+                content=_render_intro(meta.title, meta.author or book_data.author, book_data.intro, lang),
+            )
+        )
 
-    current_volume_items: Optional[list[epub.EpubHtml]] = None
     for item in book_data.spine:
         if isinstance(item, Volume):
-            current_volume_items = []
-            toc.append((epub.Section(item.title), current_volume_items))
             if item.lines:
-                doc = make_doc(item.title, item.lines, kind="volume")
-                current_volume_items.append(doc)
-                spine.append(doc)
+                add_section(item.title, item.lines, kind="volume")
             continue
+        add_section(item.title, item.lines, kind="chapter")
 
-        doc = make_doc(item.title, item.lines, kind="chapter")
-        if item.volume is not None and current_volume_items is not None:
-            current_volume_items.append(doc)
-        else:
-            current_volume_items = None
-            toc.append(doc)
-        spine.append(doc)
+    if not sections:
+        add_section("正文", ["（无内容）"], kind="chapter")
 
-    if not docs:
-        doc = make_doc("正文", ["（无内容）"], kind="chapter")
-        toc.append(doc)
-        spine.append(doc)
+    identifier_value = meta.identifier or meta.book_id
+    identifier_urn = identifier_value if str(identifier_value).startswith("urn:") else f"urn:uuid:{identifier_value}"
+    modified = (
+        dt.datetime.now(dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    tags = [tag for tag in meta.tags if tag]
 
-    epub_book.toc = toc
-    epub_book.spine = spine
+    cover_href: Optional[str] = None
+    cover_media_type: Optional[str] = None
+    cover_item_id: Optional[str] = None
+    cover_bytes: Optional[bytes] = None
+    if cover_path and cover_path.exists():
+        cover_name = _safe_epub_member_name(cover_path.name, "cover.jpg")
+        cover_href = f"Images/{cover_name}"
+        cover_media_type = _guess_image_media_type(cover_name)
+        cover_item_id = "cover-image"
+        cover_bytes = cover_path.read_bytes()
 
-    epub_book.add_item(epub.EpubNcx())
-    epub_book.add_item(epub.EpubNav())
-
-    for doc in docs:
-        epub_book.add_item(doc)
+    container_xml = _render_epub_template("container.xml.j2")
+    opf_xml = _render_epub_template(
+        "content.opf.j2",
+        identifier_urn=identifier_urn,
+        identifier=meta.identifier,
+        isbn=meta.isbn,
+        title=meta.title,
+        language=lang,
+        author=meta.author,
+        description=meta.description,
+        publisher=meta.publisher,
+        published=meta.published,
+        series=meta.series,
+        tags=tags,
+        rating=meta.rating,
+        modified=modified,
+        sections=sections,
+        cover_href=cover_href,
+        cover_media_type=cover_media_type,
+        cover_item_id=cover_item_id,
+    )
+    nav_xhtml = _render_epub_template("nav.xhtml.j2", title=meta.title, lang=lang, sections=sections)
+    toc_ncx = _render_epub_template("toc.ncx.j2", title=meta.title, sections=sections)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    # Disable page-list generation to avoid failures when a section body is empty.
-    epub.write_epub(str(output_path), epub_book, {"epub3_pages": False})
+    with zipfile.ZipFile(output_path, "w") as zf:
+        zf.writestr("mimetype", b"application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        zf.writestr("META-INF/container.xml", container_xml.encode("utf-8"))
+        zf.writestr("EPUB/content.opf", opf_xml.encode("utf-8"))
+        zf.writestr("EPUB/nav.xhtml", nav_xhtml.encode("utf-8"))
+        zf.writestr("EPUB/toc.ncx", toc_ncx.encode("utf-8"))
+        zf.writestr("EPUB/Styles/style.css", css.encode("utf-8"))
+        for section in sections:
+            zf.writestr(f"EPUB/{section.file_name}", section.content.encode("utf-8"))
+        if cover_href and cover_bytes is not None:
+            zf.writestr(f"EPUB/{cover_href}", cover_bytes)
+
     _normalize_epub_archive_paths(output_path)
 
 
