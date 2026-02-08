@@ -67,6 +67,11 @@ class IngestRedirectTests(unittest.TestCase):
                 self.assertEqual(len(jobs), 1)
                 self.assertEqual(jobs[0].status, "running")
                 self.assertEqual(jobs[0].stage, "排队中")
+                queued_task = web_module._ingest_queue.get_nowait()
+                web_module._ingest_queue.task_done()
+                self.assertNotIn("data", queued_task)
+                self.assertIn("payload_path", queued_task)
+                self.assertTrue(Path(str(queued_task["payload_path"])).exists())
             finally:
                 self._drain_queue()
                 if previous_library is None:
@@ -179,6 +184,11 @@ class IngestRedirectTests(unittest.TestCase):
                 self.assertEqual(response.headers.get("location", ""), "/jobs")
                 self.assertFalse(staged_dir.exists())
                 self.assertEqual(len(list_jobs()), 1)
+                queued_task = web_module._ingest_queue.get_nowait()
+                web_module._ingest_queue.task_done()
+                self.assertNotIn("data", queued_task)
+                self.assertIn("payload_path", queued_task)
+                self.assertTrue(Path(str(queued_task["payload_path"])).exists())
             finally:
                 self._drain_queue()
                 if previous_library is None:

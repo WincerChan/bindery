@@ -171,6 +171,23 @@ def _is_epub_zip(data: bytes) -> bool:
         return False
 
 
+def _detect_source_type_probe(filename: str, content_type: Optional[str], probe: bytes) -> str:
+    suffix = Path(filename).suffix.lower() if filename else ""
+    if suffix == ".epub":
+        return "epub"
+    if suffix == ".txt":
+        return "txt"
+    if content_type == "application/epub+zip":
+        return "epub"
+    if probe.startswith(b"PK"):
+        return "epub"
+    if content_type and content_type.startswith("text/"):
+        return "txt"
+    if _looks_like_text(probe):
+        return "txt"
+    return "unknown"
+
+
 def _detect_source_type(filename: str, content_type: Optional[str], data: bytes) -> str:
     suffix = Path(filename).suffix.lower() if filename else ""
     if suffix == ".epub":
@@ -186,6 +203,33 @@ def _detect_source_type(filename: str, content_type: Optional[str], data: bytes)
     if _looks_like_text(data):
         return "txt"
     return "unknown"
+
+
+def _read_file_probe(file_path: Path, limit: int = 4096) -> bytes:
+    try:
+        with file_path.open("rb") as handle:
+            return handle.read(limit)
+    except FileNotFoundError:
+        return b""
+
+
+async def _stream_upload_to_path(
+    upload_file: UploadFile, destination: Path, *, probe_limit: int = 4096, chunk_size: int = 1024 * 1024
+) -> tuple[int, bytes]:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    total = 0
+    probe = bytearray()
+    with destination.open("wb") as out:
+        while True:
+            chunk = await upload_file.read(chunk_size)
+            if not chunk:
+                break
+            out.write(chunk)
+            total += len(chunk)
+            if len(probe) < probe_limit:
+                remaining = probe_limit - len(probe)
+                probe.extend(chunk[:remaining])
+    return total, bytes(probe)
 
 
 def _safe_filename(value: str) -> str:
@@ -1010,6 +1054,12 @@ def _persist_queued_upload(base: Path, job_id: str, filename: str, data: bytes) 
     return payload_path
 
 
+async def _persist_queued_upload_stream(base: Path, job_id: str, upload_file: UploadFile) -> tuple[Path, int, bytes]:
+    payload_path = _queue_payload_path(base, job_id, upload_file.filename or "upload")
+    size, probe = await _stream_upload_to_path(upload_file, payload_path)
+    return payload_path, size, probe
+
+
 def _staged_upload_dir(base: Path) -> Path:
     stage_dir = base / INGEST_STAGE_DIR
     stage_dir.mkdir(parents=True, exist_ok=True)
@@ -1045,6 +1095,32 @@ def _persist_staged_upload(
     return token
 
 
+async def _persist_staged_upload_stream(base: Path, upload_file: UploadFile) -> tuple[str, str, str, Optional[str], Path, int]:
+    token = new_book_id()
+    staged_dir = _staged_upload_dir(base) / token
+    staged_dir.mkdir(parents=True, exist_ok=True)
+    filename = upload_file.filename or "upload"
+    raw_name = Path(filename)
+    suffix = raw_name.suffix.lower() or ".bin"
+    stem = _safe_filename(raw_name.stem or "upload")
+    payload_name = f"{stem}{suffix}"
+    payload_path = staged_dir / payload_name
+    size, probe = await _stream_upload_to_path(upload_file, payload_path)
+    content_type = upload_file.content_type
+    kind = _detect_source_type_probe(filename, content_type, probe)
+    meta = {
+        "filename": filename,
+        "content_type": content_type or "",
+        "kind": kind,
+        "payload_name": payload_name,
+    }
+    (staged_dir / "meta.json").write_text(
+        json.dumps(meta, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return token, filename, kind, content_type, payload_path, size
+
+
 def _load_staged_upload(base: Path, token: str) -> Optional[dict]:
     normalized = (token or "").strip().lower()
     if not BOOK_ID_RE.match(normalized):
@@ -1063,22 +1139,34 @@ def _load_staged_upload(base: Path, token: str) -> Optional[dict]:
     payload_path = staged_dir / payload_name
     if not payload_path.exists():
         return None
-    try:
-        data = payload_path.read_bytes()
-    except Exception:
-        return None
     filename = str(payload.get("filename") or payload_name).strip() or payload_name
     content_type = str(payload.get("content_type") or "").strip() or None
     kind = str(payload.get("kind") or "").strip()
     if not kind:
-        kind = _detect_source_type(filename, content_type, data)
+        kind = _detect_source_type_probe(filename, content_type, _read_file_probe(payload_path))
     return {
         "token": normalized,
         "filename": filename,
         "content_type": content_type,
         "kind": kind,
-        "data": data,
+        "payload_path": payload_path,
+        "size": payload_path.stat().st_size,
     }
+
+
+def _move_staged_payload_to_queue(base: Path, token: str, job_id: str, filename: str) -> Optional[Path]:
+    staged = _load_staged_upload(base, token)
+    if not staged:
+        return None
+    payload_path_obj = staged.get("payload_path")
+    if not isinstance(payload_path_obj, Path):
+        return None
+    if not payload_path_obj.exists():
+        return None
+    destination = _queue_payload_path(base, job_id, filename)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(payload_path_obj), str(destination))
+    return destination
 
 
 def _cleanup_staged_upload(base: Path, token: str) -> None:
@@ -1167,15 +1255,21 @@ def _process_queued_ingest_task(task: dict) -> None:
 
     payload_path = Path(str(task.get("payload_path") or ""))
     try:
-        data = payload_path.read_bytes()
+        size = payload_path.stat().st_size
     except Exception:
         _update_job(job_id, status="failed", stage="失败", message="读取队列文件失败")
+        _cleanup_queued_upload(payload_path)
+        return
+    if size <= 0:
+        _update_job(job_id, status="failed", stage="失败", message="上传文件为空")
         _cleanup_queued_upload(payload_path)
         return
 
     filename = str(task.get("filename") or "upload")
     content_type = task.get("content_type")
-    detected_kind = _detect_source_type(filename, content_type if isinstance(content_type, str) else None, data)
+    detected_kind = _detect_source_type_probe(
+        filename, content_type if isinstance(content_type, str) else None, _read_file_probe(payload_path)
+    )
     if detected_kind != kind:
         kind = detected_kind
 
@@ -1201,10 +1295,7 @@ def _process_queued_ingest_task(task: dict) -> None:
         if kind == "epub":
             if dedupe_mode == "normalize":
                 try:
-                    with tempfile.NamedTemporaryFile(suffix=".epub") as tmp:
-                        tmp.write(data)
-                        tmp.flush()
-                        extracted = extract_epub_metadata(Path(tmp.name), Path(filename).stem)
+                    extracted = extract_epub_metadata(payload_path, Path(filename).stem)
                     duplicate_meta = _find_first_duplicate_meta(
                         base,
                         title.strip() or extracted.get("title") or Path(filename).stem,
@@ -1225,7 +1316,7 @@ def _process_queued_ingest_task(task: dict) -> None:
             meta = _run_epub_ingest(
                 job,
                 base,
-                data,
+                payload_path,
                 filename,
                 title,
                 author,
@@ -1247,7 +1338,7 @@ def _process_queued_ingest_task(task: dict) -> None:
             return
 
         if kind == "txt":
-            text = decode_text(data)
+            text = decode_text(payload_path.read_bytes())
             if not text.strip():
                 _update_job(job_id, status="failed", stage="失败", message=f"{filename}: 文本为空或无法解码", log=None)
                 return
@@ -1406,7 +1497,7 @@ def _run_ingest(
 def _run_epub_ingest(
     job: Job,
     base: Path,
-    epub_bytes: bytes,
+    epub_source: Path | bytes,
     filename: str,
     title: str,
     author: str,
@@ -1431,7 +1522,10 @@ def _run_epub_ingest(
 
         epub_file = epub_path(base, book_id)
         epub_file.parent.mkdir(parents=True, exist_ok=True)
-        epub_file.write_bytes(epub_bytes)
+        if isinstance(epub_source, Path):
+            shutil.copy2(epub_source, epub_file)
+        else:
+            epub_file.write_bytes(epub_source)
         strip_webp_assets_and_refs(epub_file)
 
         extracted = extract_epub_metadata(epub_file, Path(filename or "upload").stem)
@@ -1724,9 +1818,10 @@ async def ingest_preview(
     rule = None
 
     for file in files:
-        filename = file.filename or "upload"
-        data = await file.read()
-        if not data:
+        token, filename, kind, _content_type, payload_path, size = await _persist_staged_upload_stream(base, file)
+        upload_token = token
+        if size <= 0:
+            _cleanup_staged_upload(base, upload_token)
             previews.append(
                 {
                     "filename": filename,
@@ -1745,33 +1840,28 @@ async def ingest_preview(
             )
             continue
 
-        kind = _detect_source_type(filename, file.content_type, data)
-        upload_token = _persist_staged_upload(base, filename, data, file.content_type, kind)
         if kind == "epub":
-            with tempfile.NamedTemporaryFile(suffix=".epub") as tmp:
-                tmp.write(data)
-                tmp.flush()
-                try:
-                    meta = extract_epub_metadata(Path(tmp.name), Path(filename).stem)
-                    sections = list_epub_sections(Path(tmp.name))
-                except Exception:
-                    previews.append(
-                        {
-                            "filename": filename,
-                            "format": "EPUB",
-                            "title": None,
-                            "author": None,
-                            "volumes": 0,
-                            "chapters": 0,
-                            "toc": [],
-                            "output": filename,
-                            "path": str(base / "<自动ID>"),
-                            "error": "解析 EPUB 失败",
-                            "duplicates": [],
-                            "upload_token": upload_token,
-                        }
-                    )
-                    continue
+            try:
+                meta = extract_epub_metadata(payload_path, Path(filename).stem)
+                sections = list_epub_sections(payload_path)
+            except Exception:
+                previews.append(
+                    {
+                        "filename": filename,
+                        "format": "EPUB",
+                        "title": None,
+                        "author": None,
+                        "volumes": 0,
+                        "chapters": 0,
+                        "toc": [],
+                        "output": filename,
+                        "path": str(base / "<自动ID>"),
+                        "error": "解析 EPUB 失败",
+                        "duplicates": [],
+                        "upload_token": upload_token,
+                    }
+                )
+                continue
             duplicates = _find_duplicate_books(base, meta.get("title"), meta.get("author"), meta.get("isbn"))
             previews.append(
                 {
@@ -1793,6 +1883,7 @@ async def ingest_preview(
         if kind == "txt":
             if rule is None:
                 rule = get_rule(rule_template)
+            data = payload_path.read_bytes()
             text = decode_text(data)
             if not text.strip():
                 previews.append(
@@ -1905,13 +1996,13 @@ async def ingest(
         )
 
     base = library_dir()
-    ingest_entries: list[dict] = []
+    staged_entries: list[dict] = []
     if token_list:
         for token in token_list:
             staged = _load_staged_upload(base, token)
             if staged:
-                ingest_entries.append(staged)
-        if not ingest_entries:
+                staged_entries.append(staged)
+        if not staged_entries:
             rules = load_rule_templates()
             themes = load_theme_templates()
             return templates.TemplateResponse(
@@ -1924,43 +2015,30 @@ async def ingest(
                     "custom_css": custom_css,
                 },
             )
-    else:
-        for upload_file in file_list:
-            filename = upload_file.filename or "upload"
-            data = await upload_file.read()
-            ingest_entries.append(
-                {
-                    "token": None,
-                    "filename": filename,
-                    "content_type": upload_file.content_type,
-                    "kind": _detect_source_type(filename, upload_file.content_type, data),
-                    "data": data,
-                }
-            )
 
     dedupe_mode = "normalize" if dedupe_mode == "normalize" else "keep"
     _ensure_ingest_worker_started()
-    for entry in ingest_entries:
+    for entry in staged_entries:
         token = str(entry.get("token") or "").strip().lower()
         filename = str(entry.get("filename") or "upload")
-        data = entry.get("data")
-        if not isinstance(data, bytes):
-            data = b""
-        if not data:
+        content_type_value = entry.get("content_type")
+        content_type = content_type_value if isinstance(content_type_value, str) else None
+        kind = str(entry.get("kind") or "").strip()
+        size_value = entry.get("size")
+        size = int(size_value) if isinstance(size_value, int) else 0
+        if size <= 0:
             job = _create_job("ingest", None, rule_template)
             _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
-            if token:
-                _cleanup_staged_upload(base, token)
+            _cleanup_staged_upload(base, token)
             continue
-
-        content_type = entry.get("content_type")
-        if not isinstance(content_type, str):
-            content_type = None
-        kind = str(entry.get("kind") or "").strip() or _detect_source_type(filename, content_type, data)
         action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
         job = _create_job(action, book_id, job_rule_template)
         _update_job(job.id, stage="排队中", message="等待后台处理")
-        payload_path = _persist_queued_upload(base, job.id, filename, data)
+        payload_path = _move_staged_payload_to_queue(base, token, job.id, filename)
+        if not payload_path or not payload_path.exists():
+            _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 暂存文件缺失", log=None)
+            _cleanup_staged_upload(base, token)
+            continue
         _ingest_queue.put(
             {
                 "job_id": job.id,
@@ -1987,8 +2065,47 @@ async def ingest(
                 "cover_name": cover_name,
             }
         )
-        if token:
-            _cleanup_staged_upload(base, token)
+        _cleanup_staged_upload(base, token)
+
+    for upload_file in file_list:
+        filename = upload_file.filename or "upload"
+        probe = await upload_file.read(4096)
+        await upload_file.seek(0)
+        kind = _detect_source_type_probe(filename, upload_file.content_type, probe)
+        action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
+        job = _create_job(action, book_id, job_rule_template)
+        _update_job(job.id, stage="排队中", message="等待后台处理")
+        payload_path, size, _ = await _persist_queued_upload_stream(base, job.id, upload_file)
+        if size <= 0:
+            _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
+            _cleanup_queued_upload(payload_path)
+            continue
+        _ingest_queue.put(
+            {
+                "job_id": job.id,
+                "payload_path": str(payload_path),
+                "filename": filename,
+                "content_type": upload_file.content_type,
+                "kind": kind,
+                "title": title,
+                "author": author,
+                "language": language,
+                "description": description,
+                "series": series,
+                "identifier": identifier,
+                "publisher": publisher,
+                "tags": tags,
+                "published": published,
+                "isbn": isbn,
+                "rating": rating,
+                "rule_template": rule_template,
+                "theme_template": theme_template,
+                "custom_css": custom_css,
+                "dedupe_mode": dedupe_mode,
+                "cover_bytes": cover_bytes,
+                "cover_name": cover_name,
+            }
+        )
 
     redirect_url = "/jobs"
     if _is_htmx(request):
@@ -2022,231 +2139,6 @@ async def archive_view(request: Request) -> HTMLResponse:
         "archive.html",
         {"request": request, "books": books},
     )
-
-
-@app.post("/upload/preview", response_class=HTMLResponse)
-async def upload_preview(
-    request: Request,
-    files: list[UploadFile] = File(...),
-    rule_template: str = Form("default"),
-) -> HTMLResponse:
-    previews: list[dict] = []
-    rule = get_rule(rule_template)
-    base = library_dir()
-    for file in files:
-        data = await file.read()
-        if not data:
-            continue
-        text = decode_text(data)
-        if not text.strip():
-            continue
-        book = parse_book(text, Path(file.filename or "upload").stem, rule.rules)
-        preview = {
-            "filename": file.filename,
-            "format": "TXT",
-            "title": book.title,
-            "author": book.author,
-            "volumes": len(book.volumes),
-            "chapters": len(book.root_chapters) + sum(len(v.chapters) for v in book.volumes),
-            "toc": _toc_preview(book, 10),
-            "output": f"{_safe_filename(book.title)}.epub",
-            "path": str(base / "<自动ID>"),
-        }
-        previews.append(preview)
-    return templates.TemplateResponse(
-        "partials/upload_preview.html",
-        {"request": request, "previews": previews},
-    )
-
-
-@app.post("/upload/epub/preview", response_class=HTMLResponse)
-async def upload_epub_preview(
-    request: Request,
-    files: list[UploadFile] = File(...),
-) -> HTMLResponse:
-    previews: list[dict] = []
-    base = library_dir()
-    for file in files:
-        data = await file.read()
-        if not data:
-            continue
-        with tempfile.NamedTemporaryFile(suffix=".epub") as tmp:
-            tmp.write(data)
-            tmp.flush()
-            try:
-                meta = extract_epub_metadata(Path(tmp.name), Path(file.filename or "upload").stem)
-                sections = list_epub_sections(Path(tmp.name))
-            except Exception:
-                continue
-        preview = {
-            "filename": file.filename,
-            "format": "EPUB",
-            "title": meta.get("title"),
-            "author": meta.get("author"),
-            "volumes": 0,
-            "chapters": len(sections),
-            "toc": [section.title for section in sections[:10]],
-            "output": file.filename or "book.epub",
-            "path": str(base / "<自动ID>"),
-        }
-        previews.append(preview)
-    return templates.TemplateResponse(
-        "partials/upload_preview.html",
-        {"request": request, "previews": previews},
-    )
-
-
-@app.post("/upload", response_class=HTMLResponse)
-async def upload(
-    request: Request,
-    files: list[UploadFile] = File(...),
-    title: str = Form(""),
-    author: str = Form(""),
-    language: str = Form(""),
-    description: str = Form(""),
-    series: str = Form(""),
-    identifier: str = Form(""),
-    publisher: str = Form(""),
-    tags: str = Form(""),
-    published: str = Form(""),
-    isbn: str = Form(""),
-    rating: str = Form(""),
-    rule_template: str = Form("default"),
-    theme_template: str = Form(""),
-    custom_css: str = Form(""),
-    cover_file: Optional[UploadFile] = File(None),
-) -> HTMLResponse:
-    if not files:
-        raise HTTPException(status_code=400, detail="Empty file")
-
-    cover_bytes = await cover_file.read() if cover_file else None
-    cover_name = cover_file.filename if cover_file else None
-
-    base = library_dir()
-    created_books: list[dict] = []
-    for txt_file in files:
-        data = await txt_file.read()
-        if not data:
-            continue
-        text = decode_text(data)
-        if not text.strip():
-            continue
-
-        source_name = Path(txt_file.filename or "upload").stem
-        book_id = new_book_id()
-        job = _create_job("upload", book_id, rule_template)
-        try:
-            meta = _run_ingest(
-                job,
-                base,
-                text,
-                source_name,
-                title,
-                author,
-                language,
-                description,
-                series,
-                identifier,
-                publisher,
-                tags,
-                published,
-                isbn,
-                rating,
-                rule_template,
-                theme_template,
-                custom_css,
-                cover_bytes,
-                cover_name,
-            )
-            created_books.append(_book_view(meta, base))
-        except Exception:
-            try:
-                meta = load_metadata(base, book_id)
-                _update_meta_failed(meta)
-                save_metadata(meta, base)
-            except Exception:
-                pass
-
-    if _is_htmx(request):
-        return templates.TemplateResponse(
-            "partials/library.html",
-            {"request": request, "books": created_books, "return_to": "/"},
-        )
-
-    return RedirectResponse(url="/jobs", status_code=303)
-
-
-@app.post("/upload/epub", response_class=HTMLResponse)
-async def upload_epub(
-    request: Request,
-    files: list[UploadFile] = File(...),
-    title: str = Form(""),
-    author: str = Form(""),
-    language: str = Form(""),
-    description: str = Form(""),
-    series: str = Form(""),
-    identifier: str = Form(""),
-    publisher: str = Form(""),
-    tags: str = Form(""),
-    published: str = Form(""),
-    isbn: str = Form(""),
-    rating: str = Form(""),
-    theme_template: str = Form(""),
-    custom_css: str = Form(""),
-    cover_file: Optional[UploadFile] = File(None),
-) -> HTMLResponse:
-    if not files:
-        raise HTTPException(status_code=400, detail="Empty file")
-
-    cover_bytes = await cover_file.read() if cover_file else None
-    cover_name = cover_file.filename if cover_file else None
-
-    base = library_dir()
-    created_books: list[dict] = []
-    for epub_file in files:
-        data = await epub_file.read()
-        if not data:
-            continue
-        book_id = new_book_id()
-        job = _create_job("upload-epub", book_id, None)
-        try:
-            meta = _run_epub_ingest(
-                job,
-                base,
-                data,
-                epub_file.filename or "upload.epub",
-                title,
-                author,
-                language,
-                description,
-                series,
-                identifier,
-                publisher,
-                tags,
-                published,
-                isbn,
-                rating,
-                theme_template,
-                custom_css,
-                cover_bytes,
-                cover_name,
-            )
-            created_books.append(_book_view(meta, base))
-        except Exception:
-            try:
-                meta = load_metadata(base, book_id)
-                _update_meta_failed(meta)
-                save_metadata(meta, base)
-            except Exception:
-                pass
-
-    if _is_htmx(request):
-        return templates.TemplateResponse(
-            "partials/library.html",
-            {"request": request, "books": created_books, "return_to": "/"},
-        )
-
-    return RedirectResponse(url="/jobs", status_code=303)
 
 
 @app.get("/book/{book_id}", response_class=HTMLResponse)
