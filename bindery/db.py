@@ -111,10 +111,22 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reader_progress (
+                book_id TEXT PRIMARY KEY,
+                section INTEGER NOT NULL,
+                page INTEGER NOT NULL,
+                page_count INTEGER NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_book ON jobs(book_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_books_archived ON books(archived)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_books_updated ON books(updated_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_reader_progress_updated ON reader_progress(updated_at DESC)")
     conn.close()
 
 
@@ -213,6 +225,34 @@ def delete_jobs(job_ids: list[str]) -> int:
         cursor = conn.execute(f"DELETE FROM jobs WHERE id IN ({placeholders})", job_ids)
     conn.close()
     return cursor.rowcount or 0
+
+
+def upsert_reader_progress(book_id: str, section: int, page: int, page_count: int, updated_at: str) -> None:
+    conn = connect()
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO reader_progress(book_id, section, page, page_count, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(book_id) DO UPDATE SET
+                section=excluded.section,
+                page=excluded.page,
+                page_count=excluded.page_count,
+                updated_at=excluded.updated_at
+            """,
+            (book_id, section, page, page_count, updated_at),
+        )
+    conn.close()
+
+
+def get_reader_progress(book_id: str) -> Optional[dict]:
+    conn = connect()
+    row = conn.execute(
+        "SELECT book_id, section, page, page_count, updated_at FROM reader_progress WHERE book_id = ?",
+        (book_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 
 def _row_to_job(row: sqlite3.Row) -> Job:

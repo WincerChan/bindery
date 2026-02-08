@@ -537,10 +537,10 @@
 <script>
   function binderyReader() {
     const storageKey = "bindery:reader";
-    const progressStoragePrefix = "bindery:reader:progress:";
     const frameKeys = ["a", "b", "c"];
     const bookId = {{ book.book_id|tojson }};
     const bookTitle = {{ book.title|tojson }};
+    const initialProgress = {{ initial_progress|tojson }};
     const sectionsData = {{ sections_payload|tojson }};
     const initialSectionIndex = {{ section_index }};
     const tocCount = sectionsData.length;
@@ -569,7 +569,7 @@
     const maxPageWidth = 599;
     const lastPageTarget = 99998;
     const urlParams = new URLSearchParams(window.location.search);
-    const resumeRequested = urlParams.get("resume") === "0";
+    const resumeRequested = urlParams.get("resume") === "1";
     const navReason = (urlParams.get("nav") || "").toLowerCase();
     const explicitPageParam = (urlParams.get("page") || "").toLowerCase();
 
@@ -598,30 +598,6 @@
     function saveSettings(data) {
       try {
         localStorage.setItem(storageKey, JSON.stringify(data));
-      } catch {
-        // ignore
-      }
-    }
-
-    function progressKey(id) {
-      return progressStoragePrefix + id;
-    }
-
-    function loadProgress(id) {
-      try {
-        const raw = localStorage.getItem(progressKey(id));
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== "object") return null;
-        return parsed;
-      } catch {
-        return null;
-      }
-    }
-
-    function saveProgress(id, data) {
-      try {
-        localStorage.setItem(progressKey(id), JSON.stringify(data));
       } catch {
         // ignore
       }
@@ -670,6 +646,8 @@
       _scrollEndTimer: null,
       _resizeTimer: null,
       _progressTimer: null,
+      _progressInFlight: false,
+      _queuedProgress: null,
       _idlePreloadToken: null,
       _lastFrameTapAt: 0,
       searchQuery: "",
@@ -719,16 +697,70 @@
         });
       },
       _persistProgressNow() {
-        saveProgress(this.bookId, {
+        const payload = {
           section: this.sectionIndex,
           page: Math.max(0, Number(this.page) || 1),
           pageCount: Math.max(0, Number(this.pageCount) || 1),
-          updatedAt: Date.now(),
-        });
+        };
+        this._queuedProgress = payload;
+        void this._flushProgress();
       },
       _persistProgressSoon() {
         if (this._progressTimer) clearTimeout(this._progressTimer);
-        this._progressTimer = setTimeout(() => this._persistProgressNow(), 119);
+        this._progressTimer = setTimeout(() => this._persistProgressNow(), 400);
+      },
+      async _flushProgress() {
+        if (this._progressInFlight) return;
+        const payload = this._queuedProgress;
+        if (!payload || typeof payload !== "object") return;
+        this._queuedProgress = null;
+        this._progressInFlight = true;
+        try {
+          await fetch(`/book/${this.bookId}/progress`, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              section: payload.section,
+              page: payload.page,
+              page_count: payload.pageCount,
+            }),
+            keepalive: true,
+          });
+        } catch {
+          // ignore network errors and keep UI flow responsive
+        } finally {
+          this._progressInFlight = false;
+          if (this._queuedProgress) {
+            void this._flushProgress();
+          }
+        }
+      },
+      _persistProgressOnUnload() {
+        const payload = {
+          section: this.sectionIndex,
+          page: Math.max(0, Number(this.page) || 1),
+          page_count: Math.max(0, Number(this.pageCount) || 1),
+        };
+        const target = `/book/${this.bookId}/progress`;
+        if (navigator && typeof navigator.sendBeacon === "function") {
+          try {
+            const body = new Blob([JSON.stringify(payload)], { type: "application/json" });
+            navigator.sendBeacon(target, body);
+            return;
+          } catch {
+            // fallback to normal async save
+          }
+        }
+        this._queuedProgress = {
+          section: payload.section,
+          page: payload.page,
+          pageCount: payload.page_count,
+        };
+        void this._flushProgress();
       },
       _inactiveFrameKeys() {
         return frameKeys.filter((key) => key !== this.activeFrameKey);
@@ -1040,7 +1072,7 @@
           this.pagePaddingY = clampInt(saved.pagePaddingY, -1, 48, 12);
         }
 
-        const progress = loadProgress(this.bookId);
+        const progress = initialProgress && typeof initialProgress === "object" ? initialProgress : null;
         const pathSection = this._sectionIndexFromLocation();
         if (Number.isInteger(pathSection) && pathSection >= -1 && pathSection < this.tocCount) {
           this.sectionIndex = pathSection;
@@ -1071,7 +1103,7 @@
 
         window.addEventListener("keydown", (evt) => this.onKeydown(evt));
         window.addEventListener("resize", () => this.onResize());
-        window.addEventListener("beforeunload", () => this._persistProgressNow());
+        window.addEventListener("beforeunload", () => this._persistProgressOnUnload());
         window.addEventListener("popstate", () => {
           const target = this._sectionIndexFromLocation();
           if (target === null || target === this.sectionIndex) return;

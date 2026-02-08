@@ -26,7 +26,16 @@ from fastapi.templating import Jinja2Templates
 
 from .auth import SESSION_COOKIE, configured_hash, is_authenticated, sign_in, sign_out, verify_password
 from .css import validate_css
-from .db import create_job, delete_jobs, get_job, init_db, list_jobs, update_job
+from .db import (
+    create_job,
+    delete_jobs,
+    get_job,
+    get_reader_progress,
+    init_db,
+    list_jobs,
+    update_job,
+    upsert_reader_progress,
+)
 from .env import read_env
 from .epub import (
     build_epub,
@@ -144,6 +153,18 @@ def _parse_rating(raw: str) -> Optional[int]:
     except ValueError:
         return None
     return max(0, min(5, value))
+
+
+def _clamp_int(value: object, minimum: int, maximum: int, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    if parsed < minimum:
+        return minimum
+    if parsed > maximum:
+        return maximum
+    return parsed
 
 
 def _looks_like_text(data: bytes) -> bool:
@@ -2392,6 +2413,24 @@ async def preview_first(request: Request, book_id: str) -> RedirectResponse:
     return response
 
 
+@app.post("/book/{book_id}/progress")
+async def save_reader_progress(request: Request, book_id: str) -> dict[str, object]:
+    base = library_dir()
+    _require_book(base, book_id)
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    section = _clamp_int(payload.get("section"), -1, 999_999, 0)
+    page = _clamp_int(payload.get("page"), 0, 999_999, 0)
+    page_count = _clamp_int(payload.get("page_count"), 0, 999_999, 0)
+    upsert_reader_progress(book_id, section, page, page_count, _now_iso())
+    return {"ok": True, "book_id": book_id, "section": section, "page": page, "page_count": page_count}
+
+
 @app.get("/book/{book_id}/preview/{section_index}", response_class=HTMLResponse)
 async def preview(request: Request, book_id: str, section_index: int) -> HTMLResponse:
     base = library_dir()
@@ -2400,6 +2439,7 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
     return_to_query = f"?return_to={urllib.parse.quote(return_to, safe='')}" if return_to != "/" else ""
     meta = load_metadata(base, book_id)
     _ensure_book_epub_css(base, meta)
+    progress = get_reader_progress(book_id)
     epub_file = epub_path(base, book_id)
     if not epub_file.exists():
         raise HTTPException(status_code=404, detail="EPUB missing")
@@ -2436,6 +2476,7 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
             "next_idx": next_idx,
             "return_to": return_to,
             "return_to_query": return_to_query,
+            "initial_progress": progress,
             "hide_nav": True,
             "main_class": "h-screen w-screen p-0",
         },

@@ -4,7 +4,16 @@ import unittest
 from pathlib import Path
 
 import bindery.db as db_module
-from bindery.db import create_job, db_path, delete_jobs, get_job, init_db, list_jobs
+from bindery.db import (
+    create_job,
+    db_path,
+    delete_jobs,
+    get_job,
+    get_reader_progress,
+    init_db,
+    list_jobs,
+    upsert_reader_progress,
+)
 from bindery.models import Job
 
 
@@ -92,6 +101,31 @@ class DbTests(unittest.TestCase):
                     os.environ.pop("BINDERY_LIBRARY_DIR", None)
                 else:
                     os.environ["BINDERY_LIBRARY_DIR"] = previous_library
+
+    def test_reader_progress_roundtrip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_file = os.path.join(tmp, "bindery.db")
+            os.environ["BINDERY_DB_PATH"] = db_file
+            try:
+                init_db()
+                self.assertIsNone(get_reader_progress("book-1"))
+                upsert_reader_progress("book-1", 3, 7, 12, "2026-02-08T00:00:00+00:00")
+                row = get_reader_progress("book-1")
+                self.assertIsNotNone(row)
+                assert row is not None
+                self.assertEqual(row["section"], 3)
+                self.assertEqual(row["page"], 7)
+                self.assertEqual(row["page_count"], 12)
+
+                upsert_reader_progress("book-1", 4, 1, 20, "2026-02-09T00:00:00+00:00")
+                updated = get_reader_progress("book-1")
+                self.assertIsNotNone(updated)
+                assert updated is not None
+                self.assertEqual(updated["section"], 4)
+                self.assertEqual(updated["page"], 1)
+                self.assertEqual(updated["page_count"], 20)
+            finally:
+                del os.environ["BINDERY_DB_PATH"]
 
     def test_db_path_migrates_legacy_db_to_library(self) -> None:
         previous_db = os.environ.get("BINDERY_DB_PATH")
