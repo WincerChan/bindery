@@ -9,12 +9,12 @@ authors = [{ name = "Bindery" }]
 dependencies = [
   "fastapi",
   "jinja2",
-  "uvicorn",
   "python-multipart",
   "ebooklib",
   "argon2-cffi",
   "honcho",
   "granian>=2.7.0",
+  "uvicorn[standard]>=0.40.0",
 ]
 
 [project.urls]
