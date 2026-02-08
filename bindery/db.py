@@ -7,17 +7,23 @@ from typing import Optional
 
 from .env import read_env
 from .models import Job
-from .storage import library_dir
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_FILENAME = "bindery.db"
+
+
+def _default_library_dir() -> Path:
+    env = read_env("BINDERY_LIBRARY_DIR")
+    base = Path(env) if env else BASE_DIR / "library"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
 
 
 def db_path() -> Path:
     env = read_env("BINDERY_DB_PATH")
     if env:
         return Path(env)
-    default_path = library_dir() / DB_FILENAME
+    default_path = _default_library_dir() / DB_FILENAME
     _migrate_legacy_db(default_path)
     return default_path
 
@@ -75,8 +81,40 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS books (
+                book_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                author TEXT,
+                language TEXT NOT NULL DEFAULT 'zh-CN',
+                description TEXT,
+                source_type TEXT NOT NULL DEFAULT 'txt',
+                series TEXT,
+                identifier TEXT,
+                publisher TEXT,
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                published TEXT,
+                isbn TEXT,
+                rating INTEGER,
+                status TEXT NOT NULL DEFAULT 'synced',
+                epub_updated_at TEXT,
+                archived INTEGER NOT NULL DEFAULT 0,
+                read INTEGER NOT NULL DEFAULT 0,
+                read_updated_at TEXT,
+                cover_file TEXT,
+                rule_template TEXT,
+                theme_template TEXT,
+                custom_css TEXT,
+                created_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_book ON jobs(book_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_books_archived ON books(archived)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_books_updated ON books(updated_at DESC)")
     conn.close()
 
 
