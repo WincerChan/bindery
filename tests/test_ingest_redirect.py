@@ -28,8 +28,10 @@ class IngestRedirectTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
             previous_db = os.environ.get("BINDERY_DB_PATH")
+            previous_stage = os.environ.get("BINDERY_STAGE_DIR")
             os.environ["BINDERY_LIBRARY_DIR"] = tmp
             os.environ["BINDERY_DB_PATH"] = os.path.join(tmp, "bindery.db")
+            os.environ["BINDERY_STAGE_DIR"] = os.path.join(tmp, ".ingest-stage")
             try:
                 init_db()
                 request = Request({"type": "http", "method": "POST", "headers": []})
@@ -82,13 +84,19 @@ class IngestRedirectTests(unittest.TestCase):
                     os.environ.pop("BINDERY_DB_PATH", None)
                 else:
                     os.environ["BINDERY_DB_PATH"] = previous_db
+                if previous_stage is None:
+                    os.environ.pop("BINDERY_STAGE_DIR", None)
+                else:
+                    os.environ["BINDERY_STAGE_DIR"] = previous_stage
 
     def test_large_batch_ingest_redirects_to_jobs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
             previous_db = os.environ.get("BINDERY_DB_PATH")
+            previous_stage = os.environ.get("BINDERY_STAGE_DIR")
             os.environ["BINDERY_LIBRARY_DIR"] = tmp
             os.environ["BINDERY_DB_PATH"] = os.path.join(tmp, "bindery.db")
+            os.environ["BINDERY_STAGE_DIR"] = os.path.join(tmp, ".ingest-stage")
             try:
                 init_db()
                 request = Request({"type": "http", "method": "POST", "headers": []})
@@ -137,13 +145,19 @@ class IngestRedirectTests(unittest.TestCase):
                     os.environ.pop("BINDERY_DB_PATH", None)
                 else:
                     os.environ["BINDERY_DB_PATH"] = previous_db
+                if previous_stage is None:
+                    os.environ.pop("BINDERY_STAGE_DIR", None)
+                else:
+                    os.environ["BINDERY_STAGE_DIR"] = previous_stage
 
     def test_ingest_accepts_upload_tokens_without_reupload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
             previous_db = os.environ.get("BINDERY_DB_PATH")
+            previous_stage = os.environ.get("BINDERY_STAGE_DIR")
             os.environ["BINDERY_LIBRARY_DIR"] = tmp
             os.environ["BINDERY_DB_PATH"] = os.path.join(tmp, "bindery.db")
+            os.environ["BINDERY_STAGE_DIR"] = os.path.join(tmp, ".ingest-stage")
             try:
                 init_db()
                 request = Request({"type": "http", "method": "POST", "headers": []})
@@ -199,6 +213,10 @@ class IngestRedirectTests(unittest.TestCase):
                     os.environ.pop("BINDERY_DB_PATH", None)
                 else:
                     os.environ["BINDERY_DB_PATH"] = previous_db
+                if previous_stage is None:
+                    os.environ.pop("BINDERY_STAGE_DIR", None)
+                else:
+                    os.environ["BINDERY_STAGE_DIR"] = previous_stage
 
 
 if __name__ == "__main__":
