@@ -9,7 +9,6 @@ import re
 import shutil
 import threading
 import tempfile
-import time
 import traceback
 import urllib.error
 import urllib.request
@@ -78,17 +77,11 @@ INGEST_QUEUE_DIR = ".ingest-queue"
 INGEST_STAGE_DIR = ".ingest-stage"
 INGEST_STAGE_DIR_ENV = "BINDERY_STAGE_DIR"
 DEFAULT_INGEST_STAGE_DIR = Path(tempfile.gettempdir()) / "bindery-ingest-stage"
-INGEST_STAGE_TTL_ENV = "BINDERY_STAGE_TTL_SECONDS"
-INGEST_STAGE_CLEAN_INTERVAL_ENV = "BINDERY_STAGE_CLEAN_INTERVAL_SECONDS"
-DEFAULT_INGEST_STAGE_TTL_SECONDS = 24 * 60 * 60
-DEFAULT_INGEST_STAGE_CLEAN_INTERVAL_SECONDS = 15 * 60
 DOUBAN_REFERER = "https://book.douban.com/"
 
 _ingest_queue: "queue.Queue[dict]" = queue.Queue()
 _ingest_worker_started = False
 _ingest_worker_lock = threading.Lock()
-_staged_cleaner_started = False
-_staged_cleaner_lock = threading.Lock()
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -102,8 +95,6 @@ async def startup() -> None:
     init_db()
     load_rule_templates()
     _ensure_ingest_worker_started()
-    _cleanup_expired_staged_uploads(library_dir())
-    _ensure_staged_cleaner_started()
     print(f"[bindery] password hash configured: {bool(configured_hash())}")
 
 
@@ -153,27 +144,6 @@ def _parse_rating(raw: str) -> Optional[int]:
     except ValueError:
         return None
     return max(0, min(5, value))
-
-
-def _read_int_env(name: str, default: int, minimum: int) -> int:
-    raw = read_env(name)
-    if raw is None:
-        return default
-    try:
-        parsed = int(raw.strip())
-    except (TypeError, ValueError):
-        return default
-    if parsed < minimum:
-        return minimum
-    return parsed
-
-
-def _stage_ttl_seconds() -> int:
-    return _read_int_env(INGEST_STAGE_TTL_ENV, DEFAULT_INGEST_STAGE_TTL_SECONDS, 0)
-
-
-def _stage_clean_interval_seconds() -> int:
-    return _read_int_env(INGEST_STAGE_CLEAN_INTERVAL_ENV, DEFAULT_INGEST_STAGE_CLEAN_INTERVAL_SECONDS, 30)
 
 
 def _looks_like_text(data: bytes) -> bool:
@@ -1216,21 +1186,15 @@ def _cleanup_staged_upload(base: Path, token: str) -> None:
         return
 
 
-def _cleanup_expired_staged_uploads(base: Path, *, ttl_seconds: Optional[int] = None, now_ts: Optional[float] = None) -> int:
-    ttl = _stage_ttl_seconds() if ttl_seconds is None else max(0, int(ttl_seconds))
-    if ttl <= 0:
-        return 0
-    current_ts = time.time() if now_ts is None else float(now_ts)
+def _cleanup_staged_uploads_except(base: Path, keep_tokens: Optional[list[str]] = None) -> int:
+    keep_set = set(_normalize_upload_tokens(keep_tokens))
     stage_root = _staged_upload_dir(base)
     removed = 0
     for child in stage_root.iterdir():
         if not child.is_dir():
             continue
-        try:
-            age = current_ts - child.stat().st_mtime
-        except OSError:
-            continue
-        if age < ttl:
+        token = child.name.strip().lower()
+        if token in keep_set:
             continue
         try:
             shutil.rmtree(child)
@@ -1266,18 +1230,6 @@ def _cleanup_queued_upload(payload_path: Path) -> None:
         parent.rmdir()
     except OSError:
         return
-
-
-def _staged_cleanup_loop() -> None:
-    base = library_dir()
-    while True:
-        try:
-            removed = _cleanup_expired_staged_uploads(base)
-            if removed > 0:
-                logger.info("staged upload cleanup removed %s expired directories", removed)
-        except Exception:
-            logger.exception("staged upload cleanup crashed")
-        time.sleep(_stage_clean_interval_seconds())
 
 
 def _queued_job_spec(kind: str, rule_template: str) -> tuple[str, Optional[str], Optional[str]]:
@@ -1489,18 +1441,6 @@ def _ensure_ingest_worker_started() -> None:
         worker = threading.Thread(target=_ingest_worker_loop, name="bindery-ingest-worker", daemon=True)
         worker.start()
         _ingest_worker_started = True
-
-
-def _ensure_staged_cleaner_started() -> None:
-    global _staged_cleaner_started
-    if _stage_ttl_seconds() <= 0:
-        return
-    with _staged_cleaner_lock:
-        if _staged_cleaner_started:
-            return
-        worker = threading.Thread(target=_staged_cleanup_loop, name="bindery-stage-cleaner", daemon=True)
-        worker.start()
-        _staged_cleaner_started = True
 
 
 def _run_ingest(
@@ -1897,6 +1837,7 @@ async def ingest_preview(
 ) -> HTMLResponse:
     previews: list[dict] = []
     base = library_dir()
+    _cleanup_staged_uploads_except(base)
     rule = None
 
     for file in files:
@@ -2078,6 +2019,7 @@ async def ingest(
         )
 
     base = library_dir()
+    _cleanup_staged_uploads_except(base, token_list)
     staged_entries: list[dict] = []
     if token_list:
         for token in token_list:
