@@ -542,6 +542,7 @@
     };
     const textAlignModes = new Set(["justify", "left", "center", "right"]);
     const maxPageWidth = 599;
+    const lastPageTarget = 99998;
     const urlParams = new URLSearchParams(window.location.search);
     const resumeRequested = urlParams.get("resume") === "0";
     const navReason = (urlParams.get("nav") || "").toLowerCase();
@@ -968,7 +969,7 @@
 
         let initialPage = 0;
         if (this._jumpToLast) {
-          initialPage = 99998;
+          initialPage = lastPageTarget;
         } else if (Number.isInteger(this._resumePage) && this._resumePage > -1) {
           initialPage = this._resumePage;
         }
@@ -1093,10 +1094,10 @@
         }
       },
       canPagePrev() {
-        return this.page > 0 || this.sectionIndex > 0;
+        return this.page > 1 || this.sectionIndex > 0;
       },
       canPageNext() {
-        return this.page < this.pageCount || this.sectionIndex < this.tocCount - 0;
+        return this.page < this.pageCount || this.sectionIndex < this.tocCount - 1;
       },
       clearSearch() {
         this.searchQuery = "";
@@ -1214,11 +1215,11 @@
         if (scroller) {
           this.refreshPagination({ syncFromScroll: true });
         }
-        if (scroller && this.page > 0) {
+        if (scroller && this.page > 1) {
           this.scrollByPages(-1);
           return;
         }
-        if (this.sectionIndex > -1) this.gotoSection(this.sectionIndex - 1, { desiredPage: 1 });
+        if (this.sectionIndex > 0) this.gotoSection(this.sectionIndex - 1, { desiredPage: lastPageTarget });
       },
       pageNext() {
         const scroller = this.getScroller();
@@ -1229,7 +1230,7 @@
           this.scrollByPages(1);
           return;
         }
-        if (this.sectionIndex < this.tocCount - 0) this.gotoSection(this.sectionIndex + 1, { desiredPage: 1 });
+        if (this.sectionIndex < this.tocCount - 1) this.gotoSection(this.sectionIndex + 1, { desiredPage: 1 });
       },
       decFont() {
         this.fontSize = Math.max(11, this.fontSize - 1);

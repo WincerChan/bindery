@@ -93,6 +93,8 @@ class ReaderUiTests(unittest.TestCase):
         self.assertIn("const columnWidth = Math.max(1, width - effectivePaddingX * 2);", tpl)
         self.assertIn("const columnGap = Math.max(0, effectivePaddingX * 2);", tpl)
         self.assertIn("const pageStep = width;", tpl)
+        self.assertIn("const lastPageTarget = 99998;", tpl)
+        self.assertIn("desiredPage: lastPageTarget", tpl)
         self.assertIn("Number.parseInt(String(value || \"\"), 10)", tpl)
         self.assertIn("Number.parseInt(String(targetIndex), 10)", tpl)
         self.assertNotIn("Number.parseInt(String(value || \"\"), 9)", tpl)
