@@ -137,7 +137,12 @@
       >清空</button>
     </form>
 
-    <div class="mt-2 text-xs" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'" x-show="searchQuery && !searchBusy" x-text="'命中章节：' + searchResults.length + ' · 已索引章节：' + searchIndexedSections"></div>
+    <div
+      class="mt-2 text-xs"
+      :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'"
+      x-show="searchQuery && !searchBusy"
+      x-text="'已加载：' + searchResults.length + ' · 已索引章节：' + searchIndexedSections + (searchHasMore ? ' · 可继续加载' : '')"
+    ></div>
     <div class="mt-2 text-xs text-red-600" x-show="searchError" x-text="searchError"></div>
 
     <div class="mt-3 max-h-72 overflow-y-auto space-y-1">
@@ -153,6 +158,14 @@
         </button>
       </template>
       <div class="text-xs py-2" :class="brightnessMode === 'dim' ? 'text-slate-400' : 'text-slate-500'" x-show="!searchBusy && searchQuery && searchResults.length === 0">未命中</div>
+      <div class="pt-1" x-show="searchHasMore && !searchBusy && searchQuery">
+        <button
+          type="button"
+          class="w-full h-9 rounded-lg border text-sm transition-colors cursor-pointer"
+          :class="brightnessMode === 'dim' ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'"
+          @click="loadMoreSearch()"
+        >加载更多</button>
+      </div>
     </div>
   </div>
 
@@ -637,6 +650,10 @@
       searchResults: [],
       searchError: "",
       searchIndexedSections: 0,
+      searchLimit: 10,
+      searchOffset: 0,
+      searchHasMore: false,
+      searchCursorQuery: "",
       _pendingSwitch: null,
       _prefetchCache: {},
       _prefetchInflight: {},
@@ -1086,6 +1103,9 @@
         this.searchError = "";
         this.searchResults = [];
         this.searchIndexedSections = 0;
+        this.searchOffset = 0;
+        this.searchHasMore = false;
+        this.searchCursorQuery = "";
       },
       _escapeHtml(text) {
         return String(text || "")
@@ -1129,18 +1149,31 @@
         this.searchOpen = false;
         this.gotoSection(item.index, { desiredPage: 1 });
       },
-      async runSearch() {
+      async runSearch(options = {}) {
+        let append = !!(options && options.append);
         const query = (this.searchQuery || "").trim();
         this.searchError = "";
+        if (append && this.searchCursorQuery && this.searchCursorQuery !== query) {
+          append = false;
+        }
         if (!query) {
           this.searchResults = [];
+          this.searchOffset = 0;
+          this.searchHasMore = false;
+          this.searchCursorQuery = "";
           return;
+        }
+        if (!append) {
+          this.searchResults = [];
+          this.searchOffset = 0;
+          this.searchHasMore = false;
         }
         this.searchBusy = true;
         try {
           const url = new URL(`/book/${this.bookId}/search`, window.location.origin);
           url.searchParams.set("q", query);
-          url.searchParams.set("limit", "120");
+          url.searchParams.set("limit", String(this.searchLimit));
+          url.searchParams.set("offset", append ? String(this.searchOffset) : "0");
           const response = await fetch(url.toString(), {
             credentials: "same-origin",
             headers: { Accept: "application/json" },
@@ -1149,17 +1182,32 @@
             throw new Error("检索失败: " + response.status);
           }
           const payload = await response.json();
-          this.searchResults = Array.isArray(payload && payload.hits) ? payload.hits : [];
+          const hits = Array.isArray(payload && payload.hits) ? payload.hits : [];
+          this.searchResults = append ? this.searchResults.concat(hits) : hits;
           this.searchIndexedSections = Number.isInteger(payload && payload.indexed_sections)
             ? payload.indexed_sections
             : 0;
+          this.searchHasMore = !!(payload && payload.has_more);
+          this.searchOffset = Number.isInteger(payload && payload.next_offset)
+            ? payload.next_offset
+            : this.searchResults.length;
+          this.searchCursorQuery = query;
         } catch (error) {
           this.searchError = (error && error.message) ? error.message : "检索失败";
-          this.searchResults = [];
-          this.searchIndexedSections = 0;
+          if (!append) {
+            this.searchResults = [];
+            this.searchIndexedSections = 0;
+            this.searchHasMore = false;
+            this.searchOffset = 0;
+            this.searchCursorQuery = "";
+          }
         } finally {
           this.searchBusy = false;
         }
+      },
+      loadMoreSearch() {
+        if (this.searchBusy || !this.searchHasMore) return;
+        this.runSearch({ append: true });
       },
       pagePrev() {
         const scroller = this.getScroller();

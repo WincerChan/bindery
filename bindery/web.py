@@ -425,14 +425,22 @@ def _extract_text_from_html_bytes(content: bytes) -> str:
     return _normalize_search_text(text)
 
 
-def _search_epub_hits(epub_file: Path, query: str, limit: int) -> tuple[list[dict[str, object]], int]:
+def _search_epub_hits(
+    epub_file: Path,
+    query: str,
+    limit: int,
+    offset: int = 0,
+) -> tuple[list[dict[str, object]], int, bool, int]:
     # Per request: scan once from spine, avoid repeated read_epub per chapter.
     query_raw = _normalize_search_text(query)
     if not query_raw:
-        return [], 0
+        return [], 0, False, 0
     query_lower = query_raw.lower()
     results: list[dict[str, object]] = []
     indexed_sections = 0
+    effective_offset = max(0, int(offset or 0))
+    matched_hits = 0
+    has_more = False
 
     for section in list_epub_section_documents(epub_file):
         if "html" not in (section.media_type or "").lower():
@@ -444,6 +452,9 @@ def _search_epub_hits(epub_file: Path, query: str, limit: int) -> tuple[list[dic
         text_lower = text.lower()
         match_at = text_lower.find(query_lower)
         if match_at < 0:
+            continue
+        matched_hits += 1
+        if matched_hits <= effective_offset:
             continue
         start = max(0, match_at - 30)
         end = min(len(text), match_at + len(query_raw) + 70)
@@ -457,9 +468,10 @@ def _search_epub_hits(epub_file: Path, query: str, limit: int) -> tuple[list[dic
                     "snippet": snippet,
                 }
             )
-        if len(results) >= limit:
             continue
-    return results, indexed_sections
+        has_more = True
+    next_offset = effective_offset + len(results)
+    return results, indexed_sections, has_more, next_offset
 
 
 def _library_return_to_url(sort: str, q: str, page: int, read_filter: str) -> str:
@@ -2533,7 +2545,8 @@ async def epub_item(book_id: str, item_path: str) -> Response:
 async def search_book(
     book_id: str,
     q: str = Query(default="", min_length=0, max_length=200),
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=10, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ) -> dict[str, object]:
     base = library_dir()
     _require_book(base, book_id)
@@ -2545,8 +2558,21 @@ async def search_book(
     if not epub_file.exists():
         raise HTTPException(status_code=404, detail="EPUB missing")
 
-    hits, indexed_sections = _search_epub_hits(epub_file, query, limit)
-    return {"query": query, "hits": hits, "indexed_sections": indexed_sections}
+    hits, indexed_sections, has_more, next_offset = _search_epub_hits(
+        epub_file,
+        query,
+        limit,
+        offset=offset,
+    )
+    return {
+        "query": query,
+        "hits": hits,
+        "indexed_sections": indexed_sections,
+        "offset": offset,
+        "limit": limit,
+        "next_offset": next_offset,
+        "has_more": has_more,
+    }
 
 
 @app.get("/book/{book_id}/edit", response_class=HTMLResponse)
