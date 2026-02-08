@@ -14,9 +14,6 @@ import xml.etree.ElementTree as ET
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from lxml import etree as LXML_ET
 
-from ebooklib import epub
-import ebooklib
-
 from .models import Book, Metadata, Volume
 
 
@@ -58,8 +55,8 @@ CHAPTER_STAMP_RE = re.compile(
     r"^\s*(第[0-9零〇一二两三四五六七八九十百千万亿\d]+章)\s*[:：、.\-·]?\s*(.+)\s*$"
 )
 CONTAINER_NS = "urn:oasis:names:tc:opendocument:xmlns:container"
-OPF_NS = epub.NAMESPACES["OPF"]
-DC_NS = epub.NAMESPACES["DC"]
+OPF_NS = "http://www.idpf.org/2007/opf"
+DC_NS = "http://purl.org/dc/elements/1.1/"
 BINDERY_CSS_BASENAMES = {"bindery.css", "bindery-overlay.css"}
 EPUB_TEMPLATES_DIR = Path(__file__).resolve().parent / "epub_templates"
 
@@ -86,13 +83,6 @@ def _canonical_zip_member(name: str) -> str:
     while normalized.startswith("../"):
         normalized = normalized[3:]
     return "" if normalized in {"", "."} else normalized
-
-
-def _missing_member_from_keyerror(exc: KeyError) -> str:
-    match = re.search(r"named '([^']+)'", str(exc))
-    if not match:
-        return ""
-    return _canonical_zip_member(match.group(1))
 
 
 def _normalize_epub_archive_paths(epub_file: Path, expected_missing: str = "") -> bool:
@@ -165,18 +155,6 @@ def _normalize_epub_archive_paths(epub_file: Path, expected_missing: str = "") -
     finally:
         if tmp_path.exists():
             tmp_path.unlink(missing_ok=True)
-
-
-def _read_epub_resilient(epub_file: Path) -> epub.EpubBook:
-    try:
-        return epub.read_epub(str(epub_file))
-    except KeyError as exc:
-        missing = _missing_member_from_keyerror(exc)
-        if not missing:
-            raise
-        if not _normalize_epub_archive_paths(epub_file, expected_missing=missing):
-            raise
-        return epub.read_epub(str(epub_file))
 
 
 def _tag_local_name(tag: object) -> str:
@@ -716,38 +694,6 @@ def strip_webp_assets_and_refs(epub_file: Path) -> bool:
             tmp_path.unlink(missing_ok=True)
 
 
-def _strip_original_css_from_book(book: epub.EpubBook) -> None:
-    kept_items: list[ebooklib.epub.EpubItem] = []
-    for item in book.get_items():
-        media_type = str(getattr(item, "media_type", "") or "").strip().lower()
-        if item.get_type() == ebooklib.ITEM_STYLE or media_type == "text/css":
-            continue
-        kept_items.append(item)
-    book.items = kept_items
-
-    for item in _spine_items(book):
-        if not isinstance(item, epub.EpubHtml):
-            continue
-
-        filtered_links = []
-        for link in item.links:
-            rel = str(link.get("rel") or "").strip().lower()
-            if "stylesheet" in rel.split():
-                continue
-            filtered_links.append(link)
-        item.links = filtered_links
-
-        try:
-            content = item.get_content()
-        except Exception:
-            content = getattr(item, "content", "")
-        if isinstance(content, bytes):
-            text = content.decode("utf-8", errors="replace")
-        else:
-            text = str(content)
-        item.content = _strip_all_css_html(text)
-
-
 def _guess_image_media_type(name: str) -> str:
     suffix = Path(name).suffix.lower()
     return {
@@ -1223,68 +1169,6 @@ def _render_intro(title: str, author: Optional[str], intro: str, lang: str) -> s
     )
 
 
-def _add_metadata(book: epub.EpubBook, meta: Metadata) -> None:
-    identifier = meta.identifier or meta.book_id
-    if not identifier.startswith("urn:"):
-        identifier = f"urn:uuid:{identifier}"
-    book.set_identifier(identifier)
-    book.set_title(meta.title)
-    book.set_language(meta.language or "zh-CN")
-
-    if meta.author:
-        book.add_author(meta.author)
-    if meta.description:
-        book.add_metadata("DC", "description", meta.description)
-    if meta.publisher:
-        book.add_metadata("DC", "publisher", meta.publisher)
-    if meta.published:
-        book.add_metadata("DC", "date", meta.published)
-    if meta.identifier:
-        book.add_metadata("DC", "identifier", meta.identifier, {"id": "identifier"})
-    if meta.series:
-        book.add_metadata(None, "meta", meta.series, {"property": "belongs-to-collection"})
-    if meta.isbn:
-        book.add_metadata("DC", "identifier", meta.isbn, {"id": "isbn"})
-    for tag in meta.tags:
-        if tag:
-            book.add_metadata("DC", "subject", tag)
-    if meta.rating is not None:
-        book.add_metadata(None, "meta", str(meta.rating), {"name": "rating"})
-
-    modified = (
-        dt.datetime.now(dt.timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
-    book.add_metadata(None, "meta", modified, {"property": "dcterms:modified"})
-
-
-def _clear_metadata(book: epub.EpubBook, *, keep_cover: bool = False) -> None:
-    dc_ns = epub.NAMESPACES["DC"]
-    opf_ns = epub.NAMESPACES["OPF"]
-    dc = book.metadata.get(dc_ns, {})
-    for key in ("identifier", "title", "language", "creator", "description", "publisher", "date", "subject"):
-        if key in dc:
-            dc.pop(key, None)
-    if dc:
-        book.metadata[dc_ns] = dc
-    opf = book.metadata.get(opf_ns, {})
-    meta_items = opf.get("meta", [])
-    filtered = []
-    for value, attrs in meta_items:
-        if attrs.get("property") in {"dcterms:modified", "belongs-to-collection"}:
-            continue
-        if attrs.get("name") == "rating":
-            continue
-        if not keep_cover and attrs.get("name") == "cover":
-            continue
-        filtered.append((value, attrs))
-    if opf:
-        opf["meta"] = filtered
-        book.metadata[opf_ns] = opf
-
-
 def _safe_epub_member_name(filename: str, fallback: str) -> str:
     raw_name = Path(filename or "").name
     cleaned = re.sub(r"[^0-9A-Za-z._-]+", "_", raw_name).strip("._")
@@ -1304,6 +1188,8 @@ def update_epub_metadata(
     strip_original_css: bool = False,
     strip_webp_assets: bool = False,
 ) -> None:
+    # Fix non-canonical archive members before any write path.
+    _normalize_epub_archive_paths(epub_file)
     if strip_webp_assets:
         strip_webp_assets_and_refs(epub_file)
 
@@ -1312,8 +1198,6 @@ def update_epub_metadata(
     css_clean = css_text.strip() if isinstance(css_text, str) else ""
     # Keep original chapter XHTML untouched when only OPF metadata changes are required.
     if not cover_ok and not css_requested and not strip_original_css:
-        # Make non-canonical archive members recoverable before patching OPF.
-        _read_epub_resilient(epub_file)
         if _update_epub_metadata_opf_only(epub_file, meta, keep_cover=True):
             _normalize_epub_archive_paths(epub_file)
             return
@@ -1328,19 +1212,7 @@ def update_epub_metadata(
     ):
         _normalize_epub_archive_paths(epub_file)
         return
-
-    book = _read_epub_resilient(epub_file)
-    _normalize_spine_and_toc(book)
-    _clear_metadata(book, keep_cover=not cover_ok)
-    _add_metadata(book, meta)
-    if cover_ok:
-        book.set_cover(cover_path.name, cover_path.read_bytes())
-    if strip_original_css:
-        _strip_original_css_from_book(book)
-    if css_requested:
-        _apply_bindery_css_overlay(book, css_clean)
-    epub.write_epub(str(epub_file), book, {"epub3_pages": False})
-    _normalize_epub_archive_paths(epub_file)
+    raise ValueError("Failed to update EPUB metadata using zip/lxml pipeline")
 
 
 def build_epub(
@@ -1634,96 +1506,6 @@ def _extract_title_from_html(html_text: str) -> Optional[str]:
     return None
 
 
-def _spine_items(book: epub.EpubBook) -> list[ebooklib.epub.EpubItem]:
-    def is_nav_doc(item: ebooklib.epub.EpubItem) -> bool:
-        if isinstance(item, epub.EpubNav):
-            return True
-        name = (item.get_name() or "").lower()
-        if name in {"nav.xhtml", "nav.html"}:
-            return True
-        return item.get_type() == ebooklib.ITEM_NAVIGATION
-
-    items: list[ebooklib.epub.EpubItem] = []
-    for entry in book.spine:
-        if isinstance(entry, tuple):
-            entry = entry[0]
-        item = None
-        if isinstance(entry, str):
-            item = book.get_item_with_id(entry) or book.get_item_with_href(entry)
-        else:
-            item = entry
-        if not item:
-            continue
-        if is_nav_doc(item):
-            continue
-        if item.get_type() != ebooklib.ITEM_DOCUMENT:
-            continue
-        items.append(item)
-    if items:
-        return items
-    return [item for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT) if not is_nav_doc(item)]
-
-
-def _normalize_spine_and_toc(book: epub.EpubBook) -> None:
-    docs = _spine_items(book)
-    for idx, item in enumerate(docs):
-        if getattr(item, "uid", None) is None:
-            uid = getattr(item, "id", None) or f"doc_{idx}"
-            setattr(item, "uid", uid)
-
-    def assign_uid(entries: list, start: int = 0) -> int:
-        counter = start
-        for entry in entries:
-            if isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[1], list):
-                item, children = entry
-                if getattr(item, "uid", None) is None:
-                    uid = getattr(item, "id", None) or f"toc_{counter}"
-                    setattr(item, "uid", uid)
-                    counter += 1
-                counter = assign_uid(children, counter)
-                continue
-            if getattr(entry, "uid", None) is None:
-                uid = getattr(entry, "id", None) or f"toc_{counter}"
-                setattr(entry, "uid", uid)
-                counter += 1
-        return counter
-
-    if book.toc:
-        assign_uid(book.toc)
-    elif docs:
-        book.toc = docs
-
-
-def _toc_entry_title(entry: object) -> Optional[str]:
-    title = getattr(entry, "title", None)
-    if not title and hasattr(entry, "get_title"):
-        try:
-            title = entry.get_title()
-        except Exception:
-            title = None
-    if not title:
-        return None
-    text = str(title).strip()
-    return text or None
-
-
-def _toc_entry_href(entry: object) -> Optional[str]:
-    href = getattr(entry, "href", None)
-    if not href:
-        href = getattr(entry, "file_name", None)
-    if not href and hasattr(entry, "get_name"):
-        try:
-            href = entry.get_name()
-        except Exception:
-            href = None
-    if not href:
-        return None
-    text = str(href).strip()
-    if not text:
-        return None
-    return text.split("#", 1)[0].strip() or None
-
-
 def _path_lookup_keys(path: str) -> list[str]:
     normalized = _canonical_zip_member(path)
     if not normalized:
@@ -1740,58 +1522,6 @@ def _path_lookup_keys(path: str) -> list[str]:
         seen.add(key)
         deduped.append(key)
     return deduped
-
-
-def _toc_title_index(book: epub.EpubBook) -> dict[str, str]:
-    mapping: dict[str, str] = {}
-
-    def register(entry: object) -> None:
-        title = _toc_entry_title(entry)
-        href = _toc_entry_href(entry)
-        if not title or not href:
-            return
-        for key in _path_lookup_keys(href):
-            mapping.setdefault(key, title)
-
-    def walk(entries: list | tuple) -> None:
-        for entry in entries:
-            if isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[1], (list, tuple)):
-                register(entry[0])
-                walk(entry[1])
-                continue
-            register(entry)
-
-    toc_entries = book.toc if isinstance(book.toc, (list, tuple)) else []
-    walk(toc_entries)
-    return mapping
-
-
-def _resolve_spine_item_title(item: ebooklib.epub.EpubItem, toc_titles: dict[str, str], fallback_index: int) -> str:
-    item_path = item.get_name() or ""
-    title = None
-    for key in _path_lookup_keys(item_path):
-        if key in toc_titles:
-            title = toc_titles[key]
-            break
-    if not title:
-        title = getattr(item, "title", None)
-    if not title and hasattr(item, "get_title"):
-        try:
-            title = item.get_title()
-        except Exception:
-            title = None
-    content_text = None
-    if not title:
-        try:
-            content_text = item.get_content().decode("utf-8", errors="replace")
-        except Exception:
-            content_text = None
-        if content_text:
-            title = _extract_title_from_html(content_text)
-    if not title:
-        name = item.get_name() or "section"
-        title = Path(name).stem
-    return title or f"章节 {fallback_index + 1}"
 
 
 def list_epub_sections(epub_file: Path) -> list[EpubSection]:
@@ -1875,86 +1605,3 @@ def epub_base_href(base_prefix: str, item_path: str) -> str:
     if not parent or parent == ".":
         return prefix
     return f"{prefix}{parent.strip('/')}/"
-
-def _apply_bindery_css_overlay(book: epub.EpubBook, css_text: str) -> None:
-    css_clean = css_text.strip()
-    docs = _spine_items(book)
-
-    doc_dirs: list[PurePosixPath] = []
-    for item in docs:
-        name = (item.get_name() or "").lstrip("/")
-        if not name:
-            continue
-        doc_dirs.append(PurePosixPath(name).parent)
-
-    package_root = PurePosixPath(".")
-    if doc_dirs:
-        common = posixpath.commonpath([d.as_posix() for d in doc_dirs]) or "."
-        package_root = PurePosixPath(common)
-        if package_root.as_posix() in {"", "."}:
-            package_root = PurePosixPath(".")
-        if package_root.parts and package_root.parts[-1].lower() in {"text", "xhtml", "html"}:
-            package_root = package_root.parent if package_root.parent.as_posix() not in {"", "."} else PurePosixPath(".")
-
-    styles_dir = package_root / "Styles"
-    css_href = (styles_dir / BINDERY_CSS_NAME).as_posix()
-    if css_href.startswith("./"):
-        css_href = css_href[2:]
-
-    # 清理旧版本写入的 bindery.css（以前可能放在 Text/ 之下）。
-    keep_ids: set[str] = set()
-    if css_clean:
-        keep_ids.add(f"bindery-css:{css_href}")
-    kept: list[ebooklib.epub.EpubItem] = []
-    for item in book.get_items():
-        item_id = ""
-        try:
-            item_id = item.get_id() or ""
-        except Exception:
-            item_id = ""
-        if item_id.startswith("bindery-css:") and item_id not in keep_ids:
-            continue
-        kept.append(item)
-    book.items = kept
-
-    if css_clean:
-        existing = book.get_item_with_href(css_href)
-        if existing and existing.get_type() == ebooklib.ITEM_STYLE:
-            existing.set_content(css_clean.encode("utf-8"))
-        elif existing:
-            # 同名资源存在但不是样式，避免覆盖；改用不冲突的文件名。
-            css_href = (styles_dir / "bindery-overlay.css").as_posix()
-            if css_href.startswith("./"):
-                css_href = css_href[2:]
-            style_item = epub.EpubItem(
-                uid=f"bindery-css:{css_href}",
-                file_name=css_href,
-                media_type="text/css",
-                content=css_clean.encode("utf-8"),
-            )
-            book.add_item(style_item)
-        else:
-            style_item = epub.EpubItem(
-                uid=f"bindery-css:{css_href}",
-                file_name=css_href,
-                media_type="text/css",
-                content=css_clean.encode("utf-8"),
-            )
-            book.add_item(style_item)
-
-    for item in docs:
-        # ebooklib 在写 EPUB / 生成 HTML 时会重建 <head>，只保留 item.links。
-        # 因此不能通过“字符串注入 <link>”的方式写入样式表链接。
-        if not isinstance(item, epub.EpubHtml):
-            continue
-        item.links = [
-            link for link in item.links if PurePosixPath(str(link.get("href") or "")).name != BINDERY_CSS_NAME
-        ]
-        if css_clean:
-            name = (item.get_name() or "").lstrip("/")
-            doc_dir = PurePosixPath(name).parent if name else PurePosixPath(".")
-            start = doc_dir.as_posix()
-            if start in {"", "."}:
-                start = "."
-            rel_href = posixpath.relpath(css_href, start=start)
-            item.add_link(href=rel_href, rel="stylesheet", type="text/css")

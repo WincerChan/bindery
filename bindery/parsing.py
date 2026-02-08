@@ -304,32 +304,35 @@ def _parse_body_lines(book: Book, body_lines: Iterable[str], rules: RuleSet) -> 
         book.spine.append(chap)
         return chap
 
-    for idx, line in enumerate(body_lines):
-        prev_line = body_lines[idx - 1] if idx > 0 else None
-        next_line = body_lines[idx + 1] if idx + 1 < len(body_lines) else None
+    iterator = iter(body_lines)
+    prev_line: Optional[str] = None
+    line = next(iterator, None)
+    next_line = next(iterator, None)
+
+    while line is not None:
         heading_type = classify_heading(line, prev_line, next_line, rules)
         if heading_type == "volume":
             current_chapter = None
             current_volume = start_volume(line.strip())
-            continue
-        if heading_type == "chapter":
+        elif heading_type == "chapter":
             current_chapter = start_chapter(line.strip(), current_volume)
-            continue
-
-        content = normalize_content_line(line)
-        if not content:
-            continue
-
-        if current_chapter:
-            current_chapter.lines.append(content)
-        elif current_volume:
-            current_volume.lines.append(content)
         else:
-            if not book.root_chapters:
-                current_chapter = start_chapter("正文", None)
-            else:
-                current_chapter = book.root_chapters[-1]
-            current_chapter.lines.append(content)
+            content = normalize_content_line(line)
+            if content:
+                if current_chapter:
+                    current_chapter.lines.append(content)
+                elif current_volume:
+                    current_volume.lines.append(content)
+                else:
+                    if not book.root_chapters:
+                        current_chapter = start_chapter("正文", None)
+                    else:
+                        current_chapter = book.root_chapters[-1]
+                    current_chapter.lines.append(content)
+
+        prev_line = line
+        line = next_line
+        next_line = next(iterator, None)
 
 
 def parse_book(text: str, source_name: str, rules: Optional[RuleSet] = None) -> Book:

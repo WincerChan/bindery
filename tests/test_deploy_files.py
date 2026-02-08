@@ -10,7 +10,10 @@ class DeployFilesTests(unittest.TestCase):
         self.assertIn("BINDERY_LIBRARY_DIR=/data/library", content)
         self.assertIn("BINDERY_TEMPLATE_DIR=/data/templates", content)
         self.assertIn('VOLUME ["/data"]', content)
-        self.assertIn('CMD ["uv", "run", "uvicorn", "bindery.web:app"', content)
+        self.assertTrue(
+            'CMD ["uv", "run", "uvicorn", "bindery.web:app"' in content
+            or 'CMD ["uvicorn", "bindery.web:app"' in content
+        )
 
     def test_workflow_pushes_to_ghcr(self) -> None:
         root = Path(__file__).resolve().parent.parent

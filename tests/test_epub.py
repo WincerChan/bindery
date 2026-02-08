@@ -3,8 +3,6 @@ import unittest
 from pathlib import Path
 import zipfile
 
-from ebooklib import epub
-
 from bindery.epub import (
     build_epub,
     epub_base_href,
@@ -596,32 +594,20 @@ class BuildEpubTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             output_path = Path(tmp) / "book.epub"
-            book = epub.EpubBook()
-            book.set_identifier("urn:uuid:update-css-dir-id")
-            book.set_title("书")
-            book.set_language("zh-CN")
-
-            doc = epub.EpubHtml(title="第一章", file_name="OEBPS/Text/ch1.xhtml", lang="zh-CN")
-            doc.content = (
-                "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"zh-CN\">"
-                "<head><meta charset=\"utf-8\" /><title>第一章</title></head>"
-                "<body><p>正文</p></body></html>"
+            self._create_external_epub_with_inline_style(
+                output_path,
+                book_id="update-css-dir-id",
+                title="书",
+                author="作者",
             )
-            book.add_item(doc)
-            book.toc = [doc]
-            book.spine = ["nav", doc]
-            book.add_item(epub.EpubNcx())
-            book.add_item(epub.EpubNav())
-
-            epub.write_epub(str(output_path), book, {"epub3_pages": False})
 
             update_epub_metadata(output_path, meta, css_text="body{margin-left:10px;}")
 
             with zipfile.ZipFile(output_path, "r") as zf:
                 names = set(zf.namelist())
-                self.assertIn("EPUB/OEBPS/Styles/bindery.css", names)
-                self.assertNotIn("EPUB/OEBPS/Text/bindery.css", names)
-                html_text = zf.read("EPUB/OEBPS/Text/ch1.xhtml").decode("utf-8", errors="replace")
+                self.assertIn("OEBPS/Styles/bindery.css", names)
+                self.assertNotIn("OEBPS/Text/bindery.css", names)
+                html_text = zf.read("OEBPS/Text/ch1.xhtml").decode("utf-8", errors="replace")
                 self.assertIn("../Styles/bindery.css", html_text)
 
     def test_update_epub_metadata_preserves_inline_head_styles_when_css_empty(self) -> None:

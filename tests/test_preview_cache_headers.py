@@ -50,8 +50,13 @@ class PreviewCacheHeadersTests(unittest.TestCase):
                 self.assertEqual(preview_response.headers.get("cdn-cache-control"), "no-store")
 
                 item_response = asyncio.run(epub_item(book_id, "section_0001.xhtml"))
-                self.assertIn("no-store", item_response.headers.get("cache-control", ""))
+                self.assertIn("private", item_response.headers.get("cache-control", ""))
+                self.assertIn("must-revalidate", item_response.headers.get("cache-control", ""))
                 self.assertEqual(item_response.headers.get("cdn-cache-control"), "no-store")
+                self.assertEqual(
+                    item_response.headers.get("cloudflare-cdn-cache-control"),
+                    "no-store",
+                )
             finally:
                 if previous is None:
                     os.environ.pop("BINDERY_LIBRARY_DIR", None)
