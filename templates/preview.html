@@ -474,14 +474,14 @@
           >章节切换中...</div>
           <button
             type="button"
-            class="md:hidden absolute inset-y-0 left-0 z-10 w-1/2 bg-transparent cursor-pointer"
+            class="md:hidden absolute inset-y-0 left-0 z-30 w-1/2 bg-transparent cursor-pointer touch-manipulation select-none"
             :class="(tocOpen || settingsOpen || searchOpen || chapterSwitching) ? 'pointer-events-none' : 'pointer-events-auto'"
             aria-label="手机左侧翻页"
             @click.stop.prevent="onMobileTap('prev')"
           ></button>
           <button
             type="button"
-            class="md:hidden absolute inset-y-0 right-0 z-10 w-1/2 bg-transparent cursor-pointer"
+            class="md:hidden absolute inset-y-0 right-0 z-30 w-1/2 bg-transparent cursor-pointer touch-manipulation select-none"
             :class="(tocOpen || settingsOpen || searchOpen || chapterSwitching) ? 'pointer-events-none' : 'pointer-events-auto'"
             aria-label="手机右侧翻页"
             @click.stop.prevent="onMobileTap('next')"
@@ -671,6 +671,7 @@
       _resizeTimer: null,
       _progressTimer: null,
       _idlePreloadToken: null,
+      _lastFrameTapAt: 0,
       searchQuery: "",
       searchBusy: false,
       searchResults: [],
@@ -1187,8 +1188,37 @@
       },
       onMobileTap(direction) {
         if (this.tocOpen || this.settingsOpen || this.searchOpen || this.chapterSwitching) return;
-        if (window.matchMedia && !window.matchMedia("(max-width: 767px)").matches) return;
         if (direction === "prev") {
+          this.pagePrev();
+          return;
+        }
+        this.pageNext();
+      },
+      _isMobileViewport() {
+        if (!(window && window.matchMedia)) return false;
+        return window.matchMedia("(max-width: 767px)").matches;
+      },
+      _onFrameTap(evt, frameKey) {
+        if (!this._isMobileViewport()) return;
+        if (frameKey !== this.activeFrameKey) return;
+        if (this.tocOpen || this.settingsOpen || this.searchOpen || this.chapterSwitching) return;
+        const target = evt && evt.target ? evt.target : null;
+        const element = target && target.nodeType === 1 ? target : (target && target.parentElement ? target.parentElement : null);
+        if (element && typeof element.closest === "function") {
+          if (element.closest("a,button,input,textarea,select,label,summary,[data-bindery-no-tap-page]")) return;
+        }
+        const doc = this.getFrame(frameKey)?.contentDocument;
+        if (!doc || !doc.documentElement) return;
+        const selection = doc.getSelection ? doc.getSelection() : null;
+        if (selection && String(selection).trim()) return;
+        const width = doc.documentElement.clientWidth || (doc.defaultView ? doc.defaultView.innerWidth : 0);
+        const x = Number(evt && evt.clientX);
+        if (!Number.isFinite(x) || width <= 0) return;
+        const now = Date.now();
+        if (now - this._lastFrameTapAt < 160) return;
+        this._lastFrameTapAt = now;
+        if (evt && typeof evt.preventDefault === "function") evt.preventDefault();
+        if (x <= width / 2) {
           this.pagePrev();
           return;
         }
@@ -1453,11 +1483,16 @@
           scroller.addEventListener("scrollend", () => this._onScrollerSettled(scroller, frameKey), { passive: true });
         }
       },
-      _attachFrameKeyListener(doc) {
+      _attachFrameKeyListener(doc, frameKey) {
         if (!doc || !doc.documentElement) return;
         if (doc.documentElement.dataset.binderyKeyListener) return;
         doc.documentElement.dataset.binderyKeyListener = "0";
         doc.addEventListener("keydown", (evt) => this.onKeydown(evt));
+        if ("PointerEvent" in window) {
+          doc.addEventListener("pointerup", (evt) => this._onFrameTap(evt, frameKey));
+        } else {
+          doc.addEventListener("click", (evt) => this._onFrameTap(evt, frameKey));
+        }
       },
       _mountPagedLayout(doc) {
         if (!doc || !doc.body) return;
@@ -1678,6 +1713,7 @@
           "html.bindery-mode-custom #bindery-reader-pages h1,html.bindery-mode-custom #bindery-reader-pages h2,html.bindery-mode-custom #bindery-reader-pages h3,html.bindery-mode-custom #bindery-reader-pages h4,html.bindery-mode-custom #bindery-reader-pages h5,html.bindery-mode-custom #bindery-reader-pages h6{background-color:transparent!important;background-image:none!important;}" +
           "html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages b,html.bindery-mode-custom #bindery-reader-pages strong{background-color:transparent!important;background-image:none!important;}" +
           "#bindery-reader-scroller{display:block!important;position:relative!important;height:99%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;background:var(--bindery-reader-bg)!important;writing-mode:horizontal-tb!important;direction:ltr!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:auto!important;overscroll-behavior-x:contain;scrollbar-width:none;}" +
+          "@media (max-width: 767px){ #bindery-reader-scroller{overflow-x:hidden!important;overscroll-behavior-x:none!important;touch-action:pan-y!important;}}" +
           "#bindery-reader-scroller::-webkit-scrollbar{display:none;}" +
           "#bindery-reader-pages{display:block!important;position:relative!important;float:none!important;clear:both!important;width:100%!important;min-width:100%!important;max-width:none!important;height:99%!important;box-sizing:border-box!important;writing-mode:horizontal-tb!important;direction:ltr!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding-top:var(--bindery-page-padding-y,0px)!important;padding-bottom:var(--bindery-page-padding-y,0px)!important;padding-left:var(--bindery-page-padding-x,0px)!important;padding-right:var(--bindery-page-padding-x,0px)!important;margin-top:0!important;margin-bottom:0!important;margin-left:0!important;margin-right:var(--bindery-page-tail-pad,0px)!important;}" +
           "h1,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}" +
@@ -1687,7 +1723,7 @@
           try {
             this._updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg, themeText);
             this._attachScrollListener(frameKey);
-            this._attachFrameKeyListener(doc);
+            this._attachFrameKeyListener(doc, frameKey);
 
             let desired = Number.isInteger(opts && opts.desiredPage) ? opts.desiredPage : this.page;
             if (desired <= -1) desired = 1;
