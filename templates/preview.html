@@ -857,10 +857,13 @@
 
           // Keep reverse neighbor ready for immediate bounce-back (N -> N-1 -> N).
           const reverseIndex = this.sectionIndex - direction;
+          let preserveReverseSection = false;
           if (reverseIndex >= 0 && reverseIndex < this.tocCount) {
             const reverseReady = this._findFrameWithSection(reverseIndex, { readyOnly: true, excludeActive: true });
             if (!reverseReady) {
               candidates.push({ index: reverseIndex, desiredPage: direction > 0 ? lastPageTarget : 1 });
+            } else {
+              preserveReverseSection = true;
             }
           }
           if (!candidates.length) return;
@@ -879,7 +882,12 @@
 
           for (const candidate of candidates) {
             if (assignments.some((it) => it.index === candidate.index)) continue;
-            const frameKey = inactiveFrames.find((key) => !usedFrames.has(key));
+            const frameKey =
+              inactiveFrames.find((key) => {
+                if (usedFrames.has(key)) return false;
+                if (!preserveReverseSection) return true;
+                return this._frameState[key].section !== reverseIndex;
+              }) || inactiveFrames.find((key) => !usedFrames.has(key));
             if (!frameKey) break;
             assignments.push({ frameKey, index: candidate.index, desiredPage: candidate.desiredPage });
             usedFrames.add(frameKey);
