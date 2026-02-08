@@ -456,6 +456,16 @@
             loading="lazy"
             :title="currentSectionTitle()"
           ></iframe>
+          <iframe
+            x-ref="frameC"
+            class="absolute inset-0 w-full h-full transition-opacity duration-100"
+            :class="brightnessMode === 'dim' ? 'bg-slate-900' : 'bg-white'"
+            :style="activeFrameKey === 'c' ? 'opacity:1;z-index:10;pointer-events:auto;' : 'opacity:0;z-index:0;pointer-events:none;'"
+            sandbox="allow-same-origin"
+            referrerpolicy="no-referrer"
+            loading="lazy"
+            :title="currentSectionTitle()"
+          ></iframe>
           <div
             class="absolute inset-0 z-20 flex items-center justify-center text-xs font-medium"
             :class="brightnessMode === 'dim' ? 'bg-slate-900/75 text-slate-200' : 'bg-white/75 text-slate-600'"
@@ -514,6 +524,7 @@
   function binderyReader() {
     const storageKey = "bindery:reader";
     const progressStoragePrefix = "bindery:reader:progress:";
+    const frameKeys = ["a", "b", "c"];
     const bookId = {{ book.book_id|tojson }};
     const bookTitle = {{ book.title|tojson }};
     const sectionsData = {{ sections_payload|tojson }};
@@ -640,7 +651,7 @@
       activeFrameKey: "a",
       _jumpToLast: false,
       _resumePage: null,
-      _lastChapterDirection: 0,
+      _lastChapterDirection: 1,
       _clockTimer: null,
       _scrollEndTimer: null,
       _resizeTimer: null,
@@ -661,9 +672,10 @@
       _frameState: {
         a: { section: null, ready: false, desiredPage: 0 },
         b: { section: null, ready: false, desiredPage: 0 },
+        c: { section: null, ready: false, desiredPage: 0 },
       },
-      _frameApplied: { a: false, b: false },
-      _frameApplying: { a: false, b: false },
+      _frameApplied: { a: false, b: false, c: false },
+      _frameApplying: { a: false, b: false, c: false },
       currentSectionTitle() {
         const section = this.sections[this.sectionIndex];
         return section ? section.title : "";
@@ -703,20 +715,36 @@
         if (this._progressTimer) clearTimeout(this._progressTimer);
         this._progressTimer = setTimeout(() => this._persistProgressNow(), 119);
       },
-      _otherFrameKey(key) {
-        return key === "a" ? "b" : "a";
+      _inactiveFrameKeys() {
+        return frameKeys.filter((key) => key !== this.activeFrameKey);
+      },
+      _findFrameWithSection(targetIndex, opts = {}) {
+        const readyOnly = !!opts.readyOnly;
+        const excludeActive = !!opts.excludeActive;
+        for (const key of frameKeys) {
+          if (excludeActive && key === this.activeFrameKey) continue;
+          const state = this._frameState[key];
+          if (!state || state.section !== targetIndex) continue;
+          if (readyOnly && !state.ready) continue;
+          return key;
+        }
+        return null;
       },
       getFrame(key) {
-        return key === "a" ? this.$refs.frameA : this.$refs.frameB;
+        if (key === "a") return this.$refs.frameA;
+        if (key === "b") return this.$refs.frameB;
+        if (key === "c") return this.$refs.frameC;
+        return null;
       },
       getActiveFrame() {
         return this.getFrame(this.activeFrameKey);
       },
       _applyLayoutWithAnchor() {
         this.applyToFrame({ frameKey: this.activeFrameKey, preserveAnchor: true });
-        const bufferKey = this._otherFrameKey(this.activeFrameKey);
-        if (this._frameState[bufferKey].ready) {
-          this.applyToFrame({ frameKey: bufferKey, primeOnly: true });
+        for (const key of this._inactiveFrameKeys()) {
+          if (this._frameState[key].ready) {
+            this.applyToFrame({ frameKey: key, primeOnly: true });
+          }
         }
       },
       _scrollCurrentTocIntoView() {
@@ -820,16 +848,46 @@
       _scheduleChapterPreload() {
         if (this._idlePreloadToken) this._cancelIdle(this._idlePreloadToken);
         this._idlePreloadToken = this._scheduleIdle(() => {
-          const preferred = this.sectionIndex + (this._lastChapterDirection >= -1 ? 1 : -1);
-          const fallback = this.sectionIndex + (this._lastChapterDirection >= -1 ? -1 : 1);
-          let target = preferred;
-          if (target < -1 || target >= this.tocCount) {
-            target = fallback;
+          const direction = this._lastChapterDirection >= 0 ? 1 : -1;
+          const candidates = [];
+          const primaryIndex = this.sectionIndex + direction;
+          if (primaryIndex >= 0 && primaryIndex < this.tocCount) {
+            candidates.push({ index: primaryIndex, desiredPage: direction > 0 ? 1 : lastPageTarget });
           }
-          if (target < -1 || target >= this.tocCount) return;
-          const bufferKey = this._otherFrameKey(this.activeFrameKey);
-          this._prefetchSectionHtml(target);
-          this._loadSectionIntoFrame(bufferKey, target, 0);
+
+          // Keep reverse neighbor ready for immediate bounce-back (N -> N-1 -> N).
+          const reverseIndex = this.sectionIndex - direction;
+          if (reverseIndex >= 0 && reverseIndex < this.tocCount) {
+            const reverseReady = this._findFrameWithSection(reverseIndex, { readyOnly: true, excludeActive: true });
+            if (!reverseReady) {
+              candidates.push({ index: reverseIndex, desiredPage: direction > 0 ? lastPageTarget : 1 });
+            }
+          }
+          if (!candidates.length) return;
+
+          const assignments = [];
+          const usedFrames = new Set();
+          const inactiveFrames = this._inactiveFrameKeys();
+
+          for (const candidate of candidates) {
+            const existing = this._findFrameWithSection(candidate.index, { excludeActive: true });
+            if (existing && !usedFrames.has(existing)) {
+              assignments.push({ frameKey: existing, index: candidate.index, desiredPage: candidate.desiredPage });
+              usedFrames.add(existing);
+            }
+          }
+
+          for (const candidate of candidates) {
+            if (assignments.some((it) => it.index === candidate.index)) continue;
+            const frameKey = inactiveFrames.find((key) => !usedFrames.has(key));
+            if (!frameKey) break;
+            assignments.push({ frameKey, index: candidate.index, desiredPage: candidate.desiredPage });
+            usedFrames.add(frameKey);
+          }
+
+          for (const item of assignments) {
+            this._loadSectionIntoFrame(item.frameKey, item.index, item.desiredPage);
+          }
         });
       },
       _bindFrameLoad(frameKey) {
@@ -884,24 +942,35 @@
 
         const desiredPage = opts && Number.isInteger(opts.desiredPage) ? Math.max(0, opts.desiredPage) : 1;
         const historyMode = (opts && opts.historyMode) || "push";
-        this._lastChapterDirection = parsedTarget > this.sectionIndex ? 0 : -1;
+        this._lastChapterDirection = parsedTarget > this.sectionIndex ? 1 : -1;
         this.tocOpen = false;
 
-        const bufferKey = this._otherFrameKey(this.activeFrameKey);
-        const bufferState = this._frameState[bufferKey];
-        if (bufferState.section === parsedTarget && bufferState.ready) {
-          this._activateFrame(bufferKey, parsedTarget, desiredPage, historyMode);
+        const readyFrameKey = this._findFrameWithSection(parsedTarget, { readyOnly: true });
+        if (readyFrameKey && readyFrameKey !== this.activeFrameKey) {
+          this._activateFrame(readyFrameKey, parsedTarget, desiredPage, historyMode);
           return;
         }
 
+        let loadFrameKey = this._findFrameWithSection(parsedTarget, { excludeActive: true });
+        if (!loadFrameKey) {
+          const inactive = this._inactiveFrameKeys();
+          const protectedSections = new Set([this.sectionIndex - 1, this.sectionIndex + 1]);
+          loadFrameKey =
+            inactive.find((key) => {
+              const section = this._frameState[key].section;
+              return section === null || !protectedSections.has(section);
+            }) || inactive[0];
+        }
+        if (!loadFrameKey) return;
+
         this.chapterSwitching = true;
         this._pendingSwitch = {
-          frameKey: bufferKey,
+          frameKey: loadFrameKey,
           sectionIndex: parsedTarget,
           desiredPage,
           historyMode,
         };
-        this._loadSectionIntoFrame(bufferKey, parsedTarget, desiredPage);
+        this._loadSectionIntoFrame(loadFrameKey, parsedTarget, desiredPage);
       },
       _cleanupTransientQuery() {
         try {
@@ -966,6 +1035,7 @@
 
         this._bindFrameLoad("a");
         this._bindFrameLoad("b");
+        this._bindFrameLoad("c");
 
         let initialPage = 0;
         if (this._jumpToLast) {
