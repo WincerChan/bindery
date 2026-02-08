@@ -10,6 +10,7 @@ import tempfile
 from typing import Iterable, Optional
 import zipfile
 import xml.etree.ElementTree as ET
+from lxml import etree as LXML_ET
 
 from ebooklib import epub
 import ebooklib
@@ -30,6 +31,15 @@ class EpubSectionDocument:
     item_path: str
     content: bytes
     media_type: str
+
+
+@dataclass
+class _ZipManifestItem:
+    item_id: str
+    href: str
+    media_type: str
+    properties: set[str]
+    member_path: str
 
 
 BINDERY_CSS_NAME = "bindery.css"
@@ -140,8 +150,8 @@ def _read_epub_resilient(epub_file: Path) -> epub.EpubBook:
         return epub.read_epub(str(epub_file))
 
 
-def _tag_local_name(tag: str) -> str:
-    if not tag:
+def _tag_local_name(tag: object) -> str:
+    if not tag or not isinstance(tag, str):
         return ""
     if "}" in tag:
         return tag.split("}", 1)[1]
@@ -165,6 +175,274 @@ def _relative_href(from_member: str, to_member: str) -> str:
     from_dir = PurePosixPath(from_member).parent.as_posix()
     start = from_dir if from_dir not in {"", "."} else "."
     return posixpath.relpath(to_member, start=start)
+
+
+def _zip_member_index(zf: zipfile.ZipFile) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for info in zf.infolist():
+        canonical = _canonical_zip_member(info.filename)
+        if canonical and canonical not in mapping:
+            mapping[canonical] = info.filename
+    return mapping
+
+
+def _locate_zip_member(index: dict[str, str], member_path: str) -> Optional[tuple[str, str]]:
+    canonical = _canonical_zip_member(member_path)
+    if not canonical:
+        return None
+    for candidate in _path_lookup_keys(canonical):
+        if candidate in index:
+            return candidate, index[candidate]
+    normalized = canonical[5:] if canonical.startswith("EPUB/") else f"EPUB/{canonical}"
+    for candidate in _path_lookup_keys(normalized):
+        if candidate in index:
+            return candidate, index[candidate]
+    return None
+
+
+def _read_member_bytes(zf: zipfile.ZipFile, index: dict[str, str], member_path: str) -> Optional[bytes]:
+    located = _locate_zip_member(index, member_path)
+    if not located:
+        return None
+    _, actual_name = located
+    return zf.read(actual_name)
+
+
+def _xml_root_from_bytes(raw: bytes) -> LXML_ET._Element:
+    parser = LXML_ET.XMLParser(resolve_entities=False, no_network=True, recover=True)
+    return LXML_ET.fromstring(raw, parser=parser)
+
+
+def _opf_root_from_zip(
+    zf: zipfile.ZipFile, index: dict[str, str]
+) -> tuple[str, LXML_ET._Element]:
+    opf_path = _opf_path_from_container(zf)
+    opf_raw = _read_member_bytes(zf, index, opf_path)
+    if opf_raw is None:
+        raise FileNotFoundError(opf_path)
+    return opf_path, _xml_root_from_bytes(opf_raw)
+
+
+def _child_by_local_name(node: LXML_ET._Element, local_name: str) -> Optional[LXML_ET._Element]:
+    for child in list(node):
+        if _tag_local_name(child.tag) == local_name:
+            return child
+    return None
+
+
+def _iter_children_by_local_name(node: LXML_ET._Element, local_name: str) -> list[LXML_ET._Element]:
+    return [child for child in list(node) if _tag_local_name(child.tag) == local_name]
+
+
+def _is_document_media_type(media_type: str) -> bool:
+    normalized = (media_type or "").strip().lower()
+    return normalized in {"application/xhtml+xml", "text/html"}
+
+
+def _is_nav_manifest_item(item: _ZipManifestItem) -> bool:
+    if "nav" in item.properties:
+        return True
+    name = Path(item.member_path).name.lower()
+    return name in {"nav.xhtml", "nav.html"}
+
+
+def _resolve_member_relative(from_member: str, href: str) -> str:
+    raw = (href or "").split("#", 1)[0].strip()
+    if not raw:
+        return ""
+    from_dir = PurePosixPath(from_member).parent.as_posix()
+    base = from_dir if from_dir not in {"", "."} else "."
+    return _canonical_zip_member(posixpath.normpath(posixpath.join(base, raw)))
+
+
+def _manifest_from_opf(opf_path: str, root: LXML_ET._Element) -> tuple[list[_ZipManifestItem], dict[str, _ZipManifestItem]]:
+    manifest = root.find(f"{{{OPF_NS}}}manifest")
+    if manifest is None:
+        manifest = _child_by_local_name(root, "manifest")
+    if manifest is None:
+        return [], {}
+
+    items: list[_ZipManifestItem] = []
+    by_id: dict[str, _ZipManifestItem] = {}
+    for node in _iter_children_by_local_name(manifest, "item"):
+        href = str(node.attrib.get("href") or "").strip()
+        item = _ZipManifestItem(
+            item_id=str(node.attrib.get("id") or "").strip(),
+            href=href,
+            media_type=str(node.attrib.get("media-type") or "").strip().lower(),
+            properties={part for part in str(node.attrib.get("properties") or "").split() if part},
+            member_path=_resolve_opf_href(opf_path, href) if href else "",
+        )
+        items.append(item)
+        if item.item_id:
+            by_id[item.item_id] = item
+    return items, by_id
+
+
+def _spine_document_items(
+    root: LXML_ET._Element, manifest_items: list[_ZipManifestItem], items_by_id: dict[str, _ZipManifestItem]
+) -> list[_ZipManifestItem]:
+    spine = root.find(f"{{{OPF_NS}}}spine")
+    if spine is None:
+        spine = _child_by_local_name(root, "spine")
+
+    docs: list[_ZipManifestItem] = []
+    if spine is not None:
+        for itemref in _iter_children_by_local_name(spine, "itemref"):
+            idref = str(itemref.attrib.get("idref") or "").strip()
+            if not idref:
+                continue
+            item = items_by_id.get(idref)
+            if not item or not _is_document_media_type(item.media_type):
+                continue
+            if _is_nav_manifest_item(item):
+                continue
+            docs.append(item)
+    if docs:
+        return docs
+    for item in manifest_items:
+        if not _is_document_media_type(item.media_type):
+            continue
+        if _is_nav_manifest_item(item):
+            continue
+        docs.append(item)
+    return docs
+
+
+def _node_text(node: Optional[LXML_ET._Element]) -> Optional[str]:
+    if node is None:
+        return None
+    text = "".join(node.itertext()).strip()
+    return text or None
+
+
+def _nav_toc_title_index(
+    zf: zipfile.ZipFile, index: dict[str, str], manifest_items: list[_ZipManifestItem]
+) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    nav_items = [item for item in manifest_items if _is_document_media_type(item.media_type) and _is_nav_manifest_item(item)]
+    for nav_item in nav_items:
+        nav_raw = _read_member_bytes(zf, index, nav_item.member_path)
+        if nav_raw is None:
+            continue
+        try:
+            root = _xml_root_from_bytes(nav_raw)
+        except Exception:
+            continue
+        nav_nodes = root.xpath(".//*[local-name()='nav']")  # noqa: S320
+        scoped_links: list[LXML_ET._Element] = []
+        for nav in nav_nodes:
+            nav_type = ""
+            for key, value in nav.attrib.items():
+                if _tag_local_name(key) == "type":
+                    nav_type = str(value or "").strip().lower()
+                    break
+            if nav_type and nav_type != "toc":
+                continue
+            scoped_links.extend(nav.xpath(".//*[local-name()='a'][@href]"))  # noqa: S320
+        if not scoped_links:
+            scoped_links = root.xpath(".//*[local-name()='a'][@href]")  # noqa: S320
+        for link in scoped_links:
+            href = str(link.attrib.get("href") or "").strip()
+            if not href:
+                continue
+            target = _resolve_member_relative(nav_item.member_path, href)
+            if not target:
+                continue
+            title = _node_text(link)
+            if not title:
+                continue
+            for key in _path_lookup_keys(target):
+                mapping.setdefault(key, title)
+    return mapping
+
+
+def _ncx_toc_title_index(
+    zf: zipfile.ZipFile, index: dict[str, str], manifest_items: list[_ZipManifestItem]
+) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    ncx_items = [
+        item
+        for item in manifest_items
+        if item.media_type == "application/x-dtbncx+xml" or item.href.lower().endswith(".ncx")
+    ]
+    for ncx_item in ncx_items:
+        ncx_raw = _read_member_bytes(zf, index, ncx_item.member_path)
+        if ncx_raw is None:
+            continue
+        try:
+            root = _xml_root_from_bytes(ncx_raw)
+        except Exception:
+            continue
+        nav_points = root.xpath(".//*[local-name()='navPoint']")  # noqa: S320
+        for point in nav_points:
+            label = point.xpath(".//*[local-name()='navLabel']/*[local-name()='text'][1]")  # noqa: S320
+            content_nodes = point.xpath(".//*[local-name()='content'][@src][1]")  # noqa: S320
+            if not label or not content_nodes:
+                continue
+            title = _node_text(label[0])
+            src = str(content_nodes[0].attrib.get("src") or "").strip()
+            if not title or not src:
+                continue
+            target = _resolve_member_relative(ncx_item.member_path, src)
+            if not target:
+                continue
+            for key in _path_lookup_keys(target):
+                mapping.setdefault(key, title)
+    return mapping
+
+
+def _toc_title_index_from_zip(
+    zf: zipfile.ZipFile, index: dict[str, str], manifest_items: list[_ZipManifestItem]
+) -> dict[str, str]:
+    mapping = _nav_toc_title_index(zf, index, manifest_items)
+    for key, value in _ncx_toc_title_index(zf, index, manifest_items).items():
+        mapping.setdefault(key, value)
+    return mapping
+
+
+def _resolve_document_title(
+    zf: zipfile.ZipFile,
+    index: dict[str, str],
+    item: _ZipManifestItem,
+    toc_titles: dict[str, str],
+    fallback_index: int,
+    content: Optional[bytes] = None,
+) -> str:
+    title = None
+    for key in _path_lookup_keys(item.member_path):
+        if key in toc_titles:
+            title = toc_titles[key]
+            break
+    if not title:
+        payload = content if content is not None else _read_member_bytes(zf, index, item.member_path)
+        if payload:
+            title = _extract_title_from_html(payload.decode("utf-8", errors="replace"))
+    if not title:
+        name = item.href or item.member_path or "section"
+        title = Path(name).stem
+    return title or f"章节 {fallback_index + 1}"
+
+
+def _guess_media_type(member_path: str) -> str:
+    suffix = Path(member_path).suffix.lower()
+    if suffix in {".xhtml", ".html", ".htm"}:
+        return "application/xhtml+xml"
+    if suffix == ".css":
+        return "text/css"
+    if suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if suffix == ".png":
+        return "image/png"
+    if suffix == ".gif":
+        return "image/gif"
+    if suffix == ".svg":
+        return "image/svg+xml"
+    if suffix == ".webp":
+        return "image/webp"
+    if suffix == ".ncx":
+        return "application/x-dtbncx+xml"
+    return "application/octet-stream"
 
 
 def _derive_package_root_from_docs(doc_members: list[str]) -> PurePosixPath:
@@ -1121,16 +1399,47 @@ def build_epub(
 def extract_cover(epub_file: Path) -> Optional[tuple[bytes, str]]:
     if not epub_file.exists():
         return None
-    book = _read_epub_resilient(epub_file)
-    for item in book.get_items():
-        if item.get_type() == ebooklib.ITEM_COVER:
-            name = item.get_name() or "cover"
-            return item.get_content(), name
-    for item in book.get_items():
-        if item.get_type() == ebooklib.ITEM_IMAGE:
-            name = item.get_name() or ""
-            if "cover" in name.lower():
-                return item.get_content(), name
+    with zipfile.ZipFile(epub_file, "r") as zf:
+        index = _zip_member_index(zf)
+        try:
+            opf_path, root = _opf_root_from_zip(zf, index)
+        except Exception:
+            return None
+        manifest_items, items_by_id = _manifest_from_opf(opf_path, root)
+        metadata = root.find(f"{{{OPF_NS}}}metadata")
+        if metadata is None:
+            metadata = _child_by_local_name(root, "metadata")
+
+        cover_item: Optional[_ZipManifestItem] = None
+        if metadata is not None:
+            for node in _iter_children_by_local_name(metadata, "meta"):
+                attrs = {_tag_local_name(key): value for key, value in node.attrib.items()}
+                if str(attrs.get("name") or "").strip() != "cover":
+                    continue
+                cover_ref = str(attrs.get("content") or "").strip()
+                if cover_ref and cover_ref in items_by_id:
+                    candidate = items_by_id[cover_ref]
+                    if candidate.media_type.startswith("image/"):
+                        cover_item = candidate
+                        break
+        if cover_item is None:
+            for item in manifest_items:
+                if item.media_type.startswith("image/") and "cover-image" in item.properties:
+                    cover_item = item
+                    break
+        if cover_item is None:
+            for item in manifest_items:
+                if not item.media_type.startswith("image/"):
+                    continue
+                if "cover" in item.item_id.lower() or "cover" in item.member_path.lower():
+                    cover_item = item
+                    break
+        if cover_item is None:
+            return None
+        payload = _read_member_bytes(zf, index, cover_item.member_path)
+        if payload is None:
+            return None
+        return payload, cover_item.member_path
     return None
 
 
@@ -1139,46 +1448,81 @@ def _looks_like_isbn(value: str) -> bool:
     return len(cleaned) in {10, 13}
 
 
-def _first_metadata(book: epub.EpubBook, namespace: str, name: str) -> Optional[str]:
-    items = book.get_metadata(namespace, name)
-    for value, _ in items:
-        if value:
-            return value.strip()
-    return None
-
-
 def extract_epub_metadata(epub_file: Path, fallback_title: str) -> dict:
-    book = _read_epub_resilient(epub_file)
-    title = _first_metadata(book, "DC", "title") or fallback_title
-    author = _first_metadata(book, "DC", "creator")
-    language = _first_metadata(book, "DC", "language") or "zh-CN"
-    description = _first_metadata(book, "DC", "description")
-    publisher = _first_metadata(book, "DC", "publisher")
-    published = _first_metadata(book, "DC", "date")
+    with zipfile.ZipFile(epub_file, "r") as zf:
+        index = _zip_member_index(zf)
+        _, root = _opf_root_from_zip(zf, index)
+        metadata = root.find(f"{{{OPF_NS}}}metadata")
+        if metadata is None:
+            metadata = _child_by_local_name(root, "metadata")
 
-    tags = [value.strip() for value, _ in book.get_metadata("DC", "subject") if value and value.strip()]
+    if metadata is None:
+        return {
+            "title": fallback_title,
+            "author": None,
+            "language": "zh-CN",
+            "description": None,
+            "series": None,
+            "identifier": None,
+            "publisher": None,
+            "tags": [],
+            "published": None,
+            "isbn": None,
+            "rating": None,
+        }
+
+    dc_values: dict[str, list[tuple[str, dict[str, str]]]] = {}
+    opf_meta_values: list[tuple[str, dict[str, str]]] = []
+    for node in list(metadata):
+        local = _tag_local_name(node.tag)
+        text = _node_text(node) or ""
+        attrs = {_tag_local_name(key): str(value) for key, value in node.attrib.items()}
+        if local == "meta":
+            opf_meta_values.append((text, attrs))
+            continue
+        if local in {"identifier", "title", "language", "creator", "description", "publisher", "date", "subject"}:
+            dc_values.setdefault(local, []).append((text, attrs))
+
+    def first_dc(name: str) -> Optional[str]:
+        for value, _ in dc_values.get(name, []):
+            cleaned = value.strip()
+            if cleaned:
+                return cleaned
+        return None
+
+    title = first_dc("title") or fallback_title
+    author = first_dc("creator")
+    language = first_dc("language") or "zh-CN"
+    description = first_dc("description")
+    publisher = first_dc("publisher")
+    published = first_dc("date")
+    tags = [value.strip() for value, _ in dc_values.get("subject", []) if value and value.strip()]
 
     identifier = None
     isbn = None
-    for value, attrs in book.get_metadata("DC", "identifier"):
-        if not value:
-            continue
+    for value, attrs in dc_values.get("identifier", []):
         cleaned = value.strip()
-        if attrs.get("id") == "isbn" or _looks_like_isbn(cleaned):
+        if not cleaned:
+            continue
+        id_attr = str(attrs.get("id") or "").strip()
+        if id_attr == "isbn" or _looks_like_isbn(cleaned):
             if not isbn:
                 isbn = cleaned
             continue
-        if attrs.get("id") == "identifier" or identifier is None:
+        if id_attr == "identifier" or identifier is None:
             identifier = cleaned
 
     series = None
     rating = None
-    for value, attrs in book.get_metadata("OPF", "meta"):
-        if attrs.get("property") == "belongs-to-collection" and value:
-            series = value.strip()
-        if attrs.get("name") == "rating" and value:
+    for value, attrs in opf_meta_values:
+        prop = str(attrs.get("property") or "").strip()
+        name = str(attrs.get("name") or "").strip()
+        cleaned = value.strip()
+        if prop == "belongs-to-collection" and cleaned:
+            series = cleaned
+        if name == "rating" and cleaned:
             try:
-                rating_value = int(float(value))
+                rating_value = int(float(cleaned))
             except (TypeError, ValueError):
                 continue
             rating = max(0, min(5, rating_value))
@@ -1394,60 +1738,64 @@ def _resolve_spine_item_title(item: ebooklib.epub.EpubItem, toc_titles: dict[str
 
 
 def list_epub_sections(epub_file: Path) -> list[EpubSection]:
-    book = _read_epub_resilient(epub_file)
-    toc_titles = _toc_title_index(book)
     sections: list[EpubSection] = []
-    for idx, item in enumerate(_spine_items(book)):
-        item_path = item.get_name() or ""
-        title = _resolve_spine_item_title(item, toc_titles, idx)
-        sections.append(EpubSection(title=title, item_path=item_path))
+    with zipfile.ZipFile(epub_file, "r") as zf:
+        index = _zip_member_index(zf)
+        opf_path, root = _opf_root_from_zip(zf, index)
+        manifest_items, items_by_id = _manifest_from_opf(opf_path, root)
+        toc_titles = _toc_title_index_from_zip(zf, index, manifest_items)
+        for idx, item in enumerate(_spine_document_items(root, manifest_items, items_by_id)):
+            title = _resolve_document_title(zf, index, item, toc_titles, idx)
+            sections.append(EpubSection(title=title, item_path=item.member_path))
     return sections
 
 
 def list_epub_section_documents(epub_file: Path) -> list[EpubSectionDocument]:
     """Load EPUB once and return spine document payloads for search/analysis."""
-    book = _read_epub_resilient(epub_file)
-    toc_titles = _toc_title_index(book)
     documents: list[EpubSectionDocument] = []
-    for idx, item in enumerate(_spine_items(book)):
-        item_path = item.get_name() or ""
-        title = _resolve_spine_item_title(item, toc_titles, idx)
-        content = getattr(item, "content", None)
-        if content is None:
-            content = item.get_content()
-        if isinstance(content, str):
-            content = content.encode("utf-8")
-        media_type = item.media_type or "application/octet-stream"
-        documents.append(
-            EpubSectionDocument(
-                index=idx,
-                title=title,
-                item_path=item_path,
-                content=content,
-                media_type=media_type,
+    with zipfile.ZipFile(epub_file, "r") as zf:
+        index = _zip_member_index(zf)
+        opf_path, root = _opf_root_from_zip(zf, index)
+        manifest_items, items_by_id = _manifest_from_opf(opf_path, root)
+        toc_titles = _toc_title_index_from_zip(zf, index, manifest_items)
+        for idx, item in enumerate(_spine_document_items(root, manifest_items, items_by_id)):
+            content = _read_member_bytes(zf, index, item.member_path)
+            if content is None:
+                continue
+            title = _resolve_document_title(zf, index, item, toc_titles, idx, content=content)
+            documents.append(
+                EpubSectionDocument(
+                    index=idx,
+                    title=title,
+                    item_path=item.member_path,
+                    content=content,
+                    media_type=item.media_type or "application/octet-stream",
+                )
             )
-        )
     return documents
 
 
 def load_epub_item(epub_file: Path, item_path: str, base_href: str) -> tuple[bytes, str]:
-    book = _read_epub_resilient(epub_file)
-    target_path = item_path.lstrip("/")
-    target = None
-    for item in book.get_items():
-        name = (item.get_name() or "").lstrip("/")
-        if name == target_path:
-            target = item
-            break
-    if not target:
-        raise FileNotFoundError(item_path)
-    content = getattr(target, "content", None)
-    if content is None:
-        content = target.get_content()
-    if isinstance(content, str):
-        content = content.encode("utf-8")
-    media_type = target.media_type or "application/octet-stream"
-    if target.get_type() == ebooklib.ITEM_DOCUMENT:
+    with zipfile.ZipFile(epub_file, "r") as zf:
+        index = _zip_member_index(zf)
+        target = _locate_zip_member(index, item_path)
+        if not target:
+            raise FileNotFoundError(item_path)
+        canonical_target, actual_target = target
+        content = zf.read(actual_target)
+
+        media_type = _guess_media_type(canonical_target)
+        try:
+            opf_path, root = _opf_root_from_zip(zf, index)
+            manifest_items, _ = _manifest_from_opf(opf_path, root)
+            for manifest_item in manifest_items:
+                if manifest_item.member_path == canonical_target and manifest_item.media_type:
+                    media_type = manifest_item.media_type
+                    break
+        except Exception:
+            pass
+
+    if _is_document_media_type(media_type):
         text = content.decode("utf-8", errors="replace")
         text = _strip_scripts(text)
         text = _inject_base(text, base_href)
