@@ -38,6 +38,8 @@ class LibraryUiTests(unittest.TestCase):
         self.assertIn('data-book-layout="list"', tpl)
         self.assertIn("data-book-select", tpl)
         self.assertIn('href="{{ preview_url }}"', tpl)
+        self.assertIn('data-cover-src="{{ book.cover_url }}"', tpl)
+        self.assertIsNone(re.search(r"<img\\s+src=\"\\{\\{\\s*book\\.cover_url\\s*\\}\\}\"", tpl))
 
     def test_index_grid_is_compact(self) -> None:
         root = Path(__file__).resolve().parent.parent
@@ -74,6 +76,13 @@ class LibraryUiTests(unittest.TestCase):
         self.assertIn('hx-target="#library-section"', section)
         self.assertIn('hx-vals=\'{"page":"{{ prev_page }}"}\'', section)
         self.assertIn('hx-vals=\'{"page":"{{ next_page }}"}\'', section)
+
+    def test_index_lazy_loads_cover_images_for_active_view(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        index = (root / "templates" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function hydrateCoverImages(view)", index)
+        self.assertIn("img[data-cover-src]", index)
+        self.assertIn('`[data-book-layout="${view}"] img[data-cover-src]`', index)
 
     def test_auto_grid_column_uses_flexible_width(self) -> None:
         root = Path(__file__).resolve().parent.parent

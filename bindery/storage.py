@@ -105,7 +105,7 @@ def load_metadata(base: Path, book_id: str) -> Metadata:
     return metadata_from_dict(data)
 
 
-def list_books(base: Path) -> list[Metadata]:
+def list_books(base: Path, *, sort_output: bool = True) -> list[Metadata]:
     if not base.exists():
         return []
     books: list[Metadata] = []
@@ -125,7 +125,8 @@ def list_books(base: Path) -> list[Metadata]:
             books.append(meta)
         except json.JSONDecodeError:
             continue
-    books.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
+    if sort_output:
+        books.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
     return books
 
 

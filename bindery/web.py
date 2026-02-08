@@ -71,7 +71,7 @@ BOOK_ID_RE = re.compile(r"^[a-f0-9]{32}$")
 DEFAULT_THEME_ID = "default"
 # 显式声明“保持书籍样式”（仅针对 EPUB 导入书籍有意义）；避免用 `None` 产生歧义。
 KEEP_BOOK_THEME_ID = "__book__"
-LIBRARY_PAGE_SIZE = 28
+LIBRARY_PAGE_SIZE = 24
 INGEST_QUEUE_DIR = ".ingest-queue"
 INGEST_STAGE_DIR = ".ingest-stage"
 DOUBAN_REFERER = "https://book.douban.com/"
@@ -1646,17 +1646,19 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 def _library_page_data(base: Path, sort: str, q: str, page: int, read_filter: str) -> dict:
-    books = list_books(base)
+    all_books = list_books(base, sort_output=False)
     selected_read_filter = _normalize_read_filter(read_filter)
-    if q:
-        q_lower = q.lower()
-        books = [
-            book
-            for book in books
-            if (book.title and q_lower in book.title.lower()) or (book.author and q_lower in book.author.lower())
-        ]
-    if selected_read_filter == "unread":
-        books = [book for book in books if not book.read]
+    query_text = q.strip().lower()
+    books = []
+    for book in all_books:
+        if query_text:
+            title = (book.title or "").lower()
+            author = (book.author or "").lower()
+            if query_text not in title and query_text not in author:
+                continue
+        if selected_read_filter == "unread" and book.read:
+            continue
+        books.append(book)
     if sort == "created":
         books.sort(key=lambda item: item.created_at, reverse=True)
     else:

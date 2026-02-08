@@ -8,7 +8,7 @@
   <div data-book-layout="grid" class="flex flex-col h-full">
     <div class="relative aspect-[2/3] bg-slate-100 overflow-hidden">
       {% if book.cover_url %}
-        <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <img data-cover-src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
       {% else %}
         <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
           <div class="w-12 h-12 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500 font-bold text-xl mb-3">B</div>
@@ -91,7 +91,7 @@
       <a href="{{ detail_url }}" class="flex items-stretch gap-4 flex-1 min-w-0 h-full">
         <div class="w-[72px] h-[108px] rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shadow-sm shrink-0">
           {% if book.cover_url %}
-            <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover" loading="lazy" />
+            <img data-cover-src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover" loading="lazy" />
           {% else %}
             <div class="w-full h-full flex items-center justify-center text-slate-500 font-bold text-sm">B</div>
           {% endif %}

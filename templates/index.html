@@ -168,6 +168,17 @@
         if (layout === 'grid') node.classList.toggle('hidden', currentView === 'list');
         if (layout === 'list') node.classList.toggle('hidden', currentView !== 'list');
       });
+      hydrateCoverImages(currentView);
+    }
+
+    function hydrateCoverImages(view) {
+      const library = getLibrary();
+      if (!library) return;
+      library.querySelectorAll(`[data-book-layout="${view}"] img[data-cover-src]`).forEach((img) => {
+        const source = img.dataset.coverSrc;
+        if (!source || img.getAttribute('src')) return;
+        img.setAttribute('src', source);
+      });
     }
 
     function listVisibleBookIds() {

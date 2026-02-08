@@ -8,11 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # 安装基础工具（这一步没问题）
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libjemalloc2 \
+    && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-
-# Use jemalloc as the process allocator to reduce long-tail fragmentation.
-ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 
 # 安装 uv（保持原样，或者用 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv 更快）
 RUN pip install --no-cache-dir uv
