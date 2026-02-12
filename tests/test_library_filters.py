@@ -41,6 +41,39 @@ class LibraryFilterTests(unittest.TestCase):
                 else:
                     os.environ["BINDERY_LIBRARY_DIR"] = prev
 
+    def test_library_page_data_accepts_custom_per_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prev = os.environ.get("BINDERY_LIBRARY_DIR")
+            os.environ["BINDERY_LIBRARY_DIR"] = tmp
+            try:
+                base = library_dir()
+                for idx in range(21):
+                    book_id = f"{idx:032x}"[-32:]
+                    save_metadata(
+                        Metadata(
+                            book_id=book_id,
+                            title=f"书-{idx}",
+                            author="A",
+                            language="zh-CN",
+                            description=None,
+                            updated_at=f"2026-02-06T00:00:{idx:02d}+00:00",
+                        ),
+                        base,
+                    )
+
+                page1 = _library_page_data(base, "updated", "", 1, "all", per_page=20)
+                page2 = _library_page_data(base, "updated", "", 2, "all", per_page=20)
+
+                self.assertEqual(page1["per_page"], 20)
+                self.assertEqual(page1["total_pages"], 2)
+                self.assertEqual(len(page1["books"]), 20)
+                self.assertEqual(len(page2["books"]), 1)
+            finally:
+                if prev is None:
+                    os.environ.pop("BINDERY_LIBRARY_DIR", None)
+                else:
+                    os.environ["BINDERY_LIBRARY_DIR"] = prev
+
     def test_library_page_data_can_filter_unread_books(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             prev = os.environ.get("BINDERY_LIBRARY_DIR")

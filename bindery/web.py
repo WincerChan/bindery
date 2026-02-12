@@ -440,6 +440,10 @@ def _normalize_sort(value: str) -> str:
     return "created" if (value or "").strip().lower() == "created" else "updated"
 
 
+def _normalize_per_page(value: int) -> int:
+    return max(4, min(96, int(value)))
+
+
 def _is_true_flag(value: object) -> bool:
     if isinstance(value, bool):
         return value
@@ -477,6 +481,15 @@ def _edge_bypass_browser_revalidate_headers() -> dict[str, str]:
         "CDN-Cache-Control": "no-store",
         "Cloudflare-CDN-Cache-Control": "no-store",
         "Pragma": "no-cache",
+    }
+
+
+def _cover_browser_cache_headers() -> dict[str, str]:
+    # Cover: browser cache allowed, CDN/edge cache disabled.
+    return {
+        "Cache-Control": "private, max-age=604800, immutable",
+        "CDN-Cache-Control": "no-store",
+        "Cloudflare-CDN-Cache-Control": "no-store",
     }
 
 
@@ -542,13 +555,14 @@ def _search_epub_hits(
     return results, indexed_sections, has_more, next_offset
 
 
-def _library_return_to_url(sort: str, q: str, page: int, read_filter: str) -> str:
+def _library_return_to_url(sort: str, q: str, page: int, read_filter: str, per_page: int) -> str:
     safe_page = max(1, page)
     params = {
         "sort": _normalize_sort(sort),
         "q": q or "",
         "page": str(safe_page),
         "read_filter": _normalize_read_filter(read_filter),
+        "per_page": str(_normalize_per_page(per_page)),
     }
     return f"/?{urllib.parse.urlencode(params)}"
 
@@ -693,7 +707,13 @@ def _book_view(meta: Metadata, base: Path) -> dict:
         "path": str(base / meta.book_id),
     }
     if meta.cover_file and not meta.archived:
-        data["cover_url"] = f"/book/{meta.book_id}/cover"
+        cover_file_path = cover_path(base, meta.book_id, meta.cover_file)
+        cover_version = str(cover_file_path.stat().st_mtime_ns) if cover_file_path.exists() else str(meta.updated_at or "")
+        cover_query = urllib.parse.urlencode({"v": cover_version}) if cover_version else ""
+        cover_url = f"/book/{meta.book_id}/cover"
+        if cover_query:
+            cover_url = f"{cover_url}?{cover_query}"
+        data["cover_url"] = cover_url
     return data
 
 
@@ -1782,9 +1802,10 @@ async def logout(request: Request) -> RedirectResponse:
     return response
 
 
-def _library_page_data(base: Path, sort: str, q: str, page: int, read_filter: str) -> dict:
+def _library_page_data(base: Path, sort: str, q: str, page: int, read_filter: str, per_page: int = LIBRARY_PAGE_SIZE) -> dict:
     all_books = list_books(base, sort_output=False)
     selected_read_filter = _normalize_read_filter(read_filter)
+    effective_per_page = _normalize_per_page(per_page)
     query_text = q.strip().lower()
     books = []
     for book in all_books:
@@ -1802,10 +1823,10 @@ def _library_page_data(base: Path, sort: str, q: str, page: int, read_filter: st
         books.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
 
     total_books = len(books)
-    total_pages = max(1, (total_books + LIBRARY_PAGE_SIZE - 1) // LIBRARY_PAGE_SIZE)
+    total_pages = max(1, (total_books + effective_per_page - 1) // effective_per_page)
     current_page = min(max(1, page), total_pages)
-    start = (current_page - 1) * LIBRARY_PAGE_SIZE
-    page_books = books[start : start + LIBRARY_PAGE_SIZE]
+    start = (current_page - 1) * effective_per_page
+    page_books = books[start : start + effective_per_page]
     view_books = [_book_view(book, base) for book in page_books]
 
     return {
@@ -1818,6 +1839,7 @@ def _library_page_data(base: Path, sort: str, q: str, page: int, read_filter: st
         "prev_page": current_page - 1,
         "next_page": current_page + 1,
         "read_filter": selected_read_filter,
+        "per_page": effective_per_page,
     }
 
 
@@ -1828,11 +1850,18 @@ async def index(
     q: str = "",
     page: int = 1,
     read_filter: str = "all",
+    per_page: int = LIBRARY_PAGE_SIZE,
 ) -> HTMLResponse:
     base = library_dir()
     selected_sort = _normalize_sort(sort)
-    payload = _library_page_data(base, selected_sort, q, page, read_filter)
-    return_to = _library_return_to_url(selected_sort, q, payload["page"], payload["read_filter"])
+    payload = _library_page_data(base, selected_sort, q, page, read_filter, per_page)
+    return_to = _library_return_to_url(
+        selected_sort,
+        q,
+        payload["page"],
+        payload["read_filter"],
+        payload["per_page"],
+    )
     return templates.TemplateResponse(
         "index.html",
         {"request": request, "sort": selected_sort, "q": q, "return_to": return_to, **payload},
@@ -2165,11 +2194,18 @@ async def library_partial(
     q: str = "",
     page: int = 1,
     read_filter: str = "all",
+    per_page: int = LIBRARY_PAGE_SIZE,
 ) -> HTMLResponse:
     base = library_dir()
     selected_sort = _normalize_sort(sort)
-    payload = _library_page_data(base, selected_sort, q, page, read_filter)
-    return_to = _library_return_to_url(selected_sort, q, payload["page"], payload["read_filter"])
+    payload = _library_page_data(base, selected_sort, q, page, read_filter, per_page)
+    return_to = _library_return_to_url(
+        selected_sort,
+        q,
+        payload["page"],
+        payload["read_filter"],
+        payload["per_page"],
+    )
     return templates.TemplateResponse(
         "partials/library_section.html",
         {"request": request, "sort": selected_sort, "q": q, "return_to": return_to, **payload},
@@ -2290,7 +2326,7 @@ async def cover(book_id: str) -> FileResponse:
     path = cover_path(base, book_id, meta.cover_file)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Cover missing")
-    return FileResponse(path, headers=_edge_bypass_browser_revalidate_headers())
+    return FileResponse(path, headers=_cover_browser_cache_headers())
 
 
 @app.post("/book/{book_id}/cover/upload")

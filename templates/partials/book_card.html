@@ -35,7 +35,7 @@
         </div>
       {% endif %}
 
-      <div class="absolute top-3 right-3 z-20">
+      <div data-book-select-wrap class="hidden absolute top-3 right-3 z-20">
         <input
           type="checkbox"
           value="{{ book.book_id }}"
@@ -79,7 +79,7 @@
 
   <div data-book-layout="list" class="hidden">
     <div class="flex flex-col sm:flex-row sm:items-stretch gap-4 sm:h-[108px]">
-      <div class="flex items-center pl-3 sm:pl-4">
+      <div data-book-select-wrap class="hidden flex items-center pl-3 sm:pl-4">
         <input
           type="checkbox"
           value="{{ book.book_id }}"

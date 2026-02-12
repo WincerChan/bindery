@@ -42,11 +42,12 @@
       </select>
       <input type="hidden" name="read_filter" value="{{ read_filter }}" />
       <a
-        href="/?sort={{ sort }}&q={{ q|urlencode }}&read_filter={{ 'all' if read_filter == 'unread' else 'unread' }}"
+        href="/?sort={{ sort }}&q={{ q|urlencode }}&read_filter={{ 'all' if read_filter == 'unread' else 'unread' }}&per_page={{ per_page }}"
         data-read-filter-toggle
         class="h-9 px-3 inline-flex items-center justify-center rounded-lg border text-sm font-medium transition-colors cursor-pointer {{ 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' if read_filter == 'unread' else 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50' }}"
       >{{ '未读过滤：开' if read_filter == 'unread' else '仅看未读' }}</a>
       <input type="hidden" name="page" value="{{ page }}" data-page-input />
+      <input type="hidden" name="per_page" value="{{ per_page }}" data-per-page-input />
 
       <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200" data-view-toggle>
         <button
@@ -95,8 +96,13 @@
     <div class="flex items-center gap-3 text-sm">
       <span class="font-medium text-slate-800">毗连设置</span>
       <span class="text-slate-500">已选 <span data-selected-count>0</span> 本</span>
+      <button
+        type="button"
+        data-bulk-mode-toggle
+        class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+      >进入多选</button>
     </div>
-    <div class="flex flex-wrap items-center gap-2">
+    <div data-bulk-actions class="hidden flex flex-wrap items-center gap-2">
       <button
         type="button"
         data-bulk-select-all
@@ -143,8 +149,15 @@
     const bulkDownloadForm = document.getElementById('bulk-download-form');
     const bulkArchiveForm = document.getElementById('bulk-archive-form');
     const pageInput = document.querySelector('[data-page-input]');
+    const perPageInput = document.querySelector('[data-per-page-input]');
+    const readFilterInput = document.querySelector('#library-controls input[name="read_filter"]');
+    const readFilterToggle = document.querySelector('[data-read-filter-toggle]');
+    const bulkModeToggleBtn = document.querySelector('[data-bulk-mode-toggle]');
+    const bulkActions = document.querySelector('[data-bulk-actions]');
     const selectedBookIds = new Set();
     let currentView = localStorage.getItem('bindery-view') || 'grid';
+    let multiSelectMode = false;
+    const GRID_ROWS_PER_PAGE = 4;
 
     function getLibrary() {
       return document.getElementById('library');
@@ -156,6 +169,59 @@
       if (!section) return;
       const page = (section.dataset.page || '').trim();
       if (page) pageInput.value = page;
+    }
+
+    function updateReadFilterLink() {
+      if (!readFilterToggle) return;
+      const params = new URLSearchParams();
+      params.set('sort', sortSelect ? sortSelect.value : 'updated');
+      params.set('q', searchInput ? searchInput.value : '');
+      params.set('read_filter', readFilterInput && readFilterInput.value === 'unread' ? 'all' : 'unread');
+      if (perPageInput && perPageInput.value) params.set('per_page', perPageInput.value);
+      readFilterToggle.setAttribute('href', `/?${params.toString()}`);
+    }
+
+    function computeGridColumnCount() {
+      const library = getLibrary();
+      if (!library) return 0;
+      const computed = window.getComputedStyle(library);
+      const template = (computed.gridTemplateColumns || '').trim();
+      const gap = Number.parseFloat(computed.columnGap || computed.gap || '20') || 20;
+      const width = library.clientWidth || 0;
+      let columns = 0;
+      if (template && template !== 'none') {
+        columns = template.split(/\s+/).filter(Boolean).length;
+      }
+      if (columns <= 0 && width > 0) {
+        columns = Math.max(1, Math.floor((width + gap) / (180 + gap)));
+      }
+      return Math.max(1, columns);
+    }
+
+    function syncPerPageForGrid() {
+      if (!perPageInput) return false;
+      const columns = computeGridColumnCount();
+      const next = Math.max(4, columns * GRID_ROWS_PER_PAGE);
+      if (String(next) === String(perPageInput.value || '')) return false;
+      perPageInput.value = String(next);
+      updateReadFilterLink();
+      return true;
+    }
+
+    function refreshLibraryByControls(pageValue = '1') {
+      if (!window.htmx) return;
+      const values = {
+        sort: sortSelect ? sortSelect.value : 'updated',
+        q: searchInput ? searchInput.value : '',
+        read_filter: readFilterInput ? readFilterInput.value : 'all',
+        page: String(pageValue),
+      };
+      if (perPageInput && perPageInput.value) values.per_page = perPageInput.value;
+      window.htmx.ajax('GET', '/library', {
+        target: '#library-section',
+        swap: 'outerHTML',
+        values,
+      });
     }
 
     function applyLibraryView(view) {
@@ -224,9 +290,27 @@
       syncHiddenIds(bulkArchiveForm);
       const count = selectedBookIds.size;
       if (selectedCount) selectedCount.textContent = String(count);
-      const disabled = count === 0;
+      const disabled = count === 0 || !multiSelectMode;
       if (bulkDownloadBtn) bulkDownloadBtn.disabled = disabled;
       if (bulkArchiveBtn) bulkArchiveBtn.disabled = disabled;
+    }
+
+    function applyMultiSelectMode(enabled) {
+      multiSelectMode = Boolean(enabled);
+      const library = getLibrary();
+      if (library) {
+        library.querySelectorAll('[data-book-select-wrap]').forEach((node) => {
+          node.classList.toggle('hidden', !multiSelectMode);
+        });
+      }
+      if (bulkActions) bulkActions.classList.toggle('hidden', !multiSelectMode);
+      if (bulkModeToggleBtn) {
+        bulkModeToggleBtn.textContent = multiSelectMode ? '退出多选' : '进入多选';
+      }
+      if (!multiSelectMode) {
+        selectedBookIds.clear();
+      }
+      syncBulkUi();
     }
 
     if (viewToggle) {
@@ -247,6 +331,7 @@
     document.body.addEventListener('change', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement) || !target.matches('[data-book-select]')) return;
+      if (!multiSelectMode) return;
       const bookId = (target.value || '').trim();
       if (!bookId) return;
       if (target.checked) selectedBookIds.add(bookId);
@@ -256,6 +341,7 @@
 
     if (selectAllBtn) {
       selectAllBtn.addEventListener('click', () => {
+        if (!multiSelectMode) return;
         listVisibleBookIds().forEach((bookId) => selectedBookIds.add(bookId));
         syncBulkUi();
       });
@@ -263,6 +349,7 @@
 
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
+        if (!multiSelectMode) return;
         selectedBookIds.clear();
         syncBulkUi();
       });
@@ -270,13 +357,19 @@
 
     if (bulkDownloadForm) {
       bulkDownloadForm.addEventListener('submit', (event) => {
-        if (selectedBookIds.size === 0) event.preventDefault();
+        if (!multiSelectMode || selectedBookIds.size === 0) event.preventDefault();
       });
     }
 
     if (bulkArchiveForm) {
       bulkArchiveForm.addEventListener('submit', (event) => {
-        if (selectedBookIds.size === 0) event.preventDefault();
+        if (!multiSelectMode || selectedBookIds.size === 0) event.preventDefault();
+      });
+    }
+
+    if (bulkModeToggleBtn) {
+      bulkModeToggleBtn.addEventListener('click', () => {
+        applyMultiSelectMode(!multiSelectMode);
       });
     }
 
@@ -285,23 +378,46 @@
     if (searchInput && pageInput) {
       searchInput.addEventListener('input', () => {
         pageInput.value = '1';
+        updateReadFilterLink();
       });
     }
     if (sortSelect && pageInput) {
       sortSelect.addEventListener('change', () => {
         pageInput.value = '1';
+        updateReadFilterLink();
       });
     }
+
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      if (currentView !== 'grid') return;
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        if (syncPerPageForGrid()) {
+          if (pageInput) pageInput.value = '1';
+          refreshLibraryByControls('1');
+        }
+      }, 180);
+    });
 
     document.body.addEventListener('htmx:afterSwap', (event) => {
       if (event.target && event.target.id === 'library-section') {
         syncPageInputFromSection();
         applyLibraryView(currentView);
+        syncPerPageForGrid();
+        applyMultiSelectMode(multiSelectMode);
         syncBulkUi();
       }
     });
 
     syncPageInputFromSection();
+    updateReadFilterLink();
+    applyMultiSelectMode(false);
+    if (currentView === 'grid' && syncPerPageForGrid()) {
+      if (pageInput) pageInput.value = '1';
+      refreshLibraryByControls('1');
+      return;
+    }
     syncBulkUi();
   })();
 </script>
