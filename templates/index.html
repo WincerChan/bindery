@@ -306,12 +306,29 @@
       if (bulkArchiveBtn) bulkArchiveBtn.disabled = disabled;
     }
 
+    function toggleBookSelectionById(bookId) {
+      const normalizedId = (bookId || '').trim();
+      if (!normalizedId) return;
+      if (selectedBookIds.has(normalizedId)) selectedBookIds.delete(normalizedId);
+      else selectedBookIds.add(normalizedId);
+      syncBulkUi();
+    }
+
     function applyMultiSelectMode(enabled) {
       multiSelectMode = Boolean(enabled);
       const library = getLibrary();
       if (library) {
         library.querySelectorAll('[data-book-select-wrap]').forEach((node) => {
           node.classList.toggle('hidden', !multiSelectMode);
+        });
+        library.querySelectorAll('[data-book-detail-link]').forEach((node) => {
+          node.classList.toggle('pointer-events-none', multiSelectMode);
+          node.setAttribute('aria-disabled', multiSelectMode ? 'true' : 'false');
+          if (multiSelectMode) node.setAttribute('tabindex', '-1');
+          else node.removeAttribute('tabindex');
+        });
+        library.querySelectorAll('[data-book-hover-actions]').forEach((node) => {
+          node.classList.toggle('hidden', multiSelectMode);
         });
       }
       if (bulkActions) bulkActions.classList.toggle('hidden', !multiSelectMode);
@@ -349,6 +366,19 @@
       if (target.checked) selectedBookIds.add(bookId);
       else selectedBookIds.delete(bookId);
       syncBulkUi();
+    });
+
+    document.body.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !multiSelectMode) return;
+      const card = target.closest('[data-book-card]');
+      if (!card) return;
+      if (target.closest('[data-book-select]')) return;
+      if (target.closest('a,button,form,label,input,select,textarea')) return;
+      const bookId = (card.dataset.bookId || '').trim();
+      if (!bookId) return;
+      event.preventDefault();
+      toggleBookSelectionById(bookId);
     });
 
     if (selectAllBtn) {

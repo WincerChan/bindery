@@ -4,6 +4,7 @@
   class="book-card group bg-white rounded-xl shadow-sm hover:shadow-md border border-slate-200 overflow-hidden transition-shadow flex flex-col"
   id="book-{{ book.book_id }}"
   data-book-id="{{ book.book_id }}"
+  data-book-card
 >
   <div data-book-layout="grid" class="flex flex-col h-full">
     <div class="relative aspect-[2/3] bg-slate-100 overflow-hidden">
@@ -47,11 +48,12 @@
 
       <a
         href="{{ detail_url }}"
+        data-book-detail-link
         class="absolute inset-0 z-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
         aria-label="打开详情"
       ></a>
 
-      <div class="absolute inset-x-0 bottom-0 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
+      <div data-book-hover-actions class="absolute inset-x-0 bottom-0 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
         <div class="p-3 bg-gradient-to-t from-slate-900/70 via-slate-900/20 to-transparent">
           <div class="grid grid-cols-2 gap-2">
             <a
@@ -70,7 +72,7 @@
       </div>
     </div>
 
-    <a href="{{ detail_url }}" class="block p-3 flex-1 flex flex-col focus:outline-none focus:ring-2 focus:ring-indigo-500/50" aria-label="打开详情">
+    <a href="{{ detail_url }}" data-book-detail-link class="block p-3 flex-1 flex flex-col focus:outline-none focus:ring-2 focus:ring-indigo-500/50" aria-label="打开详情">
       <div class="mb-1">
         <h3 class="text-sm font-semibold text-slate-900 truncate" title="{{ book.title }}">{{ book.title }}</h3>
       </div>
@@ -88,7 +90,7 @@
           class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
         />
       </div>
-      <a href="{{ detail_url }}" class="flex min-w-0 flex-1 items-start gap-2.5 sm:items-stretch sm:gap-4 sm:h-full">
+      <a href="{{ detail_url }}" data-book-detail-link class="flex min-w-0 flex-1 items-start gap-2.5 sm:items-stretch sm:gap-4 sm:h-full">
         <div class="w-[44px] h-[66px] sm:w-[72px] sm:h-[108px] rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shadow-sm shrink-0">
           {% if book.cover_url %}
             <img data-cover-src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover" loading="lazy" />
