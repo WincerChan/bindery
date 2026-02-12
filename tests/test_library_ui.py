@@ -36,6 +36,8 @@ class LibraryUiTests(unittest.TestCase):
         tpl = (root / "templates" / "partials" / "book_card.html").read_text(encoding="utf-8")
         self.assertIn('data-book-layout="grid"', tpl)
         self.assertIn('data-book-layout="list"', tpl)
+        self.assertIn("sm:w-[72px]", tpl)
+        self.assertIn("grid grid-cols-3 gap-2", tpl)
         self.assertIn("data-book-select", tpl)
         self.assertIn("data-book-select-wrap", tpl)
         self.assertIn('href="{{ preview_url }}"', tpl)
@@ -50,6 +52,9 @@ class LibraryUiTests(unittest.TestCase):
         self.assertIn("gap-5", section)
         self.assertIn("grid-cols-auto-180", section)
         self.assertIn("data-[view=list]:!grid-cols-1", section)
+        self.assertIn("hidden md:flex bg-slate-100", index)
+        self.assertIn("window.matchMedia('(max-width: 767px)')", index)
+        self.assertIn("isMobileViewport() ? 'list'", index)
 
     def test_index_has_bulk_actions(self) -> None:
         root = Path(__file__).resolve().parent.parent

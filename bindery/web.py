@@ -3038,8 +3038,7 @@ async def delete_book(request: Request, book_id: str, next: str = Form("")) -> H
     return RedirectResponse(url=target, status_code=303)
 
 
-@app.get("/jobs", response_class=HTMLResponse)
-async def jobs_view(request: Request, tab: str = "running", page: int = 1) -> HTMLResponse:
+def _jobs_page_payload(tab: str, page: int) -> dict[str, object]:
     selected_tab = tab if tab in {"running", "success", "failed"} else "running"
     selected_page = max(1, page)
     base = library_dir()
@@ -3064,17 +3063,37 @@ async def jobs_view(request: Request, tab: str = "running", page: int = 1) -> HT
     start = (selected_page - 1) * page_size
     page_jobs = selected_jobs[start : start + page_size]
     invalid_job_count = len(_invalid_job_ids(all_jobs, meta_index))
+    return {
+        "jobs": page_jobs,
+        "tabs": tabs,
+        "active_tab": selected_tab,
+        "page": selected_page,
+        "total_pages": total_pages,
+        "total_jobs": total_jobs,
+        "invalid_job_count": invalid_job_count,
+    }
+
+
+@app.get("/jobs", response_class=HTMLResponse)
+async def jobs_view(request: Request, tab: str = "running", page: int = 1) -> HTMLResponse:
+    payload = _jobs_page_payload(tab, page)
     return templates.TemplateResponse(
         "jobs.html",
         {
             "request": request,
-            "jobs": page_jobs,
-            "tabs": tabs,
-            "active_tab": selected_tab,
-            "page": selected_page,
-            "total_pages": total_pages,
-            "total_jobs": total_jobs,
-            "invalid_job_count": invalid_job_count,
+            **payload,
+        },
+    )
+
+
+@app.get("/jobs/partial", response_class=HTMLResponse)
+async def jobs_partial(request: Request, tab: str = "running", page: int = 1) -> HTMLResponse:
+    payload = _jobs_page_payload(tab, page)
+    return templates.TemplateResponse(
+        "partials/jobs_section.html",
+        {
+            "request": request,
+            **payload,
         },
     )
 

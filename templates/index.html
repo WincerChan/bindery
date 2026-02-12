@@ -49,7 +49,7 @@
       <input type="hidden" name="page" value="{{ page }}" data-page-input />
       <input type="hidden" name="per_page" value="{{ per_page }}" data-per-page-input />
 
-      <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200" data-view-toggle>
+      <div class="hidden md:flex bg-slate-100 p-1 rounded-lg border border-slate-200" data-view-toggle>
         <button
           type="button"
           class="toggle-btn p-1.5 rounded text-slate-500 hover:text-slate-700 transition-colors cursor-pointer [&.active]:bg-white [&.active]:shadow-sm [&.active]:text-indigo-600"
@@ -155,7 +155,9 @@
     const bulkModeToggleBtn = document.querySelector('[data-bulk-mode-toggle]');
     const bulkActions = document.querySelector('[data-bulk-actions]');
     const selectedBookIds = new Set();
-    let currentView = localStorage.getItem('bindery-view') || 'grid';
+    const mobileMediaQuery = window.matchMedia('(max-width: 767px)');
+    const isMobileViewport = () => mobileMediaQuery.matches;
+    let currentView = isMobileViewport() ? 'list' : (localStorage.getItem('bindery-view') || 'grid');
     let multiSelectMode = false;
     const GRID_ROWS_PER_PAGE = 4;
 
@@ -227,7 +229,7 @@
     function applyLibraryView(view) {
       const library = getLibrary();
       if (!library) return;
-      currentView = view || 'grid';
+      currentView = isMobileViewport() ? 'list' : (view || 'grid');
       library.dataset.view = currentView;
       library.querySelectorAll('[data-book-layout]').forEach((node) => {
         const layout = node.dataset.bookLayout;
@@ -235,6 +237,15 @@
         if (layout === 'list') node.classList.toggle('hidden', currentView !== 'list');
       });
       hydrateCoverImages(currentView);
+    }
+
+    function syncViewportPreferredView() {
+      if (isMobileViewport()) {
+        applyLibraryView('list');
+        return;
+      }
+      const preferred = localStorage.getItem('bindery-view') || currentView || 'grid';
+      applyLibraryView(preferred);
     }
 
     function hydrateCoverImages(view) {
@@ -318,6 +329,7 @@
       viewToggle.querySelectorAll('.toggle-btn').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.view === currentView);
         btn.addEventListener('click', () => {
+          if (isMobileViewport()) return;
           const view = btn.dataset.view || 'grid';
           applyLibraryView(view);
           localStorage.setItem('bindery-view', view);
@@ -390,6 +402,13 @@
 
     let resizeTimer = null;
     window.addEventListener('resize', () => {
+      if (isMobileViewport()) {
+        if (currentView !== 'list') {
+          applyLibraryView('list');
+          syncBulkUi();
+        }
+        return;
+      }
       if (currentView !== 'grid') return;
       if (resizeTimer) window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
@@ -399,6 +418,21 @@
         }
       }, 180);
     });
+
+    const onViewportChange = () => {
+      syncViewportPreferredView();
+      if (viewToggle) {
+        viewToggle.querySelectorAll('.toggle-btn').forEach((node) => {
+          node.classList.toggle('active', node.dataset.view === currentView);
+        });
+      }
+      syncBulkUi();
+    };
+    if (typeof mobileMediaQuery.addEventListener === 'function') {
+      mobileMediaQuery.addEventListener('change', onViewportChange);
+    } else if (typeof mobileMediaQuery.addListener === 'function') {
+      mobileMediaQuery.addListener(onViewportChange);
+    }
 
     document.body.addEventListener('htmx:afterSwap', (event) => {
       if (event.target && event.target.id === 'library-section') {
@@ -413,6 +447,7 @@
     syncPageInputFromSection();
     updateReadFilterLink();
     applyMultiSelectMode(false);
+    syncViewportPreferredView();
     if (currentView === 'grid' && syncPerPageForGrid()) {
       if (pageInput) pageInput.value = '1';
       refreshLibraryByControls('1');

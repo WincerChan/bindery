@@ -65,14 +65,18 @@ class WebRoutesTests(unittest.TestCase):
     def test_jobs_template_uses_tabs_and_list_layout(self) -> None:
         root = Path(__file__).resolve().parent.parent
         jobs = (root / "templates" / "jobs.html").read_text(encoding="utf-8")
-        self.assertIn('href="/jobs?tab={{ tab.key }}&page=1"', jobs)
-        self.assertIn("job.book_title", jobs)
-        self.assertIn("job.book_author", jobs)
-        self.assertIn("job.action_label", jobs)
-        self.assertIn("作者：{{ job.book_author }}", jobs)
-        self.assertIn("清空失效历史任务", jobs)
-        self.assertIn('action="/jobs/cleanup-invalid"', jobs)
-        self.assertIn("第 {{ page }} / {{ total_pages }} 页", jobs)
+        section = (root / "templates" / "partials" / "jobs_section.html").read_text(encoding="utf-8")
+        self.assertIn('{% include "partials/jobs_section.html" %}', jobs)
+        self.assertIn('hx-get="/jobs/partial"', section)
+        self.assertIn('hx-trigger="every 5s"', section)
+        self.assertIn('href="/jobs?tab={{ tab.key }}&page=1"', section)
+        self.assertIn("job.book_title", section)
+        self.assertIn("job.book_author", section)
+        self.assertIn("job.action_label", section)
+        self.assertIn("作者：{{ job.book_author }}", section)
+        self.assertIn("清空失效历史任务", section)
+        self.assertIn('action="/jobs/cleanup-invalid"', section)
+        self.assertIn("第 {{ page }} / {{ total_pages }} 页", section)
 
     def test_jobs_cleanup_route_registered(self) -> None:
         seen: set[tuple[str, str]] = set()
@@ -83,6 +87,16 @@ class WebRoutesTests(unittest.TestCase):
                 for method in methods:
                     seen.add((method, path))
         self.assertIn(("POST", "/jobs/cleanup-invalid"), seen)
+
+    def test_jobs_partial_route_registered(self) -> None:
+        seen: set[tuple[str, str]] = set()
+        for route in app.routes:
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None) or set()
+            if path == "/jobs/partial":
+                for method in methods:
+                    seen.add((method, path))
+        self.assertIn(("GET", "/jobs/partial"), seen)
 
     def test_library_route_registered(self) -> None:
         seen: set[tuple[str, str]] = set()
