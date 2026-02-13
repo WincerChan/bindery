@@ -73,7 +73,6 @@ from .storage import (
     library_dir,
     list_archived_books,
     list_books,
-    load_book,
     load_metadata,
     new_book_id,
     save_book,
@@ -340,18 +339,6 @@ def _find_first_duplicate_meta(
         if _match_duplicate_reason(title, author, isbn, existing):
             return existing
     return None
-
-
-def _book_sections(book: Book) -> list[dict]:
-    sections: list[dict] = []
-    if book.intro:
-        sections.append({"title": "简介", "lines": book.intro.splitlines(), "type": "简介"})
-    for item in book.spine:
-        if isinstance(item, Volume):
-            sections.append({"title": item.title, "lines": list(item.lines), "type": "卷"})
-        else:
-            sections.append({"title": item.title, "lines": list(item.lines), "type": "章"})
-    return sections
 
 
 def _toc_preview(book: Book, limit: int = 10) -> list[str]:
@@ -667,6 +654,37 @@ def _book_epub_needs_css_sync(epub_file: Path, meta: Metadata) -> bool:
         return _normalize_css_text(actual) != _normalize_css_text(css_text)
 
 
+def _resolve_rule_for_meta(meta: Metadata):
+    rule_id = (meta.rule_template or "default").strip() or "default"
+    try:
+        return get_rule(rule_id)
+    except RuleTemplateError:
+        return get_rule("default")
+
+
+def _build_txt_epub_from_source(base: Path, meta: Metadata, cover_path_obj: Optional[Path]) -> Book:
+    if meta.source_type == "epub":
+        raise ValueError("EPUB source cannot be rebuilt from TXT source")
+    src = source_path(base, meta.book_id)
+    if not src.exists():
+        existing_epub = epub_path(base, meta.book_id)
+        if existing_epub.exists():
+            update_epub_metadata(
+                existing_epub,
+                meta,
+                cover_path_obj,
+                css_text=_compose_css_text(meta),
+                strip_webp_assets=True,
+            )
+            return Book(title=meta.title, author=meta.author, intro=meta.description)
+        raise FileNotFoundError("Source missing")
+    rule = _resolve_rule_for_meta(meta)
+    book = parse_book_file(src, meta.book_id, rule.rules)
+    build_epub(book, meta, epub_path(base, meta.book_id), cover_path_obj, css_text=_compose_css_text(meta))
+    save_book(book, base, meta.book_id)
+    return book
+
+
 def _ensure_book_epub_css(base: Path, meta: Metadata) -> None:
     epub_file = epub_path(base, meta.book_id)
     if not epub_file.exists():
@@ -679,9 +697,8 @@ def _ensure_book_epub_css(base: Path, meta: Metadata) -> None:
         # 不覆盖封面：保持 EPUB 本体。
         update_epub_metadata(epub_file, meta, None, css_text=css_text, strip_webp_assets=True)
     else:
-        book = load_book(base, meta.book_id)
         cover_path_obj = cover_path(base, meta.book_id, meta.cover_file) if meta.cover_file else None
-        build_epub(book, meta, epub_file, cover_path_obj, css_text=css_text)
+        _build_txt_epub_from_source(base, meta, cover_path_obj)
 
     _update_meta_synced(meta)
     save_metadata(meta, base)
@@ -735,7 +752,6 @@ def _book_view(meta: Metadata, base: Path) -> dict:
 def _build_edit_draft_view(
     meta: Metadata,
     base: Path,
-    book: Book,
     *,
     title: str,
     author: str,
@@ -753,7 +769,7 @@ def _build_edit_draft_view(
     cover_url: str,
 ) -> dict:
     draft = _book_view(meta, base)
-    draft["title"] = title.strip() or book.title or meta.title or "未命名"
+    draft["title"] = title.strip() or meta.title or "未命名"
     draft["author"] = author.strip() or None
     draft["language"] = language.strip() or "zh-CN"
     draft["description"] = description.strip() or None
@@ -1721,7 +1737,6 @@ def _run_edit_writeback(
     try:
         _update_job(job.id, stage="写元数据")
         meta = load_metadata(base, book_id)
-        book = load_book(base, book_id)
         cover_changed = False
         cover_path_obj: Optional[Path] = None
 
@@ -1764,7 +1779,7 @@ def _run_edit_writeback(
                 strip_webp_assets=True,
             )
         else:
-            build_epub(book, meta, epub_file, cover_path_obj, css_text=_compose_css_text(meta))
+            _build_txt_epub_from_source(base, meta, cover_path_obj)
 
         _update_job(job.id, stage="刷新封面")
         extracted_cover = None
@@ -2292,8 +2307,6 @@ async def book_detail(request: Request, book_id: str) -> HTMLResponse:
     return_to = _safe_internal_redirect_target(request.query_params.get("return_to", ""), "/")
     return_to_query = f"?return_to={urllib.parse.quote(return_to, safe='')}" if return_to != "/" else ""
     meta = load_metadata(base, book_id)
-    book = load_book(base, book_id)
-    sections = _book_sections(book)
     rules = load_rule_templates()
     themes = load_theme_templates()
     return templates.TemplateResponse(
@@ -2301,7 +2314,7 @@ async def book_detail(request: Request, book_id: str) -> HTMLResponse:
         {
             "request": request,
             "book": _book_view(meta, base),
-            "sections": sections,
+            "sections": [],
             "book_id": book_id,
             "rules": rules,
             "themes": themes,
@@ -2414,8 +2427,7 @@ async def upload_cover(request: Request, book_id: str, cover: UploadFile = File(
             strip_webp_assets=True,
         )
     else:
-        book = load_book(base, book_id)
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=_compose_css_text(meta))
+        _build_txt_epub_from_source(base, meta, cover_path_obj)
     _update_meta_synced(meta)
     save_metadata(meta, base)
 
@@ -2453,8 +2465,7 @@ async def upload_cover_url(
             strip_webp_assets=True,
         )
     else:
-        book = load_book(base, book_id)
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=_compose_css_text(meta))
+        _build_txt_epub_from_source(base, meta, cover_path_obj)
     _update_meta_synced(meta)
     save_metadata(meta, base)
     return RedirectResponse(url=f"/book/{book_id}", status_code=303)
@@ -2484,8 +2495,7 @@ async def extract_cover_view(book_id: str) -> RedirectResponse:
             strip_webp_assets=True,
         )
     else:
-        book = load_book(base, book_id)
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=_compose_css_text(meta))
+        _build_txt_epub_from_source(base, meta, cover_path_obj)
     _update_meta_synced(meta)
     save_metadata(meta, base)
     return RedirectResponse(url=f"/book/{book_id}", status_code=303)
@@ -2685,7 +2695,6 @@ async def fetch_metadata(
     safe_return_to = _safe_internal_redirect_target(return_to, "/")
     return_to_query = f"?return_to={urllib.parse.quote(safe_return_to, safe='')}" if safe_return_to != "/" else ""
     meta = load_metadata(base, book_id)
-    book = load_book(base, book_id)
 
     rules = load_rule_templates()
     themes = load_theme_templates()
@@ -2695,7 +2704,6 @@ async def fetch_metadata(
     draft_book = _build_edit_draft_view(
         meta,
         base,
-        book,
         title=title,
         author=author,
         language=language,
@@ -2878,10 +2886,9 @@ async def save_edit(
     safe_return_to = _safe_internal_redirect_target(return_to, "/")
     return_to_query = f"?return_to={urllib.parse.quote(safe_return_to, safe='')}" if safe_return_to != "/" else ""
     meta = load_metadata(base, book_id)
-    book = load_book(base, book_id)
     strip_original_css_enabled = _is_true_flag(strip_original_css)
 
-    meta.title = title.strip() or book.title or "未命名"
+    meta.title = title.strip() or meta.title or "未命名"
     meta.author = author.strip() or None
     meta.language = language.strip() or "zh-CN"
     meta.description = description.strip() or None
