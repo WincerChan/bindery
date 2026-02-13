@@ -137,11 +137,12 @@ class WebRoutesTests(unittest.TestCase):
         for route in app.routes:
             path = getattr(route, "path", None)
             methods = getattr(route, "methods", None) or set()
-            if path in {"/books/archive", "/books/download"}:
+            if path in {"/books/archive", "/books/download", "/books/regenerate"}:
                 for method in methods:
                     seen.add((method, path))
         self.assertIn(("POST", "/books/archive"), seen)
         self.assertIn(("POST", "/books/download"), seen)
+        self.assertIn(("POST", "/books/regenerate"), seen)
 
     def test_read_status_route_registered(self) -> None:
         seen: set[tuple[str, str]] = set()

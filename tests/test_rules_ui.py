@@ -12,6 +12,9 @@ class RulesUiTests(unittest.TestCase):
         self.assertIn("'/rules/' + ruleId + '/delete'", tpl)
         self.assertIn('action="/themes/new"', tpl)
         self.assertIn("'/themes/' + themeId + '/delete'", tpl)
+        self.assertIn('action="/books/regenerate"', tpl)
+        self.assertIn('name="scope"', tpl)
+        self.assertIn('name="template_id"', tpl)
 
         # Rule editor (HTMX loaded)
         self.assertIn('id="rule-editor"', tpl)

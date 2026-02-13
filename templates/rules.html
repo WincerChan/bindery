@@ -112,6 +112,21 @@
           >删除样式</button>
         </form>
       </div>
+      <form
+        action="/books/regenerate"
+        method="post"
+        class="mt-2"
+        onsubmit="return confirm('将按当前模板批量重建匹配书籍并进入任务队列，继续吗？');"
+      >
+        <input type="hidden" name="scope" :value="tab" />
+        <input type="hidden" name="template_id" :value="tab === 'themes' ? themeId : ruleId" />
+        <button
+          type="submit"
+          class="w-full py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+        >
+          一键批量重建（当前模板）
+        </button>
+      </form>
     </div>
   </div>
 

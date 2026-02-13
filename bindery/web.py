@@ -1108,6 +1108,37 @@ def _create_job(action: str, book_id: Optional[str], rule_template: Optional[str
     return job
 
 
+def _enqueue_regenerate_job(book_id: str, rule_template: str) -> Job:
+    job = _create_job("regenerate", book_id, rule_template)
+    _update_job(job.id, stage="排队中", message="等待后台处理")
+    _ingest_queue.put(
+        {
+            "job_id": job.id,
+            "kind": "regenerate",
+            "book_id": book_id,
+            "rule_template": rule_template,
+        }
+    )
+    return job
+
+
+def _enqueue_edit_writeback_job(book_id: str, rule_template: Optional[str]) -> Job:
+    job = _create_job("edit-writeback", book_id, rule_template)
+    _update_job(job.id, stage="排队中", message="等待后台处理")
+    _ingest_queue.put(
+        {
+            "job_id": job.id,
+            "kind": "edit-writeback",
+            "book_id": book_id,
+            "cover_bytes": None,
+            "cover_name": None,
+            "cover_url": "",
+            "strip_original_css": False,
+        }
+    )
+    return job
+
+
 def _update_job(job_id: str, **fields: object) -> None:
     fields["updated_at"] = _now_iso()
     update_job(job_id, **fields)
@@ -1340,6 +1371,20 @@ def _process_queued_ingest_task(task: dict) -> None:
                 cover_url=cover_url,
                 strip_original_css=strip_original_css,
             )
+        except Exception:
+            current = get_job(job_id)
+            if current and current.status == "running":
+                _update_job(job_id, status="failed", stage="失败", message="后台处理失败", log=traceback.format_exc())
+        return
+
+    if kind == "regenerate":
+        book_id = str(task.get("book_id") or job.book_id or "").strip()
+        if not book_id:
+            _update_job(job_id, status="failed", stage="失败", message="缺少书籍 ID")
+            return
+        rule_template = str(task.get("rule_template") or job.rule_template or "default").strip() or "default"
+        try:
+            _run_regenerate(job, base, book_id, rule_template)
         except Exception:
             current = get_job(job_id)
             if current and current.status == "running":
@@ -2388,6 +2433,53 @@ async def download_bulk(book_ids: list[str] = Form([])) -> Response:
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{bundle_name}"'},
     )
+
+
+@app.post("/books/regenerate")
+async def regenerate_bulk(
+    scope: str = Form("parsing"),
+    template_id: str = Form(""),
+) -> RedirectResponse:
+    base = library_dir()
+    selected_scope = "themes" if scope.strip().lower() == "themes" else "parsing"
+    selected_template = template_id.strip()
+    if not selected_template:
+        selected_template = DEFAULT_THEME_ID if selected_scope == "themes" else "default"
+
+    if selected_scope == "themes":
+        _require_theme(selected_template)
+    else:
+        _require_rule_template(selected_template)
+
+    _ensure_ingest_worker_started()
+    queued_count = 0
+    for meta in list_books(base):
+        if selected_scope == "parsing":
+            current_rule = (meta.rule_template or "default").strip() or "default"
+            if current_rule != selected_template:
+                continue
+            if meta.source_type == "epub":
+                continue
+            _enqueue_regenerate_job(meta.book_id, selected_template)
+            queued_count += 1
+            continue
+
+        if _effective_theme_id(meta) != selected_template:
+            continue
+        if meta.source_type == "epub":
+            _enqueue_edit_writeback_job(meta.book_id, meta.rule_template)
+        else:
+            book_rule = (meta.rule_template or "default").strip() or "default"
+            _enqueue_regenerate_job(meta.book_id, book_rule)
+        queued_count += 1
+
+    if queued_count <= 0:
+        tab = "themes" if selected_scope == "themes" else "parsing"
+        key = "theme_id" if selected_scope == "themes" else "rule_id"
+        err = urllib.parse.quote("没有匹配的书籍可批量处理")
+        return RedirectResponse(url=f"/rules?tab={tab}&{key}={selected_template}&error={err}", status_code=303)
+
+    return RedirectResponse(url="/jobs?tab=running", status_code=303)
 
 
 @app.get("/book/{book_id}/cover")
