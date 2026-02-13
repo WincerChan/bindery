@@ -1108,8 +1108,8 @@ def _create_job(action: str, book_id: Optional[str], rule_template: Optional[str
     return job
 
 
-def _enqueue_regenerate_job(book_id: str, rule_template: str) -> Job:
-    job = _create_job("regenerate", book_id, rule_template)
+def _enqueue_regenerate_job(book_id: str, rule_template: str, *, action: str = "regenerate") -> Job:
+    job = _create_job(action, book_id, rule_template)
     _update_job(job.id, stage="排队中", message="等待后台处理")
     _ingest_queue.put(
         {
@@ -1867,26 +1867,54 @@ def _run_regenerate(
         if not src_path.exists():
             raise FileNotFoundError("Source missing")
         rule = get_rule(rule_template)
-        book = parse_book_file(src_path, book_id, rule.rules)
+        book_events = parse_book_file_events(src_path, book_id, rule.rules)
+        first_event = next(book_events, None)
+        if not isinstance(first_event, ParsedBookHeader):
+            raise ValueError("无法解析文本元信息")
+        parsed_header = first_event
+
         meta.rule_template = rule_template
         meta.status = "dirty"
         meta.updated_at = _now_iso()
-        save_book(book, base, book_id)
         save_metadata(meta, base)
 
         _update_job(job.id, stage="生成 EPUB")
         cover_file = meta.cover_file
         cover_path_obj = cover_path(base, book_id, cover_file) if cover_file else None
         css_text = _compose_css_text(meta)
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=css_text)
+        stub_book = Book(title=meta.title, author=meta.author, intro=parsed_header.intro)
+        current_volume: Optional[Volume] = None
+
+        def stream_sections() -> Iterable[StreamBuildSection]:
+            nonlocal current_volume
+            for event in book_events:
+                if not isinstance(event, ParsedBookSection):
+                    continue
+                current_volume = _append_stub_section(stub_book, event, current_volume)
+                yield StreamBuildSection(kind=event.kind, title=event.title, lines=event.lines)
+
+        build_epub_from_section_stream(
+            stream_sections=stream_sections(),
+            source_author=parsed_header.author,
+            source_intro=parsed_header.intro,
+            meta=meta,
+            output_path=epub_path(base, book_id),
+            cover_path=cover_path_obj,
+            css_text=css_text,
+        )
+
+        save_book(stub_book, base, book_id)
         _update_meta_synced(meta)
         save_metadata(meta, base)
         _update_job(job.id, status="success", stage="完成", message="完成")
         return meta
     except Exception:
-        meta = load_metadata(base, book_id)
-        _update_meta_failed(meta)
-        save_metadata(meta, base)
+        try:
+            meta = load_metadata(base, book_id)
+            _update_meta_failed(meta)
+            save_metadata(meta, base)
+        except Exception:
+            pass
         _update_job(job.id, status="failed", stage="失败", message="转换失败", log=traceback.format_exc())
         raise
 
@@ -3084,10 +3112,9 @@ async def regenerate(
     meta = load_metadata(base, book_id)
     if meta.source_type == "epub":
         raise HTTPException(status_code=400, detail="EPUB 导入的书籍无法重新生成")
-    job = _create_job("regenerate", book_id, rule_template)
-    _run_regenerate(job, base, book_id, rule_template)
-    target = _safe_internal_redirect_target(next, f"/book/{book_id}")
-    return RedirectResponse(url=target, status_code=303)
+    _ensure_ingest_worker_started()
+    _enqueue_regenerate_job(book_id, rule_template, action="regenerate")
+    return RedirectResponse(url="/jobs?tab=running", status_code=303)
 
 
 @app.post("/book/{book_id}/archive")
@@ -3264,9 +3291,9 @@ async def retry_job(job_id: str, rule_template: str = Form("default")) -> Redire
     meta = load_metadata(base, job.book_id)
     if meta.source_type == "epub":
         raise HTTPException(status_code=400, detail="EPUB 导入的书籍无法重试生成")
-    new_job = _create_job("retry", job.book_id, rule_template)
-    _run_regenerate(new_job, base, job.book_id, rule_template)
-    return RedirectResponse(url=f"/jobs", status_code=303)
+    _ensure_ingest_worker_started()
+    _enqueue_regenerate_job(job.book_id, rule_template, action="retry")
+    return RedirectResponse(url="/jobs?tab=running", status_code=303)
 
 
 @app.post("/jobs/cleanup-invalid")
