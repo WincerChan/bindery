@@ -50,7 +50,7 @@ from .epub import (
 )
 from .models import Book, Job, Metadata, Volume
 from .metadata_lookup import USER_AGENT, LookupMetadata, lookup_book_metadata_candidates
-from .parsing import DEFAULT_RULE_CONFIG, decode_text, parse_book
+from .parsing import DEFAULT_RULE_CONFIG, parse_book, parse_book_file, text_file_has_content
 from .rules import RuleTemplateError, get_rule, load_rule_templates, rules_dir, validate_rule_template_json
 from .themes import compose_css, get_theme, load_theme_templates, themes_dir
 from .storage import (
@@ -66,12 +66,11 @@ from .storage import (
     load_book,
     load_metadata,
     new_book_id,
-    read_source_text,
     save_book,
     save_cover_bytes,
     save_metadata,
     source_path,
-    write_source_text,
+    write_source_file,
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -555,7 +554,13 @@ def _search_epub_hits(
     return results, indexed_sections, has_more, next_offset
 
 
-def _library_return_to_url(sort: str, q: str, page: int, read_filter: str, per_page: int) -> str:
+def _library_return_to_url(
+    sort: str,
+    q: str,
+    page: int,
+    read_filter: str,
+    per_page: int = LIBRARY_PAGE_SIZE,
+) -> str:
     safe_page = max(1, page)
     params = {
         "sort": _normalize_sort(sort),
@@ -1401,15 +1406,14 @@ def _process_queued_ingest_task(task: dict) -> None:
             return
 
         if kind == "txt":
-            text = decode_text(payload_path.read_bytes())
-            if not text.strip():
+            if not text_file_has_content(payload_path):
                 _update_job(job_id, status="failed", stage="失败", message=f"{filename}: 文本为空或无法解码", log=None)
                 return
             source_name = Path(filename).stem
             if dedupe_mode == "normalize":
                 try:
                     dedupe_rule = get_rule(rule_template)
-                    dedupe_book = parse_book(text, source_name, dedupe_rule.rules)
+                    dedupe_book = parse_book_file(payload_path, source_name, dedupe_rule.rules)
                     duplicate_meta = _find_first_duplicate_meta(
                         base,
                         title.strip() or dedupe_book.title,
@@ -1432,7 +1436,7 @@ def _process_queued_ingest_task(task: dict) -> None:
             meta = _run_ingest(
                 job,
                 base,
-                text,
+                payload_path,
                 source_name,
                 title,
                 author,
@@ -1487,7 +1491,7 @@ def _ensure_ingest_worker_started() -> None:
 def _run_ingest(
     job: Job,
     base: Path,
-    text: str,
+    source_file: Path,
     source_name: str,
     title: str,
     author: str,
@@ -1509,7 +1513,7 @@ def _run_ingest(
     try:
         rule = get_rule(rule_template)
         _update_job(job.id, stage="预处理")
-        book = parse_book(text, source_name, rule.rules)
+        book = parse_book_file(source_file, source_name, rule.rules)
         _update_job(job.id, stage="写元数据")
 
         book_id = job.book_id or new_book_id()
@@ -1535,7 +1539,7 @@ def _run_ingest(
 
         save_book(book, base, book_id)
         save_metadata(meta, base)
-        write_source_text(base, book_id, text)
+        write_source_file(base, book_id, source_file)
 
         cover_file = None
         if cover_bytes:
@@ -1740,11 +1744,11 @@ def _run_regenerate(
         meta = load_metadata(base, book_id)
         if meta.source_type == "epub":
             raise ValueError("EPUB import cannot regenerate")
-        if not source_path(base, book_id).exists():
+        src_path = source_path(base, book_id)
+        if not src_path.exists():
             raise FileNotFoundError("Source missing")
-        text = read_source_text(base, book_id)
         rule = get_rule(rule_template)
-        book = parse_book(text, book_id, rule.rules)
+        book = parse_book_file(src_path, book_id, rule.rules)
         meta.rule_template = rule_template
         meta.status = "dirty"
         meta.updated_at = _now_iso()
@@ -1956,9 +1960,7 @@ async def ingest_preview(
         if kind == "txt":
             if rule is None:
                 rule = get_rule(rule_template)
-            data = payload_path.read_bytes()
-            text = decode_text(data)
-            if not text.strip():
+            if not text_file_has_content(payload_path):
                 previews.append(
                     {
                         "filename": filename,
@@ -1976,7 +1978,7 @@ async def ingest_preview(
                     }
                 )
                 continue
-            book = parse_book(text, Path(filename).stem, rule.rules)
+            book = parse_book_file(payload_path, Path(filename).stem, rule.rules)
             duplicates = _find_duplicate_books(base, book.title, book.author, None)
             previews.append(
                 {

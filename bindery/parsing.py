@@ -335,10 +335,7 @@ def _parse_body_lines(book: Book, body_lines: Iterable[str], rules: RuleSet) -> 
         next_line = next(iterator, None)
 
 
-def parse_book(text: str, source_name: str, rules: Optional[RuleSet] = None) -> Book:
-    rules = rules or DEFAULT_RULES
-    lines_iter = _iter_text_lines(text)
-
+def _parse_book_from_lines(lines_iter: Iterable[str], source_name: str, rules: RuleSet) -> Book:
     prelude_lines: list[str] = []
     first_heading_line: Optional[str] = None
     first_heading_next: Optional[str] = None
@@ -370,5 +367,40 @@ def parse_book(text: str, source_name: str, rules: Optional[RuleSet] = None) -> 
         body_iter = itertools.chain(prelude_body_iter, heading_head, lines_iter)
 
     _parse_body_lines(book, body_iter, rules)
-
     return book
+
+
+def parse_book(text: str, source_name: str, rules: Optional[RuleSet] = None) -> Book:
+    rules = rules or DEFAULT_RULES
+    return _parse_book_from_lines(_iter_text_lines(text), source_name, rules)
+
+
+def _iter_decoded_file_lines(path: Path, encoding: str, *, errors: str) -> Iterable[str]:
+    with path.open("r", encoding=encoding, errors=errors) as stream:
+        for raw in stream:
+            yield raw.rstrip("\r\n")
+
+
+def parse_book_file(path: Path, source_name: str, rules: Optional[RuleSet] = None) -> Book:
+    rules = rules or DEFAULT_RULES
+    for enc in ENCODING_CANDIDATES:
+        try:
+            return _parse_book_from_lines(_iter_decoded_file_lines(path, enc, errors="strict"), source_name, rules)
+        except UnicodeDecodeError:
+            continue
+    return _parse_book_from_lines(_iter_decoded_file_lines(path, "utf-8", errors="replace"), source_name, rules)
+
+
+def text_file_has_content(path: Path) -> bool:
+    for enc in ENCODING_CANDIDATES:
+        try:
+            for line in _iter_decoded_file_lines(path, enc, errors="strict"):
+                if line.strip():
+                    return True
+            return False
+        except UnicodeDecodeError:
+            continue
+    for line in _iter_decoded_file_lines(path, "utf-8", errors="replace"):
+        if line.strip():
+            return True
+    return False

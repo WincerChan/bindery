@@ -14,7 +14,7 @@ class ReturnNavigationTests(unittest.TestCase):
 
     def test_library_return_to_url_normalizes_sort_and_filter(self) -> None:
         url = _library_return_to_url("unexpected", "abc", 0, "unexpected")
-        self.assertEqual(url, "/?sort=updated&q=abc&page=1&read_filter=all")
+        self.assertEqual(url, "/?sort=updated&q=abc&page=1&read_filter=all&per_page=24")
 
 
 if __name__ == "__main__":

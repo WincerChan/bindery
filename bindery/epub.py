@@ -48,7 +48,8 @@ class _BuildSection:
     title: str
     href: str
     file_name: str
-    content: str
+    kind: str
+    lines: list[str]
 
 
 BINDERY_CSS_NAME = "bindery.css"
@@ -1265,25 +1266,29 @@ def build_epub(
         file_name = f"Text/section_{section_index:04d}.xhtml"
         item_id = f"sec{section_index:04d}"
         section_index += 1
+        normalized_lines = [line for line in lines if line]
         sections.append(
             _BuildSection(
                 item_id=item_id,
                 title=title,
                 href=file_name,
                 file_name=file_name,
-                content=_render_section(title, lines, lang, kind=kind),
+                kind=kind,
+                lines=normalized_lines,
             )
         )
 
     if book_data.intro:
         intro_file = "Text/section_0000.xhtml"
+        intro_lines = [raw.strip() for raw in book_data.intro.splitlines() if raw.strip()]
         sections.append(
             _BuildSection(
                 item_id="sec0000",
                 title="简介",
                 href=intro_file,
                 file_name=intro_file,
-                content=_render_intro(meta.title, meta.author or book_data.author, book_data.intro, lang),
+                kind="intro",
+                lines=intro_lines,
             )
         )
 
@@ -1351,7 +1356,12 @@ def build_epub(
         zf.writestr("EPUB/toc.ncx", toc_ncx.encode("utf-8"))
         zf.writestr("EPUB/Styles/style.css", css.encode("utf-8"))
         for section in sections:
-            zf.writestr(f"EPUB/{section.file_name}", section.content.encode("utf-8"))
+            if section.kind == "intro":
+                intro_text = "\n".join(section.lines)
+                content = _render_intro(meta.title, meta.author or book_data.author, intro_text, lang)
+            else:
+                content = _render_section(section.title, section.lines, lang, kind=section.kind)
+            zf.writestr(f"EPUB/{section.file_name}", content.encode("utf-8"))
         if cover_href and cover_bytes is not None:
             zf.writestr(f"EPUB/{cover_href}", cover_bytes)
 

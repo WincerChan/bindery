@@ -417,14 +417,10 @@ def list_archived_books(base: Path) -> list[Metadata]:
     return [meta for meta in books if archive_book_dir(base, meta.book_id).is_dir()]
 
 
-def write_source_text(base: Path, book_id: str, text: str) -> None:
+def write_source_file(base: Path, book_id: str, src_path: Path) -> None:
     path = book_dir(base, book_id)
     path.mkdir(parents=True, exist_ok=True)
-    (path / SOURCE_FILE).write_text(text, encoding="utf-8")
-
-
-def read_source_text(base: Path, book_id: str) -> str:
-    return (book_dir(base, book_id) / SOURCE_FILE).read_text(encoding="utf-8")
+    shutil.copyfile(src_path, path / SOURCE_FILE)
 
 
 def ensure_book_exists(base: Path, book_id: str) -> bool:

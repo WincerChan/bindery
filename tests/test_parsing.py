@@ -1,7 +1,9 @@
 import unittest
+from pathlib import Path
+import tempfile
 
 from bindery.models import book_from_dict, book_to_dict
-from bindery.parsing import parse_book
+from bindery.parsing import parse_book, parse_book_file, text_file_has_content
 
 
 class ParseBookTests(unittest.TestCase):
@@ -47,6 +49,30 @@ class ParseBookTests(unittest.TestCase):
         original = [(type(item).__name__, item.title) for item in book.spine]
         roundtrip = [(type(item).__name__, item.title) for item in restored.spine]
         self.assertEqual(original, roundtrip)
+
+    def test_parse_book_file_streaming(self) -> None:
+        text = """书名：文件书
+作者：李四
+
+第一章 起始
+内容"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sample.txt"
+            path.write_text(text, encoding="utf-8")
+            book = parse_book_file(path, "source")
+        self.assertEqual(book.title, "文件书")
+        self.assertEqual(book.author, "李四")
+        self.assertEqual(len(book.root_chapters), 1)
+        self.assertIn("内容", book.root_chapters[0].lines)
+
+    def test_text_file_has_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            blank = Path(tmp) / "blank.txt"
+            blank.write_text(" \n\t\r\n", encoding="utf-8")
+            non_blank = Path(tmp) / "non_blank.txt"
+            non_blank.write_text("第一章\n正文", encoding="utf-8")
+            self.assertFalse(text_file_has_content(blank))
+            self.assertTrue(text_file_has_content(non_blank))
 
 
 if __name__ == "__main__":
