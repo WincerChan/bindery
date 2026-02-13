@@ -674,7 +674,6 @@ def _build_txt_epub_from_source(base: Path, meta: Metadata, cover_path_obj: Opti
                 meta,
                 cover_path_obj,
                 css_text=_compose_css_text(meta),
-                strip_webp_assets=True,
             )
             return Book(title=meta.title, author=meta.author, intro=meta.description)
         raise FileNotFoundError("Source missing")
@@ -695,7 +694,7 @@ def _ensure_book_epub_css(base: Path, meta: Metadata) -> None:
     css_text = _compose_css_text(meta)
     if meta.source_type == "epub":
         # 不覆盖封面：保持 EPUB 本体。
-        update_epub_metadata(epub_file, meta, None, css_text=css_text, strip_webp_assets=True)
+        update_epub_metadata(epub_file, meta, None, css_text=css_text)
     else:
         cover_path_obj = cover_path(base, meta.book_id, meta.cover_file) if meta.cover_file else None
         _build_txt_epub_from_source(base, meta, cover_path_obj)
@@ -1713,7 +1712,7 @@ def _run_epub_ingest(
 
         if needs_rewrite:
             _update_job(job.id, stage="写回 EPUB")
-            update_epub_metadata(epub_file, meta, cover_path_obj, css_text=css_text, strip_webp_assets=True)
+            update_epub_metadata(epub_file, meta, cover_path_obj, css_text=css_text)
 
         _update_meta_synced(meta)
         save_metadata(meta, base)
@@ -1776,7 +1775,6 @@ def _run_edit_writeback(
                 cover_path_obj if cover_changed else None,
                 css_text=_compose_css_text(meta),
                 strip_original_css=strip_original_css,
-                strip_webp_assets=True,
             )
         else:
             _build_txt_epub_from_source(base, meta, cover_path_obj)
@@ -2424,7 +2422,6 @@ async def upload_cover(request: Request, book_id: str, cover: UploadFile = File(
             meta,
             cover_path_obj,
             css_text=_compose_css_text(meta),
-            strip_webp_assets=True,
         )
     else:
         _build_txt_epub_from_source(base, meta, cover_path_obj)
@@ -2462,7 +2459,6 @@ async def upload_cover_url(
             meta,
             cover_path_obj,
             css_text=_compose_css_text(meta),
-            strip_webp_assets=True,
         )
     else:
         _build_txt_epub_from_source(base, meta, cover_path_obj)
@@ -2492,7 +2488,6 @@ async def extract_cover_view(book_id: str) -> RedirectResponse:
             meta,
             cover_path_obj,
             css_text=_compose_css_text(meta),
-            strip_webp_assets=True,
         )
     else:
         _build_txt_epub_from_source(base, meta, cover_path_obj)

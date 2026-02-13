@@ -638,8 +638,6 @@ def strip_webp_assets_and_refs(epub_file: Path) -> bool:
 
         manifest_items = [item for item in list(manifest) if _tag_local_name(item.tag) == "item"]
         remove_members: set[str] = set()
-        replacements: dict[str, bytes] = {}
-        changed = False
 
         doc_members: list[str] = []
         for item in manifest_items:
@@ -656,22 +654,13 @@ def strip_webp_assets_and_refs(epub_file: Path) -> bool:
                     if member:
                         remove_members.add(member)
                 manifest.remove(item)
-                changed = True
 
-        for member in doc_members:
-            info = next((it for it in infos if _canonical_zip_member(it.filename) == member), None)
-            if info is None:
-                continue
-            original_text = src.read(info.filename).decode("utf-8", errors="replace")
-            patched = _strip_webp_refs_from_html(original_text)
-            if patched != original_text:
-                replacements[member] = patched.encode("utf-8")
-                changed = True
-
-        if not changed:
+        # Fast path: no webp assets declared in manifest, skip full-book rewrite.
+        if not remove_members:
             return False
 
-        replacements[opf_path] = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        opf_replacement = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        doc_member_set = set(doc_members)
         tmp_handle = tempfile.NamedTemporaryFile(
             prefix=f"{epub_file.stem}.",
             suffix=".epub",
@@ -688,36 +677,41 @@ def strip_webp_assets_and_refs(epub_file: Path) -> bool:
                     canonical = _canonical_zip_member(info.filename)
                     if canonical != "mimetype" or canonical in written:
                         continue
-                    replacement = replacements.get(canonical)
-                    if replacement is not None:
-                        dst.writestr("mimetype", replacement, compress_type=zipfile.ZIP_STORED)
-                    else:
-                        _copy_zip_member_stream(src, dst, info, output_name="mimetype", compress_type=zipfile.ZIP_STORED)
+                    _copy_zip_member_stream(src, dst, info, output_name="mimetype", compress_type=zipfile.ZIP_STORED)
                     written.add(canonical)
 
                 for info in infos:
                     canonical = _canonical_zip_member(info.filename)
                     if not canonical or canonical in written:
                         continue
-                    if canonical in remove_members and canonical not in replacements:
+                    if canonical in remove_members:
                         continue
-                    replacement = replacements.get(canonical)
-                    if replacement is not None:
+
+                    if canonical == opf_path:
                         zinfo = _clone_zip_info(info)
-                        dst.writestr(zinfo, replacement)
-                    else:
-                        _copy_zip_member_stream(src, dst, info)
+                        dst.writestr(zinfo, opf_replacement)
+                        written.add(canonical)
+                        continue
+
+                    if canonical in doc_member_set:
+                        original_text = src.read(info.filename).decode("utf-8", errors="replace")
+                        patched = _strip_webp_refs_from_html(original_text)
+                        if patched != original_text:
+                            zinfo = _clone_zip_info(info)
+                            dst.writestr(zinfo, patched.encode("utf-8"))
+                        else:
+                            _copy_zip_member_stream(src, dst, info)
+                        written.add(canonical)
+                        continue
+
+                    _copy_zip_member_stream(src, dst, info)
                     written.add(canonical)
 
-                for canonical, content in replacements.items():
-                    if canonical in written:
-                        continue
-                    if canonical == "mimetype":
-                        dst.writestr("mimetype", content, compress_type=zipfile.ZIP_STORED)
-                    else:
-                        zinfo = zipfile.ZipInfo(canonical)
-                        zinfo.compress_type = zipfile.ZIP_DEFLATED
-                        dst.writestr(zinfo, content)
+                if opf_path not in written:
+                    zinfo = zipfile.ZipInfo(opf_path)
+                    zinfo.compress_type = zipfile.ZIP_DEFLATED
+                    dst.writestr(zinfo, opf_replacement)
+                    written.add(opf_path)
 
             tmp_path.replace(epub_file)
             _normalize_epub_archive_paths(epub_file)
