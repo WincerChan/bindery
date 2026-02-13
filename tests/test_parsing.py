@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 
 from bindery.models import book_from_dict, book_to_dict
-from bindery.parsing import parse_book, parse_book_file, text_file_has_content
+from bindery.parsing import ParsedBookHeader, ParsedBookSection, parse_book, parse_book_file, parse_book_file_events, text_file_has_content
 
 
 class ParseBookTests(unittest.TestCase):
@@ -73,6 +73,34 @@ class ParseBookTests(unittest.TestCase):
             non_blank.write_text("第一章\n正文", encoding="utf-8")
             self.assertFalse(text_file_has_content(blank))
             self.assertTrue(text_file_has_content(non_blank))
+
+    def test_parse_book_file_events_streams_header_and_sections(self) -> None:
+        text = """书名：流式书
+作者：张三
+
+第1章 开始
+第一段
+第2章 继续
+第二段
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "events.txt"
+            path.write_text(text, encoding="utf-8")
+            events = list(parse_book_file_events(path, "source"))
+
+        self.assertTrue(events)
+        self.assertIsInstance(events[0], ParsedBookHeader)
+        header = events[0]
+        assert isinstance(header, ParsedBookHeader)
+        self.assertEqual(header.title, "流式书")
+        self.assertEqual(header.author, "张三")
+
+        sections = [evt for evt in events[1:] if isinstance(evt, ParsedBookSection)]
+        self.assertEqual(len(sections), 2)
+        self.assertEqual(sections[0].kind, "chapter")
+        self.assertEqual(sections[0].title, "第1章 开始")
+        self.assertEqual(sections[0].lines, ["第一段"])
+        self.assertEqual(sections[1].title, "第2章 继续")
 
 
 if __name__ == "__main__":

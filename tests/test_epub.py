@@ -4,7 +4,9 @@ from pathlib import Path
 import zipfile
 
 from bindery.epub import (
+    StreamBuildSection,
     build_epub,
+    build_epub_from_section_stream,
     epub_base_href,
     extract_epub_metadata,
     list_epub_sections,
@@ -266,6 +268,41 @@ class BuildEpubTests(unittest.TestCase):
                 self.assertTrue(section_files)
                 content = zf.read(section_files[0]).decode("utf-8")
                 self.assertIn("第一章", content)
+
+    def test_build_epub_from_section_stream_creates_file(self) -> None:
+        meta = Metadata(
+            book_id="stream-build-id",
+            title="流式书",
+            author="作者",
+            language="zh-CN",
+            description=None,
+            publisher=None,
+            tags=[],
+            published=None,
+            isbn=None,
+            rating=None,
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "stream.epub"
+            build_epub_from_section_stream(
+                stream_sections=(
+                    StreamBuildSection(kind="chapter", title="第一章", lines=["第一段"]),
+                    StreamBuildSection(kind="chapter", title="第二章", lines=["第二段"]),
+                ),
+                source_author="作者",
+                source_intro=None,
+                meta=meta,
+                output_path=output_path,
+            )
+            self.assertTrue(output_path.exists())
+            with zipfile.ZipFile(output_path, "r") as zf:
+                names = zf.namelist()
+                self.assertIn("EPUB/Text/section_0001.xhtml", names)
+                self.assertIn("EPUB/Text/section_0002.xhtml", names)
+                self.assertIn("第一章", zf.read("EPUB/Text/section_0001.xhtml").decode("utf-8"))
 
     def test_build_epub_without_css_text_writes_empty_style_sheet(self) -> None:
         book = Book(title="测试书", author="作者", intro=None)

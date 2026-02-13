@@ -5,7 +5,7 @@ import itertools
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Iterator, Optional, Union
 
 from .models import Book, Chapter, Volume
 
@@ -42,6 +42,24 @@ class RuleSet:
     heading_max_len: int
     heading_max_commas: int
     skip_candidate_re: re.Pattern[str]
+
+
+@dataclass(frozen=True)
+class ParsedBookHeader:
+    title: str
+    author: Optional[str]
+    intro: Optional[str]
+
+
+@dataclass(frozen=True)
+class ParsedBookSection:
+    kind: str
+    title: str
+    lines: list[str]
+    volume_title: Optional[str] = None
+
+
+ParsedBookEvent = Union[ParsedBookHeader, ParsedBookSection]
 
 
 def build_rules(config: RuleConfig) -> RuleSet:
@@ -335,6 +353,129 @@ def _parse_body_lines(book: Book, body_lines: Iterable[str], rules: RuleSet) -> 
         next_line = next(iterator, None)
 
 
+def _iter_body_section_events(body_lines: Iterable[str], rules: RuleSet) -> Iterator[ParsedBookSection]:
+    current_volume_title: Optional[str] = None
+    current_volume_lines: list[str] = []
+
+    current_chapter_title: Optional[str] = None
+    current_chapter_lines: list[str] = []
+    current_chapter_volume_title: Optional[str] = None
+
+    def pop_chapter() -> Optional[ParsedBookSection]:
+        nonlocal current_chapter_title, current_chapter_lines, current_chapter_volume_title
+        if current_chapter_title is None:
+            return None
+        section = ParsedBookSection(
+            kind="chapter",
+            title=current_chapter_title,
+            lines=current_chapter_lines,
+            volume_title=current_chapter_volume_title,
+        )
+        current_chapter_title = None
+        current_chapter_lines = []
+        current_chapter_volume_title = None
+        return section
+
+    def pop_volume_lines() -> Optional[ParsedBookSection]:
+        nonlocal current_volume_lines
+        if current_volume_title is None or not current_volume_lines:
+            return None
+        section = ParsedBookSection(
+            kind="volume",
+            title=current_volume_title,
+            lines=current_volume_lines,
+            volume_title=None,
+        )
+        current_volume_lines = []
+        return section
+
+    iterator = iter(body_lines)
+    prev_line: Optional[str] = None
+    line = next(iterator, None)
+    next_line = next(iterator, None)
+
+    while line is not None:
+        heading_type = classify_heading(line, prev_line, next_line, rules)
+        if heading_type == "volume":
+            chapter_section = pop_chapter()
+            if chapter_section is not None:
+                yield chapter_section
+            volume_section = pop_volume_lines()
+            if volume_section is not None:
+                yield volume_section
+            current_volume_title = line.strip()
+            current_volume_lines = []
+        elif heading_type == "chapter":
+            chapter_section = pop_chapter()
+            if chapter_section is not None:
+                yield chapter_section
+            volume_section = pop_volume_lines()
+            if volume_section is not None:
+                yield volume_section
+            current_chapter_title = line.strip()
+            current_chapter_lines = []
+            current_chapter_volume_title = current_volume_title
+        else:
+            content = normalize_content_line(line)
+            if content:
+                if current_chapter_title is not None:
+                    current_chapter_lines.append(content)
+                elif current_volume_title is not None:
+                    current_volume_lines.append(content)
+                else:
+                    if current_chapter_title is None:
+                        current_chapter_title = "正文"
+                        current_chapter_lines = []
+                        current_chapter_volume_title = None
+                    current_chapter_lines.append(content)
+
+        prev_line = line
+        line = next_line
+        next_line = next(iterator, None)
+
+    chapter_section = pop_chapter()
+    if chapter_section is not None:
+        yield chapter_section
+    volume_section = pop_volume_lines()
+    if volume_section is not None:
+        yield volume_section
+
+
+def _parse_book_events_from_lines(lines_iter: Iterable[str], source_name: str, rules: RuleSet) -> Iterator[ParsedBookEvent]:
+    prelude_lines: list[str] = []
+    first_heading_line: Optional[str] = None
+    first_heading_next: Optional[str] = None
+
+    prev_line: Optional[str] = None
+    current_line = next(lines_iter, None)
+    next_line = next(lines_iter, None)
+
+    while current_line is not None:
+        if classify_heading(current_line, prev_line, next_line, rules) is not None:
+            first_heading_line = current_line
+            first_heading_next = next_line
+            break
+        prelude_lines.append(current_line)
+        prev_line = current_line
+        current_line = next_line
+        next_line = next(lines_iter, None)
+
+    title, author, intro, skip_idx = parse_metadata(prelude_lines, rules)
+    header = ParsedBookHeader(title=title or source_name, author=author, intro=intro)
+    yield header
+
+    prelude_body_iter = (line for idx, line in enumerate(prelude_lines) if idx not in skip_idx)
+    if first_heading_line is None:
+        body_iter = prelude_body_iter
+    else:
+        heading_head = [first_heading_line]
+        if first_heading_next is not None:
+            heading_head.append(first_heading_next)
+        body_iter = itertools.chain(prelude_body_iter, heading_head, lines_iter)
+
+    yield from _iter_body_section_events(body_iter, rules)
+
+
 def _parse_book_from_lines(lines_iter: Iterable[str], source_name: str, rules: RuleSet) -> Book:
     prelude_lines: list[str] = []
     first_heading_line: Optional[str] = None
@@ -381,6 +522,18 @@ def _iter_decoded_file_lines(path: Path, encoding: str, *, errors: str) -> Itera
             yield raw.rstrip("\r\n")
 
 
+def _resolve_file_encoding(path: Path) -> tuple[str, str]:
+    for enc in ENCODING_CANDIDATES:
+        try:
+            with path.open("r", encoding=enc, errors="strict") as stream:
+                for _ in stream:
+                    pass
+            return enc, "strict"
+        except UnicodeDecodeError:
+            continue
+    return "utf-8", "replace"
+
+
 def parse_book_file(path: Path, source_name: str, rules: Optional[RuleSet] = None) -> Book:
     rules = rules or DEFAULT_RULES
     for enc in ENCODING_CANDIDATES:
@@ -389,6 +542,12 @@ def parse_book_file(path: Path, source_name: str, rules: Optional[RuleSet] = Non
         except UnicodeDecodeError:
             continue
     return _parse_book_from_lines(_iter_decoded_file_lines(path, "utf-8", errors="replace"), source_name, rules)
+
+
+def parse_book_file_events(path: Path, source_name: str, rules: Optional[RuleSet] = None) -> Iterator[ParsedBookEvent]:
+    rules = rules or DEFAULT_RULES
+    encoding, errors = _resolve_file_encoding(path)
+    yield from _parse_book_events_from_lines(_iter_decoded_file_lines(path, encoding, errors=errors), source_name, rules)
 
 
 def text_file_has_content(path: Path) -> bool:

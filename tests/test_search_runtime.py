@@ -24,7 +24,7 @@ class SearchRuntimeTests(unittest.TestCase):
             call_count += 1
             return docs
 
-        with mock.patch("bindery.web.list_epub_section_documents", side_effect=fake_docs):
+        with mock.patch("bindery.web.iter_epub_section_documents", side_effect=fake_docs):
             hits1, indexed1, has_more1, next_offset1 = _search_epub_hits(Path("/tmp/demo.epub"), "beta", 20)
             hits2, indexed2, has_more2, next_offset2 = _search_epub_hits(Path("/tmp/demo.epub"), "beta", 20)
 
@@ -65,7 +65,7 @@ class SearchRuntimeTests(unittest.TestCase):
             ),
         ]
 
-        with mock.patch("bindery.web.list_epub_section_documents", return_value=docs):
+        with mock.patch("bindery.web.iter_epub_section_documents", return_value=docs):
             hits, indexed, has_more, next_offset = _search_epub_hits(Path("/tmp/demo.epub"), "keyword", 1)
 
         self.assertEqual(len(hits), 1)
@@ -98,7 +98,7 @@ class SearchRuntimeTests(unittest.TestCase):
             ),
         ]
 
-        with mock.patch("bindery.web.list_epub_section_documents", return_value=docs):
+        with mock.patch("bindery.web.iter_epub_section_documents", return_value=docs):
             first_hits, _, first_more, first_next = _search_epub_hits(Path("/tmp/demo.epub"), "keyword", 1, offset=0)
             second_hits, _, second_more, second_next = _search_epub_hits(
                 Path("/tmp/demo.epub"), "keyword", 1, offset=first_next

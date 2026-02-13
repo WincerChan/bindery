@@ -17,7 +17,7 @@ import uuid
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -38,19 +38,29 @@ from .db import (
 )
 from .env import read_env
 from .epub import (
+    StreamBuildSection,
     build_epub,
+    build_epub_from_section_stream,
     epub_base_href,
     extract_cover,
     extract_epub_metadata,
-    list_epub_section_documents,
+    iter_epub_section_documents,
     list_epub_sections,
     load_epub_item,
     strip_webp_assets_and_refs,
     update_epub_metadata,
 )
-from .models import Book, Job, Metadata, Volume
+from .models import Book, Chapter, Job, Metadata, Volume
 from .metadata_lookup import USER_AGENT, LookupMetadata, lookup_book_metadata_candidates
-from .parsing import DEFAULT_RULE_CONFIG, parse_book, parse_book_file, text_file_has_content
+from .parsing import (
+    DEFAULT_RULE_CONFIG,
+    ParsedBookHeader,
+    ParsedBookSection,
+    parse_book,
+    parse_book_file,
+    parse_book_file_events,
+    text_file_has_content,
+)
 from .rules import RuleTemplateError, get_rule, load_rule_templates, rules_dir, validate_rule_template_json
 from .themes import compose_css, get_theme, load_theme_templates, themes_dir
 from .storage import (
@@ -522,7 +532,7 @@ def _search_epub_hits(
     matched_hits = 0
     has_more = False
 
-    for section in list_epub_section_documents(epub_file):
+    for section in iter_epub_section_documents(epub_file):
         if "html" not in (section.media_type or "").lower():
             continue
         text = _extract_text_from_html_bytes(section.content)
@@ -1488,6 +1498,32 @@ def _ensure_ingest_worker_started() -> None:
         _ingest_worker_started = True
 
 
+def _append_stub_section(
+    stub_book: Book,
+    section: ParsedBookSection,
+    current_volume: Optional[Volume],
+) -> Optional[Volume]:
+    if section.kind == "volume":
+        volume = Volume(title=section.title)
+        stub_book.volumes.append(volume)
+        stub_book.spine.append(volume)
+        return volume
+
+    chapter = Chapter(title=section.title)
+    if section.volume_title:
+        if current_volume is None or current_volume.title != section.volume_title:
+            current_volume = Volume(title=section.volume_title)
+            stub_book.volumes.append(current_volume)
+            stub_book.spine.append(current_volume)
+        chapter.volume = current_volume
+        current_volume.chapters.append(chapter)
+    else:
+        current_volume = None
+        stub_book.root_chapters.append(chapter)
+    stub_book.spine.append(chapter)
+    return current_volume
+
+
 def _run_ingest(
     job: Job,
     base: Path,
@@ -1513,14 +1549,20 @@ def _run_ingest(
     try:
         rule = get_rule(rule_template)
         _update_job(job.id, stage="预处理")
-        book = parse_book_file(source_file, source_name, rule.rules)
+        book_events = parse_book_file_events(source_file, source_name, rule.rules)
+        first_event = next(book_events, None)
+        if not isinstance(first_event, ParsedBookHeader):
+            raise ValueError("无法解析文本元信息")
+        parsed_header = first_event
+        parsed_book = Book(title=parsed_header.title, author=parsed_header.author, intro=parsed_header.intro)
         _update_job(job.id, stage="写元数据")
 
         book_id = job.book_id or new_book_id()
         job.book_id = book_id
+        (base / book_id).mkdir(parents=True, exist_ok=True)
         meta = _build_metadata(
             book_id,
-            book,
+            parsed_book,
             title,
             author,
             language,
@@ -1537,10 +1579,6 @@ def _run_ingest(
             custom_css,
         )
 
-        save_book(book, base, book_id)
-        save_metadata(meta, base)
-        write_source_file(base, book_id, source_file)
-
         cover_file = None
         if cover_bytes:
             cover_file = save_cover_bytes(base, book_id, cover_bytes, cover_name)
@@ -1551,7 +1589,30 @@ def _run_ingest(
 
         _update_job(job.id, stage="生成 EPUB")
         css_text = _compose_css_text(meta)
-        build_epub(book, meta, epub_path(base, book_id), cover_path_obj, css_text=css_text)
+        stub_book = Book(title=meta.title, author=meta.author, intro=parsed_header.intro)
+        current_volume: Optional[Volume] = None
+
+        def stream_sections() -> Iterable[StreamBuildSection]:
+            nonlocal current_volume
+            for event in book_events:
+                if not isinstance(event, ParsedBookSection):
+                    continue
+                current_volume = _append_stub_section(stub_book, event, current_volume)
+                yield StreamBuildSection(kind=event.kind, title=event.title, lines=event.lines)
+
+        build_epub_from_section_stream(
+            stream_sections=stream_sections(),
+            source_author=parsed_header.author,
+            source_intro=parsed_header.intro,
+            meta=meta,
+            output_path=epub_path(base, book_id),
+            cover_path=cover_path_obj,
+            css_text=css_text,
+        )
+
+        save_book(stub_book, base, book_id)
+        save_metadata(meta, base)
+        write_source_file(base, book_id, source_file)
         _update_meta_synced(meta)
         save_metadata(meta, base)
         _update_job(job.id, status="success", stage="完成", message="完成")
