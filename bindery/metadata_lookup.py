@@ -649,7 +649,8 @@ def lookup_book_metadata_candidates(
     errors: list[str] = []
     attempts: list[dict[str, Any]] = []
 
-    for source_name, func in (("douban", _lookup_douban), ("amazon", _lookup_amazon)):
+    # Metadata autofill is intentionally limited to Douban only.
+    for source_name, func in (("douban", _lookup_douban),):
         try:
             item = func(query, timeout)
         except Exception as exc:

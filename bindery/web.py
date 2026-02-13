@@ -798,12 +798,12 @@ def _lookup_result_view(
 
 
 def _lookup_source_label(source_id: str) -> str:
-    return {"douban": "豆瓣", "amazon": "Amazon"}.get(source_id, source_id)
+    return {"douban": "豆瓣"}.get(source_id, source_id)
 
 
 def _lookup_sources_view(candidates: dict[str, LookupMetadata], selected_source: Optional[str]) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
-    for source_id in ("douban", "amazon"):
+    for source_id in ("douban",):
         if source_id not in candidates:
             continue
         items.append(
@@ -2674,7 +2674,7 @@ async def fetch_metadata(
                 "book_id": book_id,
                 "rules": rules,
                 "themes": themes,
-                "error": f"未能从 Amazon/豆瓣获取元数据：{detail}",
+                "error": f"未能从豆瓣获取元数据：{detail}",
                 "lookup_attempts": lookup_attempts,
                 "lookup_sources": [],
                 "lookup_selected_source": "",
@@ -2701,7 +2701,7 @@ async def fetch_metadata(
                 "book_id": book_id,
                 "rules": rules,
                 "themes": themes,
-                "error": f"未能从 Amazon/豆瓣获取元数据：{detail}",
+                "error": f"未能从豆瓣获取元数据：{detail}",
                 "lookup_attempts": lookup_attempts,
                 "lookup_sources": [],
                 "lookup_selected_source": "",

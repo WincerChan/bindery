@@ -230,7 +230,7 @@ class MetadataLookupTests(unittest.TestCase):
         self.assertEqual(metadata.isbn, "978-0679824251")
         self.assertIn("Magic Tree House", metadata.description or "")
 
-    def test_lookup_verbose_reports_both_sources(self) -> None:
+    def test_lookup_verbose_uses_douban_only(self) -> None:
         with (
             patch(
                 "bindery.metadata_lookup._lookup_douban",
@@ -246,18 +246,19 @@ class MetadataLookupTests(unittest.TestCase):
                     publisher="Tor",
                     isbn="9780765382030",
                 ),
-            ),
+            ) as amazon_mock,
         ):
             best, errors, attempts = lookup_book_metadata_verbose("三体")
 
+        amazon_mock.assert_not_called()
         self.assertIsNotNone(best)
-        self.assertEqual(best.source, "amazon")
+        self.assertEqual(best.source, "douban")
         self.assertEqual(errors, [])
-        self.assertEqual(len(attempts), 2)
-        self.assertEqual({item["source"] for item in attempts}, {"douban", "amazon"})
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual({item["source"] for item in attempts}, {"douban"})
         selected = [item for item in attempts if item["selected"]]
         self.assertEqual(len(selected), 1)
-        self.assertEqual(selected[0]["source"], "amazon")
+        self.assertEqual(selected[0]["source"], "douban")
 
     def test_lookup_verbose_keeps_source_error(self) -> None:
         with (
@@ -265,15 +266,17 @@ class MetadataLookupTests(unittest.TestCase):
             patch(
                 "bindery.metadata_lookup._lookup_amazon",
                 return_value=LookupMetadata(source="amazon", title="Dune"),
-            ),
+            ) as amazon_mock,
         ):
             best, errors, attempts = lookup_book_metadata_verbose("Dune")
 
-        self.assertIsNotNone(best)
-        self.assertEqual(best.source, "amazon")
+        amazon_mock.assert_not_called()
+        self.assertIsNone(best)
         self.assertEqual(len(errors), 1)
         self.assertIn("douban: blocked", errors[0])
-        douban_attempt = next(item for item in attempts if item["source"] == "douban")
+        self.assertEqual(len(attempts), 1)
+        douban_attempt = attempts[0]
+        self.assertEqual(douban_attempt["source"], "douban")
         self.assertFalse(douban_attempt["ok"])
         self.assertEqual(douban_attempt["error"], "blocked")
 
