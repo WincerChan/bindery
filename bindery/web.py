@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ctypes
 import datetime as dt
+import gc
 import html
 import json
 import logging
@@ -17,7 +19,7 @@ import uuid
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -73,6 +75,7 @@ from .storage import (
     library_dir,
     list_archived_books,
     list_books,
+    list_books_page,
     load_metadata,
     new_book_id,
     save_book,
@@ -93,10 +96,28 @@ LIBRARY_PAGE_SIZE = 24
 INGEST_QUEUE_DIR = ".ingest-queue"
 INGEST_STAGE_DIR = ".ingest-stage"
 INGEST_STAGE_DIR_ENV = "BINDERY_STAGE_DIR"
+INGEST_QUEUE_MAXSIZE_ENV = "BINDERY_INGEST_QUEUE_MAXSIZE"
+MEMORY_TRIM_ENV = "BINDERY_MEMORY_TRIM"
 DEFAULT_INGEST_STAGE_DIR = Path(tempfile.gettempdir()) / "bindery-ingest-stage"
+DEFAULT_INGEST_QUEUE_MAXSIZE = 64
 DOUBAN_REFERER = "https://book.douban.com/"
 
-_ingest_queue: "queue.Queue[dict]" = queue.Queue()
+_malloc_trim_func: Optional[Callable[[int], int]] = None
+_malloc_trim_resolved = False
+
+
+def _ingest_queue_maxsize() -> int:
+    raw = (read_env(INGEST_QUEUE_MAXSIZE_ENV) or "").strip()
+    if not raw:
+        return DEFAULT_INGEST_QUEUE_MAXSIZE
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return DEFAULT_INGEST_QUEUE_MAXSIZE
+    return max(1, min(2048, parsed))
+
+
+_ingest_queue: "queue.Queue[dict]" = queue.Queue(maxsize=_ingest_queue_maxsize())
 _ingest_worker_started = False
 _ingest_worker_lock = threading.Lock()
 
@@ -353,6 +374,34 @@ def _toc_preview(book: Book, limit: int = 10) -> list[str]:
     return titles
 
 
+def _summarize_txt_preview(payload_path: Path, source_name: str, rule_template) -> dict[str, object]:
+    title: Optional[str] = None
+    author: Optional[str] = None
+    volumes = 0
+    chapters = 0
+    toc: list[str] = []
+    for event in parse_book_file_events(payload_path, source_name, rule_template.rules):
+        if isinstance(event, ParsedBookHeader):
+            title = event.title or source_name
+            author = event.author
+            continue
+        if not isinstance(event, ParsedBookSection):
+            continue
+        if event.kind == "volume":
+            volumes += 1
+        elif event.kind == "chapter":
+            chapters += 1
+        if len(toc) < 10:
+            toc.append(event.title)
+    return {
+        "title": title or source_name,
+        "author": author,
+        "volumes": volumes,
+        "chapters": chapters,
+        "toc": toc,
+    }
+
+
 def _status_view(meta: Metadata) -> tuple[str, str]:
     if meta.status == "failed":
         return "转换失败", "failed"
@@ -446,6 +495,44 @@ def _is_true_flag(value: object) -> bool:
     if not isinstance(value, str):
         return False
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _memory_trim_enabled() -> bool:
+    raw = read_env(MEMORY_TRIM_ENV)
+    if raw is None:
+        return True
+    return _is_true_flag(raw)
+
+
+def _resolve_malloc_trim() -> Optional[Callable[[int], int]]:
+    global _malloc_trim_func, _malloc_trim_resolved
+    if _malloc_trim_resolved:
+        return _malloc_trim_func
+    _malloc_trim_resolved = True
+    for libc_name in ("libc.so.6", "libc.so"):
+        try:
+            libc = ctypes.CDLL(libc_name)
+            malloc_trim = libc.malloc_trim
+            malloc_trim.argtypes = [ctypes.c_size_t]
+            malloc_trim.restype = ctypes.c_int
+            _malloc_trim_func = malloc_trim
+            return _malloc_trim_func
+        except Exception:
+            continue
+    return None
+
+
+def _maybe_trim_process_memory() -> None:
+    if not _memory_trim_enabled():
+        return
+    gc.collect()
+    malloc_trim = _resolve_malloc_trim()
+    if malloc_trim is None:
+        return
+    try:
+        malloc_trim(0)
+    except Exception:
+        return
 
 
 def _safe_internal_redirect_target(target: object, fallback: str) -> str:
@@ -1108,10 +1195,17 @@ def _create_job(action: str, book_id: Optional[str], rule_template: Optional[str
     return job
 
 
-def _enqueue_regenerate_job(book_id: str, rule_template: str, *, action: str = "regenerate") -> Job:
+def _enqueue_ingest_task(task: dict) -> bool:
+    try:
+        _ingest_queue.put_nowait(task)
+        return True
+    except queue.Full:
+        return False
+
+
+def _enqueue_regenerate_job(book_id: str, rule_template: str, *, action: str = "regenerate") -> bool:
     job = _create_job(action, book_id, rule_template)
-    _update_job(job.id, stage="排队中", message="等待后台处理")
-    _ingest_queue.put(
+    queued = _enqueue_ingest_task(
         {
             "job_id": job.id,
             "kind": "regenerate",
@@ -1119,13 +1213,16 @@ def _enqueue_regenerate_job(book_id: str, rule_template: str, *, action: str = "
             "rule_template": rule_template,
         }
     )
-    return job
+    if queued:
+        _update_job(job.id, stage="排队中", message="等待后台处理")
+        return True
+    _update_job(job.id, status="failed", stage="失败", message="任务队列已满，请稍后重试", log=None)
+    return False
 
 
-def _enqueue_edit_writeback_job(book_id: str, rule_template: Optional[str]) -> Job:
+def _enqueue_edit_writeback_job(book_id: str, rule_template: Optional[str]) -> bool:
     job = _create_job("edit-writeback", book_id, rule_template)
-    _update_job(job.id, stage="排队中", message="等待后台处理")
-    _ingest_queue.put(
+    queued = _enqueue_ingest_task(
         {
             "job_id": job.id,
             "kind": "edit-writeback",
@@ -1136,7 +1233,11 @@ def _enqueue_edit_writeback_job(book_id: str, rule_template: Optional[str]) -> J
             "strip_original_css": False,
         }
     )
-    return job
+    if queued:
+        _update_job(job.id, stage="排队中", message="等待后台处理")
+        return True
+    _update_job(job.id, status="failed", stage="失败", message="任务队列已满，请稍后重试", log=None)
+    return False
 
 
 def _update_job(job_id: str, **fields: object) -> None:
@@ -1545,7 +1646,10 @@ def _ingest_worker_loop() -> None:
         except Exception:
             logger.exception("ingest worker crashed while processing task")
         finally:
-            _ingest_queue.task_done()
+            try:
+                _maybe_trim_process_memory()
+            finally:
+                _ingest_queue.task_done()
 
 
 def _ensure_ingest_worker_started() -> None:
@@ -1954,30 +2058,29 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 def _library_page_data(base: Path, sort: str, q: str, page: int, read_filter: str, per_page: int = LIBRARY_PAGE_SIZE) -> dict:
-    all_books = list_books(base, sort_output=False)
+    selected_sort = _normalize_sort(sort)
     selected_read_filter = _normalize_read_filter(read_filter)
     effective_per_page = _normalize_per_page(per_page)
-    query_text = q.strip().lower()
-    books = []
-    for book in all_books:
-        if query_text:
-            title = (book.title or "").lower()
-            author = (book.author or "").lower()
-            if query_text not in title and query_text not in author:
-                continue
-        if selected_read_filter == "unread" and book.read:
-            continue
-        books.append(book)
-    if sort == "created":
-        books.sort(key=lambda item: item.created_at, reverse=True)
-    else:
-        books.sort(key=lambda item: item.updated_at or item.created_at, reverse=True)
-
-    total_books = len(books)
+    requested_page = max(1, int(page))
+    page_books, total_books = list_books_page(
+        base,
+        sort=selected_sort,
+        q=q,
+        read_filter=selected_read_filter,
+        page=requested_page,
+        per_page=effective_per_page,
+    )
     total_pages = max(1, (total_books + effective_per_page - 1) // effective_per_page)
-    current_page = min(max(1, page), total_pages)
-    start = (current_page - 1) * effective_per_page
-    page_books = books[start : start + effective_per_page]
+    current_page = min(requested_page, total_pages)
+    if current_page != requested_page:
+        page_books, _ = list_books_page(
+            base,
+            sort=selected_sort,
+            q=q,
+            read_filter=selected_read_filter,
+            page=current_page,
+            per_page=effective_per_page,
+        )
     view_books = [_book_view(book, base) for book in page_books]
 
     return {
@@ -2042,10 +2145,111 @@ async def ingest_preview(
     rule = None
 
     for file in files:
-        token, filename, kind, _content_type, payload_path, size = await _persist_staged_upload_stream(base, file)
-        upload_token = token
-        if size <= 0:
-            _cleanup_staged_upload(base, upload_token)
+        try:
+            token, filename, kind, _content_type, payload_path, size = await _persist_staged_upload_stream(base, file)
+            upload_token = token
+            if size <= 0:
+                _cleanup_staged_upload(base, upload_token)
+                previews.append(
+                    {
+                        "filename": filename,
+                        "format": "未知",
+                        "title": None,
+                        "author": None,
+                        "volumes": 0,
+                        "chapters": 0,
+                        "toc": [],
+                        "output": "—",
+                        "path": str(base / "<自动ID>"),
+                        "error": "空文件",
+                        "duplicates": [],
+                        "upload_token": None,
+                    }
+                )
+                continue
+
+            if kind == "epub":
+                try:
+                    meta = extract_epub_metadata(payload_path, Path(filename).stem)
+                    sections = list_epub_sections(payload_path)
+                except Exception:
+                    previews.append(
+                        {
+                            "filename": filename,
+                            "format": "EPUB",
+                            "title": None,
+                            "author": None,
+                            "volumes": 0,
+                            "chapters": 0,
+                            "toc": [],
+                            "output": filename,
+                            "path": str(base / "<自动ID>"),
+                            "error": "解析 EPUB 失败",
+                            "duplicates": [],
+                            "upload_token": upload_token,
+                        }
+                    )
+                    continue
+                duplicates = _find_duplicate_books(base, meta.get("title"), meta.get("author"), meta.get("isbn"))
+                previews.append(
+                    {
+                        "filename": filename,
+                        "format": "EPUB",
+                        "title": meta.get("title"),
+                        "author": meta.get("author"),
+                        "volumes": 0,
+                        "chapters": len(sections),
+                        "toc": [section.title for section in sections[:10]],
+                        "output": filename,
+                        "path": str(base / "<自动ID>"),
+                        "duplicates": duplicates,
+                        "upload_token": upload_token,
+                    }
+                )
+                continue
+
+            if kind == "txt":
+                if rule is None:
+                    rule = get_rule(rule_template)
+                if not text_file_has_content(payload_path):
+                    previews.append(
+                        {
+                            "filename": filename,
+                            "format": "TXT",
+                            "title": None,
+                            "author": None,
+                            "volumes": 0,
+                            "chapters": 0,
+                            "toc": [],
+                            "output": "—",
+                            "path": str(base / "<自动ID>"),
+                            "error": "文本为空或无法解码",
+                            "duplicates": [],
+                            "upload_token": upload_token,
+                        }
+                    )
+                    continue
+                summary = _summarize_txt_preview(payload_path, Path(filename).stem, rule)
+                summary_title = str(summary.get("title") or Path(filename).stem)
+                summary_author = str(summary.get("author") or "") or None
+                duplicates = _find_duplicate_books(base, summary_title, summary_author, None)
+                previews.append(
+                    {
+                        "filename": filename,
+                        "format": "TXT",
+                        "title": summary_title,
+                        "author": summary_author,
+                        "volumes": int(summary.get("volumes") or 0),
+                        "chapters": int(summary.get("chapters") or 0),
+                        "toc": list(summary.get("toc") or []),
+                        "output": f"{_safe_filename(summary_title)}.epub",
+                        "path": str(base / "<自动ID>"),
+                        "duplicates": duplicates,
+                        "upload_token": upload_token,
+                    }
+                )
+                continue
+
             previews.append(
                 {
                     "filename": filename,
@@ -2057,109 +2261,16 @@ async def ingest_preview(
                     "toc": [],
                     "output": "—",
                     "path": str(base / "<自动ID>"),
-                    "error": "空文件",
+                    "error": "不支持的文件类型（仅支持 .txt / .epub）",
                     "duplicates": [],
-                    "upload_token": None,
+                    "upload_token": upload_token,
                 }
             )
-            continue
-
-        if kind == "epub":
+        finally:
             try:
-                meta = extract_epub_metadata(payload_path, Path(filename).stem)
-                sections = list_epub_sections(payload_path)
+                await file.close()
             except Exception:
-                previews.append(
-                    {
-                        "filename": filename,
-                        "format": "EPUB",
-                        "title": None,
-                        "author": None,
-                        "volumes": 0,
-                        "chapters": 0,
-                        "toc": [],
-                        "output": filename,
-                        "path": str(base / "<自动ID>"),
-                        "error": "解析 EPUB 失败",
-                        "duplicates": [],
-                        "upload_token": upload_token,
-                    }
-                )
-                continue
-            duplicates = _find_duplicate_books(base, meta.get("title"), meta.get("author"), meta.get("isbn"))
-            previews.append(
-                {
-                    "filename": filename,
-                    "format": "EPUB",
-                    "title": meta.get("title"),
-                    "author": meta.get("author"),
-                    "volumes": 0,
-                    "chapters": len(sections),
-                    "toc": [section.title for section in sections[:10]],
-                    "output": filename,
-                    "path": str(base / "<自动ID>"),
-                    "duplicates": duplicates,
-                    "upload_token": upload_token,
-                }
-            )
-            continue
-
-        if kind == "txt":
-            if rule is None:
-                rule = get_rule(rule_template)
-            if not text_file_has_content(payload_path):
-                previews.append(
-                    {
-                        "filename": filename,
-                        "format": "TXT",
-                        "title": None,
-                        "author": None,
-                        "volumes": 0,
-                        "chapters": 0,
-                        "toc": [],
-                        "output": "—",
-                        "path": str(base / "<自动ID>"),
-                        "error": "文本为空或无法解码",
-                        "duplicates": [],
-                        "upload_token": upload_token,
-                    }
-                )
-                continue
-            book = parse_book_file(payload_path, Path(filename).stem, rule.rules)
-            duplicates = _find_duplicate_books(base, book.title, book.author, None)
-            previews.append(
-                {
-                    "filename": filename,
-                    "format": "TXT",
-                    "title": book.title,
-                    "author": book.author,
-                    "volumes": len(book.volumes),
-                    "chapters": len(book.root_chapters) + sum(len(v.chapters) for v in book.volumes),
-                    "toc": _toc_preview(book, 10),
-                    "output": f"{_safe_filename(book.title)}.epub",
-                    "path": str(base / "<自动ID>"),
-                    "duplicates": duplicates,
-                    "upload_token": upload_token,
-                }
-            )
-            continue
-
-        previews.append(
-            {
-                "filename": filename,
-                "format": "未知",
-                "title": None,
-                "author": None,
-                "volumes": 0,
-                "chapters": 0,
-                "toc": [],
-                "output": "—",
-                "path": str(base / "<自动ID>"),
-                "error": "不支持的文件类型（仅支持 .txt / .epub）",
-                "duplicates": [],
-                "upload_token": upload_token,
-            }
-        )
+                pass
 
     return templates.TemplateResponse(
         "partials/upload_preview.html",
@@ -2200,32 +2311,14 @@ async def ingest(
     if not file_list and not token_list:
         raise HTTPException(status_code=400, detail="Empty file")
 
-    cover_bytes = await cover_file.read() if cover_file else None
-    cover_name = cover_file.filename if cover_file else None
-    css_error = validate_css(custom_css)
-    if css_error:
-        rules = load_rule_templates()
-        themes = load_theme_templates()
-        return templates.TemplateResponse(
-            "ingest.html",
-            {
-                "request": request,
-                "rules": rules,
-                "themes": themes,
-                "error": f"自定义 CSS 校验失败：{css_error}",
-                "custom_css": custom_css,
-            },
-        )
-
-    base = library_dir()
-    _cleanup_staged_uploads_except(base, token_list)
-    staged_entries: list[dict] = []
-    if token_list:
-        for token in token_list:
-            staged = _load_staged_upload(base, token)
-            if staged:
-                staged_entries.append(staged)
-        if not staged_entries:
+    cover_bytes: Optional[bytes] = None
+    cover_name: Optional[str] = None
+    try:
+        if cover_file:
+            cover_bytes = await cover_file.read()
+            cover_name = cover_file.filename
+        css_error = validate_css(custom_css)
+        if css_error:
             rules = load_rule_templates()
             themes = load_theme_templates()
             return templates.TemplateResponse(
@@ -2234,106 +2327,147 @@ async def ingest(
                     "request": request,
                     "rules": rules,
                     "themes": themes,
-                    "error": "上传暂存已失效，请重新选择文件后再提交。",
+                    "error": f"自定义 CSS 校验失败：{css_error}",
                     "custom_css": custom_css,
                 },
             )
 
-    dedupe_mode = "normalize" if dedupe_mode == "normalize" else "keep"
-    _ensure_ingest_worker_started()
-    for entry in staged_entries:
-        token = str(entry.get("token") or "").strip().lower()
-        filename = str(entry.get("filename") or "upload")
-        content_type_value = entry.get("content_type")
-        content_type = content_type_value if isinstance(content_type_value, str) else None
-        kind = str(entry.get("kind") or "").strip()
-        size_value = entry.get("size")
-        size = int(size_value) if isinstance(size_value, int) else 0
-        if size <= 0:
-            job = _create_job("ingest", None, rule_template)
-            _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
-            _cleanup_staged_upload(base, token)
-            continue
-        action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
-        job = _create_job(action, book_id, job_rule_template)
-        _update_job(job.id, stage="排队中", message="等待后台处理")
-        payload_path = _move_staged_payload_to_queue(base, token, job.id, filename)
-        if not payload_path or not payload_path.exists():
-            _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 暂存文件缺失", log=None)
-            _cleanup_staged_upload(base, token)
-            continue
-        _ingest_queue.put(
-            {
-                "job_id": job.id,
-                "payload_path": str(payload_path),
-                "filename": filename,
-                "content_type": content_type,
-                "kind": kind,
-                "title": title,
-                "author": author,
-                "language": language,
-                "description": description,
-                "series": series,
-                "identifier": identifier,
-                "publisher": publisher,
-                "tags": tags,
-                "published": published,
-                "isbn": isbn,
-                "rating": rating,
-                "rule_template": rule_template,
-                "theme_template": theme_template,
-                "custom_css": custom_css,
-                "dedupe_mode": dedupe_mode,
-                "cover_bytes": cover_bytes,
-                "cover_name": cover_name,
-            }
-        )
-        _cleanup_staged_upload(base, token)
+        base = library_dir()
+        _cleanup_staged_uploads_except(base, token_list)
+        staged_entries: list[dict] = []
+        if token_list:
+            for token in token_list:
+                staged = _load_staged_upload(base, token)
+                if staged:
+                    staged_entries.append(staged)
+            if not staged_entries:
+                rules = load_rule_templates()
+                themes = load_theme_templates()
+                return templates.TemplateResponse(
+                    "ingest.html",
+                    {
+                        "request": request,
+                        "rules": rules,
+                        "themes": themes,
+                        "error": "上传暂存已失效，请重新选择文件后再提交。",
+                        "custom_css": custom_css,
+                    },
+                )
 
-    for upload_file in file_list:
-        filename = upload_file.filename or "upload"
-        probe = await upload_file.read(4096)
-        await upload_file.seek(0)
-        kind = _detect_source_type_probe(filename, upload_file.content_type, probe)
-        action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
-        job = _create_job(action, book_id, job_rule_template)
-        _update_job(job.id, stage="排队中", message="等待后台处理")
-        payload_path, size, _ = await _persist_queued_upload_stream(base, job.id, upload_file)
-        if size <= 0:
-            _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
-            _cleanup_queued_upload(payload_path)
-            continue
-        _ingest_queue.put(
-            {
-                "job_id": job.id,
-                "payload_path": str(payload_path),
-                "filename": filename,
-                "content_type": upload_file.content_type,
-                "kind": kind,
-                "title": title,
-                "author": author,
-                "language": language,
-                "description": description,
-                "series": series,
-                "identifier": identifier,
-                "publisher": publisher,
-                "tags": tags,
-                "published": published,
-                "isbn": isbn,
-                "rating": rating,
-                "rule_template": rule_template,
-                "theme_template": theme_template,
-                "custom_css": custom_css,
-                "dedupe_mode": dedupe_mode,
-                "cover_bytes": cover_bytes,
-                "cover_name": cover_name,
-            }
-        )
+        dedupe_mode = "normalize" if dedupe_mode == "normalize" else "keep"
+        _ensure_ingest_worker_started()
+        for entry in staged_entries:
+            token = str(entry.get("token") or "").strip().lower()
+            filename = str(entry.get("filename") or "upload")
+            content_type_value = entry.get("content_type")
+            content_type = content_type_value if isinstance(content_type_value, str) else None
+            kind = str(entry.get("kind") or "").strip()
+            size_value = entry.get("size")
+            size = int(size_value) if isinstance(size_value, int) else 0
+            if size <= 0:
+                job = _create_job("ingest", None, rule_template)
+                _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
+                _cleanup_staged_upload(base, token)
+                continue
+            action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
+            job = _create_job(action, book_id, job_rule_template)
+            payload_path = _move_staged_payload_to_queue(base, token, job.id, filename)
+            if not payload_path or not payload_path.exists():
+                _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 暂存文件缺失", log=None)
+                _cleanup_staged_upload(base, token)
+                continue
+            queued = _enqueue_ingest_task(
+                {
+                    "job_id": job.id,
+                    "payload_path": str(payload_path),
+                    "filename": filename,
+                    "content_type": content_type,
+                    "kind": kind,
+                    "title": title,
+                    "author": author,
+                    "language": language,
+                    "description": description,
+                    "series": series,
+                    "identifier": identifier,
+                    "publisher": publisher,
+                    "tags": tags,
+                    "published": published,
+                    "isbn": isbn,
+                    "rating": rating,
+                    "rule_template": rule_template,
+                    "theme_template": theme_template,
+                    "custom_css": custom_css,
+                    "dedupe_mode": dedupe_mode,
+                    "cover_bytes": cover_bytes,
+                    "cover_name": cover_name,
+                }
+            )
+            if queued:
+                _update_job(job.id, stage="排队中", message="等待后台处理")
+            else:
+                _update_job(job.id, status="failed", stage="失败", message="任务队列已满，请稍后重试", log=None)
+                _cleanup_queued_upload(payload_path)
+            _cleanup_staged_upload(base, token)
 
-    redirect_url = "/jobs"
-    if _is_htmx(request):
-        return _htmx_redirect(redirect_url)
-    return RedirectResponse(url=redirect_url, status_code=303)
+        for upload_file in file_list:
+            filename = upload_file.filename or "upload"
+            probe = await upload_file.read(4096)
+            await upload_file.seek(0)
+            kind = _detect_source_type_probe(filename, upload_file.content_type, probe)
+            action, book_id, job_rule_template = _queued_job_spec(kind, rule_template)
+            job = _create_job(action, book_id, job_rule_template)
+            payload_path, size, _ = await _persist_queued_upload_stream(base, job.id, upload_file)
+            if size <= 0:
+                _update_job(job.id, status="failed", stage="失败", message=f"{filename}: 空文件", log=None)
+                _cleanup_queued_upload(payload_path)
+                continue
+            queued = _enqueue_ingest_task(
+                {
+                    "job_id": job.id,
+                    "payload_path": str(payload_path),
+                    "filename": filename,
+                    "content_type": upload_file.content_type,
+                    "kind": kind,
+                    "title": title,
+                    "author": author,
+                    "language": language,
+                    "description": description,
+                    "series": series,
+                    "identifier": identifier,
+                    "publisher": publisher,
+                    "tags": tags,
+                    "published": published,
+                    "isbn": isbn,
+                    "rating": rating,
+                    "rule_template": rule_template,
+                    "theme_template": theme_template,
+                    "custom_css": custom_css,
+                    "dedupe_mode": dedupe_mode,
+                    "cover_bytes": cover_bytes,
+                    "cover_name": cover_name,
+                }
+            )
+            if queued:
+                _update_job(job.id, stage="排队中", message="等待后台处理")
+            else:
+                _update_job(job.id, status="failed", stage="失败", message="任务队列已满，请稍后重试", log=None)
+                _cleanup_queued_upload(payload_path)
+
+        redirect_url = "/jobs"
+        if _is_htmx(request):
+            return _htmx_redirect(redirect_url)
+        return RedirectResponse(url=redirect_url, status_code=303)
+    finally:
+        if cover_file is not None:
+            try:
+                await cover_file.close()
+            except Exception:
+                pass
+        for upload_file in file_list:
+            try:
+                await upload_file.close()
+            except Exception:
+                pass
 
 
 @app.get("/library", response_class=HTMLResponse)
@@ -2488,18 +2622,19 @@ async def regenerate_bulk(
                 continue
             if meta.source_type == "epub":
                 continue
-            _enqueue_regenerate_job(meta.book_id, selected_template)
-            queued_count += 1
+            if _enqueue_regenerate_job(meta.book_id, selected_template):
+                queued_count += 1
             continue
 
         if _effective_theme_id(meta) != selected_template:
             continue
         if meta.source_type == "epub":
-            _enqueue_edit_writeback_job(meta.book_id, meta.rule_template)
+            if _enqueue_edit_writeback_job(meta.book_id, meta.rule_template):
+                queued_count += 1
         else:
             book_rule = (meta.rule_template or "default").strip() or "default"
-            _enqueue_regenerate_job(meta.book_id, book_rule)
-        queued_count += 1
+            if _enqueue_regenerate_job(meta.book_id, book_rule):
+                queued_count += 1
 
     if queued_count <= 0:
         tab = "themes" if selected_scope == "themes" else "parsing"
@@ -2527,7 +2662,13 @@ async def cover(book_id: str) -> FileResponse:
 async def upload_cover(request: Request, book_id: str, cover: UploadFile = File(...)) -> RedirectResponse:
     base = library_dir()
     _require_book(base, book_id)
-    data = await cover.read()
+    try:
+        data = await cover.read()
+    finally:
+        try:
+            await cover.close()
+        except Exception:
+            pass
     if not data:
         raise HTTPException(status_code=400, detail="Empty cover")
     meta = load_metadata(base, book_id)
@@ -3053,7 +3194,13 @@ async def save_edit(
     cover_url = cover_url.strip()
     cover_error: Optional[str] = None
     if cover_file is not None:
-        data = await cover_file.read()
+        try:
+            data = await cover_file.read()
+        finally:
+            try:
+                await cover_file.close()
+            except Exception:
+                pass
         if not data:
             cover_error = "封面文件为空"
         else:
@@ -3081,9 +3228,8 @@ async def save_edit(
 
     save_metadata(meta, base)
     job = _create_job("edit-writeback", book_id, meta.rule_template)
-    _update_job(job.id, stage="排队中", message="等待后台处理")
     _ensure_ingest_worker_started()
-    _ingest_queue.put(
+    queued = _enqueue_ingest_task(
         {
             "job_id": job.id,
             "kind": "edit-writeback",
@@ -3094,6 +3240,10 @@ async def save_edit(
             "strip_original_css": strip_original_css_enabled,
         }
     )
+    if queued:
+        _update_job(job.id, stage="排队中", message="等待后台处理")
+    else:
+        _update_job(job.id, status="failed", stage="失败", message="任务队列已满，请稍后重试", log=None)
 
     redirect_url = "/jobs?tab=running"
     if _is_htmx(request):

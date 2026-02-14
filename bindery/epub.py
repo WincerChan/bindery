@@ -1179,8 +1179,17 @@ def _split_chapter_title(title: str, kind: str) -> tuple[Optional[str], str]:
     return stamp, main_title
 
 
+def _normalize_paragraph_lines(lines: Iterable[str]) -> list[str]:
+    if isinstance(lines, list):
+        for line in lines:
+            if not line:
+                return [item for item in lines if item]
+        return lines
+    return [line for line in lines if line]
+
+
 def _render_section(title: str, lines: Iterable[str], lang: str, kind: str = "chapter") -> str:
-    paragraphs = [line for line in lines if line]
+    paragraphs = _normalize_paragraph_lines(lines)
     stamp, main_title = _split_chapter_title(title, kind)
     return _render_epub_template(
         "section.xhtml.j2",
@@ -1267,7 +1276,7 @@ def build_epub(
         file_name = f"Text/section_{section_index:04d}.xhtml"
         item_id = f"sec{section_index:04d}"
         section_index += 1
-        normalized_lines = [line for line in lines if line]
+        normalized_lines = _normalize_paragraph_lines(lines)
         sections.append(
             _BuildSection(
                 item_id=item_id,
@@ -1385,11 +1394,12 @@ def build_epub_from_section_stream(
     section_file_paths: dict[str, Path] = {}
     section_index = 1
 
-    def add_rendered_section(kind: str, title: str, lines: list[str]) -> None:
+    def add_rendered_section(kind: str, title: str, lines: Iterable[str]) -> None:
         nonlocal section_index
         file_name = f"Text/section_{section_index:04d}.xhtml"
         item_id = f"sec{section_index:04d}"
         section_index += 1
+        normalized_lines = _normalize_paragraph_lines(lines)
         section = _BuildSection(
             item_id=item_id,
             title=title,
@@ -1400,10 +1410,10 @@ def build_epub_from_section_stream(
         )
         sections.append(section)
         if kind == "intro":
-            body_text = "\n".join(lines)
+            body_text = "\n".join(normalized_lines)
             rendered = _render_intro(meta.title, meta.author or source_author, body_text, lang)
         else:
-            rendered = _render_section(title, lines, lang, kind=kind)
+            rendered = _render_section(title, normalized_lines, lang, kind=kind)
         relative_file = Path("EPUB") / file_name
         target = temp_root / relative_file
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -1418,7 +1428,7 @@ def build_epub_from_section_stream(
             add_rendered_section("intro", "简介", intro_lines)
 
         for entry in stream_sections:
-            add_rendered_section(entry.kind, entry.title, [line for line in entry.lines if line])
+            add_rendered_section(entry.kind, entry.title, entry.lines)
 
         if not sections:
             add_rendered_section("chapter", "正文", ["（无内容）"])

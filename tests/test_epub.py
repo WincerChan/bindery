@@ -368,6 +368,39 @@ class BuildEpubTests(unittest.TestCase):
                 self.assertIn("EPUB/Text/section_0002.xhtml", names)
                 self.assertIn("第一章", zf.read("EPUB/Text/section_0001.xhtml").decode("utf-8"))
 
+    def test_build_epub_from_section_stream_filters_empty_lines(self) -> None:
+        meta = Metadata(
+            book_id="stream-empty-lines-id",
+            title="空行流式书",
+            author="作者",
+            language="zh-CN",
+            description=None,
+            publisher=None,
+            tags=[],
+            published=None,
+            isbn=None,
+            rating=None,
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "stream-empty.epub"
+            build_epub_from_section_stream(
+                stream_sections=(
+                    StreamBuildSection(kind="chapter", title="第一章", lines=["第一段", "", "第二段", ""]),
+                ),
+                source_author="作者",
+                source_intro=None,
+                meta=meta,
+                output_path=output_path,
+            )
+            with zipfile.ZipFile(output_path, "r") as zf:
+                content = zf.read("EPUB/Text/section_0001.xhtml").decode("utf-8")
+                self.assertIn("第一段", content)
+                self.assertIn("第二段", content)
+                self.assertNotIn("<p></p>", content)
+
     def test_build_epub_without_css_text_writes_empty_style_sheet(self) -> None:
         book = Book(title="测试书", author="作者", intro=None)
         chapter = Chapter(title="第一章", lines=["第一段文字。"])

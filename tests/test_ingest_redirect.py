@@ -218,6 +218,70 @@ class IngestRedirectTests(unittest.TestCase):
                 else:
                     os.environ["BINDERY_STAGE_DIR"] = previous_stage
 
+    def test_ingest_marks_job_failed_when_queue_full(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
+            previous_db = os.environ.get("BINDERY_DB_PATH")
+            previous_stage = os.environ.get("BINDERY_STAGE_DIR")
+            os.environ["BINDERY_LIBRARY_DIR"] = tmp
+            os.environ["BINDERY_DB_PATH"] = os.path.join(tmp, "bindery.db")
+            os.environ["BINDERY_STAGE_DIR"] = os.path.join(tmp, ".ingest-stage")
+            try:
+                init_db()
+                request = Request({"type": "http", "method": "POST", "headers": []})
+                with tempfile.SpooledTemporaryFile(max_size=1024 * 1024) as spooled:
+                    spooled.write("第一章 开始\n正文".encode("utf-8"))
+                    spooled.seek(0)
+                    upload = UploadFile(filename="sample.txt", file=spooled)
+                    with (
+                        patch("bindery.web._ensure_ingest_worker_started", return_value=None),
+                        patch("bindery.web._enqueue_ingest_task", return_value=False),
+                    ):
+                        response = asyncio.run(
+                            ingest(
+                                request,
+                                files=[upload],
+                                title="",
+                                author="",
+                                language="",
+                                description="",
+                                series="",
+                                identifier="",
+                                publisher="",
+                                tags="",
+                                published="",
+                                isbn="",
+                                rating="",
+                                rule_template="default",
+                                theme_template="",
+                                custom_css="",
+                                dedupe_mode="keep",
+                                cover_file=None,
+                            )
+                        )
+
+                self.assertEqual(getattr(response, "status_code", None), 303)
+                self.assertEqual(response.headers.get("location", ""), "/jobs")
+                jobs = list_jobs()
+                self.assertEqual(len(jobs), 1)
+                self.assertEqual(jobs[0].status, "failed")
+                self.assertEqual(jobs[0].stage, "失败")
+                self.assertIn("队列", jobs[0].message or "")
+            finally:
+                self._drain_queue()
+                if previous_library is None:
+                    os.environ.pop("BINDERY_LIBRARY_DIR", None)
+                else:
+                    os.environ["BINDERY_LIBRARY_DIR"] = previous_library
+                if previous_db is None:
+                    os.environ.pop("BINDERY_DB_PATH", None)
+                else:
+                    os.environ["BINDERY_DB_PATH"] = previous_db
+                if previous_stage is None:
+                    os.environ.pop("BINDERY_STAGE_DIR", None)
+                else:
+                    os.environ["BINDERY_STAGE_DIR"] = previous_stage
+
 
 if __name__ == "__main__":
     unittest.main()

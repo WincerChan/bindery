@@ -57,7 +57,7 @@ class CoverEditTests(unittest.TestCase):
                     queued_tasks: list[dict] = []
                     with (
                         patch("bindery.web._ensure_ingest_worker_started"),
-                        patch("bindery.web._ingest_queue.put", side_effect=lambda task: queued_tasks.append(task)),
+                        patch("bindery.web._enqueue_ingest_task", side_effect=lambda task: queued_tasks.append(task) or True),
                     ):
                         response = asyncio.run(
                             save_edit(

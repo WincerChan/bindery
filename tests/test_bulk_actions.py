@@ -140,7 +140,7 @@ class BulkActionsTests(unittest.TestCase):
         queued: list[dict] = []
         with (
             patch("bindery.web._ensure_ingest_worker_started"),
-            patch("bindery.web._ingest_queue.put", side_effect=lambda task: queued.append(task)),
+            patch("bindery.web._enqueue_ingest_task", side_effect=lambda task: queued.append(task) or True),
         ):
             response = asyncio.run(regenerate_bulk(scope="parsing", template_id="default"))
 
@@ -193,7 +193,7 @@ class BulkActionsTests(unittest.TestCase):
         queued: list[dict] = []
         with (
             patch("bindery.web._ensure_ingest_worker_started"),
-            patch("bindery.web._ingest_queue.put", side_effect=lambda task: queued.append(task)),
+            patch("bindery.web._enqueue_ingest_task", side_effect=lambda task: queued.append(task) or True),
         ):
             response = asyncio.run(regenerate_bulk(scope="themes", template_id="default"))
 

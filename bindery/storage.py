@@ -396,6 +396,60 @@ def list_books(base: Path, *, sort_output: bool = True) -> list[Metadata]:
     return [meta for meta in books if book_dir(base, meta.book_id).is_dir()]
 
 
+def list_books_page(
+    base: Path,
+    *,
+    sort: str = "updated",
+    q: str = "",
+    read_filter: str = "all",
+    page: int = 1,
+    per_page: int = 24,
+) -> tuple[list[Metadata], int]:
+    _ensure_books_db(base)
+    normalized_sort = "created" if (sort or "").strip().lower() == "created" else "updated"
+    normalized_filter = "unread" if (read_filter or "").strip().lower() == "unread" else "all"
+    query_text = (q or "").strip().lower()
+    safe_page = max(1, int(page))
+    safe_per_page = max(1, int(per_page))
+
+    conditions = ["archived = 0"]
+    params: list[object] = []
+    if query_text:
+        like = f"%{query_text}%"
+        conditions.append("(lower(title) LIKE ? OR lower(coalesce(author, '')) LIKE ?)")
+        params.extend([like, like])
+    if normalized_filter == "unread":
+        conditions.append("read = 0")
+
+    where_clause = " AND ".join(conditions)
+    if normalized_sort == "created":
+        order_clause = "created_at DESC"
+    else:
+        order_clause = """
+            CASE
+                WHEN updated_at IS NULL OR updated_at = '' THEN created_at
+                ELSE updated_at
+            END DESC
+        """
+
+    offset = (safe_page - 1) * safe_per_page
+    conn = _connect_books_db()
+    try:
+        total_row = conn.execute(f"SELECT COUNT(1) AS count FROM books WHERE {where_clause}", params).fetchone()
+        total = int(total_row["count"]) if total_row is not None else 0
+        page_params = [*params, safe_per_page, offset]
+        rows = conn.execute(
+            f"SELECT * FROM books WHERE {where_clause} ORDER BY {order_clause} LIMIT ? OFFSET ?",
+            page_params,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    books = [_row_to_metadata(row) for row in rows]
+    visible = [meta for meta in books if book_dir(base, meta.book_id).is_dir()]
+    return visible, total
+
+
 def list_archived_books(base: Path) -> list[Metadata]:
     _ensure_books_db(base)
     conn = _connect_books_db()

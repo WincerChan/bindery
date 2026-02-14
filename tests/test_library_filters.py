@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from bindery.models import Metadata
 from bindery.storage import library_dir, save_metadata
@@ -151,6 +152,35 @@ class LibraryFilterTests(unittest.TestCase):
 
                 self.assertEqual(payload["read_filter"], "all")
                 self.assertEqual(payload["total_books"], 2)
+            finally:
+                if prev is None:
+                    os.environ.pop("BINDERY_LIBRARY_DIR", None)
+                else:
+                    os.environ["BINDERY_LIBRARY_DIR"] = prev
+
+    def test_library_page_data_uses_paged_storage_query(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prev = os.environ.get("BINDERY_LIBRARY_DIR")
+            os.environ["BINDERY_LIBRARY_DIR"] = tmp
+            try:
+                base = library_dir()
+                sample = Metadata(
+                    book_id="f" * 32,
+                    title="分页样例",
+                    author="A",
+                    language="zh-CN",
+                    description=None,
+                    updated_at="2026-02-06T00:00:01+00:00",
+                )
+                save_metadata(sample, base)
+                with (
+                    patch("bindery.web.list_books", side_effect=AssertionError("legacy full-scan should not be used")),
+                    patch("bindery.web.list_books_page", return_value=([sample], 1)) as paged_query,
+                ):
+                    payload = _library_page_data(base, "updated", "", 1, "all")
+                self.assertEqual(payload["total_books"], 1)
+                self.assertEqual(len(payload["books"]), 1)
+                paged_query.assert_called_once()
             finally:
                 if prev is None:
                     os.environ.pop("BINDERY_LIBRARY_DIR", None)

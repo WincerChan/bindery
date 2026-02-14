@@ -73,7 +73,7 @@ class RegenerateQueueTests(unittest.TestCase):
         queued: list[dict] = []
         with (
             patch("bindery.web._ensure_ingest_worker_started"),
-            patch("bindery.web._ingest_queue.put", side_effect=lambda task: queued.append(task)),
+            patch("bindery.web._enqueue_ingest_task", side_effect=lambda task: queued.append(task) or True),
             patch("bindery.web._run_regenerate", side_effect=AssertionError("route should enqueue job")),
         ):
             response = asyncio.run(regenerate(book_id=book_id, rule_template="default", next=f"/book/{book_id}"))
@@ -110,7 +110,7 @@ class RegenerateQueueTests(unittest.TestCase):
         queued: list[dict] = []
         with (
             patch("bindery.web._ensure_ingest_worker_started"),
-            patch("bindery.web._ingest_queue.put", side_effect=lambda task: queued.append(task)),
+            patch("bindery.web._enqueue_ingest_task", side_effect=lambda task: queued.append(task) or True),
             patch("bindery.web._run_regenerate", side_effect=AssertionError("route should enqueue job")),
         ):
             response = asyncio.run(retry_job("failed-job", rule_template="default"))
@@ -123,6 +123,23 @@ class RegenerateQueueTests(unittest.TestCase):
         jobs = list_jobs()
         self.assertEqual(len(jobs), 2)
         self.assertTrue(any(job.action == "retry" and job.book_id == book_id for job in jobs))
+
+    def test_regenerate_route_marks_job_failed_when_queue_full(self) -> None:
+        book_id = "d" * 32
+        self._create_txt_book(book_id)
+        with (
+            patch("bindery.web._ensure_ingest_worker_started"),
+            patch("bindery.web._enqueue_ingest_task", return_value=False),
+        ):
+            response = asyncio.run(regenerate(book_id=book_id, rule_template="default", next=f"/book/{book_id}"))
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers.get("location"), "/jobs?tab=running")
+        jobs = list_jobs()
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].status, "failed")
+        self.assertEqual(jobs[0].stage, "失败")
+        self.assertIn("队列", jobs[0].message or "")
 
 
 if __name__ == "__main__":
