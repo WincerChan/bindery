@@ -137,7 +137,6 @@ def init_db() -> None:
                 read INTEGER NOT NULL DEFAULT 0,
                 read_status TEXT NOT NULL DEFAULT 'unread',
                 tags_json TEXT NOT NULL DEFAULT '[]',
-                review TEXT,
                 comment TEXT,
                 book_status TEXT NOT NULL DEFAULT 'ongoing',
                 created_at TEXT NOT NULL,
@@ -192,8 +191,6 @@ def _ensure_wishlist_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE wishlist ADD COLUMN read_status TEXT NOT NULL DEFAULT 'unread'")
     if "tags_json" not in columns:
         conn.execute("ALTER TABLE wishlist ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
-    if "review" not in columns:
-        conn.execute("ALTER TABLE wishlist ADD COLUMN review TEXT")
     if "comment" not in columns:
         conn.execute("ALTER TABLE wishlist ADD COLUMN comment TEXT")
     conn.execute("UPDATE wishlist SET library_book_id = NULL WHERE trim(coalesce(library_book_id, '')) = ''")
@@ -392,9 +389,9 @@ def create_wish(wish: Wish) -> None:
         conn.execute(
             """
             INSERT INTO wishlist(
-                id, title, library_book_id, author, identity_title, identity_author, rating, read, read_status, tags_json, review, comment, book_status, created_at, updated_at
+                id, title, library_book_id, author, identity_title, identity_author, rating, read, read_status, tags_json, comment, book_status, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 wish.id,
@@ -407,7 +404,6 @@ def create_wish(wish: Wish) -> None:
                 int(bool(wish.read)),
                 wish.read_status,
                 json.dumps(list(wish.tags), ensure_ascii=False),
-                wish.review,
                 wish.comment,
                 wish.book_status,
                 wish.created_at,
@@ -547,7 +543,6 @@ def _row_to_wish(row: sqlite3.Row) -> Wish:
         read=bool(row["read"]),
         read_status=read_status,
         tags=[str(item) for item in tags if str(item).strip()],
-        review=row["review"] if "review" in row.keys() else None,
         comment=row["comment"] if "comment" in row.keys() else None,
         book_status=row["book_status"] or "ongoing",
         created_at=row["created_at"],

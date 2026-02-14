@@ -401,7 +401,7 @@ def _seed_wishlist_from_books(conn: sqlite3.Connection) -> None:
         conn.execute(
             """
             INSERT INTO wishlist(
-                id, title, library_book_id, author, rating, read, read_status, tags_json, review, comment, book_status, created_at, updated_at
+                id, title, library_book_id, author, rating, read, read_status, tags_json, comment, book_status, created_at, updated_at
             )
             SELECT
                 lower(hex(randomblob(16))),
@@ -412,7 +412,6 @@ def _seed_wishlist_from_books(conn: sqlite3.Connection) -> None:
                 b.read,
                 CASE WHEN b.read = 1 THEN 'read' ELSE 'unread' END,
                 '[]',
-                NULL,
                 NULL,
                 'ongoing',
                 CASE

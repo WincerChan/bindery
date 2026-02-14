@@ -692,7 +692,6 @@ def _wish_view(wish: Wish, library_book_id: Optional[str]) -> dict[str, object]:
         "read_status_class": _wish_read_status_class(read_status),
         "tags": tags,
         "tags_text": _join_wish_tags(tags),
-        "review": wish.review,
         "comment": wish.comment,
         "book_status": status,
         "book_status_label": _wish_book_status_label(status),
@@ -781,7 +780,6 @@ def _ensure_tracker_for_book(base: Path, meta: Metadata) -> Wish:
                 read=bool(meta.read),
                 read_status=_read_status_from_flag(meta.read),
                 tags=[],
-                review=None,
                 comment=None,
                 book_status=WISH_STATUS_ONGOING,
                 created_at=now,
@@ -2633,7 +2631,6 @@ async def tracker_create(
     author: str = Form(""),
     tags: str = Form(""),
     rating: str = Form(""),
-    review: str = Form(""),
     comment: str = Form(""),
     read_status: str = Form(""),
     read: str = Form("0"),
@@ -2644,7 +2641,6 @@ async def tracker_create(
     author_value = _as_form_text(author)
     tags_value = _as_form_text(tags)
     rating_value = _as_form_text(rating)
-    review_value = _as_form_text(review)
     comment_value = _as_form_text(comment)
     read_status_value = _as_form_text(read_status)
     read_flag_value = _as_form_text(read)
@@ -2661,7 +2657,6 @@ async def tracker_create(
     )
     parsed_tags = _parse_wish_tags(tags_value)
     parsed_rating = _parse_wish_rating(rating_value)
-    parsed_review = _normalize_wish_text(review_value)
     parsed_comment = _normalize_wish_text(comment_value)
     parsed_book_status = _normalize_wish_book_status(book_status_value)
     parsed_read_flag = normalized_read_status == WISH_READ_READ
@@ -2679,7 +2674,6 @@ async def tracker_create(
                 read=parsed_read_flag,
                 read_status=normalized_read_status,
                 tags=parsed_tags,
-                review=parsed_review,
                 comment=parsed_comment,
                 book_status=parsed_book_status,
                 updated_at=now,
@@ -2700,7 +2694,6 @@ async def tracker_create(
             read=parsed_read_flag,
             read_status=normalized_read_status,
             tags=parsed_tags,
-            review=parsed_review,
             comment=parsed_comment,
             book_status=parsed_book_status,
             created_at=now,
@@ -2723,7 +2716,6 @@ async def tracker_update(
     author: str = Form(""),
     tags: str = Form(""),
     rating: str = Form(""),
-    review: str = Form(""),
     comment: str = Form(""),
     read_status: str = Form(""),
     read: str = Form("0"),
@@ -2739,7 +2731,6 @@ async def tracker_update(
     author_value = _as_form_text(author)
     tags_value = _as_form_text(tags)
     rating_value = _as_form_text(rating)
-    review_value = _as_form_text(review)
     comment_value = _as_form_text(comment)
     read_status_value = _as_form_text(read_status)
     read_flag_value = _as_form_text(read)
@@ -2755,7 +2746,6 @@ async def tracker_update(
     )
     parsed_tags = _parse_wish_tags(tags_value)
     parsed_rating = _parse_wish_rating(rating_value)
-    parsed_review = _normalize_wish_text(review_value)
     parsed_comment = _normalize_wish_text(comment_value)
     parsed_book_status = _normalize_wish_book_status(book_status_value)
     parsed_read_flag = normalized_read_status == WISH_READ_READ
@@ -2775,7 +2765,6 @@ async def tracker_update(
                 author=author_value or None,
                 tags=parsed_tags,
                 rating=parsed_rating,
-                review=parsed_review,
                 comment=parsed_comment,
                 read_status=normalized_read_status,
                 read=parsed_read_flag,
@@ -2795,7 +2784,6 @@ async def tracker_update(
         author=author_value or None,
         tags=parsed_tags,
         rating=parsed_rating,
-        review=parsed_review,
         comment=parsed_comment,
         read_status=normalized_read_status,
         read=parsed_read_flag,

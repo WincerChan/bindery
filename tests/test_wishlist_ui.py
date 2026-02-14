@@ -13,7 +13,6 @@ class WishlistUiTests(unittest.TestCase):
         self.assertIn('name="author"', tpl)
         self.assertIn('name="tags"', tpl)
         self.assertIn('name="rating"', tpl)
-        self.assertIn('name="review"', tpl)
         self.assertIn('name="comment"', tpl)
         self.assertIn('name="library_book_id"', tpl)
         self.assertIn('name="read_status"', tpl)

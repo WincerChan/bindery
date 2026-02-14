@@ -175,7 +175,6 @@ class DbTests(unittest.TestCase):
                     read=False,
                     read_status="reading",
                     tags=["克苏鲁", "蒸汽朋克"],
-                    review="世界观很完整",
                     comment="线索回收扎实",
                     book_status="ongoing",
                     created_at="2026-02-14T00:00:00+00:00",
@@ -190,7 +189,6 @@ class DbTests(unittest.TestCase):
                 self.assertFalse(fetched.read)
                 self.assertEqual(fetched.read_status, "reading")
                 self.assertEqual(fetched.tags, ["克苏鲁", "蒸汽朋克"])
-                self.assertEqual(fetched.review, "世界观很完整")
                 self.assertEqual(fetched.comment, "线索回收扎实")
                 by_book_id = get_wish_by_library_book_id("b" * 32)
                 self.assertIsNotNone(by_book_id)
@@ -203,7 +201,6 @@ class DbTests(unittest.TestCase):
                     library_book_id="c" * 32,
                     tags=["重读"],
                     rating=None,
-                    review="续作待观察",
                     comment="期待新角色",
                     read_status="read",
                     book_status="completed",
@@ -218,7 +215,6 @@ class DbTests(unittest.TestCase):
                 self.assertTrue(updated.read)
                 self.assertEqual(updated.read_status, "read")
                 self.assertEqual(updated.tags, ["重读"])
-                self.assertEqual(updated.review, "续作待观察")
                 self.assertEqual(updated.comment, "期待新角色")
                 self.assertEqual(updated.book_status, "completed")
 

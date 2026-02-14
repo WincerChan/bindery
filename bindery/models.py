@@ -80,7 +80,6 @@ class Wish:
     read: bool = False
     read_status: str = "unread"
     tags: list[str] = field(default_factory=list)
-    review: Optional[str] = None
     comment: Optional[str] = None
     book_status: str = "ongoing"
     created_at: str = ""

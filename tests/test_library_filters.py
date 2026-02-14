@@ -188,7 +188,6 @@ class LibraryFilterTests(unittest.TestCase):
                         read=True,
                         read_status="read",
                         tags=[],
-                        review=None,
                         comment=None,
                         book_status="ongoing",
                         created_at="2026-02-06T00:00:00+00:00",

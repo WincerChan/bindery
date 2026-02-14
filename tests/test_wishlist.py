@@ -32,7 +32,6 @@ class WishlistTests(unittest.TestCase):
                 author="爱潜水的乌贼",
                 tags="克苏鲁, 蒸汽朋克",
                 rating="5",
-                review="世界观很强",
                 comment="前中期节奏很好",
                 read_status="read",
                 book_status="completed",
@@ -50,7 +49,6 @@ class WishlistTests(unittest.TestCase):
         self.assertTrue(wish.read)
         self.assertEqual(wish.read_status, "read")
         self.assertEqual(wish.tags, ["克苏鲁", "蒸汽朋克"])
-        self.assertEqual(wish.review, "世界观很强")
         self.assertEqual(wish.comment, "前中期节奏很好")
         self.assertEqual(wish.book_status, "completed")
 
@@ -61,7 +59,6 @@ class WishlistTests(unittest.TestCase):
                 author="爱潜水的乌贼",
                 tags="克苏鲁",
                 rating="",
-                review="重读依然出色",
                 comment="主线收束很稳",
                 read_status="reading",
                 book_status="hiatus",
@@ -78,7 +75,6 @@ class WishlistTests(unittest.TestCase):
         self.assertFalse(updated.read)
         self.assertEqual(updated.read_status, "reading")
         self.assertEqual(updated.tags, ["克苏鲁"])
-        self.assertEqual(updated.review, "重读依然出色")
         self.assertEqual(updated.comment, "主线收束很稳")
         self.assertEqual(updated.book_status, "hiatus")
 
@@ -127,7 +123,6 @@ class WishlistTests(unittest.TestCase):
                 author="宅猪",
                 tags="仙侠",
                 rating="4",
-                review="初看不错",
                 comment="开篇抓人",
                 read_status="unread",
                 book_status="ongoing",
@@ -141,7 +136,6 @@ class WishlistTests(unittest.TestCase):
                 author="宅猪",
                 tags="仙侠, 重读",
                 rating="5",
-                review="越看越好",
                 comment="世界观展开很强",
                 read_status="reading",
                 book_status="completed",
@@ -157,7 +151,6 @@ class WishlistTests(unittest.TestCase):
         self.assertEqual(only.rating, 5)
         self.assertEqual(only.read_status, "reading")
         self.assertEqual(only.tags, ["仙侠", "重读"])
-        self.assertEqual(only.review, "越看越好")
         self.assertEqual(only.comment, "世界观展开很强")
         self.assertEqual(only.book_status, "completed")
 
@@ -194,7 +187,6 @@ class WishlistTests(unittest.TestCase):
                 author="甲作者",
                 tags="合并后",
                 rating="5",
-                review="合并成功",
                 comment="应保留单条",
                 read_status="read",
                 book_status="completed",
@@ -212,7 +204,6 @@ class WishlistTests(unittest.TestCase):
         self.assertEqual(merged.tags, ["合并后"])
         self.assertEqual(merged.rating, 5)
         self.assertEqual(merged.read_status, "read")
-        self.assertEqual(merged.review, "合并成功")
         self.assertEqual(merged.comment, "应保留单条")
         self.assertEqual(merged.book_status, "completed")
 
