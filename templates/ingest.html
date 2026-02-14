@@ -13,6 +13,7 @@
     <form id="ingest-form" action="/ingest" method="post" enctype="multipart/form-data" class="space-y-6">
       <input type="hidden" name="dedupe_mode" value="keep" data-dedupe-mode />
       <div data-upload-tokens></div>
+      <div data-dedupe-keep-tokens></div>
       <div
         data-dropzone
         class="relative border-2 border-dashed rounded-xl p-12 text-center transition-all border-slate-300 hover:border-indigo-400 bg-white [&.dragging]:border-indigo-500 [&.dragging]:bg-indigo-50"
@@ -143,17 +144,6 @@
         </button>
         <button data-ingest-submit class="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer" type="submit">开始入库</button>
       </div>
-      <div data-dedupe-confirm class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-1">
-        <p>
-          检测到疑似重复书籍：
-          <span data-dedupe-duplicate-list class="font-medium">-</span>
-          ，请确认是否保留：
-        </p>
-        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
-          <input type="checkbox" data-dedupe-keep-checkbox class="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
-          <span>保留（继续新建）</span>
-        </label>
-      </div>
       <div data-ingest-error class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"></div>
       <div data-ingest-preview-status class="hidden text-xs text-indigo-600">正在解析文件，请稍候...</div>
       <div data-ingest-status class="hidden text-xs text-indigo-600">正在提交入库任务，请稍候...</div>
@@ -180,9 +170,7 @@
   const txtMetaFields = ingestForm ? ingestForm.querySelector('[data-txt-meta-fields]') : null;
   const uploadTokensContainer = ingestForm ? ingestForm.querySelector('[data-upload-tokens]') : null;
   const themeSelect = ingestForm ? ingestForm.querySelector('[data-theme-select]') : null;
-  const dedupeConfirm = ingestForm ? ingestForm.querySelector('[data-dedupe-confirm]') : null;
-  const dedupeDuplicateList = ingestForm ? ingestForm.querySelector('[data-dedupe-duplicate-list]') : null;
-  const dedupeKeepCheckbox = ingestForm ? ingestForm.querySelector('[data-dedupe-keep-checkbox]') : null;
+  const dedupeKeepTokensContainer = ingestForm ? ingestForm.querySelector('[data-dedupe-keep-tokens]') : null;
   const KEEP_BOOK_THEME_VALUE = '__book__';
   const DEFAULT_THEME_VALUE = 'default';
   let txtMetadataTouchedByUser = false;
@@ -405,6 +393,11 @@
     uploadTokensContainer.innerHTML = '';
   };
 
+  const clearDedupeKeepTokens = () => {
+    if (!dedupeKeepTokensContainer) return;
+    dedupeKeepTokensContainer.innerHTML = '';
+  };
+
   const syncUploadTokensFromPreview = () => {
     if (!uploadTokensContainer) return 0;
     uploadTokensContainer.innerHTML = '';
@@ -423,28 +416,31 @@
     return tokens.length;
   };
 
-  const syncDedupeConfirm = (resetChoice = false) => {
-    if (!dedupeConfirm || !dedupeDuplicateList || !dedupeKeepCheckbox) return false;
+  const syncPerFileDedupeChoices = () => {
+    clearDedupeKeepTokens();
     const previewContainer = document.getElementById('ingest-preview');
     if (!previewContainer) {
-      dedupeConfirm.classList.add('hidden');
-      dedupeDuplicateList.textContent = '-';
-      dedupeKeepCheckbox.checked = false;
-      return false;
+      return { hasDuplicateHit: false, keepCount: 0 };
     }
-    const names = Array.from(previewContainer.querySelectorAll('[data-duplicate-hit="1"] a[href^="/book/"]'))
-      .map((node) => String(node.textContent || '').trim())
-      .filter((name, index, list) => name && list.indexOf(name) === index);
-    if (!names.length) {
-      dedupeConfirm.classList.add('hidden');
-      dedupeDuplicateList.textContent = '-';
-      dedupeKeepCheckbox.checked = false;
-      return false;
+    const duplicateCards = Array.from(previewContainer.querySelectorAll('[data-duplicate-hit="1"][data-upload-token]'));
+    if (!duplicateCards.length) {
+      return { hasDuplicateHit: false, keepCount: 0 };
     }
-    dedupeDuplicateList.textContent = names.join('；');
-    if (resetChoice) dedupeKeepCheckbox.checked = false;
-    dedupeConfirm.classList.remove('hidden');
-    return true;
+    let keepCount = 0;
+    duplicateCards.forEach((card) => {
+      const token = String(card.dataset.uploadToken || '').trim();
+      if (!token) return;
+      const keepCheckbox = card.querySelector('[data-dedupe-keep-checkbox]');
+      const keepChecked = keepCheckbox instanceof HTMLInputElement && keepCheckbox.checked;
+      if (!keepChecked || !dedupeKeepTokensContainer) return;
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'dedupe_keep_tokens';
+      input.value = token;
+      dedupeKeepTokensContainer.appendChild(input);
+      keepCount += 1;
+    });
+    return { hasDuplicateHit: true, keepCount };
   };
 
   if (fileInput) {
@@ -455,9 +451,7 @@
       setSelectedFilesFeedback();
       autoSelectThemeByFiles();
       resetTxtMeta();
-      if (dedupeConfirm) dedupeConfirm.classList.add('hidden');
-      if (dedupeDuplicateList) dedupeDuplicateList.textContent = '-';
-      if (dedupeKeepCheckbox) dedupeKeepCheckbox.checked = false;
+      clearDedupeKeepTokens();
       if (ingestPreviewBtn) ingestPreviewBtn.click();
     });
   }
@@ -484,16 +478,14 @@
         hideIngestError();
         syncUploadTokensFromPreview();
         syncTxtMetadataFromPreview();
-        syncDedupeConfirm(true);
+        syncPerFileDedupeChoices();
       }
     });
     ingestPreviewBtn.addEventListener('htmx:responseError', (event) => {
       setPreviewLoading(false);
       clearUploadTokens();
       resetTxtMeta();
-      if (dedupeConfirm) dedupeConfirm.classList.add('hidden');
-      if (dedupeDuplicateList) dedupeDuplicateList.textContent = '-';
-      if (dedupeKeepCheckbox) dedupeKeepCheckbox.checked = false;
+      clearDedupeKeepTokens();
       const status = event.detail && event.detail.xhr ? event.detail.xhr.status : 0;
       if (status === 413) {
         showIngestError('预览请求过大（413）：请减少单次文件数，或先压缩/拆分后再预览。');
@@ -517,10 +509,9 @@
           fileInput.disabled = false;
         }
       }
-      const hasDuplicateHit = syncDedupeConfirm();
+      const dedupeState = syncPerFileDedupeChoices();
       if (dedupeModeInput) {
-        const keepDuplicate = hasDuplicateHit && dedupeKeepCheckbox instanceof HTMLInputElement && dedupeKeepCheckbox.checked;
-        dedupeModeInput.value = keepDuplicate ? 'keep' : (hasDuplicateHit ? 'normalize' : 'keep');
+        dedupeModeInput.value = dedupeState.hasDuplicateHit ? 'normalize' : 'keep';
       }
       ingestSubmitBtn.disabled = true;
       ingestSubmitBtn.textContent = '入库中...';

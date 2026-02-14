@@ -11,7 +11,7 @@ from starlette.requests import Request
 from bindery.db import create_wish, get_wish_by_library_book_id, init_db, list_wishes
 from bindery.models import Wish
 from bindery.storage import library_dir, list_books
-from bindery.web import ingest
+from bindery.web import ingest, ingest_preview
 import bindery.web as web_module
 
 
@@ -109,6 +109,97 @@ class IngestDedupeTests(unittest.TestCase):
                 self.assertEqual(len(books_after_second), 1)
                 self.assertEqual(getattr(response_second, "status_code", None), 303)
                 self.assertEqual(books_after_second[0].book_id, existing_id)
+            finally:
+                self._drain_queue()
+                if previous_library is None:
+                    os.environ.pop("BINDERY_LIBRARY_DIR", None)
+                else:
+                    os.environ["BINDERY_LIBRARY_DIR"] = previous_library
+                if previous_db is None:
+                    os.environ.pop("BINDERY_DB_PATH", None)
+                else:
+                    os.environ["BINDERY_DB_PATH"] = previous_db
+
+    def test_normalize_mode_reuses_existing_book_when_new_author_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
+            previous_db = os.environ.get("BINDERY_DB_PATH")
+            os.environ["BINDERY_LIBRARY_DIR"] = tmp
+            os.environ["BINDERY_DB_PATH"] = os.path.join(tmp, "bindery.db")
+            try:
+                init_db()
+                request = Request({"type": "http", "method": "POST", "headers": []})
+                first_upload = self._make_upload("first.txt", "第一章 起点\n正文")
+                with patch("bindery.web._ensure_ingest_worker_started", return_value=None):
+                    response_first = asyncio.run(
+                        ingest(
+                            request,
+                            files=[first_upload],
+                            title="同名样例",
+                            author="作者甲",
+                            language="",
+                            description="",
+                            series="",
+                            identifier="",
+                            publisher="",
+                            tags="",
+                            published="",
+                            isbn="",
+                            rating="",
+                            rule_template="default",
+                            theme_template="",
+                            custom_css="",
+                            dedupe_mode="keep",
+                            cover_file=None,
+                        )
+                    )
+                first_upload.file.close()
+
+                self.assertEqual(getattr(response_first, "status_code", None), 303)
+                self.assertEqual(response_first.headers.get("location"), "/jobs")
+                first_task = web_module._ingest_queue.get_nowait()
+                web_module._process_queued_ingest_task(first_task)
+                web_module._ingest_queue.task_done()
+                books_after_first = list_books(library_dir())
+                self.assertEqual(len(books_after_first), 1)
+                existing_id = books_after_first[0].book_id
+
+                second_upload = self._make_upload("second.txt", "第一章 起点\n正文")
+                with patch("bindery.web._ensure_ingest_worker_started", return_value=None):
+                    response_second = asyncio.run(
+                        ingest(
+                            request,
+                            files=[second_upload],
+                            title="同名样例",
+                            author="",
+                            language="",
+                            description="",
+                            series="",
+                            identifier="",
+                            publisher="",
+                            tags="",
+                            published="",
+                            isbn="",
+                            rating="",
+                            rule_template="default",
+                            theme_template="",
+                            custom_css="",
+                            dedupe_mode="normalize",
+                            cover_file=None,
+                        )
+                    )
+                second_upload.file.close()
+                self.assertEqual(response_second.headers.get("location"), "/jobs")
+
+                second_task = web_module._ingest_queue.get_nowait()
+                web_module._process_queued_ingest_task(second_task)
+                web_module._ingest_queue.task_done()
+
+                books_after_second = list_books(library_dir())
+                self.assertEqual(len(books_after_second), 1)
+                self.assertEqual(getattr(response_second, "status_code", None), 303)
+                self.assertEqual(books_after_second[0].book_id, existing_id)
+                self.assertEqual(books_after_second[0].author, "作者甲")
             finally:
                 self._drain_queue()
                 if previous_library is None:
@@ -315,6 +406,83 @@ class IngestDedupeTests(unittest.TestCase):
                     os.environ.pop("BINDERY_DB_PATH", None)
                 else:
                     os.environ["BINDERY_DB_PATH"] = previous_db
+
+    def test_staged_ingest_allows_per_file_dedupe_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
+            previous_db = os.environ.get("BINDERY_DB_PATH")
+            previous_stage = os.environ.get("BINDERY_STAGE_DIR")
+            os.environ["BINDERY_LIBRARY_DIR"] = tmp
+            os.environ["BINDERY_DB_PATH"] = os.path.join(tmp, "bindery.db")
+            os.environ["BINDERY_STAGE_DIR"] = os.path.join(tmp, ".ingest-stage")
+            try:
+                init_db()
+                request = Request({"type": "http", "method": "POST", "headers": []})
+                first_upload = self._make_upload("keep.txt", "第一章 起点\n正文")
+                second_upload = self._make_upload("normalize.txt", "第一章 起点\n正文")
+                preview_response = asyncio.run(
+                    ingest_preview(
+                        request,
+                        files=[first_upload, second_upload],
+                        rule_template="default",
+                        theme_template="",
+                    )
+                )
+                self.assertEqual(preview_response.status_code, 200)
+                previews = preview_response.context.get("previews") or []
+                self.assertEqual(len(previews), 2)
+                tokens = [str(item.get("upload_token") or "") for item in previews]
+                self.assertTrue(all(tokens))
+                keep_token = tokens[0]
+
+                with patch("bindery.web._ensure_ingest_worker_started", return_value=None):
+                    response = asyncio.run(
+                        ingest(
+                            request,
+                            files=None,
+                            title="",
+                            author="",
+                            language="",
+                            description="",
+                            series="",
+                            identifier="",
+                            publisher="",
+                            tags="",
+                            published="",
+                            isbn="",
+                            rating="",
+                            rule_template="default",
+                            theme_template="",
+                            custom_css="",
+                            dedupe_mode="normalize",
+                            dedupe_keep_tokens=[keep_token],
+                            cover_file=None,
+                            upload_tokens=tokens,
+                        )
+                    )
+                self.assertEqual(getattr(response, "status_code", None), 303)
+                self.assertEqual(response.headers.get("location"), "/jobs")
+
+                queued_tasks = [web_module._ingest_queue.get_nowait(), web_module._ingest_queue.get_nowait()]
+                for _ in queued_tasks:
+                    web_module._ingest_queue.task_done()
+                mode_by_filename = {str(task.get("filename")): str(task.get("dedupe_mode")) for task in queued_tasks}
+                self.assertEqual(mode_by_filename.get("keep.txt"), "keep")
+                self.assertEqual(mode_by_filename.get("normalize.txt"), "normalize")
+            finally:
+                self._drain_queue()
+                if previous_library is None:
+                    os.environ.pop("BINDERY_LIBRARY_DIR", None)
+                else:
+                    os.environ["BINDERY_LIBRARY_DIR"] = previous_library
+                if previous_db is None:
+                    os.environ.pop("BINDERY_DB_PATH", None)
+                else:
+                    os.environ["BINDERY_DB_PATH"] = previous_db
+                if previous_stage is None:
+                    os.environ.pop("BINDERY_STAGE_DIR", None)
+                else:
+                    os.environ["BINDERY_STAGE_DIR"] = previous_stage
 
 
 if __name__ == "__main__":

@@ -15,11 +15,20 @@
         <div class="mb-3 text-sm text-red-600">{{ item.error }}</div>
       {% endif %}
       {% if duplicates %}
-        <div class="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          检测到疑似重复书籍：
-          {% for dup in duplicates %}
-            <a class="underline decoration-dotted hover:text-amber-900" href="/book/{{ dup.book_id }}">{{ dup.title }}（{{ dup.author }}）</a>{% if not loop.last %}；{% endif %}
-          {% endfor %}
+        <div class="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-2">
+          <p>
+            检测到疑似重复书籍：
+            {% for dup in duplicates %}
+              <a class="underline decoration-dotted hover:text-amber-900" href="/book/{{ dup.book_id }}">{{ dup.title }}（{{ dup.author }}）</a>{% if not loop.last %}；{% endif %}
+            {% endfor %}
+            ，请确认是否保留：
+          </p>
+          {% if item.upload_token %}
+            <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" data-dedupe-keep-checkbox class="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+              <span>保留（继续新建）</span>
+            </label>
+          {% endif %}
         </div>
       {% endif %}
       <dl class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">

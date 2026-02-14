@@ -394,9 +394,11 @@ def _match_duplicate_reason(
 
     candidate_author_key = _normalize_identity_text(candidate_author)
     existing_author_key = _normalize_identity_text(existing.author)
-    if candidate_author_key and existing_author_key and candidate_author_key == existing_author_key:
-        return "标题+作者"
-    if not candidate_author_key and not existing_author_key:
+    if candidate_author_key and existing_author_key:
+        if candidate_author_key == existing_author_key:
+            return "标题+作者"
+        return None
+    if not candidate_author_key or not existing_author_key:
         return "标题"
     return None
 
@@ -3313,6 +3315,7 @@ async def ingest(
     theme_template: str = Form(""),
     custom_css: str = Form(""),
     dedupe_mode: str = Form("keep"),
+    dedupe_keep_tokens: Optional[list[str]] = Form(None),
     cover_file: Optional[UploadFile] = File(None),
     upload_tokens: Optional[list[str]] = Form(None),
 ) -> HTMLResponse:
@@ -3323,7 +3326,14 @@ async def ingest(
         raw_upload_tokens = [upload_tokens]
     else:
         raw_upload_tokens = None
+    if isinstance(dedupe_keep_tokens, list):
+        raw_dedupe_keep_tokens: Optional[list[str]] = dedupe_keep_tokens
+    elif isinstance(dedupe_keep_tokens, str):
+        raw_dedupe_keep_tokens = [dedupe_keep_tokens]
+    else:
+        raw_dedupe_keep_tokens = None
     token_list = _normalize_upload_tokens(raw_upload_tokens)
+    dedupe_keep_token_set = set(_normalize_upload_tokens(raw_dedupe_keep_tokens))
     if not file_list and not token_list:
         raise HTTPException(status_code=400, detail="Empty file")
 
@@ -3374,6 +3384,7 @@ async def ingest(
         _ensure_ingest_worker_started()
         for entry in staged_entries:
             token = str(entry.get("token") or "").strip().lower()
+            entry_dedupe_mode = "keep" if token in dedupe_keep_token_set else dedupe_mode
             filename = str(entry.get("filename") or "upload")
             content_type_value = entry.get("content_type")
             content_type = content_type_value if isinstance(content_type_value, str) else None
@@ -3413,7 +3424,7 @@ async def ingest(
                     "rule_template": rule_template,
                     "theme_template": theme_template,
                     "custom_css": custom_css,
-                    "dedupe_mode": dedupe_mode,
+                    "dedupe_mode": entry_dedupe_mode,
                     "cover_bytes": cover_bytes,
                     "cover_name": cover_name,
                 }
