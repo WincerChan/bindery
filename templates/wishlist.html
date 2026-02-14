@@ -76,6 +76,17 @@
     <div class="mt-3 text-xs text-slate-500">
       当前显示 {{ stats.filtered }} / {{ stats.total }} · 已读 {{ stats.read }} · 在读 {{ stats.reading }} · 未读 {{ stats.unread }} · 已入库 {{ stats.in_library }}
     </div>
+    {% if duplicate_notice %}
+      <div class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+        已存在追踪条目：{{ duplicate_notice.title }}{% if duplicate_notice.author %} - {{ duplicate_notice.author }}{% endif %}，
+        <button
+          type="button"
+          data-open-edit-from-notice
+          data-wish-id="{{ duplicate_notice.id }}"
+          class="underline underline-offset-2 text-amber-800 hover:text-amber-900"
+        >点此前往编辑该条目。</button>
+      </div>
+    {% endif %}
   </section>
 
   <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -94,7 +105,7 @@
       </thead>
       <tbody class="divide-y divide-slate-100">
         {% for wish in wishes %}
-          <tr class="hover:bg-slate-50/50 transition-colors">
+          <tr id="wish-row-{{ wish.id }}" class="hover:bg-slate-50/50 transition-colors">
             <td class="px-4 py-2 text-base font-medium text-slate-900 leading-6">
               <div class="flex items-start gap-1" style="max-width: 15em;">
                 <span class="block min-w-0 flex-1 truncate" title="{{ wish.title }}">{{ wish.title }}</span>
@@ -260,6 +271,8 @@
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Title</label>
           <input type="text" name="title" required class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Book Title" />
+          <div data-add-existing-list class="hidden mt-2 text-xs text-slate-500 space-y-1"></div>
+          <p data-add-duplicate-hint class="hidden mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2"></p>
         </div>
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Author</label>
@@ -302,7 +315,7 @@
             <option value="read">已读</option>
           </select>
         </div>
-        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg mt-2">Save to Tracker</button>
+        <button type="submit" data-add-submit-btn class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-lg mt-2">Save to Tracker</button>
       </form>
     </div>
   </div>
@@ -347,11 +360,215 @@
     const addModal = document.querySelector('[data-add-modal]');
     const addOpenBtn = document.querySelector('[data-open-add-modal]');
     const addCloseBtns = document.querySelectorAll('[data-close-add-modal]');
+    const duplicateNoticeOpenBtns = document.querySelectorAll('[data-open-edit-from-notice]');
+    const addForm = addModal ? addModal.querySelector('form[action="/tracker"]') : null;
+    const addTitleInput = addForm ? addForm.querySelector('input[name="title"]') : null;
+    const addAuthorInput = addForm ? addForm.querySelector('input[name="author"]') : null;
+    const addSubmitBtn = addForm ? addForm.querySelector('[data-add-submit-btn]') : null;
+    const addExistingList = addModal ? addModal.querySelector('[data-add-existing-list]') : null;
+    const addDuplicateHint = addModal ? addModal.querySelector('[data-add-duplicate-hint]') : null;
+    let addDuplicateTimer = null;
+    let addDuplicateRequestId = 0;
+
+    function jumpToWishEditor(wishId) {
+      const normalizedWishId = String(wishId || '').trim();
+      if (!normalizedWishId) return;
+      const row = document.getElementById(`wish-row-${normalizedWishId}`);
+      if (row instanceof HTMLElement) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const editBtn = document.querySelector(
+        `[data-open-edit-modal][data-wish-id="${normalizedWishId}"]`
+      );
+      if (editBtn instanceof HTMLElement) {
+        closeModal(addModal);
+        openEditModal(editBtn);
+      }
+    }
+
+    function setAddDuplicateHint(payload) {
+      if (!(addDuplicateHint instanceof HTMLElement)) return;
+      addDuplicateHint.innerHTML = '';
+      if (!payload || typeof payload !== 'object') {
+        addDuplicateHint.classList.add('hidden');
+        return;
+      }
+      const title = typeof payload.title === 'string' ? payload.title.trim() : '';
+      const author = typeof payload.author === 'string' ? payload.author.trim() : '';
+      const wishId = typeof payload.wishId === 'string' ? payload.wishId.trim() : '';
+      if (!title || !wishId) {
+        addDuplicateHint.classList.add('hidden');
+        return;
+      }
+      const prefix = document.createTextNode(
+        author ? `已存在追踪条目：${title} - ${author}，` : `已存在追踪条目：${title}，`
+      );
+      const jumpBtn = document.createElement('button');
+      jumpBtn.type = 'button';
+      jumpBtn.className = 'underline underline-offset-2 text-amber-800 hover:text-amber-900';
+      jumpBtn.textContent = '点此前往编辑该条目。';
+      bindEvent(jumpBtn, 'click', () => jumpToWishEditor(wishId));
+      addDuplicateHint.append(prefix, jumpBtn);
+      addDuplicateHint.classList.remove('hidden');
+    }
+
+    function renderAddExistingList(matches) {
+      if (!(addExistingList instanceof HTMLElement)) return;
+      const rows = Array.isArray(matches) ? matches : [];
+      addExistingList.innerHTML = '';
+      if (!rows.length) {
+        addExistingList.classList.add('hidden');
+        return;
+      }
+      const heading = document.createElement('p');
+      heading.textContent = `已添加项目（共 ${rows.length} 条）：`;
+      addExistingList.appendChild(heading);
+      const list = document.createElement('ul');
+      list.className = 'list-disc pl-4 space-y-0.5';
+      rows.slice(0, 5).forEach((item) => {
+        const wishId = typeof item.id === 'string' ? item.id.trim() : '';
+        if (!wishId) return;
+        const title = typeof item.title === 'string' && item.title.trim() ? item.title.trim() : '未命名';
+        const author = typeof item.author === 'string' ? item.author.trim() : '';
+        const row = document.createElement('li');
+        const prefix = document.createTextNode(author ? `${title} - ${author}，` : `${title}，`);
+        const jumpBtn = document.createElement('button');
+        jumpBtn.type = 'button';
+        jumpBtn.className = 'underline underline-offset-2 text-indigo-600 hover:text-indigo-800';
+        jumpBtn.textContent = '点此前往编辑';
+        bindEvent(jumpBtn, 'click', () => jumpToWishEditor(wishId));
+        row.append(prefix, jumpBtn);
+        list.appendChild(row);
+      });
+      addExistingList.appendChild(list);
+      addExistingList.classList.remove('hidden');
+    }
+
+    function normalizeExistingMatch(item) {
+      if (!item || typeof item !== 'object') return null;
+      const rawId = typeof item.id === 'string' ? item.id.trim() : '';
+      if (!rawId) return null;
+      const rawTitle = typeof item.title === 'string' ? item.title.trim() : '';
+      const rawAuthor = typeof item.author === 'string' ? item.author.trim() : '';
+      const rawLibraryBookId = typeof item.library_book_id === 'string' ? item.library_book_id.trim() : '';
+      return {
+        id: rawId,
+        title: rawTitle || '未命名',
+        author: rawAuthor,
+        library_book_id: rawLibraryBookId,
+        in_library: Boolean(item.in_library || rawLibraryBookId),
+        exact_author: Boolean(item.exact_author),
+        blocking: Boolean(item.blocking),
+      };
+    }
+
+    function mergeDuplicateSuggestions(exactMatches, suggestionMatches) {
+      const merged = [];
+      const seen = new Set();
+      const pushUnique = (item) => {
+        const normalized = normalizeExistingMatch(item);
+        if (!normalized) return;
+        if (seen.has(normalized.id)) return;
+        seen.add(normalized.id);
+        merged.push(normalized);
+      };
+      (Array.isArray(exactMatches) ? exactMatches : []).forEach(pushUnique);
+      (Array.isArray(suggestionMatches) ? suggestionMatches : []).forEach(pushUnique);
+      return merged.slice(0, 5);
+    }
+
+    function setAddDuplicateBlocked(blocked, payload) {
+      if (addSubmitBtn instanceof HTMLButtonElement) {
+        addSubmitBtn.disabled = blocked;
+      }
+      setAddDuplicateHint(blocked ? payload : null);
+    }
+
+    async function checkAddDuplicate() {
+      const currentRequestId = ++addDuplicateRequestId;
+      if (!(addTitleInput instanceof HTMLInputElement)) return;
+      const title = addTitleInput.value.trim();
+      if (!title) {
+        renderAddExistingList([]);
+        setAddDuplicateBlocked(false, null);
+        return;
+      }
+      if (typeof fetch !== 'function') {
+        renderAddExistingList([]);
+        setAddDuplicateBlocked(false, null);
+        return;
+      }
+      const author = addAuthorInput instanceof HTMLInputElement ? addAuthorInput.value.trim() : '';
+      const params = new URLSearchParams({ title });
+      if (author) params.set('author', author);
+      try {
+        const response = await fetch(`/tracker/duplicate-check?${params.toString()}`, {
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) {
+          if (currentRequestId === addDuplicateRequestId) setAddDuplicateBlocked(false, null);
+          return;
+        }
+        const payload = await response.json();
+        if (currentRequestId !== addDuplicateRequestId) return;
+        const suggestionMatches = payload && Array.isArray(payload.matches) ? payload.matches : [];
+        const exactMatches = payload && Array.isArray(payload.exact_matches) ? payload.exact_matches : [];
+        const displayMatches = mergeDuplicateSuggestions(exactMatches, suggestionMatches);
+        renderAddExistingList(displayMatches);
+        if (!payload || !payload.exists) {
+          setAddDuplicateBlocked(false, null);
+          return;
+        }
+        const firstBlocking = Array.isArray(payload.blocking_matches) && payload.blocking_matches.length > 0
+          ? payload.blocking_matches[0]
+          : null;
+        const firstMatch = firstBlocking || (exactMatches.length > 0 ? exactMatches[0] : null) || (displayMatches.length > 0 ? displayMatches[0] : null);
+        const matchTitle = firstMatch && typeof firstMatch.title === 'string' ? firstMatch.title : title;
+        const matchAuthor = firstMatch && typeof firstMatch.author === 'string' ? firstMatch.author.trim() : '';
+        const matchId = firstMatch && typeof firstMatch.id === 'string' ? firstMatch.id : '';
+        setAddDuplicateBlocked(true, {
+          title: matchTitle,
+          author: matchAuthor,
+          wishId: matchId,
+        });
+      } catch (_error) {
+        if (currentRequestId === addDuplicateRequestId) {
+          renderAddExistingList([]);
+          setAddDuplicateBlocked(false, null);
+        }
+      }
+    }
+
+    function scheduleAddDuplicateCheck() {
+      if (addDuplicateTimer !== null) clearTimeout(addDuplicateTimer);
+      addDuplicateTimer = setTimeout(() => {
+        void checkAddDuplicate();
+      }, 180);
+    }
+
+    if (addForm instanceof HTMLFormElement) {
+      bindEvent(addForm, 'submit', (event) => {
+        if (addSubmitBtn instanceof HTMLButtonElement && addSubmitBtn.disabled) {
+          event.preventDefault();
+        }
+      });
+    }
+    if (addTitleInput instanceof HTMLInputElement) {
+      bindEvent(addTitleInput, 'input', scheduleAddDuplicateCheck);
+    }
+    if (addAuthorInput instanceof HTMLInputElement) {
+      bindEvent(addAuthorInput, 'input', scheduleAddDuplicateCheck);
+    }
+
     if (addOpenBtn && addModal) {
       bindEvent(addOpenBtn, 'click', () => {
         openModal(addModal, () => {
+          renderAddExistingList([]);
+          setAddDuplicateBlocked(false, null);
+          addDuplicateRequestId += 1;
           const firstInput = addModal.querySelector('input[name="title"]');
           if (firstInput instanceof HTMLInputElement) firstInput.focus();
+          scheduleAddDuplicateCheck();
         });
       });
       addCloseBtns.forEach((btn) => bindEvent(btn, 'click', () => closeModal(addModal)));
@@ -419,6 +636,12 @@
 
     editOpenBtns.forEach((btn) => {
       bindEvent(btn, 'click', () => openEditModal(btn));
+    });
+    duplicateNoticeOpenBtns.forEach((btn) => {
+      bindEvent(btn, 'click', () => {
+        const wishId = btn.getAttribute('data-wish-id') || '';
+        jumpToWishEditor(wishId);
+      });
     });
     editCloseBtns.forEach((btn) => bindEvent(btn, 'click', () => closeModal(editModal)));
     if (editModal) {

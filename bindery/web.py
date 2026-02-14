@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.background import BackgroundTask
@@ -1108,6 +1108,108 @@ def _tracker_return_to_url(q: str, read_filter: str, library_filter: str, book_s
     if not params:
         return "/tracker"
     return f"/tracker?{urllib.parse.urlencode(params)}"
+
+
+def _find_tracker_duplicate_wishes(
+    title: str,
+    author: Optional[str],
+    *,
+    exclude_id: Optional[str] = None,
+    limit: int = 5,
+) -> list[dict[str, object]]:
+    title_key = _normalize_identity_text(title)
+    if not title_key:
+        return []
+    author_key = _normalize_identity_text(author)
+    safe_exclude = (exclude_id or "").strip().lower()
+    safe_limit = max(1, min(20, int(limit)))
+    matches: list[dict[str, object]] = []
+    for wish in list_wishes():
+        if safe_exclude and wish.id == safe_exclude:
+            continue
+        if _normalize_identity_text(wish.title) != title_key:
+            continue
+        wish_author_key = _normalize_identity_text(wish.author)
+        exact_author = bool(author_key and wish_author_key and wish_author_key == author_key)
+        blocking = exact_author if author_key else True
+        normalized_library_book_id = _normalize_library_book_id(wish.library_book_id)
+        matches.append(
+            {
+                "id": wish.id,
+                "title": wish.title or "未命名",
+                "author": wish.author or "",
+                "library_book_id": normalized_library_book_id or "",
+                "in_library": bool(normalized_library_book_id),
+                "exact_author": exact_author,
+                "blocking": blocking,
+            }
+        )
+    matches.sort(
+        key=lambda item: (
+            not bool(item.get("blocking")),
+            not bool(item.get("in_library")),
+            str(item.get("title") or ""),
+            str(item.get("author") or ""),
+        )
+    )
+    return matches[:safe_limit]
+
+
+def _find_tracker_suggestion_wishes(
+    title: str,
+    *,
+    author: Optional[str] = None,
+    exclude_id: Optional[str] = None,
+    limit: int = 8,
+) -> list[dict[str, object]]:
+    title_query = (title or "").strip().lower()
+    if not title_query:
+        return []
+    normalized_author = _normalize_identity_text(author)
+    safe_exclude = (exclude_id or "").strip().lower()
+    safe_limit = max(1, min(30, int(limit)))
+    matches: list[dict[str, object]] = []
+    for wish in list_wishes():
+        if safe_exclude and wish.id == safe_exclude:
+            continue
+        wish_title = (wish.title or "").strip()
+        if not wish_title:
+            continue
+        if title_query not in wish_title.lower():
+            continue
+        wish_author_key = _normalize_identity_text(wish.author)
+        exact_author = bool(normalized_author and wish_author_key and wish_author_key == normalized_author)
+        normalized_library_book_id = _normalize_library_book_id(wish.library_book_id)
+        matches.append(
+            {
+                "id": wish.id,
+                "title": wish.title or "未命名",
+                "author": wish.author or "",
+                "library_book_id": normalized_library_book_id or "",
+                "in_library": bool(normalized_library_book_id),
+                "exact_author": exact_author,
+            }
+        )
+    matches.sort(
+        key=lambda item: (
+            not bool(item.get("exact_author")),
+            not bool(item.get("in_library")),
+            str(item.get("title") or ""),
+            str(item.get("author") or ""),
+        )
+    )
+    return matches[:safe_limit]
+
+
+def _tracker_duplicate_notice_url(next_target: str, duplicate_wish_id: str) -> str:
+    safe_id = (duplicate_wish_id or "").strip().lower()
+    if not BOOK_ID_RE.match(safe_id):
+        return _safe_internal_redirect_target(next_target, "/tracker")
+    safe_target = _safe_internal_redirect_target(next_target, "/tracker")
+    parsed = urllib.parse.urlparse(safe_target)
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=True) if parsed.path in {"/tracker", "/wishlist"} else {}
+    params["duplicate"] = [safe_id]
+    return f"/tracker?{urllib.parse.urlencode(params, doseq=True)}"
 
 
 def _is_douban_host(hostname: str) -> bool:
@@ -2600,6 +2702,7 @@ async def tracker_page(
     library_filter: str = "all",
     book_status_filter: str = "all",
     page: int = 1,
+    duplicate: str = "",
 ) -> HTMLResponse:
     base = library_dir()
     books = list_books(base)
@@ -2612,6 +2715,17 @@ async def tracker_page(
     selected_read_filter = _normalize_wish_read_filter(read_filter)
     selected_library_filter = _normalize_wish_library_filter(library_filter)
     selected_book_status_filter = _normalize_wish_book_status_filter(book_status_filter)
+    duplicate_notice = None
+    duplicate_wish_id = (duplicate or "").strip().lower()
+    if BOOK_ID_RE.match(duplicate_wish_id):
+        duplicate_wish = get_wish(duplicate_wish_id)
+        if duplicate_wish is not None:
+            duplicate_notice = {
+                "id": duplicate_wish.id,
+                "title": duplicate_wish.title,
+                "author": duplicate_wish.author or "",
+                "in_library": bool(_normalize_library_book_id(duplicate_wish.library_book_id)),
+            }
 
     filtered_items: list[tuple[Wish, Optional[str]]] = []
     total_count = 0
@@ -2704,7 +2818,31 @@ async def tracker_page(
                 page=next_page,
             ),
             "current_url": current_url,
+            "duplicate_notice": duplicate_notice,
         },
+    )
+
+
+@app.get("/tracker/duplicate-check")
+@app.get("/wishlist/duplicate-check")
+async def tracker_duplicate_check(
+    title: str = "",
+    author: str = "",
+    limit: int = Query(5, ge=1, le=20),
+) -> JSONResponse:
+    title_value = _as_form_text(title)
+    author_value = _as_form_text(author)
+    exact_matches = _find_tracker_duplicate_wishes(title_value, author_value or None, limit=limit)
+    blocking_matches = [item for item in exact_matches if bool(item.get("blocking"))]
+    suggestion_matches = _find_tracker_suggestion_wishes(title_value, author=author_value or None, limit=limit)
+    return JSONResponse(
+        {
+            "exists": bool(blocking_matches),
+            "rule": "title+author" if _normalize_identity_text(author_value) else "title",
+            "matches": suggestion_matches,
+            "blocking_matches": blocking_matches,
+            "exact_matches": exact_matches,
+        }
     )
 
 
@@ -2759,24 +2897,20 @@ async def tracker_create(
         if not wish_title:
             raise HTTPException(status_code=400, detail="书名不能为空")
     if normalized_library_book_id is None:
-        existing_manual = get_manual_wish_by_identity(wish_title, author_value or None)
-        if existing_manual is not None:
-            update_wish(
-                existing_manual.id,
-                title=wish_title,
-                author=author_value or None,
-                rating=parsed_rating,
-                read=parsed_read_flag,
-                read_status=normalized_read_status,
-                tags=parsed_tags,
-                comment=parsed_comment,
-                book_status=parsed_book_status,
-                updated_at=now,
-            )
-            updated_manual = get_wish(existing_manual.id)
-            if updated_manual is not None:
-                _sync_metadata_cache_from_tracker(base, updated_manual, updated_manual.library_book_id)
-            target = _safe_internal_redirect_target(next_value, "/tracker")
+        duplicate_matches = _find_tracker_duplicate_wishes(wish_title, author_value or None, limit=1)
+        blocking_match = None
+        for item in duplicate_matches:
+            if bool(item.get("blocking")):
+                blocking_match = item
+                break
+        if blocking_match is not None:
+            duplicate_id = str(blocking_match.get("id") or "")
+            target = _tracker_duplicate_notice_url(next_value, duplicate_id)
+            return RedirectResponse(url=target, status_code=303)
+    else:
+        existing_linked = get_wish_by_library_book_id(normalized_library_book_id)
+        if existing_linked is not None:
+            target = _tracker_duplicate_notice_url(next_value, existing_linked.id)
             return RedirectResponse(url=target, status_code=303)
     wish_id = new_book_id()
     create_wish(

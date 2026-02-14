@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import tempfile
 import unittest
@@ -10,7 +11,7 @@ from bindery import web as web_module
 from bindery.db import get_wish, init_db, list_wishes
 from bindery.models import Book, Metadata
 from bindery.storage import library_dir, save_book, save_metadata
-from bindery.web import wishlist_create, wishlist_page, wishlist_remove, wishlist_update
+from bindery.web import tracker_duplicate_check, wishlist_create, wishlist_page, wishlist_remove, wishlist_update
 
 
 class WishlistTests(unittest.TestCase):
@@ -190,7 +191,7 @@ class WishlistTests(unittest.TestCase):
         self.assertEqual(updated.read_status, "reading")
         self.assertEqual(updated.rating, 5)
 
-    def test_wishlist_create_dedupes_manual_identity(self) -> None:
+    def test_wishlist_create_rejects_duplicate_manual_identity(self) -> None:
         response_first = asyncio.run(
             wishlist_create(
                 title="临渊行",
@@ -216,17 +217,133 @@ class WishlistTests(unittest.TestCase):
             )
         )
         self.assertEqual(response_second.status_code, 303)
+        self.assertTrue((response_second.headers.get("location") or "").startswith("/tracker?duplicate="))
 
         wishes = list_wishes()
         self.assertEqual(len(wishes), 1)
         only = wishes[0]
         self.assertEqual(only.title, "临渊行")
         self.assertEqual(only.author, "宅猪")
-        self.assertEqual(only.rating, 5)
-        self.assertEqual(only.read_status, "reading")
-        self.assertEqual(only.tags, ["仙侠", "重读"])
-        self.assertEqual(only.comment, "世界观展开很强")
-        self.assertEqual(only.book_status, "completed")
+        self.assertEqual(only.rating, 4)
+        self.assertEqual(only.read_status, "unread")
+        self.assertEqual(only.tags, ["仙侠"])
+        self.assertEqual(only.comment, "开篇抓人")
+        self.assertEqual(only.book_status, "ongoing")
+
+    def test_tracker_duplicate_check_returns_existing_title(self) -> None:
+        asyncio.run(
+            wishlist_create(
+                title="诡秘之主",
+                author="爱潜水的乌贼",
+                tags="",
+                rating="",
+                read_status="unread",
+                book_status="completed",
+            )
+        )
+        response = asyncio.run(tracker_duplicate_check(title="诡秘之主", author="", limit=5))
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.body.decode("utf-8"))
+        self.assertTrue(payload.get("exists"))
+        matches = payload.get("matches") or []
+        self.assertTrue(matches)
+        self.assertEqual(matches[0].get("title"), "诡秘之主")
+        exact_matches = payload.get("exact_matches") or []
+        self.assertTrue(exact_matches)
+        self.assertEqual(exact_matches[0].get("title"), "诡秘之主")
+
+    def test_wishlist_create_allows_same_title_with_different_author(self) -> None:
+        asyncio.run(
+            wishlist_create(
+                title="同名书",
+                author="作者甲",
+                tags="",
+                rating="",
+                read_status="unread",
+                book_status="completed",
+            )
+        )
+        response = asyncio.run(
+            wishlist_create(
+                title="同名书",
+                author="作者乙",
+                tags="",
+                rating="",
+                read_status="unread",
+                book_status="completed",
+            )
+        )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers.get("location"), "/tracker")
+        wishes = list_wishes()
+        self.assertEqual(len(wishes), 2)
+        authors = {wish.author for wish in wishes}
+        self.assertEqual(authors, {"作者甲", "作者乙"})
+
+    def test_tracker_duplicate_check_with_author_only_blocks_exact_author(self) -> None:
+        asyncio.run(
+            wishlist_create(
+                title="同名校验",
+                author="作者甲",
+                tags="",
+                rating="",
+                read_status="unread",
+                book_status="completed",
+            )
+        )
+        response = asyncio.run(tracker_duplicate_check(title="同名校验", author="作者乙", limit=5))
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.body.decode("utf-8"))
+        self.assertFalse(payload.get("exists"))
+        matches = payload.get("matches") or []
+        self.assertTrue(matches)
+        self.assertEqual(matches[0].get("author"), "作者甲")
+        blocking_matches = payload.get("blocking_matches") or []
+        self.assertFalse(blocking_matches)
+
+    def test_tracker_duplicate_check_supports_partial_title_suggestions(self) -> None:
+        asyncio.run(
+            wishlist_create(
+                title="这游戏也太真实了",
+                author="晨星LL",
+                tags="",
+                rating="",
+                read_status="unread",
+                book_status="completed",
+            )
+        )
+        response = asyncio.run(tracker_duplicate_check(title="游戏", author="", limit=5))
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.body.decode("utf-8"))
+        self.assertFalse(payload.get("exists"))
+        matches = payload.get("matches") or []
+        self.assertTrue(matches)
+        self.assertEqual(matches[0].get("title"), "这游戏也太真实了")
+
+    def test_wishlist_create_without_author_blocks_same_title(self) -> None:
+        asyncio.run(
+            wishlist_create(
+                title="无作者拦截",
+                author="作者甲",
+                tags="",
+                rating="",
+                read_status="unread",
+                book_status="completed",
+            )
+        )
+        response = asyncio.run(
+            wishlist_create(
+                title="无作者拦截",
+                author="",
+                tags="",
+                rating="",
+                read_status="unread",
+                book_status="completed",
+            )
+        )
+        self.assertEqual(response.status_code, 303)
+        self.assertTrue((response.headers.get("location") or "").startswith("/tracker?duplicate="))
+        self.assertEqual(len(list_wishes()), 1)
 
     def test_wishlist_update_merges_manual_identity_duplicate(self) -> None:
         asyncio.run(
