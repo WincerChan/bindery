@@ -655,6 +655,12 @@
   .min-w-\[280px\] {
     min-width: 280px;
   }
+  .min-w-\[760px\] {
+    min-width: 760px;
+  }
+  .min-w-\[900px\] {
+    min-width: 900px;
+  }
   .min-w-full {
     min-width: 100%;
   }
@@ -1357,6 +1363,10 @@
   }
   .text-\[12px\] {
     font-size: 12px;
+  }
+  .leading-6 {
+    --tw-leading: calc(var(--spacing) * 6);
+    line-height: calc(var(--spacing) * 6);
   }
   .leading-none {
     --tw-leading: 1;

@@ -289,6 +289,32 @@ class WishlistTests(unittest.TestCase):
         self.assertEqual(stats.get("reading"), 1)
         self.assertEqual(stats.get("unread"), 1)
 
+    def test_wishlist_pagination_and_current_url(self) -> None:
+        for idx in range(25):
+            asyncio.run(
+                wishlist_create(
+                    title=f"分页书-{idx}",
+                    author=f"作者-{idx}",
+                    tags="测试",
+                    rating="",
+                    read_status="unread",
+                    book_status="ongoing",
+                )
+            )
+
+        request = Request({"type": "http", "method": "GET", "path": "/tracker", "headers": []})
+        response = asyncio.run(wishlist_page(request, page=2))
+        wishes = response.context.get("wishes", [])
+
+        self.assertEqual(len(wishes), 5)
+        self.assertEqual(response.context.get("page"), 2)
+        self.assertEqual(response.context.get("total_pages"), 2)
+        self.assertTrue(response.context.get("has_prev"))
+        self.assertFalse(response.context.get("has_next"))
+        self.assertEqual(response.context.get("current_url"), "/tracker?page=2")
+        self.assertEqual(response.context.get("prev_page_url"), "/tracker")
+        self.assertEqual(response.context.get("next_page_url"), "/tracker?page=3")
+
     def test_wishlist_next_redirect(self) -> None:
         target = "/tracker?read_filter=unread&library_filter=out"
         response = asyncio.run(

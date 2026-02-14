@@ -101,6 +101,7 @@ DEFAULT_THEME_ID = "default"
 # 显式声明“保持书籍样式”（仅针对 EPUB 导入书籍有意义）；避免用 `None` 产生歧义。
 KEEP_BOOK_THEME_ID = "__book__"
 LIBRARY_PAGE_SIZE = 24
+TRACKER_PAGE_SIZE = 20
 INGEST_QUEUE_DIR = ".ingest-queue"
 INGEST_STAGE_DIR = ".ingest-stage"
 INGEST_STAGE_DIR_ENV = "BINDERY_STAGE_DIR"
@@ -701,7 +702,20 @@ def _wish_view(wish: Wish, library_book_id: Optional[str]) -> dict[str, object]:
         "library_book_id": library_book_id,
         "created_at": wish.created_at,
         "updated_at": wish.updated_at,
+        "updated_at_display": _tracker_updated_at_display(wish.updated_at),
     }
+
+
+def _tracker_updated_at_display(raw: Optional[str]) -> str:
+    value = (raw or "").strip()
+    if not value:
+        return "-"
+    try:
+        parsed = dt.datetime.fromisoformat(value)
+        return parsed.astimezone().strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        shortened = value.replace("T", " ").replace("+00:00", " UTC")
+        return shortened[:16] if len(shortened) > 16 else shortened
 
 
 def _wish_matches_filters(
@@ -1008,11 +1022,12 @@ def _library_return_to_url(
     return f"/?{urllib.parse.urlencode(params)}"
 
 
-def _tracker_return_to_url(q: str, read_filter: str, library_filter: str, book_status_filter: str) -> str:
+def _tracker_return_to_url(q: str, read_filter: str, library_filter: str, book_status_filter: str, page: int = 1) -> str:
     normalized_q = (q or "").strip()
     normalized_read = _normalize_wish_read_filter(read_filter)
     normalized_library = _normalize_wish_library_filter(library_filter)
     normalized_status = _normalize_wish_book_status_filter(book_status_filter)
+    safe_page = max(1, int(page))
     params: dict[str, str] = {}
     if normalized_q:
         params["q"] = normalized_q
@@ -1022,6 +1037,8 @@ def _tracker_return_to_url(q: str, read_filter: str, library_filter: str, book_s
         params["library_filter"] = normalized_library
     if normalized_status != "all":
         params["book_status_filter"] = normalized_status
+    if safe_page > 1:
+        params["page"] = str(safe_page)
     if not params:
         return "/tracker"
     return f"/tracker?{urllib.parse.urlencode(params)}"
@@ -2516,6 +2533,7 @@ async def tracker_page(
     read_filter: str = "all",
     library_filter: str = "all",
     book_status_filter: str = "all",
+    page: int = 1,
 ) -> HTMLResponse:
     base = library_dir()
     for meta in list_books(base):
@@ -2546,26 +2564,62 @@ async def tracker_page(
             book_status_filter=selected_book_status_filter,
         )
     ]
+    filtered_total = len(view_items)
+    page_size = TRACKER_PAGE_SIZE
+    total_pages = max(1, (filtered_total + page_size - 1) // page_size)
+    requested_page = max(1, int(page))
+    current_page = min(requested_page, total_pages)
+    start = (current_page - 1) * page_size
+    paged_items = view_items[start : start + page_size]
+    has_prev = current_page > 1
+    has_next = current_page < total_pages
+    prev_page = current_page - 1
+    next_page = current_page + 1
+
     stats = {
         "total": len(all_items),
-        "filtered": len(view_items),
+        "filtered": filtered_total,
         "read": sum(1 for item in all_items if str(item.get("read_status")) == WISH_READ_READ),
         "reading": sum(1 for item in all_items if str(item.get("read_status")) == WISH_READ_READING),
         "unread": sum(1 for item in all_items if str(item.get("read_status")) == WISH_READ_UNREAD),
         "in_library": sum(1 for item in all_items if bool(item.get("exists_in_library"))),
         "out_library": sum(1 for item in all_items if not bool(item.get("exists_in_library"))),
     }
-    current_url = _tracker_return_to_url(q, selected_read_filter, selected_library_filter, selected_book_status_filter)
+    current_url = _tracker_return_to_url(
+        q,
+        selected_read_filter,
+        selected_library_filter,
+        selected_book_status_filter,
+        page=current_page,
+    )
     return templates.TemplateResponse(
         "wishlist.html",
         {
             "request": request,
-            "wishes": view_items,
+            "wishes": paged_items,
             "q": q,
             "read_filter": selected_read_filter,
             "library_filter": selected_library_filter,
             "book_status_filter": selected_book_status_filter,
             "stats": stats,
+            "page": current_page,
+            "total_pages": total_pages,
+            "has_prev": has_prev,
+            "has_next": has_next,
+            "prev_page_url": _tracker_return_to_url(
+                q,
+                selected_read_filter,
+                selected_library_filter,
+                selected_book_status_filter,
+                page=prev_page,
+            ),
+            "next_page_url": _tracker_return_to_url(
+                q,
+                selected_read_filter,
+                selected_library_filter,
+                selected_book_status_filter,
+                page=next_page,
+            ),
             "current_url": current_url,
         },
     )

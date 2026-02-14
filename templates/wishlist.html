@@ -79,151 +79,75 @@
   </section>
 
   <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    <table class="w-full text-left border-collapse">
+    <div class="overflow-x-auto">
+    <table class="min-w-[900px] w-full text-left border-collapse">
       <thead class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold">
         <tr>
-          <th class="px-6 py-4 w-[34%]">Book Info</th>
-          <th class="px-6 py-4">Status</th>
-          <th class="px-6 py-4">Rating &amp; Progress</th>
-          <th class="px-6 py-4">Library</th>
-          <th class="px-6 py-4 text-right">Actions</th>
+          <th class="px-4 py-3 whitespace-nowrap" style="width: 15em;">书名</th>
+          <th class="px-4 py-3 whitespace-nowrap" style="width: 10em;">作者</th>
+          <th class="px-4 py-3 whitespace-nowrap">状态</th>
+          <th class="px-4 py-3 whitespace-nowrap">评分</th>
+          <th class="px-4 py-3 whitespace-nowrap">阅读</th>
+          <th class="px-4 py-3 whitespace-nowrap">更新时间</th>
+          <th class="px-4 py-3 text-right whitespace-nowrap">操作</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
         {% for wish in wishes %}
-          {% set update_form_id = "wish-update-" ~ wish.id %}
           <tr class="hover:bg-slate-50/50 transition-colors">
-            <td class="px-6 py-4 align-top">
-              <form id="{{ update_form_id }}" action="/tracker/{{ wish.id }}/update" method="post"></form>
-              <input form="{{ update_form_id }}" type="hidden" name="next" value="{{ current_url }}" />
-              <input form="{{ update_form_id }}" type="hidden" name="library_book_id" value="{{ wish.library_book_id or '' }}" />
-              <div class="space-y-2">
-                <input
-                  form="{{ update_form_id }}"
-                  type="text"
-                  name="title"
-                  required
-                  value="{{ wish.title }}"
-                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <input
-                  form="{{ update_form_id }}"
-                  type="text"
-                  name="author"
-                  value="{{ wish.author or '' }}"
-                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="作者"
-                />
-                <input
-                  form="{{ update_form_id }}"
-                  type="text"
-                  name="tags"
-                  value="{{ wish.tags_text }}"
-                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 text-xs text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="标签，逗号分隔"
-                />
-                <input
-                  form="{{ update_form_id }}"
-                  type="text"
-                  name="review"
-                  value="{{ wish.review or '' }}"
-                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 text-xs text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="一句话评语"
-                />
-                <textarea
-                  form="{{ update_form_id }}"
-                  name="comment"
-                  rows="2"
-                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 text-xs text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="评论"
-                >{{ wish.comment or '' }}</textarea>
-                {% if wish.tags %}
-                  <div class="flex flex-wrap gap-1.5 pt-0.5">
-                    {% for tag in wish.tags %}
-                      <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">{{ tag }}</span>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-              </div>
+            <td class="px-4 py-2 text-sm font-medium text-slate-900 leading-6">
+              <span class="block truncate" style="max-width: 15em;" title="{{ wish.title }}">{{ wish.title }}</span>
             </td>
-
-            <td class="px-6 py-4 align-top">
-              <div class="space-y-2">
-                <span class="inline-flex px-2 py-1 text-xs font-medium rounded border {{ wish.book_status_class }}">{{ wish.book_status_label }}</span>
-                <select
-                  form="{{ update_form_id }}"
-                  name="book_status"
-                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-sm focus:outline-none"
-                >
-                  <option value="ongoing" {% if wish.book_status == 'ongoing' %}selected{% endif %}>更新中</option>
-                  <option value="completed" {% if wish.book_status == 'completed' %}selected{% endif %}>已完结</option>
-                  <option value="hiatus" {% if wish.book_status == 'hiatus' %}selected{% endif %}>已断更</option>
-                </select>
-              </div>
+            <td class="px-4 py-2 text-sm text-slate-600 leading-6">
+              <span class="block truncate whitespace-nowrap" style="max-width: 10em;" title="{{ wish.author or '—' }}">{{ wish.author or "—" }}</span>
             </td>
-
-            <td class="px-6 py-4 align-top">
-              <div class="space-y-2">
-                <div class="flex items-center gap-0.5 text-amber-400 text-sm">
-                  {% set rating_value = wish.rating or 0 %}
-                  {% for i in range(1, 6) %}
-                    <span class="{{ 'text-amber-400' if i <= rating_value else 'text-slate-300' }}">★</span>
-                  {% endfor %}
-                </div>
-                <select
-                  form="{{ update_form_id }}"
-                  name="rating"
-                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-sm focus:outline-none"
-                >
-                  <option value="" {% if wish.rating is none %}selected{% endif %}>未评分</option>
-                  {% for i in range(5, 0, -1) %}
-                    <option value="{{ i }}" {% if wish.rating == i %}selected{% endif %}>{{ i }} 星</option>
-                  {% endfor %}
-                </select>
-                <select
-                  form="{{ update_form_id }}"
-                  name="read_status"
-                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-sm focus:outline-none"
-                >
-                  <option value="unread" {% if wish.read_status == 'unread' %}selected{% endif %}>未读</option>
-                  <option value="reading" {% if wish.read_status == 'reading' %}selected{% endif %}>在读</option>
-                  <option value="read" {% if wish.read_status == 'read' %}selected{% endif %}>已读</option>
-                </select>
-                <div class="text-xs font-medium {{ wish.read_status_class }}">{{ wish.read_status_label }}</div>
-              </div>
+            <td class="px-4 py-2 leading-6 whitespace-nowrap">
+              <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded border {{ wish.book_status_class }}">{{ wish.book_status_label }}</span>
             </td>
-
-            <td class="px-6 py-4 align-top">
-              {% if wish.exists_in_library and wish.library_book_id %}
-                <a
-                  href="/book/{{ wish.library_book_id }}"
-                  class="inline-flex text-xs items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-2 py-1 rounded border border-indigo-100 transition-colors"
-                >In Library</a>
+            <td class="px-4 py-2 text-sm text-slate-600 leading-6 whitespace-nowrap">
+              {% if wish.rating is none %}
+                <span class="text-slate-400">未评分</span>
               {% else %}
-                <span class="text-xs text-slate-400 inline-flex items-center gap-1">Not Acquired</span>
+                <span>{{ wish.rating }} / 5</span>
               {% endif %}
             </td>
-
-            <td class="px-6 py-4 text-right align-top">
+            <td class="px-4 py-2 text-sm leading-6 whitespace-nowrap">
+              <span class="{{ wish.read_status_class }}">{{ wish.read_status_label }}</span>
+            </td>
+            <td class="px-4 py-2 text-sm text-slate-500 leading-6 whitespace-nowrap">{{ wish.updated_at_display }}</td>
+            <td class="px-4 py-2 text-right whitespace-nowrap">
               <div class="inline-flex items-center gap-2">
                 <button
-                  form="{{ update_form_id }}"
-                  type="submit"
-                  class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
-                >保存</button>
+                  type="button"
+                  data-open-edit-modal
+                  data-wish-id="{{ wish.id }}"
+                  data-source-id="wish-edit-data-{{ wish.id }}"
+                  class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm"
+                >编辑</button>
                 <form action="/tracker/{{ wish.id }}/delete" method="post" class="m-0" onsubmit="return confirm('确定删除该记录？');">
                   <input type="hidden" name="next" value="{{ current_url }}" />
                   <button
                     type="submit"
-                    class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 transition-colors"
+                    class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 transition-colors text-sm"
                   >删除</button>
                 </form>
               </div>
+              <form id="wish-edit-data-{{ wish.id }}" class="hidden" aria-hidden="true">
+                <input type="hidden" name="title" value="{{ wish.title }}" />
+                <input type="hidden" name="author" value="{{ wish.author or '' }}" />
+                <input type="hidden" name="library_book_id" value="{{ wish.library_book_id or '' }}" />
+                <input type="hidden" name="tags" value="{{ wish.tags_text }}" />
+                <input type="hidden" name="rating" value="{{ wish.rating if wish.rating is not none else '' }}" />
+                <input type="hidden" name="read_status" value="{{ wish.read_status }}" />
+                <input type="hidden" name="book_status" value="{{ wish.book_status }}" />
+                <input type="hidden" name="review" value="{{ wish.review or '' }}" />
+                <textarea name="comment">{{ wish.comment or '' }}</textarea>
+              </form>
             </td>
           </tr>
         {% else %}
           <tr>
-            <td colspan="5" class="px-6 py-12 text-center text-slate-400">
+            <td colspan="7" class="px-6 py-12 text-center text-slate-400">
               <div class="text-sm">No books match your filters.</div>
               <a href="/tracker" class="text-indigo-600 text-sm font-medium mt-2 hover:underline inline-block">Clear all filters</a>
             </td>
@@ -231,7 +155,86 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
+    <div class="border-t border-slate-200 px-4 py-3 flex items-center justify-between text-sm">
+      <div class="text-slate-500">第 {{ page }} / {{ total_pages }} 页</div>
+      <div class="flex items-center gap-2">
+        {% if has_prev %}
+          <a href="{{ prev_page_url }}" class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">上一页</a>
+        {% else %}
+          <span class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-100 bg-slate-50 text-slate-400">上一页</span>
+        {% endif %}
+        {% if has_next %}
+          <a href="{{ next_page_url }}" class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">下一页</a>
+        {% else %}
+          <span class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-100 bg-slate-50 text-slate-400">下一页</span>
+        {% endif %}
+      </div>
+    </div>
   </section>
+
+  <div data-edit-modal class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-slate-900">编辑追踪</h3>
+        <button type="button" data-close-edit-modal class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+      </div>
+      <form data-edit-form action="/tracker" method="post" class="space-y-4">
+        <input type="hidden" name="next" value="{{ current_url }}" />
+        <input type="hidden" name="library_book_id" value="" />
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Title</label>
+          <input type="text" name="title" required class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Book Title" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Author</label>
+          <input type="text" name="author" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Author Name" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Tags</label>
+          <input type="text" name="tags" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="玄幻, 仙侠" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Review</label>
+          <input type="text" name="review" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="一句话评语" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Comment</label>
+          <textarea name="comment" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="评论"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+            <select name="book_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+              <option value="ongoing">更新中</option>
+              <option value="completed">已完结</option>
+              <option value="hiatus">已断更</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Rating</label>
+            <select name="rating" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+              <option value="">Unrated</option>
+              <option value="5">5 Stars</option>
+              <option value="4">4 Stars</option>
+              <option value="3">3 Stars</option>
+              <option value="2">2 Stars</option>
+              <option value="1">1 Star</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Read Status</label>
+          <select name="read_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+            <option value="unread">Unread</option>
+            <option value="reading">Reading</option>
+            <option value="read">Read</option>
+          </select>
+        </div>
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg mt-2">保存更改</button>
+      </form>
+    </div>
+  </div>
 
   <div data-add-modal class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
@@ -298,33 +301,87 @@
 
 <script>
   (() => {
-    const modal = document.querySelector('[data-add-modal]');
-    const openBtn = document.querySelector('[data-open-add-modal]');
-    const closeBtns = document.querySelectorAll('[data-close-add-modal]');
-
-    if (!modal || !openBtn) return;
-
-    function openModal() {
+    function openModal(modal, onOpened) {
+      if (!modal) return;
       modal.classList.remove('hidden');
       modal.classList.add('flex');
-      const firstInput = modal.querySelector('input[name="title"]');
-      if (firstInput instanceof HTMLInputElement) firstInput.focus();
+      if (typeof onOpened === 'function') onOpened();
     }
 
-    function closeModal() {
+    function closeModal(modal) {
+      if (!modal) return;
       modal.classList.add('hidden');
       modal.classList.remove('flex');
     }
 
-    openBtn.addEventListener('click', openModal);
-    closeBtns.forEach((btn) => btn.addEventListener('click', closeModal));
+    const addModal = document.querySelector('[data-add-modal]');
+    const addOpenBtn = document.querySelector('[data-open-add-modal]');
+    const addCloseBtns = document.querySelectorAll('[data-close-add-modal]');
+    if (addOpenBtn && addModal) {
+      addOpenBtn.addEventListener('click', () => {
+        openModal(addModal, () => {
+          const firstInput = addModal.querySelector('input[name="title"]');
+          if (firstInput instanceof HTMLInputElement) firstInput.focus();
+        });
+      });
+      addCloseBtns.forEach((btn) => btn.addEventListener('click', () => closeModal(addModal)));
+      addModal.addEventListener('click', (event) => {
+        if (event.target === addModal) closeModal(addModal);
+      });
+    }
 
-    modal.addEventListener('click', (event) => {
-      if (event.target === modal) closeModal();
+    const editModal = document.querySelector('[data-edit-modal]');
+    const editForm = editModal ? editModal.querySelector('[data-edit-form]') : null;
+    const editCloseBtns = document.querySelectorAll('[data-close-edit-modal]');
+    const editOpenBtns = document.querySelectorAll('[data-open-edit-modal]');
+
+    function setFormField(form, name, value) {
+      if (!(form instanceof HTMLFormElement)) return;
+      const field = form.elements.namedItem(name);
+      if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) {
+        field.value = typeof value === 'string' ? value : '';
+      }
+    }
+
+    function openEditModal(button) {
+      if (!(button instanceof HTMLElement)) return;
+      if (!(editModal instanceof HTMLElement) || !(editForm instanceof HTMLFormElement)) return;
+      const wishId = button.getAttribute('data-wish-id') || '';
+      const sourceId = button.getAttribute('data-source-id') || '';
+      const sourceForm = sourceId ? document.getElementById(sourceId) : null;
+      if (!wishId || !(sourceForm instanceof HTMLFormElement)) return;
+
+      const sourceData = new FormData(sourceForm);
+      editForm.setAttribute('action', `/tracker/${wishId}/update`);
+      setFormField(editForm, 'title', String(sourceData.get('title') || ''));
+      setFormField(editForm, 'author', String(sourceData.get('author') || ''));
+      setFormField(editForm, 'library_book_id', String(sourceData.get('library_book_id') || ''));
+      setFormField(editForm, 'tags', String(sourceData.get('tags') || ''));
+      setFormField(editForm, 'rating', String(sourceData.get('rating') || ''));
+      setFormField(editForm, 'read_status', String(sourceData.get('read_status') || 'unread'));
+      setFormField(editForm, 'book_status', String(sourceData.get('book_status') || 'ongoing'));
+      setFormField(editForm, 'review', String(sourceData.get('review') || ''));
+      setFormField(editForm, 'comment', String(sourceData.get('comment') || ''));
+      openModal(editModal, () => {
+        const firstInput = editForm.querySelector('input[name="title"]');
+        if (firstInput instanceof HTMLInputElement) firstInput.focus();
+      });
+    }
+
+    editOpenBtns.forEach((btn) => {
+      btn.addEventListener('click', () => openEditModal(btn));
     });
+    editCloseBtns.forEach((btn) => btn.addEventListener('click', () => closeModal(editModal)));
+    if (editModal) {
+      editModal.addEventListener('click', (event) => {
+        if (event.target === editModal) closeModal(editModal);
+      });
+    }
 
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeModal();
+      if (event.key !== 'Escape') return;
+      closeModal(addModal);
+      closeModal(editModal);
     });
   })();
 </script>
