@@ -95,19 +95,25 @@
       <tbody class="divide-y divide-slate-100">
         {% for wish in wishes %}
           <tr class="hover:bg-slate-50/50 transition-colors">
-            <td class="px-4 py-2 text-sm font-medium text-slate-900 leading-6">
-              {% if wish.exists_in_library and wish.library_book_id %}
-                <a
-                  href="/book/{{ wish.library_book_id }}"
-                  class="block truncate text-indigo-700 hover:text-indigo-800 hover:underline"
-                  style="max-width: 15em;"
-                  title="{{ wish.title }}"
-                >{{ wish.title }}</a>
-              {% else %}
-                <span class="block truncate" style="max-width: 15em;" title="{{ wish.title }}">{{ wish.title }}</span>
-              {% endif %}
+            <td class="px-4 py-2 text-base font-medium text-slate-900 leading-6">
+              <div class="flex items-start gap-1" style="max-width: 15em;">
+                <span class="block min-w-0 flex-1 truncate" title="{{ wish.title }}">{{ wish.title }}</span>
+                {% if wish.exists_in_library and wish.library_book_id %}
+                  <a
+                    href="/book/{{ wish.library_book_id }}?return_to={{ current_url|urlencode }}"
+                    aria-label="查看详情"
+                    title="查看详情"
+                    class="inline-flex items-center justify-center text-indigo-500 rounded-md p-1 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M7 17L17 7"></path>
+                      <path d="M9 7h8v8"></path>
+                    </svg>
+                  </a>
+                {% endif %}
+              </div>
             </td>
-            <td class="px-4 py-2 text-sm text-slate-600 leading-6">
+            <td class="px-4 py-2 text-base text-slate-600 leading-6">
               <span class="block truncate whitespace-nowrap" style="max-width: 10em;" title="{{ wish.author or '—' }}">{{ wish.author or "—" }}</span>
             </td>
             <td class="px-4 py-2 leading-6 whitespace-nowrap">
