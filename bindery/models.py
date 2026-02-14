@@ -70,6 +70,18 @@ class Job:
     updated_at: str
 
 
+@dataclass
+class Wish:
+    id: str
+    title: str
+    author: Optional[str]
+    rating: Optional[int]
+    read: bool
+    book_status: str
+    created_at: str
+    updated_at: str
+
+
 def chapter_to_dict(chapter: Chapter) -> dict:
     return {
         "title": chapter.title,

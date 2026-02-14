@@ -5,16 +5,21 @@ from pathlib import Path
 
 import bindery.db as db_module
 from bindery.db import (
+    create_wish,
     create_job,
     db_path,
+    delete_wish,
     delete_jobs,
     get_job,
     get_reader_progress,
+    get_wish,
     init_db,
+    list_wishes,
     list_jobs,
+    update_wish,
     upsert_reader_progress,
 )
-from bindery.models import Job
+from bindery.models import Job, Wish
 
 
 class DbTests(unittest.TestCase):
@@ -153,6 +158,52 @@ class DbTests(unittest.TestCase):
                     os.environ.pop("BINDERY_LIBRARY_DIR", None)
                 else:
                     os.environ["BINDERY_LIBRARY_DIR"] = previous_library
+
+    def test_wishlist_crud(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_file = os.path.join(tmp, "bindery.db")
+            os.environ["BINDERY_DB_PATH"] = db_file
+            try:
+                init_db()
+                wish = Wish(
+                    id="a" * 32,
+                    title="诡秘之主",
+                    author="爱潜水的乌贼",
+                    rating=5,
+                    read=False,
+                    book_status="ongoing",
+                    created_at="2026-02-14T00:00:00+00:00",
+                    updated_at="2026-02-14T00:00:00+00:00",
+                )
+                create_wish(wish)
+                fetched = get_wish(wish.id)
+                self.assertIsNotNone(fetched)
+                assert fetched is not None
+                self.assertEqual(fetched.title, "诡秘之主")
+                self.assertFalse(fetched.read)
+
+                update_wish(
+                    wish.id,
+                    title="诡秘之主2",
+                    rating=None,
+                    read=1,
+                    book_status="completed",
+                    updated_at="2026-02-15T00:00:00+00:00",
+                )
+                updated = get_wish(wish.id)
+                self.assertIsNotNone(updated)
+                assert updated is not None
+                self.assertEqual(updated.title, "诡秘之主2")
+                self.assertIsNone(updated.rating)
+                self.assertTrue(updated.read)
+                self.assertEqual(updated.book_status, "completed")
+
+                self.assertEqual(len(list_wishes()), 1)
+                delete_wish(wish.id)
+                self.assertIsNone(get_wish(wish.id))
+                self.assertEqual(len(list_wishes()), 0)
+            finally:
+                del os.environ["BINDERY_DB_PATH"]
 
 
 if __name__ == "__main__":

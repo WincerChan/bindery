@@ -21,6 +21,7 @@ class WebRoutesTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         base = (root / "templates" / "base.html").read_text(encoding="utf-8")
         self.assertIn('href="/ingest"', base)
+        self.assertIn('href="/wishlist"', base)
 
     def test_index_does_not_embed_ingest_forms(self) -> None:
         root = Path(__file__).resolve().parent.parent
@@ -107,6 +108,20 @@ class WebRoutesTests(unittest.TestCase):
                 for method in methods:
                     seen.add((method, path))
         self.assertIn(("GET", "/library"), seen)
+
+    def test_wishlist_routes_registered(self) -> None:
+        seen: set[tuple[str, str]] = set()
+        expected_paths = {"/wishlist", "/wishlist/{wish_id}/update", "/wishlist/{wish_id}/delete"}
+        for route in app.routes:
+            path = getattr(route, "path", None)
+            methods = getattr(route, "methods", None) or set()
+            if path in expected_paths:
+                for method in methods:
+                    seen.add((method, path))
+        self.assertIn(("GET", "/wishlist"), seen)
+        self.assertIn(("POST", "/wishlist"), seen)
+        self.assertIn(("POST", "/wishlist/{wish_id}/update"), seen)
+        self.assertIn(("POST", "/wishlist/{wish_id}/delete"), seen)
 
     def test_archive_bulk_delete_route_registered(self) -> None:
         seen: set[tuple[str, str]] = set()

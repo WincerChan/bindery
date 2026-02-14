@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}心愿 · Bindery{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+    <div>
+      <h2 class="text-lg font-bold text-slate-900">心愿列表</h2>
+      <p class="text-sm text-slate-500 mt-1">追踪想看的书，并标记是否已入库。</p>
+    </div>
+    <form action="/wishlist" method="post" class="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
+      <div class="md:col-span-2">
+        <label class="block text-xs text-slate-500 mb-1">书名</label>
+        <input
+          type="text"
+          name="title"
+          required
+          class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="例如：诡秘之主"
+        />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">作者</label>
+        <input
+          type="text"
+          name="author"
+          class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="可留空"
+        />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">评级</label>
+        <select name="rating" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none">
+          <option value="">未评分</option>
+          {% for i in range(5, 0, -1) %}
+            <option value="{{ i }}">{{ i }} 星</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">阅读</label>
+        <select name="read" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none">
+          <option value="0">未读</option>
+          <option value="1">已读</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">书籍状态</label>
+        <select
+          name="book_status"
+          class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none"
+        >
+          <option value="ongoing">更新中</option>
+          <option value="hiatus">已断更</option>
+          <option value="completed">已完结</option>
+        </select>
+      </div>
+      <div>
+        <button
+          type="submit"
+          class="w-full h-10 inline-flex items-center justify-center rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+        >新增心愿</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 text-sm text-slate-500">共 {{ wishes|length }} 条</div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-slate-600">
+          <tr>
+            <th class="text-left px-4 py-3 font-medium">书名</th>
+            <th class="text-left px-4 py-3 font-medium">作者</th>
+            <th class="text-left px-4 py-3 font-medium">评级</th>
+            <th class="text-left px-4 py-3 font-medium">阅读</th>
+            <th class="text-left px-4 py-3 font-medium">已存在库中</th>
+            <th class="text-left px-4 py-3 font-medium">书籍状态</th>
+            <th class="text-right px-4 py-3 font-medium">操作</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for wish in wishes %}
+            {% set update_form_id = "wish-update-" ~ wish.id %}
+            <tr>
+              <td class="px-4 py-3">
+                <form id="{{ update_form_id }}" action="/wishlist/{{ wish.id }}/update" method="post"></form>
+                <input
+                  form="{{ update_form_id }}"
+                  type="text"
+                  name="title"
+                  required
+                  value="{{ wish.title }}"
+                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </td>
+              <td class="px-4 py-3">
+                <input
+                  form="{{ update_form_id }}"
+                  type="text"
+                  name="author"
+                  value="{{ wish.author or '' }}"
+                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </td>
+              <td class="px-4 py-3">
+                <select
+                  form="{{ update_form_id }}"
+                  name="rating"
+                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white focus:outline-none"
+                >
+                  <option value="" {% if wish.rating is none %}selected{% endif %}>未评分</option>
+                  {% for i in range(5, 0, -1) %}
+                    <option value="{{ i }}" {% if wish.rating == i %}selected{% endif %}>{{ i }} 星</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td class="px-4 py-3">
+                <select
+                  form="{{ update_form_id }}"
+                  name="read"
+                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white focus:outline-none"
+                >
+                  <option value="0" {% if not wish.read %}selected{% endif %}>未读</option>
+                  <option value="1" {% if wish.read %}selected{% endif %}>已读</option>
+                </select>
+              </td>
+              <td class="px-4 py-3 text-slate-600">
+                <span
+                  class="inline-flex items-center px-2 py-1 rounded-full border {{ 'border-emerald-200 bg-emerald-50 text-emerald-700' if wish.exists_in_library else 'border-slate-200 bg-slate-50 text-slate-500' }}"
+                >{{ wish.exists_label }}</span>
+              </td>
+              <td class="px-4 py-3">
+                <select
+                  form="{{ update_form_id }}"
+                  name="book_status"
+                  class="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white focus:outline-none"
+                >
+                  <option value="ongoing" {% if wish.book_status == 'ongoing' %}selected{% endif %}>更新中</option>
+                  <option value="hiatus" {% if wish.book_status == 'hiatus' %}selected{% endif %}>已断更</option>
+                  <option value="completed" {% if wish.book_status == 'completed' %}selected{% endif %}>已完结</option>
+                </select>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex items-center justify-end gap-2">
+                  <button
+                    form="{{ update_form_id }}"
+                    type="submit"
+                    class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+                  >保存</button>
+                  <form action="/wishlist/{{ wish.id }}/delete" method="post" class="m-0" onsubmit="return confirm('确定删除该心愿？');">
+                    <button
+                      type="submit"
+                      class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 transition-colors"
+                    >删除</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" class="px-4 py-10 text-center text-slate-500">还没有心愿书单。</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

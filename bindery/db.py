@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from .env import read_env
-from .models import Job
+from .models import Job, Wish
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_FILENAME = "bindery.db"
@@ -122,11 +122,26 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS wishlist (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                author TEXT,
+                rating INTEGER,
+                read INTEGER NOT NULL DEFAULT 0,
+                book_status TEXT NOT NULL DEFAULT 'ongoing',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_book ON jobs(book_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_books_archived ON books(archived)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_books_updated ON books(updated_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_reader_progress_updated ON reader_progress(updated_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_wishlist_updated ON wishlist(updated_at DESC)")
     conn.close()
 
 
@@ -255,6 +270,61 @@ def get_reader_progress(book_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def create_wish(wish: Wish) -> None:
+    conn = connect()
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO wishlist(id, title, author, rating, read, book_status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                wish.id,
+                wish.title,
+                wish.author,
+                wish.rating,
+                int(bool(wish.read)),
+                wish.book_status,
+                wish.created_at,
+                wish.updated_at,
+            ),
+        )
+    conn.close()
+
+
+def get_wish(wish_id: str) -> Optional[Wish]:
+    conn = connect()
+    row = conn.execute("SELECT * FROM wishlist WHERE id = ?", (wish_id,)).fetchone()
+    conn.close()
+    return _row_to_wish(row) if row else None
+
+
+def list_wishes() -> list[Wish]:
+    conn = connect()
+    rows = conn.execute("SELECT * FROM wishlist ORDER BY updated_at DESC, created_at DESC").fetchall()
+    conn.close()
+    return [_row_to_wish(row) for row in rows]
+
+
+def update_wish(wish_id: str, **fields: object) -> None:
+    if not fields:
+        return
+    columns = ", ".join(f"{key} = ?" for key in fields)
+    values = list(fields.values())
+    values.append(wish_id)
+    conn = connect()
+    with conn:
+        conn.execute(f"UPDATE wishlist SET {columns} WHERE id = ?", values)
+    conn.close()
+
+
+def delete_wish(wish_id: str) -> None:
+    conn = connect()
+    with conn:
+        conn.execute("DELETE FROM wishlist WHERE id = ?", (wish_id,))
+    conn.close()
+
+
 def _row_to_job(row: sqlite3.Row) -> Job:
     return Job(
         id=row["id"],
@@ -265,6 +335,19 @@ def _row_to_job(row: sqlite3.Row) -> Job:
         message=row["message"],
         log=row["log"],
         rule_template=row["rule_template"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _row_to_wish(row: sqlite3.Row) -> Wish:
+    return Wish(
+        id=row["id"],
+        title=row["title"] or "",
+        author=row["author"],
+        rating=row["rating"],
+        read=bool(row["read"]),
+        book_status=row["book_status"] or "ongoing",
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

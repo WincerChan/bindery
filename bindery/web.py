@@ -30,13 +30,18 @@ from starlette.background import BackgroundTask
 from .auth import SESSION_COOKIE, configured_hash, is_authenticated, sign_in, sign_out, verify_password
 from .css import validate_css
 from .db import (
+    create_wish,
     create_job,
+    delete_wish,
     delete_jobs,
     get_job,
     get_reader_progress,
+    get_wish,
     init_db,
     list_jobs,
+    list_wishes,
     update_job,
+    update_wish,
     upsert_reader_progress,
 )
 from .env import read_env
@@ -53,7 +58,7 @@ from .epub import (
     strip_webp_assets_and_refs,
     update_epub_metadata,
 )
-from .models import Book, Chapter, Job, Metadata, Volume
+from .models import Book, Chapter, Job, Metadata, Volume, Wish
 from .metadata_lookup import USER_AGENT, LookupMetadata, lookup_book_metadata_candidates
 from .parsing import (
     DEFAULT_RULE_CONFIG,
@@ -104,6 +109,9 @@ DEFAULT_INGEST_STAGE_DIR = Path(tempfile.gettempdir()) / "bindery-ingest-stage"
 DEFAULT_INGEST_QUEUE_MAXSIZE = 64
 DEFAULT_RESPONSE_TRIM_MIN_BYTES = 256 * 1024
 DOUBAN_REFERER = "https://book.douban.com/"
+WISH_STATUS_ONGOING = "ongoing"
+WISH_STATUS_HIATUS = "hiatus"
+WISH_STATUS_COMPLETED = "completed"
 
 _malloc_trim_func: Optional[Callable[[int], int]] = None
 _malloc_trim_resolved = False
@@ -490,6 +498,69 @@ def _normalize_sort(value: str) -> str:
 
 def _normalize_per_page(value: int) -> int:
     return max(4, min(96, int(value)))
+
+
+def _normalize_wish_book_status(value: str) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized == WISH_STATUS_HIATUS:
+        return WISH_STATUS_HIATUS
+    if normalized == WISH_STATUS_COMPLETED:
+        return WISH_STATUS_COMPLETED
+    return WISH_STATUS_ONGOING
+
+
+def _wish_book_status_label(value: str) -> str:
+    normalized = _normalize_wish_book_status(value)
+    if normalized == WISH_STATUS_HIATUS:
+        return "已断更"
+    if normalized == WISH_STATUS_COMPLETED:
+        return "已完结"
+    return "更新中"
+
+
+def _parse_wish_rating(raw: str) -> Optional[int]:
+    return _parse_rating(raw)
+
+
+def _build_library_identity_sets(base: Path) -> tuple[set[str], set[tuple[str, str]]]:
+    title_keys: set[str] = set()
+    title_author_keys: set[tuple[str, str]] = set()
+    for meta in list_books(base):
+        title_key = _normalize_identity_text(meta.title)
+        if not title_key:
+            continue
+        title_keys.add(title_key)
+        author_key = _normalize_identity_text(meta.author)
+        if author_key:
+            title_author_keys.add((title_key, author_key))
+    return title_keys, title_author_keys
+
+
+def _wish_exists_in_library(wish: Wish, title_keys: set[str], title_author_keys: set[tuple[str, str]]) -> bool:
+    title_key = _normalize_identity_text(wish.title)
+    if not title_key or title_key not in title_keys:
+        return False
+    author_key = _normalize_identity_text(wish.author)
+    if not author_key:
+        return True
+    return (title_key, author_key) in title_author_keys
+
+
+def _wish_view(wish: Wish, exists_in_library: bool) -> dict[str, object]:
+    status = _normalize_wish_book_status(wish.book_status)
+    return {
+        "id": wish.id,
+        "title": wish.title,
+        "author": wish.author,
+        "rating": wish.rating,
+        "read": wish.read,
+        "book_status": status,
+        "book_status_label": _wish_book_status_label(status),
+        "exists_in_library": exists_in_library,
+        "exists_label": "已存在" if exists_in_library else "未入库",
+        "created_at": wish.created_at,
+        "updated_at": wish.updated_at,
+    }
 
 
 def _is_true_flag(value: object) -> bool:
@@ -2145,6 +2216,81 @@ async def index(
         "index.html",
         {"request": request, "sort": selected_sort, "q": q, "return_to": return_to, **payload},
     )
+
+
+@app.get("/wishlist", response_class=HTMLResponse)
+async def wishlist_page(request: Request) -> HTMLResponse:
+    base = library_dir()
+    wishes = list_wishes()
+    title_keys, title_author_keys = _build_library_identity_sets(base)
+    view_items = [
+        _wish_view(wish, _wish_exists_in_library(wish, title_keys, title_author_keys))
+        for wish in wishes
+    ]
+    return templates.TemplateResponse("wishlist.html", {"request": request, "wishes": view_items})
+
+
+@app.post("/wishlist")
+async def wishlist_create(
+    title: str = Form(""),
+    author: str = Form(""),
+    rating: str = Form(""),
+    read: str = Form("0"),
+    book_status: str = Form(WISH_STATUS_ONGOING),
+) -> RedirectResponse:
+    wish_title = title.strip()
+    if not wish_title:
+        raise HTTPException(status_code=400, detail="书名不能为空")
+    now = _now_iso()
+    create_wish(
+        Wish(
+            id=new_book_id(),
+            title=wish_title,
+            author=author.strip() or None,
+            rating=_parse_wish_rating(rating),
+            read=_is_true_flag(read),
+            book_status=_normalize_wish_book_status(book_status),
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    return RedirectResponse(url="/wishlist", status_code=303)
+
+
+@app.post("/wishlist/{wish_id}/update")
+async def wishlist_update(
+    wish_id: str,
+    title: str = Form(""),
+    author: str = Form(""),
+    rating: str = Form(""),
+    read: str = Form("0"),
+    book_status: str = Form(WISH_STATUS_ONGOING),
+) -> RedirectResponse:
+    if not BOOK_ID_RE.match(wish_id):
+        raise HTTPException(status_code=404, detail="Invalid wish id")
+    if get_wish(wish_id) is None:
+        raise HTTPException(status_code=404, detail="Wish not found")
+    wish_title = title.strip()
+    if not wish_title:
+        raise HTTPException(status_code=400, detail="书名不能为空")
+    update_wish(
+        wish_id,
+        title=wish_title,
+        author=author.strip() or None,
+        rating=_parse_wish_rating(rating),
+        read=int(_is_true_flag(read)),
+        book_status=_normalize_wish_book_status(book_status),
+        updated_at=_now_iso(),
+    )
+    return RedirectResponse(url="/wishlist", status_code=303)
+
+
+@app.post("/wishlist/{wish_id}/delete")
+async def wishlist_remove(wish_id: str) -> RedirectResponse:
+    if not BOOK_ID_RE.match(wish_id):
+        raise HTTPException(status_code=404, detail="Invalid wish id")
+    delete_wish(wish_id)
+    return RedirectResponse(url="/wishlist", status_code=303)
 
 
 @app.get("/ingest", response_class=HTMLResponse)
