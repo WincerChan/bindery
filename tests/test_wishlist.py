@@ -2,9 +2,11 @@ import asyncio
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from starlette.requests import Request
 
+from bindery import web as web_module
 from bindery.db import get_wish, init_db, list_wishes
 from bindery.models import Book, Metadata
 from bindery.storage import library_dir, save_book, save_metadata
@@ -396,6 +398,80 @@ class WishlistTests(unittest.TestCase):
         response_delete = asyncio.run(wishlist_remove(wish.id, next=target))
         self.assertEqual(response_delete.status_code, 303)
         self.assertEqual(response_delete.headers.get("location"), target)
+
+    def test_tracker_page_scans_wishlist_once_for_seed_and_once_for_render(self) -> None:
+        base = library_dir()
+        for idx in range(5):
+            book_id = f"{idx + 1:032x}"
+            title = f"扫描测试-{idx}"
+            author = f"作者-{idx}"
+            save_book(Book(title=title, author=author, intro=None), base, book_id)
+            save_metadata(
+                Metadata(
+                    book_id=book_id,
+                    title=title,
+                    author=author,
+                    language="zh-CN",
+                    description=None,
+                ),
+                base,
+            )
+
+        request = Request({"type": "http", "method": "GET", "path": "/tracker", "headers": []})
+        real_list_wishes = web_module.list_wishes
+        with patch("bindery.web.list_wishes", side_effect=lambda: real_list_wishes()) as mocked_list_wishes:
+            response = asyncio.run(wishlist_page(request))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(mocked_list_wishes.call_count, 2)
+        self.assertEqual(len(list_wishes()), 5)
+
+    def test_tracker_page_same_title_unlinked_manual_item_does_not_get_reused_twice(self) -> None:
+        base = library_dir()
+        first_book_id = "d" * 32
+        second_book_id = "e" * 32
+        title = "同名无作者测试"
+        save_book(Book(title=title, author="作者甲", intro=None), base, first_book_id)
+        save_metadata(
+            Metadata(
+                book_id=first_book_id,
+                title=title,
+                author="作者甲",
+                language="zh-CN",
+                description=None,
+            ),
+            base,
+        )
+        save_book(Book(title=title, author="作者乙", intro=None), base, second_book_id)
+        save_metadata(
+            Metadata(
+                book_id=second_book_id,
+                title=title,
+                author="作者乙",
+                language="zh-CN",
+                description=None,
+            ),
+            base,
+        )
+        asyncio.run(
+            wishlist_create(
+                title=title,
+                author="",
+                tags="",
+                rating="",
+                read_status="unread",
+                book_status="ongoing",
+            )
+        )
+
+        request = Request({"type": "http", "method": "GET", "path": "/tracker", "headers": []})
+        response = asyncio.run(wishlist_page(request))
+        self.assertEqual(response.status_code, 200)
+
+        wishes = list_wishes()
+        self.assertEqual(len(wishes), 2)
+        linked_ids = {wish.library_book_id for wish in wishes if wish.library_book_id}
+        self.assertEqual(linked_ids, {first_book_id, second_book_id})
 
 
 if __name__ == "__main__":

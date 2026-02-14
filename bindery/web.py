@@ -625,11 +625,11 @@ def _normalize_library_book_id(raw: Optional[str]) -> Optional[str]:
     return value
 
 
-def _build_library_identity_index(base: Path) -> tuple[dict[str, str], dict[tuple[str, str], str], set[str]]:
+def _build_library_identity_index_from_books(books: list[Metadata]) -> tuple[dict[str, str], dict[tuple[str, str], str], set[str]]:
     title_to_book: dict[str, str] = {}
     title_author_to_book: dict[tuple[str, str], str] = {}
     book_ids: set[str] = set()
-    for meta in list_books(base):
+    for meta in books:
         book_ids.add(meta.book_id)
         title_key = _normalize_identity_text(meta.title)
         if not title_key:
@@ -641,15 +641,39 @@ def _build_library_identity_index(base: Path) -> tuple[dict[str, str], dict[tupl
     return title_to_book, title_author_to_book, book_ids
 
 
-def _find_unlinked_wish_for_book(meta: Metadata) -> Optional[Wish]:
+def _build_library_identity_index(base: Path) -> tuple[dict[str, str], dict[tuple[str, str], str], set[str]]:
+    return _build_library_identity_index_from_books(list_books(base))
+
+
+def _build_unlinked_wish_title_index(wishes: list[Wish]) -> dict[str, list[Wish]]:
+    by_title: dict[str, list[Wish]] = {}
+    for wish in wishes:
+        if _normalize_library_book_id(wish.library_book_id):
+            continue
+        title_key = _normalize_identity_text(wish.title)
+        if not title_key:
+            continue
+        by_title.setdefault(title_key, []).append(wish)
+    return by_title
+
+
+def _find_unlinked_wish_for_book(
+    meta: Metadata, *, unlinked_wishes_by_title: Optional[dict[str, list[Wish]]] = None
+) -> Optional[Wish]:
     title_key = _normalize_identity_text(meta.title)
     if not title_key:
         return None
     author_key = _normalize_identity_text(meta.author)
-    for wish in list_wishes():
+    if unlinked_wishes_by_title is None:
+        candidates = [
+            wish
+            for wish in list_wishes()
+            if not _normalize_library_book_id(wish.library_book_id) and _normalize_identity_text(wish.title) == title_key
+        ]
+    else:
+        candidates = unlinked_wishes_by_title.get(title_key, [])
+    for wish in candidates:
         if _normalize_library_book_id(wish.library_book_id):
-            continue
-        if _normalize_identity_text(wish.title) != title_key:
             continue
         wish_author_key = _normalize_identity_text(wish.author)
         if author_key and wish_author_key and wish_author_key != author_key:
@@ -705,6 +729,40 @@ def _wish_view(wish: Wish, library_book_id: Optional[str]) -> dict[str, object]:
     }
 
 
+def _wish_matches_filters_model(
+    wish: Wish,
+    *,
+    library_book_id: Optional[str],
+    query: str,
+    read_filter: str,
+    library_filter: str,
+    book_status_filter: str,
+) -> bool:
+    normalized_query = (query or "").strip().lower()
+    if normalized_query:
+        title = str(wish.title or "").lower()
+        author = str(wish.author or "").lower()
+        tag_text = " ".join(str(tag).lower() for tag in wish.tags if str(tag).strip())
+        if normalized_query not in title and normalized_query not in author and normalized_query not in tag_text:
+            return False
+
+    wish_read_status = _normalize_wish_read_status(wish.read_status or ("read" if wish.read else WISH_READ_UNREAD))
+    if read_filter != "all" and wish_read_status != read_filter:
+        return False
+
+    in_library = bool(library_book_id)
+    if library_filter == "in" and not in_library:
+        return False
+    if library_filter == "out" and in_library:
+        return False
+
+    wish_book_status = _normalize_wish_book_status(wish.book_status)
+    if book_status_filter != "all" and wish_book_status != book_status_filter:
+        return False
+
+    return True
+
+
 def _tracker_updated_at_display(raw: Optional[str]) -> str:
     value = (raw or "").strip()
     if not value:
@@ -753,11 +811,13 @@ def _read_status_from_flag(read: bool) -> str:
     return WISH_READ_READ if bool(read) else WISH_READ_UNREAD
 
 
-def _ensure_tracker_for_book(base: Path, meta: Metadata) -> Wish:
+def _ensure_tracker_for_book(
+    base: Path, meta: Metadata, *, unlinked_wishes_by_title: Optional[dict[str, list[Wish]]] = None
+) -> Wish:
     wish = get_wish_by_library_book_id(meta.book_id)
     now = _now_iso()
     if wish is None:
-        matched = _find_unlinked_wish_for_book(meta)
+        matched = _find_unlinked_wish_for_book(meta, unlinked_wishes_by_title=unlinked_wishes_by_title)
         if matched is not None:
             update_wish(
                 matched.id,
@@ -766,6 +826,13 @@ def _ensure_tracker_for_book(base: Path, meta: Metadata) -> Wish:
                 author=meta.author or None,
                 updated_at=now,
             )
+            if unlinked_wishes_by_title is not None:
+                title_key = _normalize_identity_text(meta.title)
+                bucket = unlinked_wishes_by_title.get(title_key)
+                if bucket:
+                    unlinked_wishes_by_title[title_key] = [item for item in bucket if item.id != matched.id]
+                    if not unlinked_wishes_by_title[title_key]:
+                        unlinked_wishes_by_title.pop(title_key, None)
             linked = get_wish_by_library_book_id(meta.book_id)
             if linked is not None:
                 return linked
@@ -2534,12 +2601,25 @@ async def tracker_page(
     page: int = 1,
 ) -> HTMLResponse:
     base = library_dir()
-    for meta in list_books(base):
-        _ensure_tracker_for_book(base, meta)
+    books = list_books(base)
+    seed_wishes = list_wishes()
+    unlinked_wishes_by_title = _build_unlinked_wish_title_index(seed_wishes)
+    for meta in books:
+        _ensure_tracker_for_book(base, meta, unlinked_wishes_by_title=unlinked_wishes_by_title)
     wishes = list_wishes()
-    title_to_book, title_author_to_book, book_ids = _build_library_identity_index(base)
-    all_items: list[dict[str, object]] = []
+    title_to_book, title_author_to_book, book_ids = _build_library_identity_index_from_books(books)
+    selected_read_filter = _normalize_wish_read_filter(read_filter)
+    selected_library_filter = _normalize_wish_library_filter(library_filter)
+    selected_book_status_filter = _normalize_wish_book_status_filter(book_status_filter)
+
+    filtered_items: list[tuple[Wish, Optional[str]]] = []
+    total_count = 0
+    read_count = 0
+    reading_count = 0
+    unread_count = 0
+    in_library_count = 0
     for wish in wishes:
+        total_count += 1
         library_book_id = _wish_library_match_id(wish, title_to_book, title_author_to_book, book_ids)
         if library_book_id and wish.library_book_id != library_book_id:
             bound = get_wish_by_library_book_id(library_book_id)
@@ -2547,41 +2627,45 @@ async def tracker_page(
                 update_wish(wish.id, library_book_id=library_book_id, updated_at=_now_iso())
                 wish.library_book_id = library_book_id
         _sync_metadata_cache_from_tracker(base, wish, library_book_id)
-        all_items.append(_wish_view(wish, library_book_id))
-    selected_read_filter = _normalize_wish_read_filter(read_filter)
-    selected_library_filter = _normalize_wish_library_filter(library_filter)
-    selected_book_status_filter = _normalize_wish_book_status_filter(book_status_filter)
-    view_items = [
-        wish
-        for wish in all_items
-        if _wish_matches_filters(
+        read_status = _normalize_wish_read_status(wish.read_status or ("read" if wish.read else WISH_READ_UNREAD))
+        if read_status == WISH_READ_READ:
+            read_count += 1
+        elif read_status == WISH_READ_READING:
+            reading_count += 1
+        else:
+            unread_count += 1
+        if library_book_id:
+            in_library_count += 1
+        if _wish_matches_filters_model(
             wish,
+            library_book_id=library_book_id,
             query=q,
             read_filter=selected_read_filter,
             library_filter=selected_library_filter,
             book_status_filter=selected_book_status_filter,
-        )
-    ]
-    filtered_total = len(view_items)
+        ):
+            filtered_items.append((wish, library_book_id))
+
+    filtered_total = len(filtered_items)
     page_size = TRACKER_PAGE_SIZE
     total_pages = max(1, (filtered_total + page_size - 1) // page_size)
     requested_page = max(1, int(page))
     current_page = min(requested_page, total_pages)
     start = (current_page - 1) * page_size
-    paged_items = view_items[start : start + page_size]
+    paged_items = [_wish_view(wish, book_id) for wish, book_id in filtered_items[start : start + page_size]]
     has_prev = current_page > 1
     has_next = current_page < total_pages
     prev_page = current_page - 1
     next_page = current_page + 1
 
     stats = {
-        "total": len(all_items),
+        "total": total_count,
         "filtered": filtered_total,
-        "read": sum(1 for item in all_items if str(item.get("read_status")) == WISH_READ_READ),
-        "reading": sum(1 for item in all_items if str(item.get("read_status")) == WISH_READ_READING),
-        "unread": sum(1 for item in all_items if str(item.get("read_status")) == WISH_READ_UNREAD),
-        "in_library": sum(1 for item in all_items if bool(item.get("exists_in_library"))),
-        "out_library": sum(1 for item in all_items if not bool(item.get("exists_in_library"))),
+        "read": read_count,
+        "reading": reading_count,
+        "unread": unread_count,
+        "in_library": in_library_count,
+        "out_library": max(0, total_count - in_library_count),
     }
     current_url = _tracker_return_to_url(
         q,

@@ -310,6 +310,27 @@
 
 <script>
   (() => {
+    const rootWindow = window;
+    const supportsAbortController = typeof AbortController !== 'undefined';
+    let listenerOptions = undefined;
+    if (supportsAbortController) {
+      if (rootWindow.__binderyTrackerUiAbortController instanceof AbortController) {
+        rootWindow.__binderyTrackerUiAbortController.abort();
+      }
+      const listenerController = new AbortController();
+      rootWindow.__binderyTrackerUiAbortController = listenerController;
+      listenerOptions = { signal: listenerController.signal };
+    }
+
+    function bindEvent(target, type, handler) {
+      if (!target || typeof target.addEventListener !== 'function') return;
+      if (listenerOptions) {
+        target.addEventListener(type, handler, listenerOptions);
+        return;
+      }
+      target.addEventListener(type, handler);
+    }
+
     function openModal(modal, onOpened) {
       if (!modal) return;
       modal.classList.remove('hidden');
@@ -327,14 +348,14 @@
     const addOpenBtn = document.querySelector('[data-open-add-modal]');
     const addCloseBtns = document.querySelectorAll('[data-close-add-modal]');
     if (addOpenBtn && addModal) {
-      addOpenBtn.addEventListener('click', () => {
+      bindEvent(addOpenBtn, 'click', () => {
         openModal(addModal, () => {
           const firstInput = addModal.querySelector('input[name="title"]');
           if (firstInput instanceof HTMLInputElement) firstInput.focus();
         });
       });
-      addCloseBtns.forEach((btn) => btn.addEventListener('click', () => closeModal(addModal)));
-      addModal.addEventListener('click', (event) => {
+      addCloseBtns.forEach((btn) => bindEvent(btn, 'click', () => closeModal(addModal)));
+      bindEvent(addModal, 'click', (event) => {
         if (event.target === addModal) closeModal(addModal);
       });
     }
@@ -397,16 +418,16 @@
     }
 
     editOpenBtns.forEach((btn) => {
-      btn.addEventListener('click', () => openEditModal(btn));
+      bindEvent(btn, 'click', () => openEditModal(btn));
     });
-    editCloseBtns.forEach((btn) => btn.addEventListener('click', () => closeModal(editModal)));
+    editCloseBtns.forEach((btn) => bindEvent(btn, 'click', () => closeModal(editModal)));
     if (editModal) {
-      editModal.addEventListener('click', (event) => {
+      bindEvent(editModal, 'click', (event) => {
         if (event.target === editModal) closeModal(editModal);
       });
     }
 
-    document.addEventListener('keydown', (event) => {
+    bindEvent(document, 'keydown', (event) => {
       if (event.key !== 'Escape') return;
       closeModal(addModal);
       closeModal(editModal);

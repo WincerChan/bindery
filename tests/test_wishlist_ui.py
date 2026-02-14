@@ -30,6 +30,7 @@ class WishlistUiTests(unittest.TestCase):
         self.assertIn("No books match your filters.", tpl)
         self.assertIn('`/tracker/${wishId}/update`', tpl)
         self.assertIn('/tracker/{{ wish.id }}/delete', tpl)
+        self.assertIn("__binderyTrackerUiAbortController", tpl)
         self.assertIn("编辑追踪", tpl)
         self.assertIn("书名", tpl)
         self.assertIn("作者", tpl)
