@@ -413,7 +413,7 @@ def _seed_wishlist_from_books(conn: sqlite3.Connection) -> None:
                 CASE WHEN b.read = 1 THEN 'read' ELSE 'unread' END,
                 '[]',
                 NULL,
-                'ongoing',
+                'completed',
                 CASE
                     WHEN b.created_at IS NULL OR b.created_at = '' THEN coalesce(b.updated_at, '')
                     ELSE b.created_at

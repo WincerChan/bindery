@@ -115,6 +115,7 @@ DOUBAN_REFERER = "https://book.douban.com/"
 WISH_STATUS_ONGOING = "ongoing"
 WISH_STATUS_HIATUS = "hiatus"
 WISH_STATUS_COMPLETED = "completed"
+WISH_DEFAULT_STATUS = WISH_STATUS_COMPLETED
 WISH_READ_UNREAD = "unread"
 WISH_READ_READING = "reading"
 WISH_READ_READ = "read"
@@ -848,7 +849,7 @@ def _ensure_tracker_for_book(
                 read_status=_read_status_from_flag(meta.read),
                 tags=[],
                 comment=None,
-                book_status=WISH_STATUS_ONGOING,
+                book_status=WISH_DEFAULT_STATUS,
                 created_at=now,
                 updated_at=now,
             )
@@ -2718,7 +2719,7 @@ async def tracker_create(
     comment: str = Form(""),
     read_status: str = Form(""),
     read: str = Form("0"),
-    book_status: str = Form(WISH_STATUS_ONGOING),
+    book_status: str = Form(WISH_DEFAULT_STATUS),
     next: str = Form(""),
 ) -> RedirectResponse:
     title_value = _as_form_text(title)
@@ -2728,7 +2729,7 @@ async def tracker_create(
     comment_value = _as_form_text(comment)
     read_status_value = _as_form_text(read_status)
     read_flag_value = _as_form_text(read)
-    book_status_value = _as_form_text(book_status)
+    book_status_value = _as_form_text(book_status) or WISH_DEFAULT_STATUS
     next_value = _as_form_text(next)
     normalized_library_book_id = _normalize_library_book_id(_as_form_text(library_book_id))
     now = _now_iso()
@@ -2813,7 +2814,7 @@ async def tracker_update(
     comment: str = Form(""),
     read_status: str = Form(""),
     read: str = Form("0"),
-    book_status: str = Form(WISH_STATUS_ONGOING),
+    book_status: str = Form(WISH_DEFAULT_STATUS),
     next: str = Form(""),
 ) -> RedirectResponse:
     if not BOOK_ID_RE.match(wish_id):
@@ -2828,7 +2829,7 @@ async def tracker_update(
     comment_value = _as_form_text(comment)
     read_status_value = _as_form_text(read_status)
     read_flag_value = _as_form_text(read)
-    book_status_value = _as_form_text(book_status)
+    book_status_value = _as_form_text(book_status) or WISH_DEFAULT_STATUS
     next_value = _as_form_text(next)
     library_book_id_value = _as_form_text(library_book_id)
     normalized_read_status = _normalize_wish_read_status(

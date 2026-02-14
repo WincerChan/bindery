@@ -81,7 +81,7 @@ class Wish:
     read_status: str = "unread"
     tags: list[str] = field(default_factory=list)
     comment: Optional[str] = None
-    book_status: str = "ongoing"
+    book_status: str = "completed"
     created_at: str = ""
     updated_at: str = ""
 

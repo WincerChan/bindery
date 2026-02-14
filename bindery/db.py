@@ -138,7 +138,7 @@ def init_db() -> None:
                 read_status TEXT NOT NULL DEFAULT 'unread',
                 tags_json TEXT NOT NULL DEFAULT '[]',
                 comment TEXT,
-                book_status TEXT NOT NULL DEFAULT 'ongoing',
+                book_status TEXT NOT NULL DEFAULT 'completed',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )

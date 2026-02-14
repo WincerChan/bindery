@@ -85,6 +85,23 @@ class WishlistTests(unittest.TestCase):
         self.assertEqual(response_delete.headers.get("location"), "/tracker")
         self.assertIsNone(get_wish(wish.id))
 
+    def test_wishlist_create_uses_completed_as_default_book_status(self) -> None:
+        response = asyncio.run(
+            wishlist_create(
+                title="默认完结状态测试",
+                author="测试作者",
+                tags="",
+                rating="",
+                comment="",
+                read_status="unread",
+            )
+        )
+        self.assertEqual(response.status_code, 303)
+
+        wishes = list_wishes()
+        self.assertEqual(len(wishes), 1)
+        self.assertEqual(wishes[0].book_status, "completed")
+
     def test_wishlist_marks_existing_book_in_library(self) -> None:
         base = library_dir()
         book_id = "a" * 32
