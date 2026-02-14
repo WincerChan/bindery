@@ -116,6 +116,61 @@ class WishlistTests(unittest.TestCase):
         self.assertTrue(wishes[0].get("exists_in_library"))
         self.assertEqual(wishes[0].get("library_book_id"), book_id)
 
+    def test_wishlist_linked_book_identity_follows_metadata(self) -> None:
+        base = library_dir()
+        book_id = "c" * 32
+        save_book(Book(title="库内原始标题", author="库内原始作者", intro=None), base, book_id)
+        save_metadata(
+            Metadata(
+                book_id=book_id,
+                title="库内原始标题",
+                author="库内原始作者",
+                language="zh-CN",
+                description=None,
+            ),
+            base,
+        )
+
+        response_create = asyncio.run(
+            wishlist_create(
+                title="手填标题应被忽略",
+                author="手填作者应被忽略",
+                library_book_id=book_id,
+                tags="测试",
+                rating="4",
+                read_status="unread",
+                book_status="ongoing",
+            )
+        )
+        self.assertEqual(response_create.status_code, 303)
+
+        created = list_wishes()[0]
+        self.assertEqual(created.title, "库内原始标题")
+        self.assertEqual(created.author, "库内原始作者")
+
+        response_update = asyncio.run(
+            wishlist_update(
+                created.id,
+                title="更新时手填标题应被忽略",
+                author="更新时手填作者应被忽略",
+                library_book_id=book_id,
+                tags="测试, 已关联",
+                rating="5",
+                read_status="reading",
+                book_status="completed",
+            )
+        )
+        self.assertEqual(response_update.status_code, 303)
+
+        updated = get_wish(created.id)
+        self.assertIsNotNone(updated)
+        assert updated is not None
+        self.assertEqual(updated.title, "库内原始标题")
+        self.assertEqual(updated.author, "库内原始作者")
+        self.assertEqual(updated.library_book_id, book_id)
+        self.assertEqual(updated.read_status, "reading")
+        self.assertEqual(updated.rating, 5)
+
     def test_wishlist_create_dedupes_manual_identity(self) -> None:
         response_first = asyncio.run(
             wishlist_create(

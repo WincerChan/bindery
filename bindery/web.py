@@ -2647,10 +2647,6 @@ async def tracker_create(
     book_status_value = _as_form_text(book_status)
     next_value = _as_form_text(next)
     normalized_library_book_id = _normalize_library_book_id(_as_form_text(library_book_id))
-
-    wish_title = title_value
-    if not wish_title:
-        raise HTTPException(status_code=400, detail="书名不能为空")
     now = _now_iso()
     normalized_read_status = _normalize_wish_read_status(
         read_status_value if read_status_value else (WISH_READ_READ if _is_true_flag(read_flag_value) else WISH_READ_UNREAD)
@@ -2661,8 +2657,22 @@ async def tracker_create(
     parsed_book_status = _normalize_wish_book_status(book_status_value)
     parsed_read_flag = normalized_read_status == WISH_READ_READ
     base = library_dir()
-    if normalized_library_book_id and not ensure_book_exists(base, normalized_library_book_id):
-        normalized_library_book_id = None
+    linked_meta: Optional[Metadata] = None
+    if normalized_library_book_id:
+        if not ensure_book_exists(base, normalized_library_book_id):
+            normalized_library_book_id = None
+        else:
+            try:
+                linked_meta = load_metadata(base, normalized_library_book_id)
+            except FileNotFoundError:
+                normalized_library_book_id = None
+    if linked_meta is not None:
+        wish_title = linked_meta.title or "未命名"
+        author_value = linked_meta.author or None
+    else:
+        wish_title = title_value
+        if not wish_title:
+            raise HTTPException(status_code=400, detail="书名不能为空")
     if normalized_library_book_id is None:
         existing_manual = get_manual_wish_by_identity(wish_title, author_value or None)
         if existing_manual is not None:
@@ -2737,10 +2747,6 @@ async def tracker_update(
     book_status_value = _as_form_text(book_status)
     next_value = _as_form_text(next)
     library_book_id_value = _as_form_text(library_book_id)
-
-    wish_title = title_value
-    if not wish_title:
-        raise HTTPException(status_code=400, detail="书名不能为空")
     normalized_read_status = _normalize_wish_read_status(
         read_status_value if read_status_value else (WISH_READ_READ if _is_true_flag(read_flag_value) else WISH_READ_UNREAD)
     )
@@ -2753,8 +2759,22 @@ async def tracker_update(
     normalized_library_book_id = _normalize_library_book_id(library_book_id_value) or _normalize_library_book_id(
         existing.library_book_id
     )
-    if normalized_library_book_id and not ensure_book_exists(base, normalized_library_book_id):
-        normalized_library_book_id = None
+    linked_meta: Optional[Metadata] = None
+    if normalized_library_book_id:
+        if not ensure_book_exists(base, normalized_library_book_id):
+            normalized_library_book_id = None
+        else:
+            try:
+                linked_meta = load_metadata(base, normalized_library_book_id)
+            except FileNotFoundError:
+                normalized_library_book_id = None
+    if linked_meta is not None:
+        wish_title = linked_meta.title or "未命名"
+        author_value = linked_meta.author or None
+    else:
+        wish_title = title_value
+        if not wish_title:
+            raise HTTPException(status_code=400, detail="书名不能为空")
     if normalized_library_book_id is None:
         duplicate_manual = get_manual_wish_by_identity(wish_title, author_value or None, exclude_id=wish_id)
         if duplicate_manual is not None:
