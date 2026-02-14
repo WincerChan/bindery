@@ -1575,7 +1575,10 @@ def extract_epub_metadata(epub_file: Path, fallback_title: str) -> dict:
     dc_values: dict[str, list[tuple[str, dict[str, str]]]] = {}
     opf_meta_values: list[tuple[str, dict[str, str]]] = []
     for node in list(metadata):
-        local = _tag_local_name(node.tag)
+        local = _tag_local_name(getattr(node, "tag", None))
+        # Some EPUB files include XML comments under <metadata>; skip non-element nodes.
+        if not local:
+            continue
         text = _node_text(node) or ""
         attrs = {_tag_local_name(key): str(value) for key, value in node.attrib.items()}
         if local == "meta":

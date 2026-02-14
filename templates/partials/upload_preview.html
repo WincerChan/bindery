@@ -5,6 +5,10 @@
       class="bg-slate-50 border border-slate-200 rounded-lg p-4"
       {% if duplicates %}data-duplicate-hit="1"{% endif %}
       {% if item.upload_token %}data-upload-token="{{ item.upload_token }}"{% endif %}
+      data-preview-format="{{ item.format or '' }}"
+      data-preview-title="{{ item.title or '' }}"
+      data-preview-author="{{ item.author or '' }}"
+      data-preview-filename="{{ item.filename or '' }}"
     >
       <div class="font-semibold text-slate-900 mb-3 truncate" title="{{ item.filename or item.title }}">{{ item.filename or item.title }}</div>
       {% if item.error %}

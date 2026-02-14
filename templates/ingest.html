@@ -43,8 +43,35 @@
       </div>
       <div data-file-feedback class="hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"></div>
 
-      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        入库页不再编辑元数据与封面；请在入库后进入书籍详情页进行编辑并写回 EPUB。
+      <div data-txt-meta-fields class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="text-xs font-semibold text-slate-500 uppercase">
+              书名
+              <span class="normal-case font-medium text-slate-400">(TXT 可选覆盖)</span>
+            </label>
+            <input
+              type="text"
+              name="title"
+              data-txt-title-input
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              placeholder="留空则使用解析结果/文件名"
+            />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold text-slate-500 uppercase">
+              作者
+              <span class="normal-case font-medium text-slate-400">(TXT 可选覆盖)</span>
+            </label>
+            <input
+              type="text"
+              name="author"
+              data-txt-author-input
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              placeholder="留空则使用解析结果/文件名"
+            />
+          </div>
+        </div>
       </div>
 
       <div class="pt-5 border-t border-slate-100 space-y-4">
@@ -116,6 +143,17 @@
         </button>
         <button data-ingest-submit class="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer" type="submit">开始入库</button>
       </div>
+      <div data-dedupe-confirm class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-1">
+        <p>
+          检测到疑似重复书籍：
+          <span data-dedupe-duplicate-list class="font-medium">-</span>
+          ，请确认是否保留：
+        </p>
+        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" data-dedupe-keep-checkbox class="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+          <span>保留（继续新建）</span>
+        </label>
+      </div>
       <div data-ingest-error class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"></div>
       <div data-ingest-preview-status class="hidden text-xs text-indigo-600">正在解析文件，请稍候...</div>
       <div data-ingest-status class="hidden text-xs text-indigo-600">正在提交入库任务，请稍候...</div>
@@ -137,10 +175,52 @@
   const ingestPreviewStatus = ingestForm ? ingestForm.querySelector('[data-ingest-preview-status]') : null;
   const ingestStatus = ingestForm ? ingestForm.querySelector('[data-ingest-status]') : null;
   const dedupeModeInput = ingestForm ? ingestForm.querySelector('[data-dedupe-mode]') : null;
+  const txtTitleInput = ingestForm ? ingestForm.querySelector('[data-txt-title-input]') : null;
+  const txtAuthorInput = ingestForm ? ingestForm.querySelector('[data-txt-author-input]') : null;
+  const txtMetaFields = ingestForm ? ingestForm.querySelector('[data-txt-meta-fields]') : null;
   const uploadTokensContainer = ingestForm ? ingestForm.querySelector('[data-upload-tokens]') : null;
   const themeSelect = ingestForm ? ingestForm.querySelector('[data-theme-select]') : null;
+  const dedupeConfirm = ingestForm ? ingestForm.querySelector('[data-dedupe-confirm]') : null;
+  const dedupeDuplicateList = ingestForm ? ingestForm.querySelector('[data-dedupe-duplicate-list]') : null;
+  const dedupeKeepCheckbox = ingestForm ? ingestForm.querySelector('[data-dedupe-keep-checkbox]') : null;
   const KEEP_BOOK_THEME_VALUE = '__book__';
   const DEFAULT_THEME_VALUE = 'default';
+  let txtMetadataTouchedByUser = false;
+
+  const resetTxtMeta = () => {
+    txtMetadataTouchedByUser = false;
+    if (txtTitleInput instanceof HTMLInputElement) txtTitleInput.value = '';
+    if (txtAuthorInput instanceof HTMLInputElement) txtAuthorInput.value = '';
+    if (txtMetaFields) txtMetaFields.classList.add('hidden');
+  };
+
+  const syncTxtMetadataFromPreview = () => {
+    const previewContainer = document.getElementById('ingest-preview');
+    if (!previewContainer) {
+      return false;
+    }
+    const previewCards = Array.from(previewContainer.querySelectorAll('[data-preview-format]'));
+    const txtCards = previewCards.filter((card) => String(card.dataset.previewFormat || '').trim().toUpperCase() === 'TXT');
+    if (!(previewCards.length === 1 && txtCards.length === 1)) {
+      resetTxtMeta();
+      return false;
+    }
+    const txtCard = txtCards[0];
+    const parsedTitle = String(txtCard.dataset.previewTitle || '').trim();
+    const parsedAuthorRaw = String(txtCard.dataset.previewAuthor || '').trim();
+    const parsedAuthor = parsedAuthorRaw === '未知' ? '' : parsedAuthorRaw;
+    const parsedFilename = String(txtCard.dataset.previewFilename || '').trim();
+    const fallbackTitle = parsedFilename.replace(/\.[^.]+$/, '');
+    const normalizedTitle = parsedTitle || fallbackTitle;
+    if (txtTitleInput instanceof HTMLInputElement && (!txtMetadataTouchedByUser || !txtTitleInput.value.trim())) {
+      txtTitleInput.value = normalizedTitle;
+    }
+    if (txtAuthorInput instanceof HTMLInputElement && (!txtMetadataTouchedByUser || !txtAuthorInput.value.trim())) {
+      txtAuthorInput.value = parsedAuthor;
+    }
+    if (txtMetaFields) txtMetaFields.classList.remove('hidden');
+    return true;
+  };
 
   document.querySelectorAll('[data-dropzone]').forEach((dropzone) => {
     dropzone.addEventListener('dragover', (event) => {
@@ -343,6 +423,30 @@
     return tokens.length;
   };
 
+  const syncDedupeConfirm = (resetChoice = false) => {
+    if (!dedupeConfirm || !dedupeDuplicateList || !dedupeKeepCheckbox) return false;
+    const previewContainer = document.getElementById('ingest-preview');
+    if (!previewContainer) {
+      dedupeConfirm.classList.add('hidden');
+      dedupeDuplicateList.textContent = '-';
+      dedupeKeepCheckbox.checked = false;
+      return false;
+    }
+    const names = Array.from(previewContainer.querySelectorAll('[data-duplicate-hit="1"] a[href^="/book/"]'))
+      .map((node) => String(node.textContent || '').trim())
+      .filter((name, index, list) => name && list.indexOf(name) === index);
+    if (!names.length) {
+      dedupeConfirm.classList.add('hidden');
+      dedupeDuplicateList.textContent = '-';
+      dedupeKeepCheckbox.checked = false;
+      return false;
+    }
+    dedupeDuplicateList.textContent = names.join('；');
+    if (resetChoice) dedupeKeepCheckbox.checked = false;
+    dedupeConfirm.classList.remove('hidden');
+    return true;
+  };
+
   if (fileInput) {
     fileInput.addEventListener('change', () => {
       clearUploadTokens();
@@ -350,7 +454,22 @@
       fileInput.required = true;
       setSelectedFilesFeedback();
       autoSelectThemeByFiles();
+      resetTxtMeta();
+      if (dedupeConfirm) dedupeConfirm.classList.add('hidden');
+      if (dedupeDuplicateList) dedupeDuplicateList.textContent = '-';
+      if (dedupeKeepCheckbox) dedupeKeepCheckbox.checked = false;
       if (ingestPreviewBtn) ingestPreviewBtn.click();
+    });
+  }
+
+  if (txtTitleInput) {
+    txtTitleInput.addEventListener('input', () => {
+      txtMetadataTouchedByUser = true;
+    });
+  }
+  if (txtAuthorInput) {
+    txtAuthorInput.addEventListener('input', () => {
+      txtMetadataTouchedByUser = true;
     });
   }
 
@@ -364,11 +483,17 @@
       if (event.detail && event.detail.successful) {
         hideIngestError();
         syncUploadTokensFromPreview();
+        syncTxtMetadataFromPreview();
+        syncDedupeConfirm(true);
       }
     });
     ingestPreviewBtn.addEventListener('htmx:responseError', (event) => {
       setPreviewLoading(false);
       clearUploadTokens();
+      resetTxtMeta();
+      if (dedupeConfirm) dedupeConfirm.classList.add('hidden');
+      if (dedupeDuplicateList) dedupeDuplicateList.textContent = '-';
+      if (dedupeKeepCheckbox) dedupeKeepCheckbox.checked = false;
       const status = event.detail && event.detail.xhr ? event.detail.xhr.status : 0;
       if (status === 413) {
         showIngestError('预览请求过大（413）：请减少单次文件数，或先压缩/拆分后再预览。');
@@ -382,6 +507,7 @@
   if (ingestForm && ingestSubmitBtn) {
     ingestForm.addEventListener('submit', () => {
       const tokenCount = syncUploadTokensFromPreview();
+      syncTxtMetadataFromPreview();
       if (fileInput) {
         if (tokenCount > 0) {
           fileInput.required = false;
@@ -391,13 +517,10 @@
           fileInput.disabled = false;
         }
       }
-      if (dedupeModeInput) dedupeModeInput.value = 'keep';
-      const hasDuplicateHit = Boolean(document.querySelector('#ingest-preview [data-duplicate-hit="1"]'));
-      if (hasDuplicateHit && dedupeModeInput) {
-        const shouldNormalize = window.confirm(
-          '检测到疑似重复书籍。\n点击“确定”将归一到已入库书籍并跳过重复入库；点击“取消”将继续新建。'
-        );
-        dedupeModeInput.value = shouldNormalize ? 'normalize' : 'keep';
+      const hasDuplicateHit = syncDedupeConfirm();
+      if (dedupeModeInput) {
+        const keepDuplicate = hasDuplicateHit && dedupeKeepCheckbox instanceof HTMLInputElement && dedupeKeepCheckbox.checked;
+        dedupeModeInput.value = keepDuplicate ? 'keep' : (hasDuplicateHit ? 'normalize' : 'keep');
       }
       ingestSubmitBtn.disabled = true;
       ingestSubmitBtn.textContent = '入库中...';

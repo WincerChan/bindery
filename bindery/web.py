@@ -313,6 +313,65 @@ def _normalize_identity_text(value: Optional[str]) -> str:
     return cleaned
 
 
+def _extract_title_author_from_source_name(source_name: str) -> tuple[Optional[str], Optional[str]]:
+    raw = (source_name or "").strip()
+    if not raw:
+        return None, None
+
+    title: Optional[str] = None
+    author: Optional[str] = None
+
+    wrapped_title = re.search(r"《\s*([^》]+?)\s*》", raw)
+    if wrapped_title:
+        candidate = wrapped_title.group(1).strip()
+        if _normalize_identity_text(candidate):
+            title = candidate
+
+    author_match = re.search(r"(?:作者|作\s*者)\s*[:：]\s*([^\(\[（【<《》]+)", raw, flags=re.IGNORECASE)
+    if author_match:
+        candidate = author_match.group(1).strip(" \t\r\n-_.，。;；:：")
+        if _normalize_identity_text(candidate):
+            author = candidate
+
+    if title is None:
+        title_source = raw
+        marker = re.search(r"(?:作者|作\s*者)\s*[:：]", raw, flags=re.IGNORECASE)
+        if marker:
+            title_source = raw[: marker.start()]
+        title_source = re.sub(r"[\(\[（【].*$", "", title_source).strip(" \t\r\n-_.，。;；:：")
+        title_only = re.match(r"^《\s*(.+?)\s*》$", title_source)
+        if title_only:
+            title_source = title_only.group(1).strip()
+        if _normalize_identity_text(title_source):
+            title = title_source
+
+    return title, author
+
+
+def _is_placeholder_txt_title(value: Optional[str]) -> bool:
+    text = (value or "").strip()
+    if not text:
+        return True
+    return not bool(_normalize_identity_text(text))
+
+
+def _resolve_txt_identity_from_source_name(
+    source_name: str, parsed_title: Optional[str], parsed_author: Optional[str]
+) -> tuple[str, Optional[str]]:
+    fallback_title, fallback_author = _extract_title_author_from_source_name(source_name)
+    title_value = (parsed_title or "").strip()
+    author_value = (parsed_author or "").strip()
+
+    if (not title_value or _is_placeholder_txt_title(title_value)) and fallback_title:
+        title_value = fallback_title
+    if not title_value:
+        title_value = (source_name or "").strip() or "未命名"
+
+    if not author_value and fallback_author:
+        author_value = fallback_author
+    return title_value, (author_value or None)
+
+
 def _normalize_isbn(value: Optional[str]) -> str:
     return re.sub(r"[^0-9Xx]+", "", (value or "")).upper()
 
@@ -393,15 +452,15 @@ def _toc_preview(book: Book, limit: int = 10) -> list[str]:
 
 
 def _summarize_txt_preview(payload_path: Path, source_name: str, rule_template) -> dict[str, object]:
-    title: Optional[str] = None
-    author: Optional[str] = None
+    parsed_title: Optional[str] = None
+    parsed_author: Optional[str] = None
     volumes = 0
     chapters = 0
     toc: list[str] = []
     for event in parse_book_file_events(payload_path, source_name, rule_template.rules):
         if isinstance(event, ParsedBookHeader):
-            title = event.title or source_name
-            author = event.author
+            parsed_title = event.title
+            parsed_author = event.author
             continue
         if not isinstance(event, ParsedBookSection):
             continue
@@ -411,8 +470,9 @@ def _summarize_txt_preview(payload_path: Path, source_name: str, rule_template) 
             chapters += 1
         if len(toc) < 10:
             toc.append(event.title)
+    title, author = _resolve_txt_identity_from_source_name(source_name, parsed_title, parsed_author)
     return {
-        "title": title or source_name,
+        "title": title,
         "author": author,
         "volumes": volumes,
         "chapters": chapters,
@@ -893,6 +953,13 @@ def _sync_metadata_cache_from_tracker(base: Path, wish: Wish, library_book_id: O
         return
     if _apply_tracker_state_to_metadata_cache(meta, wish):
         save_metadata(meta, base)
+
+
+def _ensure_tracker_consistency_for_meta(base: Path, meta: Metadata) -> Wish:
+    tracker = _ensure_tracker_for_book(base, meta)
+    if _apply_tracker_state_to_metadata_cache(meta, tracker):
+        save_metadata(meta, base)
+    return tracker
 
 
 def _is_true_flag(value: object) -> bool:
@@ -2108,6 +2175,7 @@ def _process_queued_ingest_task(task: dict) -> None:
                         isbn.strip() or extracted.get("isbn"),
                     )
                     if duplicate_meta:
+                        _ensure_tracker_consistency_for_meta(base, duplicate_meta)
                         _update_job(
                             job_id,
                             book_id=duplicate_meta.book_id,
@@ -2139,6 +2207,7 @@ def _process_queued_ingest_task(task: dict) -> None:
                 cover_bytes if isinstance(cover_bytes, bytes) else None,
                 cover_name if isinstance(cover_name, str) else None,
             )
+            _ensure_tracker_consistency_for_meta(base, meta)
             _update_job(job_id, book_id=meta.book_id)
             return
 
@@ -2151,13 +2220,19 @@ def _process_queued_ingest_task(task: dict) -> None:
                 try:
                     dedupe_rule = get_rule(rule_template)
                     dedupe_book = parse_book_file(payload_path, source_name, dedupe_rule.rules)
-                    duplicate_meta = _find_first_duplicate_meta(
-                        base,
+                    dedupe_title, dedupe_author = _resolve_txt_identity_from_source_name(
+                        source_name,
                         title.strip() or dedupe_book.title,
                         author.strip() or dedupe_book.author,
+                    )
+                    duplicate_meta = _find_first_duplicate_meta(
+                        base,
+                        dedupe_title,
+                        dedupe_author,
                         isbn.strip() or None,
                     )
                     if duplicate_meta:
+                        _ensure_tracker_consistency_for_meta(base, duplicate_meta)
                         _update_job(
                             job_id,
                             book_id=duplicate_meta.book_id,
@@ -2192,6 +2267,7 @@ def _process_queued_ingest_task(task: dict) -> None:
                 cover_bytes if isinstance(cover_bytes, bytes) else None,
                 cover_name if isinstance(cover_name, str) else None,
             )
+            _ensure_tracker_consistency_for_meta(base, meta)
             _update_job(job_id, book_id=meta.book_id)
             return
 
@@ -2284,7 +2360,16 @@ def _run_ingest(
         if not isinstance(first_event, ParsedBookHeader):
             raise ValueError("无法解析文本元信息")
         parsed_header = first_event
-        parsed_book = Book(title=parsed_header.title, author=parsed_header.author, intro=parsed_header.intro)
+        resolved_title, resolved_author = _resolve_txt_identity_from_source_name(
+            source_name,
+            parsed_header.title,
+            parsed_header.author,
+        )
+        parsed_book = Book(title=resolved_title, author=resolved_author, intro=parsed_header.intro)
+        if not title.strip():
+            title = resolved_title
+        if not author.strip() and resolved_author:
+            author = resolved_author
         _update_job(job.id, stage="写元数据")
 
         book_id = job.book_id or new_book_id()
@@ -2332,7 +2417,7 @@ def _run_ingest(
 
         build_epub_from_section_stream(
             stream_sections=stream_sections(),
-            source_author=parsed_header.author,
+            source_author=resolved_author,
             source_intro=parsed_header.intro,
             meta=meta,
             output_path=epub_path(base, book_id),
