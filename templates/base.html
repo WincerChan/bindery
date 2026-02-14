@@ -38,9 +38,9 @@
               href="/jobs"
             >任务</a>
             <a
-              class="{{ nav_base }} {% if path.startswith('/wishlist') %}bg-indigo-50 text-indigo-700{% else %}text-slate-500 hover:text-slate-900 hover:bg-slate-50{% endif %}"
-              href="/wishlist"
-            >心愿</a>
+              class="{{ nav_base }} {% if path.startswith('/tracker') or path.startswith('/wishlist') %}bg-indigo-50 text-indigo-700{% else %}text-slate-500 hover:text-slate-900 hover:bg-slate-50{% endif %}"
+              href="/tracker"
+            >追踪</a>
             <a
               class="{{ nav_base }} {% if path.startswith('/rules') %}bg-indigo-50 text-indigo-700{% else %}text-slate-500 hover:text-slate-900 hover:bg-slate-50{% endif %}"
               href="/rules"
@@ -80,9 +80,9 @@
             href="/jobs"
           >任务</a>
           <a
-            class="{{ nav_base }} {% if path.startswith('/wishlist') %}bg-indigo-50 text-indigo-700{% else %}text-slate-500 hover:text-slate-900 hover:bg-slate-50{% endif %}"
-            href="/wishlist"
-          >心愿</a>
+            class="{{ nav_base }} {% if path.startswith('/tracker') or path.startswith('/wishlist') %}bg-indigo-50 text-indigo-700{% else %}text-slate-500 hover:text-slate-900 hover:bg-slate-50{% endif %}"
+            href="/tracker"
+          >追踪</a>
           <a
             class="{{ nav_base }} {% if path.startswith('/rules') %}bg-indigo-50 text-indigo-700{% else %}text-slate-500 hover:text-slate-900 hover:bg-slate-50{% endif %}"
             href="/rules"

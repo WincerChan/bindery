@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from bindery.models import Metadata
+from bindery.db import create_wish
+from bindery.models import Metadata, Wish
 from bindery.storage import library_dir, save_metadata
 from bindery.web import _library_page_data
 
@@ -152,6 +153,54 @@ class LibraryFilterTests(unittest.TestCase):
 
                 self.assertEqual(payload["read_filter"], "all")
                 self.assertEqual(payload["total_books"], 2)
+            finally:
+                if prev is None:
+                    os.environ.pop("BINDERY_LIBRARY_DIR", None)
+                else:
+                    os.environ["BINDERY_LIBRARY_DIR"] = prev
+
+    def test_library_page_data_unread_filter_uses_wishlist_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prev = os.environ.get("BINDERY_LIBRARY_DIR")
+            os.environ["BINDERY_LIBRARY_DIR"] = tmp
+            try:
+                base = library_dir()
+                book_id = "e" * 32
+                save_metadata(
+                    Metadata(
+                        book_id=book_id,
+                        title="由追踪标记已读",
+                        author="A",
+                        language="zh-CN",
+                        description=None,
+                        read=False,
+                        updated_at="2026-02-06T00:00:00+00:00",
+                    ),
+                    base,
+                )
+                create_wish(
+                    Wish(
+                        id="f" * 32,
+                        title="由追踪标记已读",
+                        library_book_id=book_id,
+                        author="A",
+                        rating=None,
+                        read=True,
+                        read_status="read",
+                        tags=[],
+                        review=None,
+                        comment=None,
+                        book_status="ongoing",
+                        created_at="2026-02-06T00:00:00+00:00",
+                        updated_at="2026-02-06T00:00:00+00:00",
+                    )
+                )
+
+                payload = _library_page_data(base, "updated", "", 1, "unread")
+
+                self.assertEqual(payload["read_filter"], "unread")
+                self.assertEqual(payload["total_books"], 0)
+                self.assertEqual(len(payload["books"]), 0)
             finally:
                 if prev is None:
                     os.environ.pop("BINDERY_LIBRARY_DIR", None)

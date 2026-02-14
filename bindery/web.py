@@ -35,8 +35,10 @@ from .db import (
     delete_wish,
     delete_jobs,
     get_job,
+    get_manual_wish_by_identity,
     get_reader_progress,
     get_wish,
+    get_wish_by_library_book_id,
     init_db,
     list_jobs,
     list_wishes,
@@ -112,6 +114,9 @@ DOUBAN_REFERER = "https://book.douban.com/"
 WISH_STATUS_ONGOING = "ongoing"
 WISH_STATUS_HIATUS = "hiatus"
 WISH_STATUS_COMPLETED = "completed"
+WISH_READ_UNREAD = "unread"
+WISH_READ_READING = "reading"
+WISH_READ_READ = "read"
 
 _malloc_trim_func: Optional[Callable[[int], int]] = None
 _malloc_trim_resolved = False
@@ -509,6 +514,38 @@ def _normalize_wish_book_status(value: str) -> str:
     return WISH_STATUS_ONGOING
 
 
+def _normalize_wish_book_status_filter(value: str) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized in {WISH_STATUS_ONGOING, WISH_STATUS_HIATUS, WISH_STATUS_COMPLETED}:
+        return normalized
+    return "all"
+
+
+def _normalize_wish_read_status(value: str) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized == WISH_READ_READING:
+        return WISH_READ_READING
+    if normalized == WISH_READ_READ:
+        return WISH_READ_READ
+    return WISH_READ_UNREAD
+
+
+def _normalize_wish_read_filter(value: str) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized in {WISH_READ_UNREAD, WISH_READ_READING, WISH_READ_READ}:
+        return normalized
+    return "all"
+
+
+def _normalize_wish_library_filter(value: str) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized in {"in", "in_library"}:
+        return "in"
+    if normalized in {"out", "not_in_library"}:
+        return "out"
+    return "all"
+
+
 def _wish_book_status_label(value: str) -> str:
     normalized = _normalize_wish_book_status(value)
     if normalized == WISH_STATUS_HIATUS:
@@ -518,49 +555,264 @@ def _wish_book_status_label(value: str) -> str:
     return "更新中"
 
 
+def _wish_book_status_class(value: str) -> str:
+    normalized = _normalize_wish_book_status(value)
+    if normalized == WISH_STATUS_HIATUS:
+        return "bg-red-100 text-red-700 border-red-200"
+    if normalized == WISH_STATUS_COMPLETED:
+        return "bg-blue-100 text-blue-700 border-blue-200"
+    return "bg-green-100 text-green-700 border-green-200"
+
+
+def _wish_read_status_label(value: str) -> str:
+    normalized = _normalize_wish_read_status(value)
+    if normalized == WISH_READ_READ:
+        return "已读"
+    if normalized == WISH_READ_READING:
+        return "在读"
+    return "未读"
+
+
+def _wish_read_status_class(value: str) -> str:
+    normalized = _normalize_wish_read_status(value)
+    if normalized == WISH_READ_READ:
+        return "text-green-600"
+    if normalized == WISH_READ_READING:
+        return "text-blue-600"
+    return "text-slate-400"
+
+
 def _parse_wish_rating(raw: str) -> Optional[int]:
     return _parse_rating(raw)
 
 
-def _build_library_identity_sets(base: Path) -> tuple[set[str], set[tuple[str, str]]]:
-    title_keys: set[str] = set()
-    title_author_keys: set[tuple[str, str]] = set()
+def _parse_wish_tags(raw: str) -> list[str]:
+    if not raw:
+        return []
+    parts = re.split(r"[，,\n]+", raw)
+    tags: list[str] = []
+    seen: set[str] = set()
+    for part in parts:
+        tag = part.strip()
+        if not tag:
+            continue
+        lowered = tag.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        tags.append(tag)
+    return tags
+
+
+def _join_wish_tags(tags: list[str]) -> str:
+    return ", ".join([str(tag).strip() for tag in tags if str(tag).strip()])
+
+
+def _normalize_wish_text(raw: str) -> Optional[str]:
+    value = raw.strip() if isinstance(raw, str) else ""
+    return value or None
+
+
+def _normalize_library_book_id(raw: Optional[str]) -> Optional[str]:
+    if not isinstance(raw, str):
+        return None
+    value = raw.strip().lower()
+    if not value:
+        return None
+    if not BOOK_ID_RE.match(value):
+        return None
+    return value
+
+
+def _build_library_identity_index(base: Path) -> tuple[dict[str, str], dict[tuple[str, str], str], set[str]]:
+    title_to_book: dict[str, str] = {}
+    title_author_to_book: dict[tuple[str, str], str] = {}
+    book_ids: set[str] = set()
     for meta in list_books(base):
+        book_ids.add(meta.book_id)
         title_key = _normalize_identity_text(meta.title)
         if not title_key:
             continue
-        title_keys.add(title_key)
+        title_to_book.setdefault(title_key, meta.book_id)
         author_key = _normalize_identity_text(meta.author)
         if author_key:
-            title_author_keys.add((title_key, author_key))
-    return title_keys, title_author_keys
+            title_author_to_book.setdefault((title_key, author_key), meta.book_id)
+    return title_to_book, title_author_to_book, book_ids
 
 
-def _wish_exists_in_library(wish: Wish, title_keys: set[str], title_author_keys: set[tuple[str, str]]) -> bool:
+def _find_unlinked_wish_for_book(meta: Metadata) -> Optional[Wish]:
+    title_key = _normalize_identity_text(meta.title)
+    if not title_key:
+        return None
+    author_key = _normalize_identity_text(meta.author)
+    for wish in list_wishes():
+        if _normalize_library_book_id(wish.library_book_id):
+            continue
+        if _normalize_identity_text(wish.title) != title_key:
+            continue
+        wish_author_key = _normalize_identity_text(wish.author)
+        if author_key and wish_author_key and wish_author_key != author_key:
+            continue
+        return wish
+    return None
+
+
+def _wish_library_match_id(
+    wish: Wish,
+    title_to_book: dict[str, str],
+    title_author_to_book: dict[tuple[str, str], str],
+    book_ids: set[str],
+) -> Optional[str]:
+    direct_id = _normalize_library_book_id(wish.library_book_id)
+    if direct_id and direct_id in book_ids:
+        return direct_id
     title_key = _normalize_identity_text(wish.title)
-    if not title_key or title_key not in title_keys:
-        return False
+    if not title_key or title_key not in title_to_book:
+        return None
     author_key = _normalize_identity_text(wish.author)
     if not author_key:
-        return True
-    return (title_key, author_key) in title_author_keys
+        return title_to_book.get(title_key)
+    return title_author_to_book.get((title_key, author_key))
 
 
-def _wish_view(wish: Wish, exists_in_library: bool) -> dict[str, object]:
+def _wish_view(wish: Wish, library_book_id: Optional[str]) -> dict[str, object]:
     status = _normalize_wish_book_status(wish.book_status)
+    read_status = _normalize_wish_read_status(wish.read_status or ("read" if wish.read else "unread"))
+    tags = [str(tag) for tag in wish.tags if str(tag).strip()]
+    exists_in_library = bool(library_book_id)
     return {
         "id": wish.id,
         "title": wish.title,
         "author": wish.author,
         "rating": wish.rating,
-        "read": wish.read,
+        "read": read_status == WISH_READ_READ,
+        "read_status": read_status,
+        "read_status_label": _wish_read_status_label(read_status),
+        "read_status_class": _wish_read_status_class(read_status),
+        "tags": tags,
+        "tags_text": _join_wish_tags(tags),
+        "review": wish.review,
+        "comment": wish.comment,
         "book_status": status,
         "book_status_label": _wish_book_status_label(status),
+        "book_status_class": _wish_book_status_class(status),
         "exists_in_library": exists_in_library,
         "exists_label": "已存在" if exists_in_library else "未入库",
+        "library_book_id": library_book_id,
         "created_at": wish.created_at,
         "updated_at": wish.updated_at,
     }
+
+
+def _wish_matches_filters(
+    wish: dict[str, object],
+    *,
+    query: str,
+    read_filter: str,
+    library_filter: str,
+    book_status_filter: str,
+) -> bool:
+    normalized_query = (query or "").strip().lower()
+    if normalized_query:
+        title = str(wish.get("title") or "").lower()
+        author = str(wish.get("author") or "").lower()
+        tag_text = " ".join(str(tag).lower() for tag in (wish.get("tags") or []))
+        if normalized_query not in title and normalized_query not in author and normalized_query not in tag_text:
+            return False
+
+    wish_read_status = _normalize_wish_read_status(str(wish.get("read_status") or WISH_READ_UNREAD))
+    if read_filter != "all" and wish_read_status != read_filter:
+        return False
+
+    in_library = bool(wish.get("exists_in_library"))
+    if library_filter == "in" and not in_library:
+        return False
+    if library_filter == "out" and in_library:
+        return False
+
+    if book_status_filter != "all" and str(wish.get("book_status") or "") != book_status_filter:
+        return False
+
+    return True
+
+
+def _read_status_from_flag(read: bool) -> str:
+    return WISH_READ_READ if bool(read) else WISH_READ_UNREAD
+
+
+def _ensure_tracker_for_book(base: Path, meta: Metadata) -> Wish:
+    wish = get_wish_by_library_book_id(meta.book_id)
+    now = _now_iso()
+    if wish is None:
+        matched = _find_unlinked_wish_for_book(meta)
+        if matched is not None:
+            update_wish(
+                matched.id,
+                library_book_id=meta.book_id,
+                title=meta.title or "未命名",
+                author=meta.author or None,
+                updated_at=now,
+            )
+            linked = get_wish_by_library_book_id(meta.book_id)
+            if linked is not None:
+                return linked
+            wish = matched
+        else:
+            created = Wish(
+                id=new_book_id(),
+                title=meta.title or "未命名",
+                library_book_id=meta.book_id,
+                author=meta.author,
+                rating=meta.rating,
+                read=bool(meta.read),
+                read_status=_read_status_from_flag(meta.read),
+                tags=[],
+                review=None,
+                comment=None,
+                book_status=WISH_STATUS_ONGOING,
+                created_at=now,
+                updated_at=now,
+            )
+            create_wish(created)
+            return created
+    fields: dict[str, object] = {}
+    if wish.library_book_id != meta.book_id:
+        fields["library_book_id"] = meta.book_id
+    if (wish.title or "") != (meta.title or ""):
+        fields["title"] = meta.title or "未命名"
+    if (wish.author or None) != (meta.author or None):
+        fields["author"] = meta.author or None
+    if fields:
+        fields["updated_at"] = now
+        update_wish(wish.id, **fields)
+        wish = get_wish_by_library_book_id(meta.book_id) or wish
+    return wish
+
+
+def _apply_tracker_state_to_metadata_cache(meta: Metadata, wish: Wish) -> bool:
+    desired_read_status = _normalize_wish_read_status(wish.read_status or _read_status_from_flag(wish.read))
+    desired_read = desired_read_status == WISH_READ_READ
+    changed = False
+    if meta.read != desired_read:
+        meta.read = desired_read
+        meta.read_updated_at = _now_iso()
+        changed = True
+    if meta.rating != wish.rating:
+        meta.rating = wish.rating
+        changed = True
+    return changed
+
+
+def _sync_metadata_cache_from_tracker(base: Path, wish: Wish, library_book_id: Optional[str]) -> None:
+    normalized_book_id = _normalize_library_book_id(library_book_id or wish.library_book_id)
+    if not normalized_book_id or not ensure_book_exists(base, normalized_book_id):
+        return
+    try:
+        meta = load_metadata(base, normalized_book_id)
+    except FileNotFoundError:
+        return
+    if _apply_tracker_state_to_metadata_cache(meta, wish):
+        save_metadata(meta, base)
 
 
 def _is_true_flag(value: object) -> bool:
@@ -569,6 +821,10 @@ def _is_true_flag(value: object) -> bool:
     if not isinstance(value, str):
         return False
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _as_form_text(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
 
 
 def _memory_trim_enabled() -> bool:
@@ -752,6 +1008,25 @@ def _library_return_to_url(
     return f"/?{urllib.parse.urlencode(params)}"
 
 
+def _tracker_return_to_url(q: str, read_filter: str, library_filter: str, book_status_filter: str) -> str:
+    normalized_q = (q or "").strip()
+    normalized_read = _normalize_wish_read_filter(read_filter)
+    normalized_library = _normalize_wish_library_filter(library_filter)
+    normalized_status = _normalize_wish_book_status_filter(book_status_filter)
+    params: dict[str, str] = {}
+    if normalized_q:
+        params["q"] = normalized_q
+    if normalized_read != "all":
+        params["read_filter"] = normalized_read
+    if normalized_library != "all":
+        params["library_filter"] = normalized_library
+    if normalized_status != "all":
+        params["book_status_filter"] = normalized_status
+    if not params:
+        return "/tracker"
+    return f"/tracker?{urllib.parse.urlencode(params)}"
+
+
 def _is_douban_host(hostname: str) -> bool:
     host = (hostname or "").strip().lower()
     return host in {"douban.com", "doubanio.com"} or host.endswith(".douban.com") or host.endswith(".doubanio.com")
@@ -886,10 +1161,20 @@ def _ensure_book_epub_css(base: Path, meta: Metadata) -> None:
     save_metadata(meta, base)
 
 
-def _book_view(meta: Metadata, base: Path) -> dict:
+def _book_view(meta: Metadata, base: Path, tracker: Optional[Wish] = None) -> dict:
     status_label, status_class = _status_view(meta)
     source_type = meta.source_type or "txt"
     can_regenerate = source_type != "epub" and source_path(base, meta.book_id).exists()
+    tracker_wish = tracker
+    if tracker_wish is None and not meta.archived:
+        tracker_wish = get_wish_by_library_book_id(meta.book_id)
+    if tracker_wish is not None:
+        tracker_read_status = _normalize_wish_read_status(tracker_wish.read_status or _read_status_from_flag(tracker_wish.read))
+        read_value = tracker_read_status == WISH_READ_READ
+        rating_value = tracker_wish.rating
+    else:
+        read_value = meta.read
+        rating_value = meta.rating
     data = {
         "book_id": meta.book_id,
         "title": meta.title,
@@ -902,13 +1187,13 @@ def _book_view(meta: Metadata, base: Path) -> dict:
         "tags": list(meta.tags),
         "published": meta.published,
         "isbn": meta.isbn,
-        "rating": meta.rating,
+        "rating": rating_value,
         "status": meta.status,
         "status_label": status_label,
         "status_class": status_class,
         "epub_updated_at": meta.epub_updated_at,
         "archived": meta.archived,
-        "read": meta.read,
+        "read": read_value,
         "cover_file": meta.cover_file,
         "rule_template": meta.rule_template,
         "theme_template": meta.theme_template,
@@ -2177,7 +2462,12 @@ def _library_page_data(base: Path, sort: str, q: str, page: int, read_filter: st
             page=current_page,
             per_page=effective_per_page,
         )
-    view_books = [_book_view(book, base) for book in page_books]
+    view_books: list[dict] = []
+    for book in page_books:
+        tracker = _ensure_tracker_for_book(base, book)
+        if _apply_tracker_state_to_metadata_cache(book, tracker):
+            save_metadata(book, base)
+        view_books.append(_book_view(book, base, tracker=tracker))
 
     return {
         "books": view_books,
@@ -2218,79 +2508,268 @@ async def index(
     )
 
 
+@app.get("/tracker", response_class=HTMLResponse)
 @app.get("/wishlist", response_class=HTMLResponse)
-async def wishlist_page(request: Request) -> HTMLResponse:
+async def tracker_page(
+    request: Request,
+    q: str = "",
+    read_filter: str = "all",
+    library_filter: str = "all",
+    book_status_filter: str = "all",
+) -> HTMLResponse:
     base = library_dir()
+    for meta in list_books(base):
+        _ensure_tracker_for_book(base, meta)
     wishes = list_wishes()
-    title_keys, title_author_keys = _build_library_identity_sets(base)
+    title_to_book, title_author_to_book, book_ids = _build_library_identity_index(base)
+    all_items: list[dict[str, object]] = []
+    for wish in wishes:
+        library_book_id = _wish_library_match_id(wish, title_to_book, title_author_to_book, book_ids)
+        if library_book_id and wish.library_book_id != library_book_id:
+            bound = get_wish_by_library_book_id(library_book_id)
+            if bound is None or bound.id == wish.id:
+                update_wish(wish.id, library_book_id=library_book_id, updated_at=_now_iso())
+                wish.library_book_id = library_book_id
+        _sync_metadata_cache_from_tracker(base, wish, library_book_id)
+        all_items.append(_wish_view(wish, library_book_id))
+    selected_read_filter = _normalize_wish_read_filter(read_filter)
+    selected_library_filter = _normalize_wish_library_filter(library_filter)
+    selected_book_status_filter = _normalize_wish_book_status_filter(book_status_filter)
     view_items = [
-        _wish_view(wish, _wish_exists_in_library(wish, title_keys, title_author_keys))
-        for wish in wishes
+        wish
+        for wish in all_items
+        if _wish_matches_filters(
+            wish,
+            query=q,
+            read_filter=selected_read_filter,
+            library_filter=selected_library_filter,
+            book_status_filter=selected_book_status_filter,
+        )
     ]
-    return templates.TemplateResponse("wishlist.html", {"request": request, "wishes": view_items})
+    stats = {
+        "total": len(all_items),
+        "filtered": len(view_items),
+        "read": sum(1 for item in all_items if str(item.get("read_status")) == WISH_READ_READ),
+        "reading": sum(1 for item in all_items if str(item.get("read_status")) == WISH_READ_READING),
+        "unread": sum(1 for item in all_items if str(item.get("read_status")) == WISH_READ_UNREAD),
+        "in_library": sum(1 for item in all_items if bool(item.get("exists_in_library"))),
+        "out_library": sum(1 for item in all_items if not bool(item.get("exists_in_library"))),
+    }
+    current_url = _tracker_return_to_url(q, selected_read_filter, selected_library_filter, selected_book_status_filter)
+    return templates.TemplateResponse(
+        "wishlist.html",
+        {
+            "request": request,
+            "wishes": view_items,
+            "q": q,
+            "read_filter": selected_read_filter,
+            "library_filter": selected_library_filter,
+            "book_status_filter": selected_book_status_filter,
+            "stats": stats,
+            "current_url": current_url,
+        },
+    )
 
 
+@app.post("/tracker")
 @app.post("/wishlist")
-async def wishlist_create(
+async def tracker_create(
     title: str = Form(""),
+    library_book_id: str = Form(""),
     author: str = Form(""),
+    tags: str = Form(""),
     rating: str = Form(""),
+    review: str = Form(""),
+    comment: str = Form(""),
+    read_status: str = Form(""),
     read: str = Form("0"),
     book_status: str = Form(WISH_STATUS_ONGOING),
+    next: str = Form(""),
 ) -> RedirectResponse:
-    wish_title = title.strip()
+    title_value = _as_form_text(title)
+    author_value = _as_form_text(author)
+    tags_value = _as_form_text(tags)
+    rating_value = _as_form_text(rating)
+    review_value = _as_form_text(review)
+    comment_value = _as_form_text(comment)
+    read_status_value = _as_form_text(read_status)
+    read_flag_value = _as_form_text(read)
+    book_status_value = _as_form_text(book_status)
+    next_value = _as_form_text(next)
+    normalized_library_book_id = _normalize_library_book_id(_as_form_text(library_book_id))
+
+    wish_title = title_value
     if not wish_title:
         raise HTTPException(status_code=400, detail="书名不能为空")
     now = _now_iso()
+    normalized_read_status = _normalize_wish_read_status(
+        read_status_value if read_status_value else (WISH_READ_READ if _is_true_flag(read_flag_value) else WISH_READ_UNREAD)
+    )
+    parsed_tags = _parse_wish_tags(tags_value)
+    parsed_rating = _parse_wish_rating(rating_value)
+    parsed_review = _normalize_wish_text(review_value)
+    parsed_comment = _normalize_wish_text(comment_value)
+    parsed_book_status = _normalize_wish_book_status(book_status_value)
+    parsed_read_flag = normalized_read_status == WISH_READ_READ
+    base = library_dir()
+    if normalized_library_book_id and not ensure_book_exists(base, normalized_library_book_id):
+        normalized_library_book_id = None
+    if normalized_library_book_id is None:
+        existing_manual = get_manual_wish_by_identity(wish_title, author_value or None)
+        if existing_manual is not None:
+            update_wish(
+                existing_manual.id,
+                title=wish_title,
+                author=author_value or None,
+                rating=parsed_rating,
+                read=parsed_read_flag,
+                read_status=normalized_read_status,
+                tags=parsed_tags,
+                review=parsed_review,
+                comment=parsed_comment,
+                book_status=parsed_book_status,
+                updated_at=now,
+            )
+            updated_manual = get_wish(existing_manual.id)
+            if updated_manual is not None:
+                _sync_metadata_cache_from_tracker(base, updated_manual, updated_manual.library_book_id)
+            target = _safe_internal_redirect_target(next_value, "/tracker")
+            return RedirectResponse(url=target, status_code=303)
+    wish_id = new_book_id()
     create_wish(
         Wish(
-            id=new_book_id(),
+            id=wish_id,
             title=wish_title,
-            author=author.strip() or None,
-            rating=_parse_wish_rating(rating),
-            read=_is_true_flag(read),
-            book_status=_normalize_wish_book_status(book_status),
+            library_book_id=normalized_library_book_id,
+            author=author_value or None,
+            rating=parsed_rating,
+            read=parsed_read_flag,
+            read_status=normalized_read_status,
+            tags=parsed_tags,
+            review=parsed_review,
+            comment=parsed_comment,
+            book_status=parsed_book_status,
             created_at=now,
             updated_at=now,
         )
     )
-    return RedirectResponse(url="/wishlist", status_code=303)
+    created = get_wish(wish_id)
+    if created is not None:
+        _sync_metadata_cache_from_tracker(base, created, created.library_book_id)
+    target = _safe_internal_redirect_target(next_value, "/tracker")
+    return RedirectResponse(url=target, status_code=303)
 
 
+@app.post("/tracker/{wish_id}/update")
 @app.post("/wishlist/{wish_id}/update")
-async def wishlist_update(
+async def tracker_update(
     wish_id: str,
     title: str = Form(""),
+    library_book_id: str = Form(""),
     author: str = Form(""),
+    tags: str = Form(""),
     rating: str = Form(""),
+    review: str = Form(""),
+    comment: str = Form(""),
+    read_status: str = Form(""),
     read: str = Form("0"),
     book_status: str = Form(WISH_STATUS_ONGOING),
+    next: str = Form(""),
 ) -> RedirectResponse:
     if not BOOK_ID_RE.match(wish_id):
         raise HTTPException(status_code=404, detail="Invalid wish id")
-    if get_wish(wish_id) is None:
+    existing = get_wish(wish_id)
+    if existing is None:
         raise HTTPException(status_code=404, detail="Wish not found")
-    wish_title = title.strip()
+    title_value = _as_form_text(title)
+    author_value = _as_form_text(author)
+    tags_value = _as_form_text(tags)
+    rating_value = _as_form_text(rating)
+    review_value = _as_form_text(review)
+    comment_value = _as_form_text(comment)
+    read_status_value = _as_form_text(read_status)
+    read_flag_value = _as_form_text(read)
+    book_status_value = _as_form_text(book_status)
+    next_value = _as_form_text(next)
+    library_book_id_value = _as_form_text(library_book_id)
+
+    wish_title = title_value
     if not wish_title:
         raise HTTPException(status_code=400, detail="书名不能为空")
+    normalized_read_status = _normalize_wish_read_status(
+        read_status_value if read_status_value else (WISH_READ_READ if _is_true_flag(read_flag_value) else WISH_READ_UNREAD)
+    )
+    parsed_tags = _parse_wish_tags(tags_value)
+    parsed_rating = _parse_wish_rating(rating_value)
+    parsed_review = _normalize_wish_text(review_value)
+    parsed_comment = _normalize_wish_text(comment_value)
+    parsed_book_status = _normalize_wish_book_status(book_status_value)
+    parsed_read_flag = normalized_read_status == WISH_READ_READ
+    base = library_dir()
+    normalized_library_book_id = _normalize_library_book_id(library_book_id_value) or _normalize_library_book_id(
+        existing.library_book_id
+    )
+    if normalized_library_book_id and not ensure_book_exists(base, normalized_library_book_id):
+        normalized_library_book_id = None
+    if normalized_library_book_id is None:
+        duplicate_manual = get_manual_wish_by_identity(wish_title, author_value or None, exclude_id=wish_id)
+        if duplicate_manual is not None:
+            update_wish(
+                duplicate_manual.id,
+                title=wish_title,
+                library_book_id=None,
+                author=author_value or None,
+                tags=parsed_tags,
+                rating=parsed_rating,
+                review=parsed_review,
+                comment=parsed_comment,
+                read_status=normalized_read_status,
+                read=parsed_read_flag,
+                book_status=parsed_book_status,
+                updated_at=_now_iso(),
+            )
+            delete_wish(wish_id)
+            merged = get_wish(duplicate_manual.id)
+            if merged is not None:
+                _sync_metadata_cache_from_tracker(base, merged, merged.library_book_id)
+            target = _safe_internal_redirect_target(next_value, "/tracker")
+            return RedirectResponse(url=target, status_code=303)
     update_wish(
         wish_id,
         title=wish_title,
-        author=author.strip() or None,
-        rating=_parse_wish_rating(rating),
-        read=int(_is_true_flag(read)),
-        book_status=_normalize_wish_book_status(book_status),
+        library_book_id=normalized_library_book_id,
+        author=author_value or None,
+        tags=parsed_tags,
+        rating=parsed_rating,
+        review=parsed_review,
+        comment=parsed_comment,
+        read_status=normalized_read_status,
+        read=parsed_read_flag,
+        book_status=parsed_book_status,
         updated_at=_now_iso(),
     )
-    return RedirectResponse(url="/wishlist", status_code=303)
+    updated = get_wish(wish_id)
+    if updated is not None:
+        _sync_metadata_cache_from_tracker(base, updated, normalized_library_book_id)
+    target = _safe_internal_redirect_target(next_value, "/tracker")
+    return RedirectResponse(url=target, status_code=303)
 
 
+@app.post("/tracker/{wish_id}/delete")
 @app.post("/wishlist/{wish_id}/delete")
-async def wishlist_remove(wish_id: str) -> RedirectResponse:
+async def tracker_remove(wish_id: str, next: str = Form("")) -> RedirectResponse:
     if not BOOK_ID_RE.match(wish_id):
         raise HTTPException(status_code=404, detail="Invalid wish id")
     delete_wish(wish_id)
-    return RedirectResponse(url="/wishlist", status_code=303)
+    target = _safe_internal_redirect_target(_as_form_text(next), "/tracker")
+    return RedirectResponse(url=target, status_code=303)
+
+
+# Backward-compatible call sites (tests and external imports may still use old names).
+wishlist_page = tracker_page
+wishlist_create = tracker_create
+wishlist_update = tracker_update
+wishlist_remove = tracker_remove
 
 
 @app.get("/ingest", response_class=HTMLResponse)
@@ -2683,13 +3162,16 @@ async def book_detail(request: Request, book_id: str) -> HTMLResponse:
     return_to = _safe_internal_redirect_target(request.query_params.get("return_to", ""), "/")
     return_to_query = f"?return_to={urllib.parse.quote(return_to, safe='')}" if return_to != "/" else ""
     meta = load_metadata(base, book_id)
+    tracker = _ensure_tracker_for_book(base, meta)
+    if _apply_tracker_state_to_metadata_cache(meta, tracker):
+        save_metadata(meta, base)
     rules = load_rule_templates()
     themes = load_theme_templates()
     return templates.TemplateResponse(
         "book.html",
         {
             "request": request,
-            "book": _book_view(meta, base),
+            "book": _book_view(meta, base, tracker=tracker),
             "sections": [],
             "book_id": book_id,
             "rules": rules,
@@ -2974,6 +3456,9 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
     return_to = _safe_internal_redirect_target(request.query_params.get("return_to", ""), "/")
     return_to_query = f"?return_to={urllib.parse.quote(return_to, safe='')}" if return_to != "/" else ""
     meta = load_metadata(base, book_id)
+    tracker = _ensure_tracker_for_book(base, meta)
+    if _apply_tracker_state_to_metadata_cache(meta, tracker):
+        save_metadata(meta, base)
     _ensure_book_epub_css(base, meta)
     progress = get_reader_progress(book_id)
     epub_file = epub_path(base, book_id)
@@ -3002,7 +3487,7 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
         "preview.html",
         {
             "request": request,
-            "book": _book_view(meta, base),
+            "book": _book_view(meta, base, tracker=tracker),
             "sections_payload": sections_payload,
             "section": {
                 "title": current.title,
@@ -3084,6 +3569,9 @@ async def edit_metadata(request: Request, book_id: str) -> HTMLResponse:
     return_to = _safe_internal_redirect_target(request.query_params.get("return_to", ""), "/")
     return_to_query = f"?return_to={urllib.parse.quote(return_to, safe='')}" if return_to != "/" else ""
     meta = load_metadata(base, book_id)
+    tracker = _ensure_tracker_for_book(base, meta)
+    if _apply_tracker_state_to_metadata_cache(meta, tracker):
+        save_metadata(meta, base)
     rules = load_rule_templates()
     themes = load_theme_templates()
     template = "partials/meta_edit.html" if _is_htmx(request) else "edit.html"
@@ -3091,7 +3579,7 @@ async def edit_metadata(request: Request, book_id: str) -> HTMLResponse:
         template,
         {
             "request": request,
-            "book": _book_view(meta, base),
+            "book": _book_view(meta, base, tracker=tracker),
             "book_id": book_id,
             "rules": rules,
             "themes": themes,
@@ -3129,6 +3617,9 @@ async def fetch_metadata(
     safe_return_to = _safe_internal_redirect_target(return_to, "/")
     return_to_query = f"?return_to={urllib.parse.quote(safe_return_to, safe='')}" if safe_return_to != "/" else ""
     meta = load_metadata(base, book_id)
+    tracker = _ensure_tracker_for_book(base, meta)
+    if _apply_tracker_state_to_metadata_cache(meta, tracker):
+        save_metadata(meta, base)
 
     rules = load_rule_templates()
     themes = load_theme_templates()
@@ -3320,6 +3811,9 @@ async def save_edit(
     safe_return_to = _safe_internal_redirect_target(return_to, "/")
     return_to_query = f"?return_to={urllib.parse.quote(safe_return_to, safe='')}" if safe_return_to != "/" else ""
     meta = load_metadata(base, book_id)
+    tracker = _ensure_tracker_for_book(base, meta)
+    if _apply_tracker_state_to_metadata_cache(meta, tracker):
+        save_metadata(meta, base)
     strip_original_css_enabled = _is_true_flag(strip_original_css)
 
     meta.title = title.strip() or meta.title or "未命名"
@@ -3344,7 +3838,7 @@ async def save_edit(
             template,
             {
                 "request": request,
-                "book": _book_view(meta, base),
+                "book": _book_view(meta, base, tracker=tracker),
                 "book_id": book_id,
                 "rules": rules,
                 "themes": themes,
@@ -3393,7 +3887,7 @@ async def save_edit(
             template,
             {
                 "request": request,
-                "book": _book_view(meta, base),
+                "book": _book_view(meta, base, tracker=tracker),
                 "book_id": book_id,
                 "rules": rules,
                 "themes": themes,
@@ -3405,6 +3899,17 @@ async def save_edit(
         )
 
     save_metadata(meta, base)
+    tracker = _ensure_tracker_for_book(base, meta)
+    update_fields: dict[str, object] = {}
+    if tracker.rating != meta.rating:
+        update_fields["rating"] = meta.rating
+    if (tracker.title or "") != (meta.title or ""):
+        update_fields["title"] = meta.title or "未命名"
+    if (tracker.author or None) != (meta.author or None):
+        update_fields["author"] = meta.author or None
+    if update_fields:
+        update_fields["updated_at"] = _now_iso()
+        update_wish(tracker.id, **update_fields)
     job = _create_job("edit-writeback", book_id, meta.rule_template)
     _ensure_ingest_worker_started()
     queued = _enqueue_ingest_task(
@@ -3469,9 +3974,18 @@ async def set_read_status(
     _require_book(base, book_id)
     meta = load_metadata(base, book_id)
     normalized = read.strip().lower()
-    meta.read = normalized in {"1", "true", "yes", "on"}
-    meta.read_updated_at = _now_iso()
-    save_metadata(meta, base)
+    read_value = normalized in {"1", "true", "yes", "on"}
+    read_status = _read_status_from_flag(read_value)
+    tracker = _ensure_tracker_for_book(base, meta)
+    update_wish(
+        tracker.id,
+        read_status=read_status,
+        read=read_value,
+        updated_at=_now_iso(),
+    )
+    tracker = get_wish_by_library_book_id(book_id) or tracker
+    if _apply_tracker_state_to_metadata_cache(meta, tracker):
+        save_metadata(meta, base)
     target = _safe_internal_redirect_target(next, f"/book/{book_id}")
     parsed_target = urllib.parse.urlparse(target)
     target_query = urllib.parse.parse_qs(parsed_target.query)
@@ -3485,7 +3999,7 @@ async def set_read_status(
             "partials/meta_view.html",
             {
                 "request": request,
-                "book": _book_view(meta, base),
+                "book": _book_view(meta, base, tracker=tracker),
                 "book_id": book_id,
                 "return_to": target_return_to,
                 "return_to_query": target_return_to_query,

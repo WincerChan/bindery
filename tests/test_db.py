@@ -13,6 +13,7 @@ from bindery.db import (
     get_job,
     get_reader_progress,
     get_wish,
+    get_wish_by_library_book_id,
     init_db,
     list_wishes,
     list_jobs,
@@ -168,9 +169,14 @@ class DbTests(unittest.TestCase):
                 wish = Wish(
                     id="a" * 32,
                     title="诡秘之主",
+                    library_book_id="b" * 32,
                     author="爱潜水的乌贼",
                     rating=5,
                     read=False,
+                    read_status="reading",
+                    tags=["克苏鲁", "蒸汽朋克"],
+                    review="世界观很完整",
+                    comment="线索回收扎实",
                     book_status="ongoing",
                     created_at="2026-02-14T00:00:00+00:00",
                     updated_at="2026-02-14T00:00:00+00:00",
@@ -180,13 +186,26 @@ class DbTests(unittest.TestCase):
                 self.assertIsNotNone(fetched)
                 assert fetched is not None
                 self.assertEqual(fetched.title, "诡秘之主")
+                self.assertEqual(fetched.library_book_id, "b" * 32)
                 self.assertFalse(fetched.read)
+                self.assertEqual(fetched.read_status, "reading")
+                self.assertEqual(fetched.tags, ["克苏鲁", "蒸汽朋克"])
+                self.assertEqual(fetched.review, "世界观很完整")
+                self.assertEqual(fetched.comment, "线索回收扎实")
+                by_book_id = get_wish_by_library_book_id("b" * 32)
+                self.assertIsNotNone(by_book_id)
+                assert by_book_id is not None
+                self.assertEqual(by_book_id.id, wish.id)
 
                 update_wish(
                     wish.id,
                     title="诡秘之主2",
+                    library_book_id="c" * 32,
+                    tags=["重读"],
                     rating=None,
-                    read=1,
+                    review="续作待观察",
+                    comment="期待新角色",
+                    read_status="read",
                     book_status="completed",
                     updated_at="2026-02-15T00:00:00+00:00",
                 )
@@ -195,7 +214,12 @@ class DbTests(unittest.TestCase):
                 assert updated is not None
                 self.assertEqual(updated.title, "诡秘之主2")
                 self.assertIsNone(updated.rating)
+                self.assertEqual(updated.library_book_id, "c" * 32)
                 self.assertTrue(updated.read)
+                self.assertEqual(updated.read_status, "read")
+                self.assertEqual(updated.tags, ["重读"])
+                self.assertEqual(updated.review, "续作待观察")
+                self.assertEqual(updated.comment, "期待新角色")
                 self.assertEqual(updated.book_status, "completed")
 
                 self.assertEqual(len(list_wishes()), 1)

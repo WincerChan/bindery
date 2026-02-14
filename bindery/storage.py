@@ -396,6 +396,40 @@ def list_books(base: Path, *, sort_output: bool = True) -> list[Metadata]:
     return [meta for meta in books if book_dir(base, meta.book_id).is_dir()]
 
 
+def _seed_wishlist_from_books(conn: sqlite3.Connection) -> None:
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO wishlist(
+                id, title, library_book_id, author, rating, read, read_status, tags_json, review, comment, book_status, created_at, updated_at
+            )
+            SELECT
+                lower(hex(randomblob(16))),
+                coalesce(nullif(trim(b.title), ''), '未命名'),
+                b.book_id,
+                b.author,
+                b.rating,
+                b.read,
+                CASE WHEN b.read = 1 THEN 'read' ELSE 'unread' END,
+                '[]',
+                NULL,
+                NULL,
+                'ongoing',
+                CASE
+                    WHEN b.created_at IS NULL OR b.created_at = '' THEN coalesce(b.updated_at, '')
+                    ELSE b.created_at
+                END,
+                CASE
+                    WHEN b.updated_at IS NULL OR b.updated_at = '' THEN coalesce(b.created_at, '')
+                    ELSE b.updated_at
+                END
+            FROM books AS b
+            LEFT JOIN wishlist AS w ON w.library_book_id = b.book_id
+            WHERE w.library_book_id IS NULL
+            """
+        )
+
+
 def list_books_page(
     base: Path,
     *,
@@ -412,34 +446,51 @@ def list_books_page(
     safe_page = max(1, int(page))
     safe_per_page = max(1, int(per_page))
 
-    conditions = ["archived = 0"]
+    conditions = ["b.archived = 0"]
     params: list[object] = []
     if query_text:
         like = f"%{query_text}%"
-        conditions.append("(lower(title) LIKE ? OR lower(coalesce(author, '')) LIKE ?)")
+        conditions.append("(lower(b.title) LIKE ? OR lower(coalesce(b.author, '')) LIKE ?)")
         params.extend([like, like])
     if normalized_filter == "unread":
-        conditions.append("read = 0")
+        conditions.append("coalesce(w.read_status, 'unread') != 'read'")
 
     where_clause = " AND ".join(conditions)
     if normalized_sort == "created":
-        order_clause = "created_at DESC"
+        order_clause = "b.created_at DESC"
     else:
         order_clause = """
             CASE
-                WHEN updated_at IS NULL OR updated_at = '' THEN created_at
-                ELSE updated_at
+                WHEN b.updated_at IS NULL OR b.updated_at = '' THEN b.created_at
+                ELSE b.updated_at
             END DESC
         """
 
     offset = (safe_page - 1) * safe_per_page
     conn = _connect_books_db()
     try:
-        total_row = conn.execute(f"SELECT COUNT(1) AS count FROM books WHERE {where_clause}", params).fetchone()
+        if normalized_filter == "unread":
+            _seed_wishlist_from_books(conn)
+        total_row = conn.execute(
+            f"""
+            SELECT COUNT(1) AS count
+            FROM books AS b
+            LEFT JOIN wishlist AS w ON w.library_book_id = b.book_id
+            WHERE {where_clause}
+            """,
+            params,
+        ).fetchone()
         total = int(total_row["count"]) if total_row is not None else 0
         page_params = [*params, safe_per_page, offset]
         rows = conn.execute(
-            f"SELECT * FROM books WHERE {where_clause} ORDER BY {order_clause} LIMIT ? OFFSET ?",
+            f"""
+            SELECT b.*
+            FROM books AS b
+            LEFT JOIN wishlist AS w ON w.library_book_id = b.book_id
+            WHERE {where_clause}
+            ORDER BY {order_clause}
+            LIMIT ? OFFSET ?
+            """,
             page_params,
         ).fetchall()
     finally:

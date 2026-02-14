@@ -74,12 +74,17 @@ class Job:
 class Wish:
     id: str
     title: str
-    author: Optional[str]
-    rating: Optional[int]
-    read: bool
-    book_status: str
-    created_at: str
-    updated_at: str
+    library_book_id: Optional[str] = None
+    author: Optional[str] = None
+    rating: Optional[int] = None
+    read: bool = False
+    read_status: str = "unread"
+    tags: list[str] = field(default_factory=list)
+    review: Optional[str] = None
+    comment: Optional[str] = None
+    book_status: str = "ongoing"
+    created_at: str = ""
+    updated_at: str = ""
 
 
 def chapter_to_dict(chapter: Chapter) -> dict:
