@@ -35,6 +35,26 @@ class MemoryTrimTests(unittest.TestCase):
                 web_module._maybe_trim_process_memory()
         self.assertEqual(called["count"], 1)
 
+    def test_response_trim_for_html_payload(self) -> None:
+        with patch.dict("os.environ", {"BINDERY_MEMORY_TRIM": "1"}, clear=False):
+            self.assertTrue(web_module._should_schedule_response_trim("text/html; charset=utf-8", 1024))
+
+    def test_response_trim_respects_threshold_for_non_html(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "BINDERY_MEMORY_TRIM": "1",
+                "BINDERY_RESPONSE_TRIM_MIN_BYTES": "1024",
+            },
+            clear=False,
+        ):
+            self.assertFalse(web_module._should_schedule_response_trim("image/png", 900))
+            self.assertTrue(web_module._should_schedule_response_trim("image/png", 1024))
+
+    def test_response_trim_disabled_when_memory_trim_off(self) -> None:
+        with patch.dict("os.environ", {"BINDERY_MEMORY_TRIM": "0"}, clear=False):
+            self.assertFalse(web_module._should_schedule_response_trim("text/html; charset=utf-8", 4096))
+
 
 if __name__ == "__main__":
     unittest.main()

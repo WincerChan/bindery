@@ -22,10 +22,8 @@ class CacheHeaderTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         web_py = (root / "bindery" / "web.py").read_text(encoding="utf-8")
         self.assertIn("FileResponse(path, headers=_cover_browser_cache_headers())", web_py)
-        self.assertIn(
-            "return Response(content=content, media_type=media_type, headers=_edge_bypass_browser_revalidate_headers())",
-            web_py,
-        )
+        self.assertIn("response = Response(content=content, media_type=media_type, headers=_edge_bypass_browser_revalidate_headers())", web_py)
+        self.assertIn("return response", web_py)
 
 
 if __name__ == "__main__":

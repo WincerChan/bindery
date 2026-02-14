@@ -25,6 +25,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.background import BackgroundTask
 
 from .auth import SESSION_COOKIE, configured_hash, is_authenticated, sign_in, sign_out, verify_password
 from .css import validate_css
@@ -98,8 +99,10 @@ INGEST_STAGE_DIR = ".ingest-stage"
 INGEST_STAGE_DIR_ENV = "BINDERY_STAGE_DIR"
 INGEST_QUEUE_MAXSIZE_ENV = "BINDERY_INGEST_QUEUE_MAXSIZE"
 MEMORY_TRIM_ENV = "BINDERY_MEMORY_TRIM"
+RESPONSE_TRIM_MIN_BYTES_ENV = "BINDERY_RESPONSE_TRIM_MIN_BYTES"
 DEFAULT_INGEST_STAGE_DIR = Path(tempfile.gettempdir()) / "bindery-ingest-stage"
 DEFAULT_INGEST_QUEUE_MAXSIZE = 64
+DEFAULT_RESPONSE_TRIM_MIN_BYTES = 256 * 1024
 DOUBAN_REFERER = "https://book.douban.com/"
 
 _malloc_trim_func: Optional[Callable[[int], int]] = None
@@ -533,6 +536,28 @@ def _maybe_trim_process_memory() -> None:
         malloc_trim(0)
     except Exception:
         return
+
+
+def _response_trim_min_bytes() -> int:
+    raw = (read_env(RESPONSE_TRIM_MIN_BYTES_ENV) or "").strip()
+    if not raw:
+        return DEFAULT_RESPONSE_TRIM_MIN_BYTES
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return DEFAULT_RESPONSE_TRIM_MIN_BYTES
+    return max(0, min(32 * 1024 * 1024, parsed))
+
+
+def _should_schedule_response_trim(media_type: str, payload_size: int) -> bool:
+    if not _memory_trim_enabled():
+        return False
+    if payload_size <= 0:
+        return False
+    normalized = (media_type or "").lower()
+    if normalized.startswith("text/html"):
+        return True
+    return payload_size >= _response_trim_min_bytes()
 
 
 def _safe_internal_redirect_target(target: object, fallback: str) -> str:
@@ -2825,6 +2850,7 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
     ]
     toc_count = len(sections)
     del sections
+    background = BackgroundTask(_maybe_trim_process_memory) if toc_count >= 1024 and _memory_trim_enabled() else None
 
     return templates.TemplateResponse(
         "preview.html",
@@ -2847,6 +2873,7 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
             "main_class": "h-screen w-screen p-0",
         },
         headers=_no_store_headers(),
+        background=background,
     )
 
 
@@ -2863,7 +2890,11 @@ async def epub_item(book_id: str, item_path: str) -> Response:
         content, media_type = load_epub_item(epub_file, item_path, base_href)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Item not found")
-    return Response(content=content, media_type=media_type, headers=_edge_bypass_browser_revalidate_headers())
+    payload_size = len(content) if hasattr(content, "__len__") else 0
+    response = Response(content=content, media_type=media_type, headers=_edge_bypass_browser_revalidate_headers())
+    if _should_schedule_response_trim(media_type, payload_size):
+        response.background = BackgroundTask(_maybe_trim_process_memory)
+    return response
 
 
 @app.get("/book/{book_id}/search")
@@ -3358,7 +3389,9 @@ async def archive_delete_bulk(book_ids: list[str] = Form([])) -> RedirectRespons
         if not archive_book_dir(base, book_id).exists():
             continue
         delete_book_data(base, book_id)
-    return RedirectResponse(url="/archive", status_code=303)
+    response = RedirectResponse(url="/archive", status_code=303)
+    response.background = BackgroundTask(_maybe_trim_process_memory)
+    return response
 
 
 @app.post("/book/{book_id}/delete")
@@ -3368,9 +3401,13 @@ async def delete_book(request: Request, book_id: str, next: str = Form("")) -> H
         raise HTTPException(status_code=404, detail="Invalid book id")
     delete_book_data(base, book_id)
     if _is_htmx(request):
-        return HTMLResponse("")
+        response = HTMLResponse("")
+        response.background = BackgroundTask(_maybe_trim_process_memory)
+        return response
     target = _safe_internal_redirect_target(next, "/")
-    return RedirectResponse(url=target, status_code=303)
+    response = RedirectResponse(url=target, status_code=303)
+    response.background = BackgroundTask(_maybe_trim_process_memory)
+    return response
 
 
 def _jobs_page_payload(tab: str, page: int) -> dict[str, object]:

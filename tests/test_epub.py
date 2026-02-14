@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import zipfile
 
@@ -924,6 +925,33 @@ class BuildEpubTests(unittest.TestCase):
             self.assertEqual(media_type, "text/html; charset=utf-8")
             self.assertIn("<base ", text)
             self.assertIn("style.css", text)
+
+    def test_load_epub_item_skips_manifest_lookup_for_known_extension(self) -> None:
+        book = Book(title="旧标题", author="旧作者", intro=None)
+        chapter = Chapter(title="第一章", lines=["正文"])
+        book.root_chapters.append(chapter)
+        book.spine.append(chapter)
+
+        meta = Metadata(
+            book_id="preview-id-skip-manifest",
+            title="旧标题",
+            author="旧作者",
+            language="zh-CN",
+            description=None,
+            created_at="",
+            updated_at="",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "book.epub"
+            build_epub(book, meta, output_path)
+
+            base_href = epub_base_href("/book/preview-id-skip-manifest/epub/", "section_0001.xhtml")
+            with patch("bindery.epub._opf_root_from_zip", side_effect=AssertionError("unexpected manifest lookup")):
+                content, media_type = load_epub_item(output_path, "section_0001.xhtml", base_href)
+
+            self.assertEqual(media_type, "text/html; charset=utf-8")
+            self.assertIn("正文", content.decode("utf-8", errors="replace"))
 
 
 if __name__ == "__main__":

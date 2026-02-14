@@ -1744,15 +1744,16 @@ def load_epub_item(epub_file: Path, item_path: str, base_href: str) -> tuple[byt
         content = zf.read(actual_target)
 
         media_type = _guess_media_type(canonical_target)
-        try:
-            opf_path, root = _opf_root_from_zip(zf, index)
-            manifest_items, _ = _manifest_from_opf(opf_path, root)
-            for manifest_item in manifest_items:
-                if manifest_item.member_path == canonical_target and manifest_item.media_type:
-                    media_type = manifest_item.media_type
-                    break
-        except Exception:
-            pass
+        if media_type == "application/octet-stream":
+            try:
+                opf_path, root = _opf_root_from_zip(zf, index)
+                manifest_items, _ = _manifest_from_opf(opf_path, root)
+                for manifest_item in manifest_items:
+                    if manifest_item.member_path == canonical_target and manifest_item.media_type:
+                        media_type = manifest_item.media_type
+                        break
+            except Exception:
+                pass
 
     if _is_document_media_type(media_type):
         text = content.decode("utf-8", errors="replace")
