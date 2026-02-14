@@ -42,6 +42,8 @@ class WishlistUiTests(unittest.TestCase):
         self.assertIn("payload.matches", tpl)
         self.assertIn("payload.blocking_matches", tpl)
         self.assertIn("payload.exact_matches", tpl)
+        self.assertIn("if (!payload || !payload.exists) {\n          renderAddExistingList(displayMatches);", tpl)
+        self.assertIn("renderAddExistingList([]);\n        const firstBlocking", tpl)
         self.assertIn("点此前往编辑该条目。", tpl)
         self.assertIn("jumpToWishEditor", tpl)
         self.assertIn("wish-row-", tpl)

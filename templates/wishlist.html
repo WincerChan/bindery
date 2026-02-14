@@ -514,11 +514,12 @@
         const suggestionMatches = payload && Array.isArray(payload.matches) ? payload.matches : [];
         const exactMatches = payload && Array.isArray(payload.exact_matches) ? payload.exact_matches : [];
         const displayMatches = mergeDuplicateSuggestions(exactMatches, suggestionMatches);
-        renderAddExistingList(displayMatches);
         if (!payload || !payload.exists) {
+          renderAddExistingList(displayMatches);
           setAddDuplicateBlocked(false, null);
           return;
         }
+        renderAddExistingList([]);
         const firstBlocking = Array.isArray(payload.blocking_matches) && payload.blocking_matches.length > 0
           ? payload.blocking_matches[0]
           : null;
