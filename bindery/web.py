@@ -2818,27 +2818,28 @@ async def preview(request: Request, book_id: str, section_index: int) -> HTMLRes
     next_idx = section_index + 1 if section_index < len(sections) - 1 else None
     sections_payload = [
         {
-            "index": idx,
             "title": sec.title,
-            "content_url": f"/book/{book_id}/epub/{sec.item_path}",
+            "item_path": sec.item_path,
         }
-        for idx, sec in enumerate(sections)
+        for sec in sections
     ]
+    toc_count = len(sections)
+    del sections
 
     return templates.TemplateResponse(
         "preview.html",
         {
             "request": request,
             "book": _book_view(meta, base),
-            "toc": [{"index": idx, "title": sec.title} for idx, sec in enumerate(sections)],
             "sections_payload": sections_payload,
             "section": {
                 "title": current.title,
-                "content_url": f"/book/{book_id}/epub/{current.item_path}",
+                "item_path": current.item_path,
             },
             "section_index": section_index,
             "prev_idx": prev_idx,
             "next_idx": next_idx,
+            "toc_count": toc_count,
             "return_to": return_to,
             "return_to_query": return_to_query,
             "initial_progress": progress,

@@ -415,18 +415,18 @@
       </div>
 
       <nav class="p-3 space-y-1">
-        {% for item in toc %}
+        <template x-for="item in tocEntries" :key="item.index">
           <a
-            href="/book/{{ book.book_id }}/preview/{{ item.index }}{{ return_to_query }}"
+            :href="'/book/{{ book.book_id }}/preview/' + item.index + '{{ return_to_query }}'"
             class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
-            :class="sectionIndex === {{ item.index }} ? (brightnessMode === 'dim' ? 'bg-sky-900/60 text-sky-100 ring-1 ring-sky-700' : 'bg-sky-50 text-sky-700 ring-1 ring-sky-200') : (brightnessMode === 'dim' ? 'text-slate-200 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50')"
-            @click.prevent="gotoSection({{ item.index }}, { desiredPage: 0 })"
-            :data-current-toc="sectionIndex === {{ item.index }} ? '0' : null"
-            title="{{ item.title }}"
+            :class="sectionIndex === item.index ? (brightnessMode === 'dim' ? 'bg-sky-900/60 text-sky-100 ring-1 ring-sky-700' : 'bg-sky-50 text-sky-700 ring-1 ring-sky-200') : (brightnessMode === 'dim' ? 'text-slate-200 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50')"
+            @click.prevent="gotoSection(item.index, { desiredPage: 0 })"
+            :data-current-toc="sectionIndex === item.index ? '0' : null"
+            :title="item.title"
           >
-            <span class="truncate">{{ item.title }}</span>
+            <span class="truncate" x-text="item.title"></span>
           </a>
-        {% endfor %}
+        </template>
       </nav>
     </aside>
 
@@ -543,7 +543,7 @@
     const initialProgress = {{ initial_progress|tojson }};
     const sectionsData = {{ sections_payload|tojson }};
     const initialSectionIndex = {{ section_index }};
-    const tocCount = sectionsData.length;
+    const tocCount = {{ toc_count }};
     const returnTo = {{ return_to|tojson }};
     const sectionBaseUrl = "/book/{{ book.book_id }}/preview/";
     const fonts = {
@@ -617,6 +617,22 @@
       return query ? `${sectionBaseUrl}${index}?${query}` : `${sectionBaseUrl}${index}`;
     }
 
+    function encodeEpubItemPath(itemPath) {
+      const raw = String(itemPath || "").trim();
+      if (!raw) return "";
+      return raw
+        .split("/")
+        .map((segment) => encodeURIComponent(segment))
+        .join("/");
+    }
+
+    function sectionContentUrl(section) {
+      if (!section || typeof section !== "object") return "";
+      const encodedPath = encodeEpubItemPath(section.item_path);
+      if (!encodedPath) return "";
+      return `/book/${bookId}/epub/${encodedPath}`;
+    }
+
     return {
       tocOpen: false,
       settingsOpen: false,
@@ -637,6 +653,10 @@
       bookId,
       bookTitle,
       sections: sectionsData,
+      tocEntries: sectionsData.map((section, index) => ({
+        index,
+        title: String((section && section.title) || `章节 ${index + 1}`),
+      })),
       sectionIndex: initialSectionIndex,
       tocCount,
       activeFrameKey: "a",
@@ -671,8 +691,17 @@
       _frameApplied: { a: false, b: false, c: false },
       _frameApplying: { a: false, b: false, c: false },
       _layoutObservers: { a: null, b: null, c: null },
+      _sectionAt(index) {
+        if (!Number.isInteger(index) || index < 0 || index >= this.tocCount) return null;
+        const section = this.sections[index];
+        if (!section || typeof section !== "object") return null;
+        return section;
+      },
+      _sectionContentUrl(index) {
+        return sectionContentUrl(this._sectionAt(index));
+      },
       currentSectionTitle() {
-        const section = this.sections[this.sectionIndex];
+        const section = this._sectionAt(this.sectionIndex);
         return section ? section.title : "";
       },
       _updateTimeNow() {
@@ -828,10 +857,10 @@
       _prefetchSectionHtml(index) {
         if (!Number.isInteger(index) || index < -1 || index >= this.tocCount) return;
         if (this._prefetchCache[index] || this._prefetchInflight[index]) return;
-        const section = this.sections[index];
-        if (!section || !section.content_url) return;
+        const contentUrl = this._sectionContentUrl(index);
+        if (!contentUrl) return;
         this._prefetchInflight[index] = true;
-        fetch(section.content_url, { credentials: "same-origin" })
+        fetch(contentUrl, { credentials: "same-origin" })
           .then((response) => (response.ok ? response.text() : ""))
           .then(() => {
             this._prefetchCache[index] = true;
@@ -845,14 +874,14 @@
       },
       _loadSectionIntoFrame(frameKey, targetIndex, desiredPage) {
         const frame = this.getFrame(frameKey);
-        const section = this.sections[targetIndex];
-        if (!frame || !section) return;
+        const contentUrl = this._sectionContentUrl(targetIndex);
+        if (!frame || !contentUrl) return;
         const state = this._frameState[frameKey];
         if (state.section === targetIndex && state.ready) return;
         state.section = targetIndex;
         state.desiredPage = Math.max(0, Number.parseInt(String(desiredPage || 1), 10) || 1);
         state.ready = false;
-        frame.src = section.content_url;
+        frame.src = contentUrl;
       },
       _schedulePaginationRefresh(frameKey) {
         const run = () => {
