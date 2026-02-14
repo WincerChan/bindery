@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Bindery logo">
+  <rect x="0" y="0" width="48" height="48" rx="8" ry="8" fill="#4f46e5" />
+  <path
+    d="M13 39V11a2.5 2.5 0 0 1 2.5-2.5H39a1 1 0 0 1 1 1v34a1 1 0 0 1-1 1H15.5a2.5 2.5 0 0 1 0-5H40"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
