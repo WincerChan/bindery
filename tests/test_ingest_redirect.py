@@ -24,7 +24,7 @@ class IngestRedirectTests(unittest.TestCase):
             except queue.Empty:
                 break
 
-    def test_single_ingest_redirects_to_jobs_and_queues_task(self) -> None:
+    def test_single_ingest_stays_on_ingest_and_queues_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
             previous_db = os.environ.get("BINDERY_DB_PATH")
@@ -64,7 +64,10 @@ class IngestRedirectTests(unittest.TestCase):
                         )
 
                 self.assertEqual(getattr(response, "status_code", None), 303)
-                self.assertEqual(response.headers.get("location", ""), "/jobs")
+                location = response.headers.get("location", "")
+                self.assertTrue(location.startswith("/ingest?"))
+                self.assertIn("toast=", location)
+                self.assertIn("toast_kind=success", location)
                 jobs = list_jobs()
                 self.assertEqual(len(jobs), 1)
                 self.assertEqual(jobs[0].status, "running")
@@ -89,7 +92,7 @@ class IngestRedirectTests(unittest.TestCase):
                 else:
                     os.environ["BINDERY_STAGE_DIR"] = previous_stage
 
-    def test_large_batch_ingest_redirects_to_jobs(self) -> None:
+    def test_large_batch_ingest_stays_on_ingest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
             previous_db = os.environ.get("BINDERY_DB_PATH")
@@ -133,7 +136,10 @@ class IngestRedirectTests(unittest.TestCase):
                             )
 
                 self.assertEqual(getattr(response, "status_code", None), 303)
-                self.assertEqual(response.headers.get("location", ""), "/jobs")
+                location = response.headers.get("location", "")
+                self.assertTrue(location.startswith("/ingest?"))
+                self.assertIn("toast=", location)
+                self.assertIn("toast_kind=success", location)
                 self.assertEqual(len(list_jobs()), 2)
             finally:
                 self._drain_queue()
@@ -195,7 +201,10 @@ class IngestRedirectTests(unittest.TestCase):
                         )
                     )
                 self.assertEqual(getattr(response, "status_code", None), 303)
-                self.assertEqual(response.headers.get("location", ""), "/jobs")
+                location = response.headers.get("location", "")
+                self.assertTrue(location.startswith("/ingest?"))
+                self.assertIn("toast=", location)
+                self.assertIn("toast_kind=success", location)
                 self.assertFalse(staged_dir.exists())
                 self.assertEqual(len(list_jobs()), 1)
                 queued_task = web_module._ingest_queue.get_nowait()
@@ -261,7 +270,10 @@ class IngestRedirectTests(unittest.TestCase):
                         )
 
                 self.assertEqual(getattr(response, "status_code", None), 303)
-                self.assertEqual(response.headers.get("location", ""), "/jobs")
+                location = response.headers.get("location", "")
+                self.assertTrue(location.startswith("/ingest?"))
+                self.assertIn("toast=", location)
+                self.assertIn("toast_kind=error", location)
                 jobs = list_jobs()
                 self.assertEqual(len(jobs), 1)
                 self.assertEqual(jobs[0].status, "failed")

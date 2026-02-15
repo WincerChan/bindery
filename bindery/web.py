@@ -1049,6 +1049,26 @@ def _safe_internal_redirect_target(target: object, fallback: str) -> str:
     return urllib.parse.urlunparse(("", "", path, "", parsed.query, ""))
 
 
+def _with_toast_query(target: str, message: str, *, kind: str = "success") -> str:
+    parsed = urllib.parse.urlsplit(target)
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+    params["toast"] = [message]
+    params["toast_kind"] = [kind]
+    query = urllib.parse.urlencode(params, doseq=True)
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, query, parsed.fragment))
+
+
+def _set_htmx_toast(response: Response, message: str, *, kind: str = "success") -> None:
+    response.headers["HX-Trigger"] = json.dumps(
+        {
+            "bindery:toast": {
+                "message": message,
+                "kind": kind,
+            }
+        }
+    )
+
+
 def _no_store_headers() -> dict[str, str]:
     return {
         "Cache-Control": "no-store, max-age=0",
@@ -3382,6 +3402,8 @@ async def ingest(
 
         dedupe_mode = "normalize" if dedupe_mode == "normalize" else "keep"
         _ensure_ingest_worker_started()
+        queued_count = 0
+        failed_count = 0
         for entry in staged_entries:
             token = str(entry.get("token") or "").strip().lower()
             entry_dedupe_mode = "keep" if token in dedupe_keep_token_set else dedupe_mode
@@ -3430,8 +3452,10 @@ async def ingest(
                 }
             )
             if queued:
+                queued_count += 1
                 _update_job(job.id, stage="排队中", message="等待后台处理")
             else:
+                failed_count += 1
                 _update_job(job.id, status="failed", stage="失败", message="任务队列已满，请稍后重试", log=None)
                 _cleanup_queued_upload(payload_path)
             _cleanup_staged_upload(base, token)
@@ -3475,12 +3499,23 @@ async def ingest(
                 }
             )
             if queued:
+                queued_count += 1
                 _update_job(job.id, stage="排队中", message="等待后台处理")
             else:
+                failed_count += 1
                 _update_job(job.id, status="failed", stage="失败", message="任务队列已满，请稍后重试", log=None)
                 _cleanup_queued_upload(payload_path)
 
-        redirect_url = "/jobs"
+        if queued_count > 0:
+            toast_message = f"已创建 {queued_count} 个任务，可继续上传下一本。"
+            toast_kind = "success"
+        elif failed_count > 0:
+            toast_message = "任务创建失败，请稍后重试或前往任务页查看详情。"
+            toast_kind = "error"
+        else:
+            toast_message = "本次未创建任务。"
+            toast_kind = "warning"
+        redirect_url = _with_toast_query("/ingest", toast_message, kind=toast_kind)
         if _is_htmx(request):
             return _htmx_redirect(redirect_url)
         return RedirectResponse(url=redirect_url, status_code=303)
@@ -4305,10 +4340,28 @@ async def save_edit(
     else:
         _update_job(job.id, status="failed", stage="失败", message="任务队列已满，请稍后重试", log=None)
 
-    redirect_url = "/jobs?tab=running"
+    toast_message = "已创建写回任务，可继续编辑下一本。"
+    toast_kind = "success"
+    if not queued:
+        toast_message = "写回任务创建失败，请稍后重试或前往任务页查看详情。"
+        toast_kind = "error"
+
     if _is_htmx(request):
-        return _htmx_redirect(redirect_url)
-    return RedirectResponse(url=redirect_url, status_code=303)
+        response = templates.TemplateResponse(
+            "partials/meta_view.html",
+            {
+                "request": request,
+                "book": _book_view(meta, base, tracker=tracker),
+                "book_id": book_id,
+                "return_to": safe_return_to,
+                "return_to_query": return_to_query,
+            },
+        )
+        _set_htmx_toast(response, toast_message, kind=toast_kind)
+        return response
+
+    detail_url = f"/book/{book_id}{return_to_query}"
+    return RedirectResponse(url=_with_toast_query(detail_url, toast_message, kind=toast_kind), status_code=303)
 
 
 @app.post("/book/{book_id}/regenerate")

@@ -30,6 +30,12 @@ class IngestDedupeTests(unittest.TestCase):
             except queue.Empty:
                 break
 
+    def _assert_ingest_success_redirect(self, response) -> None:
+        location = response.headers.get("location", "")
+        self.assertTrue(location.startswith("/ingest?"))
+        self.assertIn("toast=", location)
+        self.assertIn("toast_kind=success", location)
+
     def test_normalize_mode_reuses_existing_book(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             previous_library = os.environ.get("BINDERY_LIBRARY_DIR")
@@ -66,7 +72,7 @@ class IngestDedupeTests(unittest.TestCase):
                 first_upload.file.close()
 
                 self.assertEqual(getattr(response_first, "status_code", None), 303)
-                self.assertEqual(response_first.headers.get("location"), "/jobs")
+                self._assert_ingest_success_redirect(response_first)
                 first_task = web_module._ingest_queue.get_nowait()
                 web_module._process_queued_ingest_task(first_task)
                 web_module._ingest_queue.task_done()
@@ -99,7 +105,7 @@ class IngestDedupeTests(unittest.TestCase):
                         )
                     )
                 second_upload.file.close()
-                self.assertEqual(response_second.headers.get("location"), "/jobs")
+                self._assert_ingest_success_redirect(response_second)
 
                 second_task = web_module._ingest_queue.get_nowait()
                 web_module._process_queued_ingest_task(second_task)
@@ -156,7 +162,7 @@ class IngestDedupeTests(unittest.TestCase):
                 first_upload.file.close()
 
                 self.assertEqual(getattr(response_first, "status_code", None), 303)
-                self.assertEqual(response_first.headers.get("location"), "/jobs")
+                self._assert_ingest_success_redirect(response_first)
                 first_task = web_module._ingest_queue.get_nowait()
                 web_module._process_queued_ingest_task(first_task)
                 web_module._ingest_queue.task_done()
@@ -189,7 +195,7 @@ class IngestDedupeTests(unittest.TestCase):
                         )
                     )
                 second_upload.file.close()
-                self.assertEqual(response_second.headers.get("location"), "/jobs")
+                self._assert_ingest_success_redirect(response_second)
 
                 second_task = web_module._ingest_queue.get_nowait()
                 web_module._process_queued_ingest_task(second_task)
@@ -246,7 +252,7 @@ class IngestDedupeTests(unittest.TestCase):
                     )
                 upload.file.close()
                 self.assertEqual(getattr(response, "status_code", None), 303)
-                self.assertEqual(response.headers.get("location"), "/jobs")
+                self._assert_ingest_success_redirect(response)
 
                 queued_task = web_module._ingest_queue.get_nowait()
                 web_module._process_queued_ingest_task(queued_task)
@@ -323,7 +329,7 @@ class IngestDedupeTests(unittest.TestCase):
                     )
                 upload.file.close()
                 self.assertEqual(getattr(response, "status_code", None), 303)
-                self.assertEqual(response.headers.get("location"), "/jobs")
+                self._assert_ingest_success_redirect(response)
 
                 queued_task = web_module._ingest_queue.get_nowait()
                 web_module._process_queued_ingest_task(queued_task)
@@ -386,7 +392,7 @@ class IngestDedupeTests(unittest.TestCase):
                     )
                 upload.file.close()
                 self.assertEqual(getattr(response, "status_code", None), 303)
-                self.assertEqual(response.headers.get("location"), "/jobs")
+                self._assert_ingest_success_redirect(response)
 
                 queued_task = web_module._ingest_queue.get_nowait()
                 web_module._process_queued_ingest_task(queued_task)
@@ -461,7 +467,7 @@ class IngestDedupeTests(unittest.TestCase):
                         )
                     )
                 self.assertEqual(getattr(response, "status_code", None), 303)
-                self.assertEqual(response.headers.get("location"), "/jobs")
+                self._assert_ingest_success_redirect(response)
 
                 queued_tasks = [web_module._ingest_queue.get_nowait(), web_module._ingest_queue.get_nowait()]
                 for _ in queued_tasks:

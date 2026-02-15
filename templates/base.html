@@ -101,5 +101,70 @@
     <main class="{{ main_class }}">
       {% block content %}{% endblock %}
     </main>
+    <div id="bindery-toast" class="fixed top-5 right-5 z-50 hidden max-w-sm">
+      <div
+        data-toast-body
+        class="rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 px-3 py-2 text-sm shadow-sm"
+      ></div>
+    </div>
+    <script>
+      (() => {
+        const toastRoot = document.getElementById('bindery-toast');
+        if (!(toastRoot instanceof HTMLElement)) return;
+        const toastBody = toastRoot.querySelector('[data-toast-body]');
+        if (!(toastBody instanceof HTMLElement)) return;
+        let hideTimer = null;
+
+        const applyToastKind = (kind) => {
+          const normalized = String(kind || 'success').trim().toLowerCase();
+          toastBody.classList.remove(
+            'border-emerald-200', 'bg-emerald-50', 'text-emerald-700',
+            'border-amber-200', 'bg-amber-50', 'text-amber-700',
+            'border-red-200', 'bg-red-50', 'text-red-700'
+          );
+          if (normalized === 'error') {
+            toastBody.classList.add('border-red-200', 'bg-red-50', 'text-red-700');
+            return;
+          }
+          if (normalized === 'warning') {
+            toastBody.classList.add('border-amber-200', 'bg-amber-50', 'text-amber-700');
+            return;
+          }
+          toastBody.classList.add('border-emerald-200', 'bg-emerald-50', 'text-emerald-700');
+        };
+
+        const showToast = (message, kind = 'success') => {
+          const text = String(message || '').trim();
+          if (!text) return;
+          applyToastKind(kind);
+          toastBody.textContent = text;
+          toastRoot.classList.remove('hidden');
+          if (hideTimer !== null) clearTimeout(hideTimer);
+          hideTimer = setTimeout(() => {
+            toastRoot.classList.add('hidden');
+          }, 2600);
+        };
+
+        window.binderyToast = showToast;
+        document.body.addEventListener('bindery:toast', (event) => {
+          const detail = event && typeof event.detail === 'object' ? event.detail : {};
+          const payload = detail && typeof detail.value === 'object' ? detail.value : detail;
+          const message = payload && typeof payload.message === 'string' ? payload.message : '';
+          const kind = payload && typeof payload.kind === 'string' ? payload.kind : 'success';
+          showToast(message, kind);
+        });
+
+        const url = new URL(window.location.href);
+        const toastMessage = url.searchParams.get('toast');
+        if (toastMessage) {
+          const toastKind = url.searchParams.get('toast_kind') || 'success';
+          showToast(toastMessage, toastKind);
+          url.searchParams.delete('toast');
+          url.searchParams.delete('toast_kind');
+          const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+          window.history.replaceState({}, '', nextUrl);
+        }
+      })();
+    </script>
   </body>
 </html>

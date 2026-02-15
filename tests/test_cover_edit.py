@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import tempfile
 import unittest
@@ -82,7 +83,10 @@ class CoverEditTests(unittest.TestCase):
                             )
                         )
                     self.assertEqual(response.status_code, 303)
-                    self.assertEqual(response.headers.get("location"), "/jobs?tab=running")
+                    location = response.headers.get("location", "")
+                    self.assertTrue(location.startswith(f"/book/{book_id}"))
+                    self.assertIn("toast=", location)
+                    self.assertIn("toast_kind=success", location)
                     self.assertEqual(len(queued_tasks), 1)
                     jobs = list_jobs()
                     self.assertEqual(len(jobs), 1)
@@ -101,6 +105,70 @@ class CoverEditTests(unittest.TestCase):
                 self.assertEqual(meta2.status, "synced")
                 self.assertTrue(meta2.cover_file)
                 self.assertTrue(cover_path(base, book_id, meta2.cover_file or "").exists())
+            finally:
+                if prev is None:
+                    os.environ.pop("BINDERY_LIBRARY_DIR", None)
+                else:
+                    os.environ["BINDERY_LIBRARY_DIR"] = prev
+
+    def test_edit_htmx_returns_meta_view_and_emits_toast(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            prev = os.environ.get("BINDERY_LIBRARY_DIR")
+            os.environ["BINDERY_LIBRARY_DIR"] = tmp
+            try:
+                base = Path(tmp)
+                book_id = uuid.uuid4().hex
+                init_db()
+
+                chap = Chapter(title="第一章", lines=["hello"])
+                book = Book(title="示例书", author=None, intro=None, root_chapters=[chap], spine=[chap])
+                meta = Metadata(
+                    book_id=book_id,
+                    title="示例书",
+                    author="作者",
+                    language="zh-CN",
+                    description=None,
+                    source_type="epub",
+                )
+                save_book(book, base, book_id)
+                save_metadata(meta, base)
+                build_epub(book, meta, epub_path(base, book_id))
+
+                request = Request({"type": "http", "method": "POST", "headers": [(b"hx-request", b"true")]})
+                with (
+                    patch("bindery.web._ensure_ingest_worker_started"),
+                    patch("bindery.web._enqueue_ingest_task", return_value=True),
+                ):
+                    response = asyncio.run(
+                        save_edit(
+                            request,
+                            book_id,
+                            title="示例书",
+                            author="作者",
+                            language="zh-CN",
+                            description="",
+                            series="",
+                            identifier=None,
+                            publisher="",
+                            tags="",
+                            published="",
+                            isbn="",
+                            rating="",
+                            rule_template="",
+                            theme_template="",
+                            custom_css="",
+                            cover_file=None,
+                            cover_url="",
+                        )
+                    )
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("HX-Trigger", response.headers)
+                payload = json.loads(response.headers.get("HX-Trigger", "{}"))
+                self.assertIn("bindery:toast", payload)
+                toast_payload = payload.get("bindery:toast") or {}
+                self.assertEqual(toast_payload.get("kind"), "success")
+                self.assertIn("已创建写回任务", str(toast_payload.get("message") or ""))
+                self.assertNotIn("HX-Redirect", response.headers)
             finally:
                 if prev is None:
                     os.environ.pop("BINDERY_LIBRARY_DIR", None)

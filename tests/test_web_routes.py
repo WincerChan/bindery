@@ -22,6 +22,10 @@ class WebRoutesTests(unittest.TestCase):
         base = (root / "templates" / "base.html").read_text(encoding="utf-8")
         self.assertIn('href="/ingest"', base)
         self.assertIn('href="/tracker"', base)
+        self.assertIn('id="bindery-toast"', base)
+        self.assertIn("window.binderyToast = showToast", base)
+        self.assertIn("document.body.addEventListener('bindery:toast'", base)
+        self.assertIn("url.searchParams.get('toast')", base)
 
     def test_index_does_not_embed_ingest_forms(self) -> None:
         root = Path(__file__).resolve().parent.parent
