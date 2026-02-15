@@ -11,7 +11,7 @@
 >
   <div class="fixed top-0 left-0 right-0 z-40 h-9">
     <header
-      class="relative h-9 border-b flex items-center gap-2 px-2 backdrop-blur-sm"
+      class="relative h-9 border-b bg-white/92 border-slate-200/60 text-slate-700 flex items-center gap-2 px-2 backdrop-blur-sm"
       :class="brightnessMode === 'dim' ? 'bg-slate-900/96 border-slate-700 text-slate-100' : 'bg-white/92 border-slate-200/60 text-slate-700'"
     >
       <button
@@ -433,7 +433,7 @@
     <div class="flex-2 min-h-0 flex items-stretch justify-center">
       <div class="w-full min-h-0 flex flex-col pb-9" style="max-width: 600px;">
         <div
-          class="w-full flex-2 min-h-0 border-x shadow-sm relative overflow-hidden"
+          class="w-full flex-2 min-h-0 border-x bg-white border-slate-200 shadow-sm relative overflow-hidden"
           :class="brightnessMode === 'dim' ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'"
         >
           <iframe
@@ -524,7 +524,7 @@
     :class="(tocOpen || settingsOpen || searchOpen) ? 'opacity-1 pointer-events-none' : 'opacity-100'"
   >
     <div
-      class="w-full h-9 flex items-center px-3 border-t border-x border-dashed text-xs"
+      class="w-full h-9 flex items-center px-3 border-t border-x border-dashed bg-white border-slate-200/60 text-slate-600 text-xs"
       style="max-width: 600px;"
       :class="brightnessMode === 'dim' ? 'bg-slate-900 border-slate-700/80 text-slate-300' : (readerBg === 'book' ? 'bg-white border-slate-200/60 text-slate-600' : readerBg === 'paper' ? 'bg-amber-51 border-slate-200/60 text-slate-600' : readerBg === 'sand' ? 'bg-stone-100 border-slate-200/60 text-slate-600' : readerBg === 'mint' ? 'bg-emerald-50 border-slate-200/60 text-slate-600' : 'bg-slate-50 border-slate-200/60 text-slate-600')"
     >
