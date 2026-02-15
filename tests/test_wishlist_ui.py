@@ -46,6 +46,8 @@ class WishlistUiTests(unittest.TestCase):
         self.assertIn("renderAddExistingList([]);\n        const firstBlocking", tpl)
         self.assertIn("点此前往编辑该条目。", tpl)
         self.assertIn("jumpToWishEditor", tpl)
+        self.assertIn('data-source-id="wish-edit-data-duplicate-notice"', tpl)
+        self.assertIn('id="wish-edit-data-duplicate-notice"', tpl)
         self.assertIn("wish-row-", tpl)
         self.assertIn("编辑追踪", tpl)
         self.assertIn("书名", tpl)

@@ -2827,11 +2827,25 @@ async def tracker_page(
     if BOOK_ID_RE.match(duplicate_wish_id):
         duplicate_wish = get_wish(duplicate_wish_id)
         if duplicate_wish is not None:
+            duplicate_library_book_id = _wish_library_match_id(
+                duplicate_wish,
+                title_to_book,
+                title_author_to_book,
+                book_ids,
+            )
+            if duplicate_library_book_id and duplicate_wish.library_book_id != duplicate_library_book_id:
+                bound = get_wish_by_library_book_id(duplicate_library_book_id)
+                if bound is None or bound.id == duplicate_wish.id:
+                    update_wish(
+                        duplicate_wish.id,
+                        library_book_id=duplicate_library_book_id,
+                        updated_at=_now_iso(),
+                    )
+                    duplicate_wish.library_book_id = duplicate_library_book_id
+            duplicate_view = _wish_view(duplicate_wish, duplicate_library_book_id)
             duplicate_notice = {
-                "id": duplicate_wish.id,
-                "title": duplicate_wish.title,
-                "author": duplicate_wish.author or "",
-                "in_library": bool(_normalize_library_book_id(duplicate_wish.library_book_id)),
+                **duplicate_view,
+                "in_library": bool(duplicate_library_book_id),
             }
 
     filtered_items: list[tuple[Wish, Optional[str]]] = []

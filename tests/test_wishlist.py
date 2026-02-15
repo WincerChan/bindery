@@ -230,6 +230,43 @@ class WishlistTests(unittest.TestCase):
         self.assertEqual(only.comment, "开篇抓人")
         self.assertEqual(only.book_status, "ongoing")
 
+    def test_tracker_duplicate_notice_contains_edit_payload(self) -> None:
+        asyncio.run(
+            wishlist_create(
+                title="重复提醒条目",
+                author="作者甲",
+                tags="标签一, 标签二",
+                rating="4",
+                comment="用于测试提醒编辑数据",
+                read_status="reading",
+                book_status="hiatus",
+            )
+        )
+        target = list_wishes()[0]
+        request = Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/tracker",
+                "query_string": f"q=不会命中&duplicate={target.id}".encode("utf-8"),
+                "headers": [],
+            }
+        )
+        response = asyncio.run(wishlist_page(request, q="不会命中", duplicate=target.id))
+
+        duplicate_notice = response.context.get("duplicate_notice")
+        self.assertIsInstance(duplicate_notice, dict)
+        assert isinstance(duplicate_notice, dict)
+        self.assertEqual(duplicate_notice.get("id"), target.id)
+        self.assertEqual(duplicate_notice.get("title"), "重复提醒条目")
+        self.assertEqual(duplicate_notice.get("author"), "作者甲")
+        self.assertEqual(duplicate_notice.get("rating"), 4)
+        self.assertEqual(duplicate_notice.get("read_status"), "reading")
+        self.assertEqual(duplicate_notice.get("book_status"), "hiatus")
+        self.assertEqual(duplicate_notice.get("tags_text"), "标签一, 标签二")
+        self.assertEqual(duplicate_notice.get("comment"), "用于测试提醒编辑数据")
+        self.assertEqual(response.context.get("wishes"), [])
+
     def test_tracker_duplicate_check_returns_existing_title(self) -> None:
         asyncio.run(
             wishlist_create(

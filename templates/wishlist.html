@@ -83,9 +83,20 @@
           type="button"
           data-open-edit-from-notice
           data-wish-id="{{ duplicate_notice.id }}"
+          data-source-id="wish-edit-data-duplicate-notice"
           class="underline underline-offset-2 text-amber-800 hover:text-amber-900"
         >点此前往编辑该条目。</button>
       </div>
+      <form id="wish-edit-data-duplicate-notice" class="hidden" aria-hidden="true">
+        <input type="hidden" name="title" value="{{ duplicate_notice.title }}" />
+        <input type="hidden" name="author" value="{{ duplicate_notice.author or '' }}" />
+        <input type="hidden" name="library_book_id" value="{{ duplicate_notice.library_book_id or '' }}" />
+        <input type="hidden" name="tags" value="{{ duplicate_notice.tags_text or '' }}" />
+        <input type="hidden" name="rating" value="{{ duplicate_notice.rating if duplicate_notice.rating is not none else '' }}" />
+        <input type="hidden" name="read_status" value="{{ duplicate_notice.read_status or 'unread' }}" />
+        <input type="hidden" name="book_status" value="{{ duplicate_notice.book_status or 'completed' }}" />
+        <textarea name="comment">{{ duplicate_notice.comment or '' }}</textarea>
+      </form>
     {% endif %}
   </section>
 
@@ -640,6 +651,11 @@
     });
     duplicateNoticeOpenBtns.forEach((btn) => {
       bindEvent(btn, 'click', () => {
+        const sourceId = btn.getAttribute('data-source-id') || '';
+        if (sourceId && document.getElementById(sourceId)) {
+          openEditModal(btn);
+          return;
+        }
         const wishId = btn.getAttribute('data-wish-id') || '';
         jumpToWishEditor(wishId);
       });
