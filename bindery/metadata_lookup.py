@@ -539,6 +539,26 @@ def _normalize_title(value: Optional[str]) -> str:
     return re.sub(r"[^0-9a-zA-Z\u4e00-\u9fff]+", "", cleaned).lower()
 
 
+def _normalize_author(value: Optional[str]) -> str:
+    cleaned = _clean_text(value) or ""
+    return re.sub(r"[^0-9a-zA-Z\u4e00-\u9fff]+", "", cleaned).lower()
+
+
+def _author_word_set(value: Optional[str]) -> set[str]:
+    cleaned = _clean_text(value) or ""
+    if not cleaned:
+        return set()
+    return {token.lower() for token in re.findall(r"[0-9a-zA-Z]+|[\u4e00-\u9fff]+", cleaned)}
+
+
+def _author_parts(value: Optional[str]) -> list[str]:
+    cleaned = _clean_text(value) or ""
+    if not cleaned:
+        return []
+    parts = [part.strip() for part in re.split(r"\s*(?:/|,|，|;|；|&|＆|\||、)\s*", cleaned) if part.strip()]
+    return parts or [cleaned]
+
+
 def _title_match_score(result_title: Optional[str], query: str) -> int:
     target = _normalize_title(query)
     if not target:
@@ -554,9 +574,45 @@ def _title_match_score(result_title: Optional[str], query: str) -> int:
     return 2 if common >= max(2, min(len(target), len(title)) // 2) else 0
 
 
-def _metadata_score(item: LookupMetadata, query: str) -> int:
+def _author_match_score(result_author: Optional[str], expected_author: Optional[str]) -> int:
+    target = _normalize_author(expected_author)
+    if not target:
+        return 0
+    if not _clean_text(result_author):
+        return -1
+
+    target_tokens = _author_word_set(expected_author)
+    best = -4
+    for candidate in _author_parts(result_author):
+        normalized = _normalize_author(candidate)
+        if not normalized:
+            continue
+        if normalized == target:
+            return 8
+        if normalized in target or target in normalized:
+            best = max(best, 6)
+            continue
+
+        candidate_tokens = _author_word_set(candidate)
+        if target_tokens and candidate_tokens:
+            if target_tokens == candidate_tokens:
+                best = max(best, 7)
+                continue
+            shared_tokens = target_tokens & candidate_tokens
+            if shared_tokens and (shared_tokens == target_tokens or shared_tokens == candidate_tokens):
+                best = max(best, 5)
+    return best
+
+
+def _metadata_score(item: LookupMetadata, query: str, expected_author: Optional[str] = None) -> int:
     score = _title_match_score(item.title, query) * 3
-    if item.author:
+    author_score = _author_match_score(item.author, expected_author)
+    if expected_author:
+        if author_score > 0:
+            score += author_score
+        elif item.author:
+            score -= 2
+    elif item.author:
         score += 2
     if item.description:
         score += 2
@@ -571,23 +627,38 @@ def _metadata_score(item: LookupMetadata, query: str) -> int:
     return score
 
 
-def _lookup_douban(query: str, timeout: float) -> Optional[LookupMetadata]:
+def _lookup_douban(query: str, timeout: float, author: Optional[str] = None) -> Optional[LookupMetadata]:
     suggest_url = "https://book.douban.com/j/subject_suggest?q=" + urllib.parse.quote(query)
     data = _fetch_json(suggest_url, timeout=timeout)
     if not isinstance(data, list) or not data:
         return None
 
+    expected_author = _clean_text(author)
     best_item: Optional[dict[str, Any]] = None
-    best_score = -1
+    best_rank: Optional[tuple[int, int, int]] = None
+    saw_author_metadata = False
     for item in data:
         if not isinstance(item, dict):
             continue
-        score = _title_match_score(str(item.get("title") or ""), query)
-        if score > best_score:
-            best_score = score
+        title_score = _title_match_score(str(item.get("title") or ""), query)
+        author_score = 0
+        if expected_author:
+            author_name = _clean_text(str(item.get("author_name") or ""))
+            if author_name:
+                saw_author_metadata = True
+            author_score = _author_match_score(author_name, expected_author)
+        rank = (
+            1 if author_score > 0 else 0,
+            title_score,
+            author_score,
+        )
+        if best_rank is None or rank > best_rank:
+            best_rank = rank
             best_item = item
     if not best_item:
         return None
+    if expected_author and saw_author_metadata and best_rank is not None and best_rank[0] == 0:
+        raise LookupError("未找到作者匹配的豆瓣条目")
 
     metadata = LookupMetadata(
         source="douban",
@@ -638,7 +709,7 @@ def _merge_metadata(primary: LookupMetadata, overlay: LookupMetadata) -> LookupM
 
 
 def lookup_book_metadata_candidates(
-    query: str, timeout: float = 8.0
+    query: str, timeout: float = 8.0, *, author: Optional[str] = None
 ) -> tuple[dict[str, LookupMetadata], Optional[str], list[str], list[dict[str, Any]]]:
     query = (query or "").strip()
     if not query:
@@ -652,7 +723,7 @@ def lookup_book_metadata_candidates(
     # Metadata autofill is intentionally limited to Douban only.
     for source_name, func in (("douban", _lookup_douban),):
         try:
-            item = func(query, timeout)
+            item = func(query, timeout, author=author)
         except Exception as exc:
             errors.append(f"{source_name}: {exc}")
             attempts.append(
@@ -678,7 +749,7 @@ def lookup_book_metadata_candidates(
                 }
             )
             continue
-        score = _metadata_score(item, query)
+        score = _metadata_score(item, query, author)
         attempts.append(
             {
                 "source": source_name,
@@ -703,13 +774,15 @@ def lookup_book_metadata_candidates(
 
 
 def lookup_book_metadata_verbose(
-    query: str, timeout: float = 8.0
+    query: str, timeout: float = 8.0, *, author: Optional[str] = None
 ) -> tuple[Optional[LookupMetadata], list[str], list[dict[str, Any]]]:
-    candidates, best_source, errors, attempts = lookup_book_metadata_candidates(query, timeout=timeout)
+    candidates, best_source, errors, attempts = lookup_book_metadata_candidates(query, timeout=timeout, author=author)
     best = candidates.get(best_source) if best_source else None
     return best, errors, attempts
 
 
-def lookup_book_metadata(query: str, timeout: float = 8.0) -> tuple[Optional[LookupMetadata], list[str]]:
-    best, errors, _attempts = lookup_book_metadata_verbose(query, timeout=timeout)
+def lookup_book_metadata(
+    query: str, timeout: float = 8.0, *, author: Optional[str] = None
+) -> tuple[Optional[LookupMetadata], list[str]]:
+    best, errors, _attempts = lookup_book_metadata_verbose(query, timeout=timeout, author=author)
     return best, errors

@@ -280,6 +280,69 @@ class MetadataLookupTests(unittest.TestCase):
         self.assertFalse(douban_attempt["ok"])
         self.assertEqual(douban_attempt["error"], "blocked")
 
+    def test_lookup_verbose_prefers_matching_author_for_same_title(self) -> None:
+        suggest_payload = [
+            {"id": "1", "title": "三体", "author_name": "张三", "year": "2001"},
+            {"id": "2", "title": "三体", "author_name": "刘慈欣", "year": "2008"},
+        ]
+
+        def fake_fetch_text(url: str, timeout: float = 8.0) -> str:
+            self.assertEqual(timeout, 8.0)
+            if url == "https://book.douban.com/subject/2/":
+                return """
+                <html>
+                  <head>
+                    <script type="application/ld+json">
+                      {
+                        "@context": "https://schema.org",
+                        "@type": "Book",
+                        "name": "三体",
+                        "author": [{"@type": "Person", "name": "刘慈欣"}],
+                        "description": "科幻小说",
+                        "datePublished": "2008-01-01"
+                      }
+                    </script>
+                  </head>
+                </html>
+                """
+            raise AssertionError(f"unexpected detail url: {url}")
+
+        with (
+            patch("bindery.metadata_lookup._fetch_json", return_value=suggest_payload),
+            patch("bindery.metadata_lookup._fetch_text", side_effect=fake_fetch_text),
+        ):
+            best, errors, attempts = lookup_book_metadata_verbose("三体", author="刘慈欣")
+
+        self.assertIsNotNone(best)
+        assert best is not None
+        self.assertEqual(best.title, "三体")
+        self.assertEqual(best.author, "刘慈欣")
+        self.assertEqual(best.published, "2008-01-01")
+        self.assertEqual(errors, [])
+        self.assertEqual(len(attempts), 1)
+        self.assertTrue(attempts[0]["selected"])
+        self.assertEqual(attempts[0]["source"], "douban")
+
+    def test_lookup_verbose_rejects_same_title_with_mismatched_author(self) -> None:
+        suggest_payload = [
+            {"id": "1", "title": "三体", "author_name": "张三", "year": "2001"},
+            {"id": "2", "title": "三体", "author_name": "李四", "year": "2005"},
+        ]
+
+        with (
+            patch("bindery.metadata_lookup._fetch_json", return_value=suggest_payload),
+            patch("bindery.metadata_lookup._fetch_text") as fetch_text,
+        ):
+            best, errors, attempts = lookup_book_metadata_verbose("三体", author="刘慈欣")
+
+        self.assertIsNone(best)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("作者匹配", errors[0])
+        self.assertEqual(len(attempts), 1)
+        self.assertFalse(attempts[0]["ok"])
+        self.assertIn("作者匹配", attempts[0]["error"])
+        fetch_text.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

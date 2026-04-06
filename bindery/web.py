@@ -4072,7 +4072,11 @@ async def fetch_metadata(
     )
 
     query = str(draft_book.get("title") or "").strip()
-    candidates, best_source, lookup_errors, lookup_attempts = lookup_book_metadata_candidates(query)
+    query_author = str(draft_book.get("author") or "").strip() or None
+    candidates, best_source, lookup_errors, lookup_attempts = lookup_book_metadata_candidates(
+        query,
+        author=query_author,
+    )
     if not candidates:
         detail = "；".join(lookup_errors[:2]) if lookup_errors else "未返回可用结果"
         logger.warning(
