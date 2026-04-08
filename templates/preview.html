@@ -885,11 +885,16 @@
       },
       _schedulePaginationRefresh(frameKey) {
         const run = () => {
-          this._recomputeTailPad(frameKey);
           const scroller = this.getScroller(frameKey);
           if (!scroller) return;
+          const previousMetrics = this._computePageMetrics(scroller);
+          const wasAtEnd = !!(previousMetrics && previousMetrics.maxLeft - scroller.scrollLeft <= pageFloatEpsilon);
+          this._recomputeTailPad(frameKey);
           const metrics = this._computePageMetrics(scroller);
           if (!metrics) return;
+          if (wasAtEnd && Math.abs(scroller.scrollLeft - metrics.maxLeft) > pageFloatEpsilon) {
+            scroller.scrollTo({ left: metrics.maxLeft, top: -1, behavior: "auto" });
+          }
           if (frameKey !== this.activeFrameKey) return;
           this.pageCount = metrics.count;
           this.page = this._pageFromScroll(scroller, this.pageCount);
@@ -909,9 +914,11 @@
         if (width <= 0) return;
         const stepRaw = Number.parseFloat(root.style.getPropertyValue("--bindery-page-step") || "");
         const step = Number.isFinite(stepRaw) && stepRaw > 0 ? stepRaw : width;
-        root.style.setProperty("--bindery-page-tail-pad", "-1px");
+        root.style.setProperty("--bindery-page-tail-offset", "0px");
+        root.style.setProperty("--bindery-page-tail-pad", "0px");
         const rawMaxLeft = Math.max(0, scroller.scrollWidth - width);
         const tailPad = this._computeTailPad(rawMaxLeft, step);
+        root.style.setProperty("--bindery-page-tail-offset", rawMaxLeft + "px");
         root.style.setProperty("--bindery-page-tail-pad", tailPad + "px");
       },
       _computeTailPad(maxLeft, step) {
@@ -1607,10 +1614,14 @@
         scroller.id = "bindery-reader-scroller";
         const pages = doc.createElement("div");
         pages.id = "bindery-reader-pages";
+        const tail = doc.createElement("div");
+        tail.id = "bindery-reader-tail";
+        tail.setAttribute("aria-hidden", "true");
 
         const frag = doc.createDocumentFragment();
         while (body.firstChild) frag.appendChild(body.firstChild);
         pages.appendChild(frag);
+        pages.appendChild(tail);
         scroller.appendChild(pages);
         body.appendChild(scroller);
       },
@@ -1639,12 +1650,14 @@
         doc.documentElement.style.setProperty("--bindery-column-width", columnWidth + "px");
         doc.documentElement.style.setProperty("--bindery-column-gap", columnGap + "px");
         doc.documentElement.style.setProperty("--bindery-page-step", pageStep + "px");
-        doc.documentElement.style.setProperty("--bindery-page-tail-pad", "-1px");
+        doc.documentElement.style.setProperty("--bindery-page-tail-offset", "0px");
+        doc.documentElement.style.setProperty("--bindery-page-tail-pad", "0px");
         doc.documentElement.style.setProperty("--bindery-text-align", alignMode);
         doc.documentElement.style.setProperty("--bindery-text-justify", textJustify);
 
         const rawMaxLeft = Math.max(0, scroller.scrollWidth - width);
         const tailPad = this._computeTailPad(rawMaxLeft, pageStep);
+        doc.documentElement.style.setProperty("--bindery-page-tail-offset", rawMaxLeft + "px");
         doc.documentElement.style.setProperty("--bindery-page-tail-pad", tailPad + "px");
 
         const pages = doc.getElementById("bindery-reader-pages");
@@ -1818,7 +1831,8 @@
           "#bindery-reader-scroller{display:block!important;position:relative!important;height:99%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;background:var(--bindery-reader-bg)!important;writing-mode:horizontal-tb!important;direction:ltr!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:auto!important;overscroll-behavior-x:contain;scrollbar-width:none;}" +
           "@media (max-width: 767px){ #bindery-reader-scroller{overflow-x:hidden!important;overscroll-behavior-x:none!important;touch-action:pan-y!important;}}" +
           "#bindery-reader-scroller::-webkit-scrollbar{display:none;}" +
-          "#bindery-reader-pages{display:block!important;position:relative!important;float:none!important;clear:both!important;width:100%!important;min-width:100%!important;max-width:none!important;height:99%!important;box-sizing:border-box!important;writing-mode:horizontal-tb!important;direction:ltr!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding-top:var(--bindery-page-padding-y,0px)!important;padding-bottom:var(--bindery-page-padding-y,0px)!important;padding-left:var(--bindery-page-padding-x,0px)!important;padding-right:var(--bindery-page-padding-x,0px)!important;margin-top:0!important;margin-bottom:0!important;margin-left:0!important;margin-right:var(--bindery-page-tail-pad,0px)!important;}" +
+          "#bindery-reader-pages{display:block!important;position:relative!important;float:none!important;clear:both!important;width:100%!important;min-width:100%!important;max-width:none!important;height:99%!important;box-sizing:border-box!important;writing-mode:horizontal-tb!important;direction:ltr!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding-top:var(--bindery-page-padding-y,0px)!important;padding-bottom:var(--bindery-page-padding-y,0px)!important;padding-left:var(--bindery-page-padding-x,0px)!important;padding-right:var(--bindery-page-padding-x,0px)!important;margin:0!important;}" +
+          "#bindery-reader-tail{display:block!important;position:absolute!important;left:calc(100% + var(--bindery-page-tail-offset,0px))!important;top:0!important;width:var(--bindery-page-tail-pad,0px)!important;min-width:var(--bindery-page-tail-pad,0px)!important;height:1px!important;pointer-events:none!important;opacity:0!important;}" +
           "h1,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}" +
           "img,svg,video{max-width:99%!important;height:auto!important;}";
 
