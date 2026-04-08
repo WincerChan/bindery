@@ -22,6 +22,8 @@ class WishlistUiTests(unittest.TestCase):
         self.assertIn('name="library_filter"', tpl)
         self.assertIn('name="book_status_filter"', tpl)
         self.assertIn('name="next"', tpl)
+        self.assertIn('href="{{ export_url }}"', tpl)
+        self.assertIn("Export CSV", tpl)
         self.assertIn("data-open-add-modal", tpl)
         self.assertIn("data-add-modal", tpl)
         self.assertIn("data-open-edit-from-notice", tpl)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import ctypes
 import datetime as dt
 import gc
@@ -18,6 +19,7 @@ import urllib.parse
 import uuid
 import zipfile
 from io import BytesIO
+from io import StringIO
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
@@ -1178,6 +1180,14 @@ def _library_return_to_url(
 
 
 def _tracker_return_to_url(q: str, read_filter: str, library_filter: str, book_status_filter: str, page: int = 1) -> str:
+    return _tracker_url("/tracker", q, read_filter, library_filter, book_status_filter, page=page)
+
+
+def _tracker_export_url(q: str, read_filter: str, library_filter: str, book_status_filter: str) -> str:
+    return _tracker_url("/tracker/export", q, read_filter, library_filter, book_status_filter, page=1)
+
+
+def _tracker_url(path: str, q: str, read_filter: str, library_filter: str, book_status_filter: str, page: int = 1) -> str:
     normalized_q = (q or "").strip()
     normalized_read = _normalize_wish_read_filter(read_filter)
     normalized_library = _normalize_wish_library_filter(library_filter)
@@ -1192,11 +1202,84 @@ def _tracker_return_to_url(q: str, read_filter: str, library_filter: str, book_s
         params["library_filter"] = normalized_library
     if normalized_status != "all":
         params["book_status_filter"] = normalized_status
-    if safe_page > 1:
+    if path == "/tracker" and safe_page > 1:
         params["page"] = str(safe_page)
     if not params:
-        return "/tracker"
-    return f"/tracker?{urllib.parse.urlencode(params)}"
+        return path
+    return f"{path}?{urllib.parse.urlencode(params)}"
+
+
+def _tracker_filtered_payload(
+    base: Path,
+    q: str,
+    read_filter: str,
+    library_filter: str,
+    book_status_filter: str,
+) -> dict[str, object]:
+    books = list_books(base)
+    seed_wishes = list_wishes()
+    unlinked_wishes_by_title = _build_unlinked_wish_title_index(seed_wishes)
+    for meta in books:
+        _ensure_tracker_for_book(base, meta, unlinked_wishes_by_title=unlinked_wishes_by_title)
+
+    wishes = list_wishes()
+    title_to_book, title_author_to_book, book_ids = _build_library_identity_index_from_books(books)
+    selected_read_filter = _normalize_wish_read_filter(read_filter)
+    selected_library_filter = _normalize_wish_library_filter(library_filter)
+    selected_book_status_filter = _normalize_wish_book_status_filter(book_status_filter)
+
+    filtered_items: list[tuple[Wish, Optional[str]]] = []
+    total_count = 0
+    read_count = 0
+    reading_count = 0
+    unread_count = 0
+    in_library_count = 0
+    for wish in wishes:
+        total_count += 1
+        library_book_id = _wish_library_match_id(wish, title_to_book, title_author_to_book, book_ids)
+        if library_book_id and wish.library_book_id != library_book_id:
+            bound = get_wish_by_library_book_id(library_book_id)
+            if bound is None or bound.id == wish.id:
+                update_wish(wish.id, library_book_id=library_book_id, updated_at=_now_iso())
+                wish.library_book_id = library_book_id
+        _sync_metadata_cache_from_tracker(base, wish, library_book_id)
+        read_status = _normalize_wish_read_status(wish.read_status or ("read" if wish.read else WISH_READ_UNREAD))
+        if read_status == WISH_READ_READ:
+            read_count += 1
+        elif read_status == WISH_READ_READING:
+            reading_count += 1
+        else:
+            unread_count += 1
+        if library_book_id:
+            in_library_count += 1
+        if _wish_matches_filters_model(
+            wish,
+            library_book_id=library_book_id,
+            query=q,
+            read_filter=selected_read_filter,
+            library_filter=selected_library_filter,
+            book_status_filter=selected_book_status_filter,
+        ):
+            filtered_items.append((wish, library_book_id))
+
+    return {
+        "filtered_items": filtered_items,
+        "title_to_book": title_to_book,
+        "title_author_to_book": title_author_to_book,
+        "book_ids": book_ids,
+        "read_filter": selected_read_filter,
+        "library_filter": selected_library_filter,
+        "book_status_filter": selected_book_status_filter,
+        "stats": {
+            "total": total_count,
+            "filtered": len(filtered_items),
+            "read": read_count,
+            "reading": reading_count,
+            "unread": unread_count,
+            "in_library": in_library_count,
+            "out_library": max(0, total_count - in_library_count),
+        },
+    }
 
 
 def _find_tracker_duplicate_wishes(
@@ -2812,16 +2895,13 @@ async def tracker_page(
     duplicate: str = "",
 ) -> HTMLResponse:
     base = library_dir()
-    books = list_books(base)
-    seed_wishes = list_wishes()
-    unlinked_wishes_by_title = _build_unlinked_wish_title_index(seed_wishes)
-    for meta in books:
-        _ensure_tracker_for_book(base, meta, unlinked_wishes_by_title=unlinked_wishes_by_title)
-    wishes = list_wishes()
-    title_to_book, title_author_to_book, book_ids = _build_library_identity_index_from_books(books)
-    selected_read_filter = _normalize_wish_read_filter(read_filter)
-    selected_library_filter = _normalize_wish_library_filter(library_filter)
-    selected_book_status_filter = _normalize_wish_book_status_filter(book_status_filter)
+    payload = _tracker_filtered_payload(base, q, read_filter, library_filter, book_status_filter)
+    title_to_book = payload["title_to_book"]
+    title_author_to_book = payload["title_author_to_book"]
+    book_ids = payload["book_ids"]
+    selected_read_filter = payload["read_filter"]
+    selected_library_filter = payload["library_filter"]
+    selected_book_status_filter = payload["book_status_filter"]
     duplicate_notice = None
     duplicate_wish_id = (duplicate or "").strip().lower()
     if BOOK_ID_RE.match(duplicate_wish_id):
@@ -2848,40 +2928,7 @@ async def tracker_page(
                 "in_library": bool(duplicate_library_book_id),
             }
 
-    filtered_items: list[tuple[Wish, Optional[str]]] = []
-    total_count = 0
-    read_count = 0
-    reading_count = 0
-    unread_count = 0
-    in_library_count = 0
-    for wish in wishes:
-        total_count += 1
-        library_book_id = _wish_library_match_id(wish, title_to_book, title_author_to_book, book_ids)
-        if library_book_id and wish.library_book_id != library_book_id:
-            bound = get_wish_by_library_book_id(library_book_id)
-            if bound is None or bound.id == wish.id:
-                update_wish(wish.id, library_book_id=library_book_id, updated_at=_now_iso())
-                wish.library_book_id = library_book_id
-        _sync_metadata_cache_from_tracker(base, wish, library_book_id)
-        read_status = _normalize_wish_read_status(wish.read_status or ("read" if wish.read else WISH_READ_UNREAD))
-        if read_status == WISH_READ_READ:
-            read_count += 1
-        elif read_status == WISH_READ_READING:
-            reading_count += 1
-        else:
-            unread_count += 1
-        if library_book_id:
-            in_library_count += 1
-        if _wish_matches_filters_model(
-            wish,
-            library_book_id=library_book_id,
-            query=q,
-            read_filter=selected_read_filter,
-            library_filter=selected_library_filter,
-            book_status_filter=selected_book_status_filter,
-        ):
-            filtered_items.append((wish, library_book_id))
-
+    filtered_items = payload["filtered_items"]
     filtered_total = len(filtered_items)
     page_size = TRACKER_PAGE_SIZE
     total_pages = max(1, (filtered_total + page_size - 1) // page_size)
@@ -2894,21 +2941,19 @@ async def tracker_page(
     prev_page = current_page - 1
     next_page = current_page + 1
 
-    stats = {
-        "total": total_count,
-        "filtered": filtered_total,
-        "read": read_count,
-        "reading": reading_count,
-        "unread": unread_count,
-        "in_library": in_library_count,
-        "out_library": max(0, total_count - in_library_count),
-    }
+    stats = payload["stats"]
     current_url = _tracker_return_to_url(
         q,
         selected_read_filter,
         selected_library_filter,
         selected_book_status_filter,
         page=current_page,
+    )
+    export_url = _tracker_export_url(
+        q,
+        selected_read_filter,
+        selected_library_filter,
+        selected_book_status_filter,
     )
     return templates.TemplateResponse(
         "wishlist.html",
@@ -2939,8 +2984,43 @@ async def tracker_page(
                 page=next_page,
             ),
             "current_url": current_url,
+            "export_url": export_url,
             "duplicate_notice": duplicate_notice,
         },
+    )
+
+
+@app.get("/tracker/export")
+@app.get("/wishlist/export")
+async def tracker_export(
+    q: str = "",
+    read_filter: str = "all",
+    library_filter: str = "all",
+    book_status_filter: str = "all",
+) -> Response:
+    base = library_dir()
+    payload = _tracker_filtered_payload(base, q, read_filter, library_filter, book_status_filter)
+    filtered_items = payload["filtered_items"]
+
+    csv_buffer = StringIO(newline="")
+    writer = csv.writer(csv_buffer)
+    writer.writerow(["title", "author", "rating", "comment", "date"])
+    for wish, _library_book_id in filtered_items:
+        writer.writerow(
+            [
+                wish.title,
+                wish.author or "",
+                "" if wish.rating is None else str(wish.rating),
+                wish.comment or "",
+                wish.updated_at or "",
+            ]
+        )
+
+    filename = f"bindery-tracker-{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    return Response(
+        content=csv_buffer.getvalue().encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

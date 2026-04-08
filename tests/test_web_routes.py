@@ -141,9 +141,11 @@ class WebRoutesTests(unittest.TestCase):
         seen: set[tuple[str, str]] = set()
         expected_paths = {
             "/tracker",
+            "/tracker/export",
             "/tracker/{wish_id}/update",
             "/tracker/{wish_id}/delete",
             "/wishlist",
+            "/wishlist/export",
             "/wishlist/{wish_id}/update",
             "/wishlist/{wish_id}/delete",
         }
@@ -154,10 +156,12 @@ class WebRoutesTests(unittest.TestCase):
                 for method in methods:
                     seen.add((method, path))
         self.assertIn(("GET", "/tracker"), seen)
+        self.assertIn(("GET", "/tracker/export"), seen)
         self.assertIn(("POST", "/tracker"), seen)
         self.assertIn(("POST", "/tracker/{wish_id}/update"), seen)
         self.assertIn(("POST", "/tracker/{wish_id}/delete"), seen)
         self.assertIn(("GET", "/wishlist"), seen)
+        self.assertIn(("GET", "/wishlist/export"), seen)
         self.assertIn(("POST", "/wishlist"), seen)
         self.assertIn(("POST", "/wishlist/{wish_id}/update"), seen)
         self.assertIn(("POST", "/wishlist/{wish_id}/delete"), seen)
