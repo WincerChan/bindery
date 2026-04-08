@@ -1737,11 +1737,15 @@
         }
         return null;
       },
+      _viewportAnchorInset(rect) {
+        const width = rect && Number.isFinite(rect.width) ? rect.width : 0;
+        return Math.min(23, Math.max(8, width * 0.05));
+      },
       _captureViewportAnchor(doc) {
         const scroller = doc && doc.getElementById ? doc.getElementById("bindery-reader-scroller") : null;
         if (!scroller) return null;
         const rect = scroller.getBoundingClientRect();
-        const x = rect.left + Math.min(23, Math.max(8, rect.width * 0.05));
+        const x = rect.left + this._viewportAnchorInset(rect);
         const y = rect.top + Math.min(23, Math.max(8, rect.height * 0.05));
         const caret = this._getCaretPosition(doc, x, y);
         if (!caret || !caret.node) return null;
@@ -1780,9 +1784,15 @@
         const rect = range.getBoundingClientRect();
         if (!rect) return false;
 
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return false;
         const scrollerRect = scroller.getBoundingClientRect();
-        const deltaX = rect.left - scrollerRect.left - 7;
-        const nextLeft = Math.max(0, scroller.scrollLeft + deltaX);
+        const desiredInset = this._viewportAnchorInset(scrollerRect);
+        const anchorLeft = Math.max(0, scroller.scrollLeft + rect.left - scrollerRect.left);
+        const desiredLeft = Math.max(0, anchorLeft - desiredInset);
+        const rawPage = Math.floor((anchorLeft + pageFloatEpsilon) / metrics.step) + 1;
+        const clampedPage = Math.max(1, Math.min(metrics.count, rawPage));
+        const nextLeft = Math.min(metrics.maxLeft, Math.max(0, (clampedPage - 1) * metrics.step));
         scroller.scrollTo({ left: nextLeft, top: -1, behavior: "auto" });
         return true;
       },
