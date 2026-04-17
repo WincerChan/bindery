@@ -55,19 +55,10 @@
 
       <div data-book-hover-actions class="absolute inset-x-0 bottom-0 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
         <div class="p-3 bg-gradient-to-t from-slate-900/70 via-slate-900/20 to-transparent">
-          <div class="grid grid-cols-2 gap-2">
-            <a
-              class="w-full h-9 inline-flex items-center justify-center px-3 text-xs font-medium bg-white/90 text-slate-900 rounded-lg hover:bg-white transition-colors"
-              href="/book/{{ book.book_id }}/download"
-            >下载</a>
-            <form action="/book/{{ book.book_id }}/archive" method="post" class="m-0 min-w-0">
-              <input type="hidden" name="next" value="{{ return_to }}" />
-              <button
-                class="w-full h-9 inline-flex items-center justify-center px-3 text-xs font-medium bg-white/90 text-red-700 rounded-lg hover:bg-white transition-colors cursor-pointer"
-                type="submit"
-              >归档</button>
-            </form>
-          </div>
+          <a
+            class="w-full h-9 inline-flex items-center justify-center px-3 text-xs font-medium bg-white/90 text-slate-900 rounded-lg hover:bg-white transition-colors"
+            href="{{ preview_url }}"
+          >阅读</a>
         </div>
       </div>
     </div>

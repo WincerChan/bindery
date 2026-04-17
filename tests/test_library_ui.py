@@ -13,15 +13,16 @@ class LibraryUiTests(unittest.TestCase):
         self.assertNotIn('title="{{ book.book_id }}"', tpl)
         self.assertIsNone(re.search(r">\\s*\\{\\{\\s*book\\.book_id\\s*\\}\\}\\s*<", tpl))
 
-    def test_book_card_has_archive_on_hover_and_no_regenerate(self) -> None:
+    def test_book_card_hover_uses_reading_action_and_keeps_manage_actions_in_list(self) -> None:
         root = Path(__file__).resolve().parent.parent
         tpl = (root / "templates" / "partials" / "book_card.html").read_text(encoding="utf-8")
 
         self.assertIn('{% set detail_url = "/book/" ~ book.book_id ~ "?return_to=" ~ (return_to|urlencode) %}', tpl)
         self.assertIn('href="{{ detail_url }}"', tpl)
-        self.assertIn('href="/book/{{ book.book_id }}/download"', tpl)
+        self.assertEqual(tpl.count('href="{{ preview_url }}"'), 2)
+        self.assertEqual(tpl.count('href="/book/{{ book.book_id }}/download"'), 1)
         self.assertIn('name="next" value="{{ return_to }}"', tpl)
-        self.assertIn('action="/book/{{ book.book_id }}/archive"', tpl)
+        self.assertEqual(tpl.count('action="/book/{{ book.book_id }}/archive"'), 1)
         self.assertIn("group-hover:opacity-100", tpl)
         self.assertIn("group-hover:pointer-events-auto", tpl)
         self.assertNotIn("pb-3 mt-auto", tpl)
