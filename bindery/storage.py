@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import imghdr
 import json
 import sqlite3
 from pathlib import Path
@@ -86,18 +85,25 @@ def cover_path(base: Path, book_id: str, filename: str) -> Path:
     return book_dir(base, book_id) / filename
 
 
+def _guess_cover_extension(data: bytes) -> str:
+    if data.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return ".gif"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    stripped = data.lstrip()[:256].lower()
+    if stripped.startswith(b"<svg") or b"<svg" in stripped[:64]:
+        return ".svg"
+    return ""
+
+
 def save_cover_bytes(base: Path, book_id: str, data: bytes, filename: str | None) -> str:
     ext = Path(filename or "").suffix.lower()
     if not ext:
-        kind = imghdr.what(None, data)
-        if kind == "jpeg":
-            ext = ".jpg"
-        elif kind == "png":
-            ext = ".png"
-        elif kind == "gif":
-            ext = ".gif"
-        elif kind == "webp":
-            ext = ".webp"
+        ext = _guess_cover_extension(data)
     if not ext:
         ext = ".jpg"
     target_name = f"{COVER_PREFIX}{ext}"
