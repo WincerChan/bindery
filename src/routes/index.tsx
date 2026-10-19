@@ -14,6 +14,7 @@ function Home() {
   return (
     <main class="mx-auto max-w-3xl px-6 py-16">
       <h1 class="text-4xl font-semibold">Bindery</h1>
+      <nav class="mt-6"><a href="/security">安全设置</a><form action="/logout" method="post"><button type="submit" class="quiet">退出登录</button></form></nav>
       <p class="mt-6 text-xl">
         书库共有 <strong data-testid="book-count">{data().count}</strong> 本书
       </p>

@@ -1,10 +1,47 @@
 @import "tailwindcss" source(none);
 @source "./routes";
+@theme {
+  --color-bg: #F5F6F3;
+  --color-ink: #15171A;
+  --color-ink-2: #4B5057;
+  --color-ink-3: #61666D;
+  --color-line: #D5D8D2;
+  --color-line-soft: #E1E4DE;
+  --color-accent: #2449E8;
+  --color-ok: #1F7A4D;
+  --color-danger: #B42318;
+  --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
+}
 @layer base {
   body {
     margin: 0;
-    background: #faf9f6;
-    color: #292524;
-    font-family: system-ui, sans-serif;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
   }
 }
+
+.auth-page { max-width: 25rem; margin: 12vh auto; padding: 1.5rem; }
+.security-page { max-width: 52rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+.eyebrow { letter-spacing: .16em; font-size: .7rem; color: var(--color-ink-3); margin-top: 2.5rem; }
+h1 { font-size: 2rem; font-weight: 650; margin: .5rem 0 1rem; }
+h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
+section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--color-line); }
+.muted { color: var(--color-ink-3); font-size: .9rem; line-height: 1.7; }
+.notice { margin: 1rem 0; padding: .8rem 1rem; border-top: 1px solid var(--color-line); border-bottom: 1px solid var(--color-line); overflow-wrap: anywhere; }
+.divider { text-align: center; margin: 1rem 0; }
+.form-stack { display: grid; gap: 1rem; margin-top: 1rem; }
+label { display: grid; gap: .4rem; font-size: .9rem; }
+input { width: 100%; border: 1px solid var(--color-line); padding: .65rem .8rem; background: white; border-radius: 6px; }
+button { cursor: pointer; background: var(--color-accent); color: #FFFFFF; padding: .65rem 1rem; border-radius: 6px; font-size: .9rem; }
+button:disabled { opacity: .5; cursor: default; }
+button.quiet { color: var(--color-ink-2); background: transparent; padding: .4rem 0; }
+button.danger { color: var(--color-danger); }
+nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+nav a { color: var(--color-accent); }
+a { color: var(--color-accent); }
+.passkey-row { padding: 1rem 0; border-bottom: 1px solid var(--color-line-soft); }
+.passkey-row > p { font-size: .8rem; color: var(--color-ink-3); margin-bottom: .75rem; }
+.inline-form { display: flex; align-items: end; gap: .75rem; flex-wrap: wrap; }
+.inline-form label { flex: 1; min-width: 10rem; }
