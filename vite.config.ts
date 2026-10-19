@@ -4,12 +4,13 @@ import { tanstackStart } from "@tanstack/solid-start/plugin/vite";
 import solid from "vite-plugin-solid";
 import tailwind from "@tailwindcss/vite";
 import { solidStartRcCompatibility } from "./scripts/solid-start-compat.ts";
+import { solidOptions } from "./scripts/solid-options.ts";
 
 export default defineConfig({
   plugins: [
     solidStartRcCompatibility(),
     tanstackStart(),
-    solid({ ssr: true }),
+    solid(solidOptions),
     tailwind(),
   ],
   environments: {
