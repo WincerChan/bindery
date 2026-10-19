@@ -1,27 +1,21 @@
-import { createFileRoute } from "@tanstack/solid-router";
-import { createServerFn } from "@tanstack/solid-start";
-import { authenticated } from "../server/functions";
-
-const getBookCount = createServerFn({ method: "GET" }).middleware([authenticated]).handler(async () => {
-  const { readBookCount } = await import("../server/database");
-  return readBookCount();
-});
+import { createFileRoute, useRouter } from "@tanstack/solid-router";
+import { LibraryPage } from "../features/library/library-page";
+import { loadLibrary, regenerateSelection } from "../features/library/functions";
+import { libraryQueryInput } from "../features/library/search";
+import "../features/library/library.css";
 export const Route = createFileRoute("/_app/")({
-  loader: () => getBookCount(),
+  server: { handlers: { GET: async ({ request, params, next }) => {
+    if (!libraryQueryInput(Object.fromEntries(new URL(request.url).searchParams)).invalid) return next();
+    const { authenticatedRoute, HttpError } = await import("../server/http");
+    return authenticatedRoute(() => { throw new HttpError(422, "分页参数必须为整数"); })({ request, params });
+  } } },
+  validateSearch: (search: Record<string, unknown>) => search,
+  loaderDeps: ({ search }) => search,
+  loader: ({ deps }) => loadLibrary({ data: { ...deps } }),
+  head: () => ({ meta: [{ title: "Bindery · 书库" }] }),
   component: Home,
 });
 function Home() {
-  const data = Route.useLoaderData();
-  return (
-    <div>
-      <h1>书库</h1>
-      <p class="mt-6 text-xl">
-        书库共有 <strong data-testid="book-count">{data().count}</strong> 本书
-      </p>
-      <p class="mt-3 text-stone-600">
-        {data().missing ? "尚未找到书库数据库。" : "已连接现有书库。"}
-      </p>
-      <p class="mt-6"><a href="/security">安全设置</a></p>
-    </div>
-  );
+  const data = Route.useLoaderData(), router = useRouter();
+  return <LibraryPage data={data()} onSearch={search => router.navigate({ to: "/", search: { ...search } })} regenerate={ids => regenerateSelection({ data: ids })} />;
 }
