@@ -1,3 +1,4 @@
+import "./load-env.mjs";
 import { serve } from "srvx";
 import { createProductionHandler } from "./production-handler.mjs";
 serve({

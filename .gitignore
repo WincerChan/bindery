@@ -16,3 +16,6 @@ dist/
 .tanstack/
 .vinxi/
 *.tsbuildinfo
+
+# Local secrets
+.env
