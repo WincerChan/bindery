@@ -11,6 +11,7 @@
       [x-cloak] { display: none !important; }
     </style>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script defer src="/static/passkey.js"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   </head>
   <body class="min-h-screen bg-bg text-ink font-sans" x-data="{ moreOpen: false }" @keydown.escape.window="moreOpen = false">
@@ -31,7 +32,10 @@
             <a href="/archive" class="nav-link {% if path.startswith('/archive') %}active{% endif %}" {% if path.startswith('/archive') %}aria-current="page"{% endif %}>归档</a>
           </nav>
         </div>
-        <form action="/logout" method="post" class="hidden md:block"><button type="submit" class="btn btn-quiet text-ink-3">退出</button></form>
+        <div class="hidden md:flex items-center gap-1 h-full">
+          <a href="/security" class="nav-link h-full {% if path.startswith('/security') %}active{% endif %}" {% if path.startswith('/security') %}aria-current="page"{% endif %}>安全</a>
+          <form action="/logout" method="post"><button type="submit" class="btn btn-quiet text-ink-3">退出</button></form>
+        </div>
         <div class="md:hidden">{% block mobile_header_action %}{% endblock %}</div>
       </div>
     </header>
@@ -40,13 +44,14 @@
       <a href="/ingest" class="tab" :class="!moreOpen &amp;&amp; {{ 'true' if path.startswith('/ingest') else 'false' }} ? 'active' : ''" {% if path.startswith('/ingest') %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v5h16v-5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>入库</a>
       <a href="/jobs" class="tab" :class="!moreOpen &amp;&amp; {{ 'true' if path.startswith('/jobs') else 'false' }} ? 'active' : ''" {% if path.startswith('/jobs') %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7M18 13v6M15 16h6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>任务</a>
       <a href="/tracker" class="tab" :class="!moreOpen &amp;&amp; {{ 'true' if path.startswith('/tracker') or path.startswith('/wishlist') else 'false' }} ? 'active' : ''" {% if path.startswith('/tracker') or path.startswith('/wishlist') %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>追踪</a>
-      <button type="button" class="tab" :class="moreOpen || {{ 'true' if path.startswith('/rules') or path.startswith('/archive') else 'false' }} ? 'active' : ''" @click="moreOpen = !moreOpen; if (moreOpen) $nextTick(() => $refs.moreFirst.focus())" :aria-expanded="moreOpen" aria-controls="more-sheet"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>更多</button>
+      <button type="button" class="tab" :class="moreOpen || {{ 'true' if path.startswith('/rules') or path.startswith('/archive') or path.startswith('/security') else 'false' }} ? 'active' : ''" @click="moreOpen = !moreOpen; if (moreOpen) $nextTick(() => $refs.moreFirst.focus())" :aria-expanded="moreOpen" aria-controls="more-sheet"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>更多</button>
     </nav>
     <div x-cloak x-show="moreOpen" x-transition.opacity class="fixed inset-0 z-50 md:hidden sheet-mask" @click.self="moreOpen = false" @keydown.tab="const focusable = [...$el.querySelectorAll('a, button')]; const first = focusable[0]; const last = focusable[focusable.length - 1]; if ($event.shiftKey &amp;&amp; document.activeElement === first) { $event.preventDefault(); last.focus(); } else if (!$event.shiftKey &amp;&amp; document.activeElement === last) { $event.preventDefault(); first.focus(); }">
       <section id="more-sheet" class="more-sheet" role="dialog" aria-modal="true" aria-labelledby="more-title">
         <div class="flex items-center justify-between border-b border-line"><h2 id="more-title" class="section-title">更多</h2><button type="button" class="btn btn-quiet" @click="moreOpen = false" aria-label="关闭更多">×</button></div>
         <a href="/rules" class="sheet-row" x-ref="moreFirst">规则与主题<span class="ml-auto text-ink-3">→</span></a>
         <a href="/archive" class="sheet-row">归档<span class="ml-auto text-ink-3">→</span></a>
+        <a href="/security" class="sheet-row">安全与通行密钥<span class="ml-auto text-ink-3">→</span></a>
         <form action="/logout" method="post"><button type="submit" class="sheet-row text-danger cursor-pointer">退出登录</button></form>
       </section>
     </div>

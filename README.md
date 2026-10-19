@@ -62,3 +62,20 @@ PY
 
 说明：主要配置项支持 `NAME_FILE` 形式读取（当 `NAME` 未设置时生效），
 例如 `BINDERY_PASSWORD_HASH_FILE`、`BINDERY_LIBRARY_DIR_FILE`、`BINDERY_DB_PATH_FILE`、`BINDERY_TEMPLATE_DIR_FILE`。
+
+## 通行密钥
+
+首次用密码登录后，可在「安全」中添加通行密钥。之后可用设备指纹、面容、设备密码或密码管理器登录；密码始终保留为备用登录方式。添加通行密钥需要最近 10 分钟内验证过密码，超时会要求再次确认。
+
+生产环境必须配置站点的公开来源（HTTPS，无路径和末尾斜杠），不要填写容器内部地址：
+
+```ini
+# deploy/quadlet/bindery.container 的 [Container] 段
+Environment=BINDERY_PUBLIC_ORIGIN=https://books.example.com
+# 可选；默认使用公开来源的主机名，设置时须为该主机名或其可注册域名后缀
+# Environment=BINDERY_WEBAUTHN_RP_ID=example.com
+```
+
+也可以把 `BINDERY_PUBLIC_ORIGIN`、`BINDERY_WEBAUTHN_RP_ID` 写入 Quadlet 的 `EnvironmentFile`；两者都支持 `_FILE` 形式。无效配置会禁用通行密钥，并在启动日志中发出警告。
+
+本地开发无需配置公开来源，但必须用 `http://localhost:端口` 访问，不能用 `127.0.0.1`。浏览器须支持 WebAuthn。删除所有通行密钥后仍可用密码登录。

@@ -92,6 +92,15 @@
     </div>
   </div>
 
+  {% if passkey_nudge %}
+  <div hidden data-passkey-nudge class="passkey-nudge mb-6">
+    <svg viewBox="0 0 24 24" fill="none" class="w-5 h-5 shrink-0" aria-hidden="true"><path d="M14 10a5 5 0 1 0-3 4.6L14 18h3v3h4v-4l-7-7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <div class="flex-1"><span class="text-[13.5px] font-semibold">下次登录可以跳过密码</span><span class="text-[12.5px] text-ink-3 block md:inline md:ml-3">用指纹或面容即可登录。</span></div>
+    <div class="passkey-nudge-actions"><button type="button" class="btn btn-primary btn-sm" @click="$dispatch('passkey-open')">添加通行密钥</button><button type="button" data-passkey-dismiss class="btn btn-quiet btn-sm">不再提示</button></div>
+  </div>
+  {% include "partials/passkey_dialog.html" %}
+  {% endif %}
+
   <div data-bulk-controls>
     <div data-bulk-actions class="bulk-bar hidden" role="toolbar" aria-label="批量操作">
       <span>已选 <span data-selected-count class="bulk-count">0</span> 册</span>

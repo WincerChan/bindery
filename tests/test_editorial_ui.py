@@ -89,7 +89,7 @@ class EditorialUiTests(unittest.TestCase):
         tree = html.fromstring(rendered)
         sheet = tree.xpath('//*[@id="more-sheet"]')[0]
         self.assertEqual(sheet.get("role"), "dialog")
-        self.assertEqual(sheet.xpath('./a/@href'), ["/rules", "/archive"])
+        self.assertEqual(sheet.xpath('./a/@href'), ["/rules", "/archive", "/security"])
         self.assertEqual(sheet.xpath('./form[@action="/logout"]/@method'), ["post"])
         tabs = tree.xpath('//nav[@aria-label="手机导航"]')[0]
         self.assertEqual(len(tabs.xpath('./a | ./button')), 5)

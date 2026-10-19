@@ -10,6 +10,8 @@ PublishPort=5670:5670
 Volume=bindery-library.volume:/data:Z
 Environment=BINDERY_LIBRARY_DIR=/data/library
 Environment=BINDERY_TEMPLATE_DIR=/data/templates
+# /etc/bindery/bindery.env 示例：
+# BINDERY_PUBLIC_ORIGIN=https://books.example.com
 EnvironmentFile=/etc/bindery/bindery.env
 AutoUpdate=registry
 

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import base64
+import datetime as dt
 import json
 import re
+import secrets
 import shutil
 import sqlite3
 from pathlib import Path
@@ -83,6 +86,22 @@ def init_db() -> None:
             )
             """
         )
+        columns = _table_columns(conn, "sessions")
+        if "auth_method" not in columns:
+            conn.execute("ALTER TABLE sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password'")
+        if "password_verified_at" not in columns:
+            conn.execute("ALTER TABLE sessions ADD COLUMN password_verified_at TEXT")
+        conn.execute("""CREATE TABLE IF NOT EXISTS passkeys (
+            credential_id TEXT PRIMARY KEY, public_key BLOB NOT NULL,
+            sign_count INTEGER NOT NULL DEFAULT 0, transports_json TEXT NOT NULL DEFAULT '[]',
+            aaguid TEXT, device_type TEXT, backed_up INTEGER NOT NULL DEFAULT 0,
+            name TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT
+        )""")
+        conn.execute("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        conn.execute("""CREATE TABLE IF NOT EXISTS webauthn_challenges (
+            id TEXT PRIMARY KEY, kind TEXT NOT NULL, challenge BLOB NOT NULL,
+            session_id TEXT, expires_at TEXT NOT NULL
+        )""")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS books (
@@ -256,12 +275,13 @@ def _dedupe_wishlist_manual_identity(conn: sqlite3.Connection) -> None:
     conn.execute(f"DELETE FROM wishlist WHERE id IN ({placeholders})", remove_ids)
 
 
-def create_session(session_id: str, created_at: str) -> None:
+def create_session(session_id: str, created_at: str, auth_method: str = "password",
+                   password_verified_at: Optional[str] = None) -> None:
     conn = connect()
     with conn:
         conn.execute(
-            "INSERT INTO sessions(session_id, created_at, last_seen) VALUES (?, ?, ?)",
-            (session_id, created_at, created_at),
+            "INSERT INTO sessions(session_id, created_at, last_seen, auth_method, password_verified_at) VALUES (?, ?, ?, ?, ?)",
+            (session_id, created_at, created_at, auth_method, password_verified_at),
         )
     conn.close()
 
@@ -548,3 +568,119 @@ def _row_to_wish(row: sqlite3.Row) -> Wish:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
+
+
+def list_passkeys() -> list[dict]:
+    conn = connect()
+    try:
+        return [dict(row) for row in conn.execute("SELECT * FROM passkeys ORDER BY created_at, credential_id")]
+    finally:
+        conn.close()
+
+
+def get_passkey(credential_id: str) -> Optional[dict]:
+    conn = connect()
+    try:
+        row = conn.execute("SELECT * FROM passkeys WHERE credential_id = ?", (credential_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def count_passkeys() -> int:
+    conn = connect()
+    try:
+        return conn.execute("SELECT count(*) FROM passkeys").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def insert_passkey(credential_id: str, public_key: bytes, sign_count: int, transports_json: str,
+                   aaguid: Optional[str], device_type: str, backed_up: bool, name: str,
+                   created_at: str) -> None:
+    conn = connect()
+    try:
+        with conn:
+            conn.execute("""INSERT INTO passkeys
+                (credential_id, public_key, sign_count, transports_json, aaguid, device_type,
+                 backed_up, name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (credential_id, public_key, sign_count, transports_json, aaguid, device_type,
+                 int(backed_up), name, created_at))
+    finally:
+        conn.close()
+
+
+def update_passkey_usage(credential_id: str, sign_count: int, backed_up: bool, last_used_at: str) -> None:
+    conn = connect()
+    try:
+        with conn:
+            conn.execute("UPDATE passkeys SET sign_count = ?, backed_up = ?, last_used_at = ? WHERE credential_id = ?",
+                         (sign_count, int(backed_up), last_used_at, credential_id))
+    finally:
+        conn.close()
+
+
+def rename_passkey(credential_id: str, name: str) -> bool:
+    conn = connect()
+    try:
+        with conn:
+            return conn.execute("UPDATE passkeys SET name = ? WHERE credential_id = ?", (name, credential_id)).rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_passkey(credential_id: str) -> bool:
+    conn = connect()
+    try:
+        with conn:
+            return conn.execute("DELETE FROM passkeys WHERE credential_id = ?", (credential_id,)).rowcount > 0
+    finally:
+        conn.close()
+
+
+def get_or_create_webauthn_user_id() -> bytes:
+    conn = connect()
+    try:
+        with conn:
+            value = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode("ascii")
+            conn.execute("INSERT OR IGNORE INTO app_settings(key, value) VALUES ('webauthn_user_id', ?)", (value,))
+            value = conn.execute("SELECT value FROM app_settings WHERE key = 'webauthn_user_id'").fetchone()[0]
+            return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    finally:
+        conn.close()
+
+
+def create_challenge(kind: str, challenge: bytes, session_id: Optional[str] = None) -> str:
+    if kind not in {"login", "register"} or (kind == "register" and not session_id):
+        raise ValueError("Invalid challenge kind or missing registration session")
+    now = dt.datetime.now(dt.timezone.utc)
+    challenge_id = secrets.token_urlsafe(32)
+    conn = connect()
+    try:
+        with conn:
+            conn.execute("DELETE FROM webauthn_challenges WHERE expires_at <= ?", (now.isoformat(),))
+            conn.execute("INSERT INTO webauthn_challenges VALUES (?, ?, ?, ?, ?)",
+                         (challenge_id, kind, challenge, session_id, (now + dt.timedelta(minutes=5)).isoformat()))
+    finally:
+        conn.close()
+    return challenge_id
+
+
+def pop_challenge(challenge_id: str) -> Optional[dict]:
+    # Consume atomically before the caller validates kind, expiry or session binding.
+    conn = connect()
+    try:
+        with conn:
+            row = conn.execute("DELETE FROM webauthn_challenges WHERE id = ? RETURNING *", (challenge_id,)).fetchone()
+            return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def mark_password_verified(session_id: str, now: str) -> None:
+    conn = connect()
+    try:
+        with conn:
+            conn.execute("UPDATE sessions SET password_verified_at = ? WHERE session_id = ?", (now, session_id))
+    finally:
+        conn.close()

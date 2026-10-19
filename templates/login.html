@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
     <link rel="shortcut icon" href="/static/logo.svg" />
     <link rel="stylesheet" href="/static/app.css" />
+    <script defer src="/static/passkey.js"></script>
   </head>
   <body class="min-h-screen flex items-center justify-center bg-bg text-ink px-4 py-12 font-sans">
     <main class="login-column">
@@ -15,10 +16,20 @@
       <div class="border-t border-ink mt-7 mb-6"></div>
       {% if error %}<div class="notice-danger mb-4 text-sm">{{ error }}</div>{% endif %}
       {% if not hash_configured %}<div class="notice-warn mb-4 text-sm">未配置 BINDERY_PASSWORD_HASH，无法登录。</div>{% endif %}
+      {% if passkey_available %}
+      <div hidden data-passkey-login>
+        <button type="button" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" class="w-[18px] h-[18px]" aria-hidden="true"><path d="M14 10a5 5 0 1 0-3 4.6L14 18h3v3h4v-4l-7-7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span data-passkey-label>使用通行密钥登录</span>
+        </button>
+        <p hidden data-passkey-hint role="status"></p>
+        <div class="flex items-center gap-3 my-5 text-xs text-ink-3"><span class="h-px bg-line flex-1"></span>或使用密码<span class="h-px bg-line flex-1"></span></div>
+      </div>
+      {% endif %}
       <form action="/login" method="post" class="space-y-3.5">
         <input type="hidden" name="next" value="{{ next }}" />
         <label class="flex flex-col gap-1.5"><span class="text-[12.5px] text-ink-2">密码</span><input type="password" name="password" required placeholder="输入访问密码" class="field" autocomplete="current-password" autofocus /></label>
-        <button class="btn btn-primary" type="submit">登录</button>
+        <button data-password-submit class="btn btn-primary" type="submit">登录</button>
       </form>
     </main>
   </body>

@@ -10,6 +10,7 @@ import logging
 import queue
 import re
 import shutil
+import sqlite3
 import threading
 import tempfile
 import traceback
@@ -28,8 +29,19 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.background import BackgroundTask
+from webauthn import (
+    generate_authentication_options, generate_registration_options, options_to_json,
+    verify_authentication_response, verify_registration_response,
+)
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
+from webauthn.helpers.structs import (
+    AttestationConveyancePreference, AuthenticatorSelectionCriteria, AuthenticatorTransport,
+    PublicKeyCredentialDescriptor, ResidentKeyRequirement, UserVerificationRequirement,
+)
 
 from .auth import SESSION_COOKIE, configured_hash, is_authenticated, sign_in, sign_out, verify_password
+from .auth import password_is_fresh, webauthn_config
+from . import db
 from .css import validate_css
 from .db import (
     create_wish,
@@ -154,6 +166,8 @@ async def startup() -> None:
     load_rule_templates()
     _ensure_ingest_worker_started()
     print(f"[bindery] password hash configured: {bool(configured_hash())}")
+    if read_env("BINDERY_PUBLIC_ORIGIN") and webauthn_config() is None:
+        logger.warning("Invalid WebAuthn public origin or RP ID configuration; passkeys are unavailable")
 
 
 @app.middleware("http")
@@ -2783,6 +2797,230 @@ def _run_regenerate(
         raise
 
 
+WEBAUTHN_COOKIE = "bindery_webauthn"
+LOGIN_PASSKEY_PATH = "/login/passkey"
+REGISTER_PASSKEY_PATH = "/security/passkeys"
+
+
+class PasskeyError(Exception):
+    def __init__(self, message: str, status: int = 400):
+        self.message = message
+        self.status = status
+
+
+@app.exception_handler(PasskeyError)
+async def passkey_error_response(request: Request, exc: PasskeyError):
+    response = JSONResponse({"error": exc.message}, status_code=exc.status)
+    if request.url.path.endswith("/verify"):
+        path = LOGIN_PASSKEY_PATH if request.url.path.startswith("/login/") else REGISTER_PASSKEY_PATH
+        config = webauthn_config(request)
+        response.delete_cookie(WEBAUTHN_COOKIE, path=path, httponly=True,
+                               samesite="strict", secure=bool(config and config.secure))
+    return response
+
+
+def _safe_next(value: str) -> str:
+    if (not isinstance(value, str) or not value.startswith("/")
+            or value.startswith(("//", "/\\"))
+            or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in value)):
+        return "/"
+    return value
+
+
+async def _passkey_json(request: Request) -> dict:
+    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+        raise PasskeyError("请使用 application/json", 415)
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError("Expected JSON object")
+        return body
+    except (ValueError, UnicodeError):
+        raise PasskeyError("请求格式错误")
+
+
+def _passkey_config(request: Request):
+    config = webauthn_config(request)
+    if config is None:
+        raise PasskeyError("通行密钥不可用", 404)
+    return config
+
+
+def _issue_options(options, kind: str, request: Request, config) -> Response:
+    challenge_id = db.create_challenge(kind, options.challenge,
+                                      request.cookies.get(SESSION_COOKIE) if kind == "register" else None)
+    response = Response(options_to_json(options), media_type="application/json")
+    response.set_cookie(WEBAUTHN_COOKIE, challenge_id, httponly=True, samesite="strict", max_age=300,
+                        path=LOGIN_PASSKEY_PATH if kind == "login" else REGISTER_PASSKEY_PATH,
+                        secure=config.secure)
+    return response
+
+
+def _consume_challenge(request: Request, kind: str) -> Optional[dict]:
+    challenge = db.pop_challenge(request.cookies.get(WEBAUTHN_COOKIE, ""))
+    if not challenge or challenge["kind"] != kind:
+        return None
+    try:
+        if dt.datetime.fromisoformat(challenge["expires_at"]) <= dt.datetime.now(dt.timezone.utc):
+            return None
+    except (ValueError, TypeError):
+        return None
+    if kind == "register" and challenge["session_id"] != request.cookies.get(SESSION_COOKIE):
+        return None
+    return challenge
+
+
+def _passkey_name(value: object) -> str:
+    if not isinstance(value, str):
+        raise PasskeyError("名称格式错误")
+    return value.strip()[:40] or f"通行密钥 {db.count_passkeys() + 1}"
+
+
+def _public_passkey(passkey: dict) -> dict:
+    return {key: passkey[key] for key in (
+        "credential_id", "name", "device_type", "backed_up", "created_at", "last_used_at"
+    )}
+
+
+@app.post("/login/passkey/options")
+async def passkey_login_options(request: Request):
+    await _passkey_json(request)
+    config = _passkey_config(request)
+    if not db.count_passkeys():
+        raise PasskeyError("通行密钥不可用", 404)
+    options = generate_authentication_options(rp_id=config.rp_id,
+        user_verification=UserVerificationRequirement.REQUIRED, allow_credentials=[])
+    return _issue_options(options, "login", request, config)
+
+
+@app.post("/login/passkey/verify")
+async def passkey_login_verify(request: Request):
+    # Even malformed verification requests consume any challenge they present.
+    challenge = _consume_challenge(request, "login")
+    try:
+        body = await _passkey_json(request)
+    except PasskeyError as exc:
+        if exc.status == 415:
+            raise
+        raise PasskeyError("通行密钥验证失败")
+    config = _passkey_config(request)
+    try:
+        if challenge is None:
+            raise ValueError("Missing or invalid login challenge")
+        credential = body["credential"]
+        passkey = db.get_passkey(credential["rawId"])
+        if passkey is None:
+            raise ValueError("Unknown credential")
+        verified = verify_authentication_response(
+            credential=credential, expected_challenge=challenge["challenge"],
+            expected_rp_id=config.rp_id, expected_origin=config.origin,
+            credential_public_key=passkey["public_key"], credential_current_sign_count=passkey["sign_count"],
+            require_user_verification=True)
+    except Exception:
+        logger.warning("Passkey authentication failed", exc_info=True)
+        raise PasskeyError("通行密钥验证失败")
+    db.update_passkey_usage(passkey["credential_id"], verified.new_sign_count,
+                            verified.credential_backed_up, _now_iso())
+    response = JSONResponse({"redirect": _safe_next(body.get("next", "/"))})
+    response.set_cookie(SESSION_COOKIE, sign_in(auth_method="passkey"), httponly=True, samesite="lax")
+    response.delete_cookie(WEBAUTHN_COOKIE, path=LOGIN_PASSKEY_PATH, httponly=True,
+                           samesite="strict", secure=config.secure)
+    return response
+
+
+@app.get("/security", response_class=HTMLResponse)
+async def security(request: Request):
+    return templates.TemplateResponse("security.html", {
+        "request": request, "passkeys": [_public_passkey(key) for key in db.list_passkeys()],
+        "passkey_configured": webauthn_config(request) is not None,
+    })
+
+
+@app.post("/security/reauth")
+async def passkey_reauth(request: Request):
+    body = await _passkey_json(request)
+    _passkey_config(request)
+    if not configured_hash():
+        raise PasskeyError("未配置密码哈希")
+    password = body.get("password")
+    if not isinstance(password, str) or not verify_password(password):
+        raise PasskeyError("密码错误")
+    db.mark_password_verified(request.cookies[SESSION_COOKIE], _now_iso())
+    return {"ok": True}
+
+
+@app.post("/security/passkeys/register/options")
+async def passkey_register_options(request: Request):
+    await _passkey_json(request)
+    config = _passkey_config(request)
+    session_id = request.cookies[SESSION_COOKIE]
+    if not password_is_fresh(db.get_session(session_id)):
+        raise PasskeyError("needs_password", 403)
+    descriptors = [PublicKeyCredentialDescriptor(
+        id=base64url_to_bytes(key["credential_id"]),
+        transports=[AuthenticatorTransport(item) for item in json.loads(key["transports_json"])],
+    ) for key in db.list_passkeys()]
+    options = generate_registration_options(
+        rp_id=config.rp_id, rp_name="Bindery", user_id=db.get_or_create_webauthn_user_id(),
+        user_name="bindery", user_display_name="Bindery", exclude_credentials=descriptors,
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.REQUIRED, user_verification=UserVerificationRequirement.REQUIRED),
+        attestation=AttestationConveyancePreference.NONE)
+    return _issue_options(options, "register", request, config)
+
+
+@app.post("/security/passkeys/register/verify")
+async def passkey_register_verify(request: Request):
+    challenge = _consume_challenge(request, "register")
+    body = await _passkey_json(request)
+    config = _passkey_config(request)
+    if challenge is None:
+        raise PasskeyError("通行密钥验证失败")
+    if not password_is_fresh(db.get_session(request.cookies[SESSION_COOKIE])):
+        raise PasskeyError("needs_password", 403)
+    name = _passkey_name(body.get("name", ""))
+    try:
+        credential = body["credential"]
+        verified = verify_registration_response(
+            credential=credential, expected_challenge=challenge["challenge"],
+            expected_origin=config.origin, expected_rp_id=config.rp_id, require_user_verification=True)
+        transports = credential.get("response", {}).get("transports", [])
+        # Treat transports only as hints, and retain only values understood by the library.
+        transports = [item for item in transports if item in {transport.value for transport in AuthenticatorTransport}]
+    except Exception:
+        logger.warning("Passkey registration failed", exc_info=True)
+        raise PasskeyError("通行密钥验证失败")
+    credential_id = bytes_to_base64url(verified.credential_id)
+    try:
+        db.insert_passkey(credential_id, verified.credential_public_key, verified.sign_count,
+                          json.dumps(transports), str(verified.aaguid), verified.credential_device_type.value,
+                          verified.credential_backed_up, name, _now_iso())
+    except sqlite3.IntegrityError:
+        raise PasskeyError("此通行密钥已添加", 409)
+    response = JSONResponse({"ok": True, "passkey": _public_passkey(db.get_passkey(credential_id))})
+    response.delete_cookie(WEBAUTHN_COOKIE, path=REGISTER_PASSKEY_PATH, httponly=True,
+                           samesite="strict", secure=config.secure)
+    return response
+
+
+@app.post("/security/passkeys/{credential_id}/rename")
+async def passkey_rename(credential_id: str, request: Request):
+    body = await _passkey_json(request)
+    _passkey_config(request)
+    name = _passkey_name(body.get("name", ""))
+    if not db.rename_passkey(credential_id, name):
+        raise PasskeyError("通行密钥不存在", 404)
+    return {"ok": True, "name": name}
+
+
+@app.post("/security/passkeys/{credential_id}/delete")
+async def passkey_delete(credential_id: str, request: Request):
+    _passkey_config(request)
+    if not db.delete_passkey(credential_id):
+        raise PasskeyError("通行密钥不存在", 404)
+    return RedirectResponse("/security?toast=" + urllib.parse.quote("已删除通行密钥"), status_code=303)
+
+
 @app.get("/login", response_class=HTMLResponse)
 async def login(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
@@ -2790,7 +3028,8 @@ async def login(request: Request) -> HTMLResponse:
         {
             "request": request,
             "hash_configured": bool(configured_hash()),
-            "next": request.query_params.get("next", "/"),
+            "next": _safe_next(request.query_params.get("next", "/")),
+            "passkey_available": webauthn_config(request) is not None and db.count_passkeys() > 0,
             "error": request.query_params.get("error"),
         },
     )
@@ -2803,7 +3042,7 @@ async def login_post(request: Request, password: str = Form(""), next: str = For
     if not verify_password(password):
         return RedirectResponse(url="/login?error=密码错误", status_code=303)
     session_id = sign_in()
-    response = RedirectResponse(url=next or "/", status_code=303)
+    response = RedirectResponse(url=_safe_next(next), status_code=303)
     response.set_cookie(SESSION_COOKIE, session_id, httponly=True, samesite="lax")
     return response
 
@@ -2883,7 +3122,10 @@ async def index(
     )
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "sort": selected_sort, "q": q, "return_to": return_to, **payload},
+        {"request": request, "sort": selected_sort, "q": q, "return_to": return_to, **payload,
+         "passkey_nudge": webauthn_config(request) is not None
+         and (db.get_session(request.cookies.get(SESSION_COOKIE, "")) or {}).get("auth_method") == "password"
+         and db.count_passkeys() == 0},
     )
 
 
