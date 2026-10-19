@@ -1,0 +1,89 @@
+import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
+import { deleteBook, type DeviceBook, type PairedDevice } from "../../../client/kindle";
+import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, TextField } from "../../../ui";
+import { useKindle } from "../context";
+import { bytes, dateLabel } from "./format";
+import type { KindleLibraryBook } from "./library";
+
+function DeviceCover(props: { book: DeviceBook; title: string; author: string | null; libraryCover?: string | null }) {
+  const k = useKindle(), [url, setUrl] = createSignal<string | null>(null);
+  onSettled(() => {
+    let alive = true, objectUrl: string | undefined;
+    const root = k.state().device?.root, thumbnail = props.book.record?.thumbnail;
+    if (root && thumbnail) void (async () => {
+      try {
+        const system = await root.getDirectoryHandle("system"), dir = await system.getDirectoryHandle("thumbnails");
+        const file = await (await dir.getFileHandle(thumbnail)).getFile();
+        if (alive) { objectUrl = URL.createObjectURL(file); setUrl(objectUrl); }
+      } catch { /* Missing/unavailable cover uses the library or generated cover. */ }
+    })();
+    return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  });
+  return <BookCover book_id={props.book.record?.book_id || props.book.filename} title={props.title} author={props.author} cover_url={url() || props.libraryCover} class="kindle-book-cover" />;
+}
+
+export function KindleBooksPage(props: { books: KindleLibraryBook[] }) {
+  const k = useKindle(), [source, setSource] = createSignal("全部"), [query, setQuery] = createSignal("");
+  const [selected, setSelected] = createSignal<string[]>([]), [notice, setNotice] = createSignal("");
+  const [pending, setPending] = createSignal<{ device: PairedDevice; books: DeviceBook[] } | null>(null);
+  const selectionDevice = createMemo(() => k.state().device?.identity.id || "");
+  createEffect(selectionDevice, () => { setSelected([]); setPending(null); setNotice(""); });
+  const library = createMemo(() => new Map(props.books.map(b => [b.book_id, b])));
+  const metadata = (book: DeviceBook) => library().get(book.record?.book_id || "");
+  const title = (book: DeviceBook) => metadata(book)?.title || book.filename.split("/").at(-1)!.replace(/\.[^.]+$/, "");
+  const all = () => k.inventory()?.books || [];
+  const visible = () => all().filter(b => (source() === "全部" || b.source === source()) && `${title(b)} ${metadata(b)?.author || ""} ${b.filename}`.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase()));
+  const selectedBooks = () => all().filter(b => selected().includes(b.filename));
+  const connected = () => k.ready() && k.state().status === "granted";
+  function confirm(books: DeviceBook[]) { const device = k.state().device; if (connected() && device && books.length) setPending({ device, books }); }
+  async function remove() {
+    const request = pending(); if (!request) return;
+    const current = k.manager.snapshot();
+    if (current.status !== "granted" || current.device?.identity.id !== request.device.identity.id) throw new Error("设备已切换或断开，请重新选择要删除的书籍");
+    try {
+      for (const book of request.books) {
+        await deleteBook(request.device, book.filename);
+        setSelected(current => current.filter(n => n !== book.filename));
+        // A failed batch can retry only its remaining books, including after re-plugging.
+        setPending(current => current ? { ...current, books: current.books.filter(b => b.filename !== book.filename) } : null);
+      }
+      setNotice(`已删除 ${request.books.length} 本设备书籍`);
+    } finally { await k.refreshInventory(); await k.manager.probe(); }
+  }
+  function resend(book: DeviceBook) {
+    void k.run(async () => {
+      if (!book.record || !metadata(book)) throw new Error("这本书已不在当前书库，无法重新传入");
+      k.enqueue(book.record.book_id, book.record.profile_id, true);
+      const copies = all().filter(b => b.record?.book_id === book.record!.book_id).length;
+      setNotice(`已加入传输队列：${title(book)}${copies > 1 ? "（将覆盖此书首份 Bindery 副本）" : ""}`);
+    });
+  }
+  return <section aria-label="设备书籍" class="kindle-books">
+    <div class="kindle-section-heading"><h1>设备书籍</h1><span class="kindle-small">{all().length} 本 · {bytes(k.inventory()?.usage.books || 0)}</span></div>
+    <div class="kindle-toolbar"><div class="kindle-actions"><For each={["全部", "Bindery", "其他"]}>{value => <Chip selected={source() === value} onClick={() => { setSource(value); setSelected([]); }}>{value === "Bindery" ? "来自 Bindery" : value}{value !== "全部" ? ` ${all().filter(b => b.source === value).length}` : ""}</Chip>}</For></div>
+      <TextField label="搜索设备上的书" type="search" placeholder="搜索书名或作者" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />
+      <Button variant="danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button><a class="btn btn-primary" href="/kindle/transfer">从书库传书</a>
+    </div>
+    <Show when={notice()}><p role="status" class="notice">{notice()} <a href="/kindle/transfer">查看传输队列</a></p></Show>
+    <Show when={connected()} fallback={<EmptyState title={k.ready() ? "请先连接 Kindle" : "检测中…"}><a href="/kindle/connect">连接并授权设备</a>后，可查看和管理设备上的书籍。</EmptyState>}>
+      <Show when={k.inventory()} fallback={<p class="muted" role="status">{k.inventoryError() || "正在读取设备书籍…"}</p>}>
+        <Show when={visible().length} fallback={<EmptyState title={all().length ? "没有符合条件的书籍" : "设备上还没有书籍"}>{all().length ? "试试其他来源或搜索词。" : <a href="/kindle/transfer">从书库选择书籍传入</a>}</EmptyState>}>
+          <div class="kindle-table-scroll"><table class="kindle-book-table"><thead><tr>
+            <th><Checkbox label="全选" aria-label="全选当前筛选书籍" checked={visible().length > 0 && visible().every(b => selected().includes(b.filename))} indeterminate={visible().some(b => selected().includes(b.filename)) && !visible().every(b => selected().includes(b.filename))} onChange={e => setSelected(e.currentTarget.checked ? visible().map(b => b.filename) : [])} /></th>
+            <th scope="col">书籍</th><th scope="col">来源</th><th scope="col">格式</th><th scope="col">排版方案</th><th scope="col">大小</th><th scope="col">传入时间</th><th scope="col">操作</th>
+          </tr></thead><tbody><For each={visible()}>{book => <tr data-device-book={book.filename}>
+            <td><Checkbox label="" aria-label={`选择 ${title(book)}`} checked={selected().includes(book.filename)} onChange={e => setSelected(current => e.currentTarget.checked ? [...current.filter(n => n !== book.filename), book.filename] : current.filter(n => n !== book.filename))} /></td>
+            <td><div class="kindle-book-info"><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} /><div><strong>{title(book)}</strong><p class="kindle-small">{metadata(book)?.author || "作者未知"}</p><p class="kindle-filename">{book.filename}</p></div></div></td>
+            <td>{book.source}</td><td class="kindle-mono">{book.format.toUpperCase()}</td><td>{book.record?.profile_name || "—"}</td><td class="kindle-mono">{bytes(book.size)}</td><td class="kindle-small">{dateLabel(book.record?.transferred_at || null)}</td>
+            <td><div class="kindle-row-actions"><Show when={book.record}><a class="btn btn-quiet btn-sm" href={`/kindle/preview?book=${encodeURIComponent(book.record!.book_id)}`} aria-label={`预览 ${title(book)}`}>预览</a><Button variant="quiet" size="sm" title="使用记录中的排版方案，覆盖此书首份 Bindery 副本并保留其阅读记录" disabled={k.busy() || !metadata(book)} onClick={() => resend(book)}>重新传入</Button></Show><Button variant="quiet" size="sm" class="kindle-danger" disabled={k.busy()} onClick={() => confirm([book])}>删除</Button></div></td>
+          </tr>}</For></tbody></table></div>
+        </Show>
+      </Show>
+    </Show>
+    <ConfirmDialog open={pending() !== null} title="删除设备上的书籍？" danger confirmLabel="确认删除" onClose={() => setPending(null)} onConfirm={remove}>
+      <p>将从 Kindle 删除所选 {pending()?.books.length || 0} 本书，以及匹配的 .sdr 文件夹（阅读位置、标注等阅读记录）和 Bindery 写入且不再被其他副本使用的封面缩略图。此操作无法撤销；书库中的原书保留。</p>
+      <p class="kindle-small">其他来源的封面无法可靠匹配，不会猜测或删除。</p>
+      <ul><For each={pending()?.books || []}>{book => <li>{title(book)}</li>}</For></ul>
+    </ConfirmDialog>
+  </section>;
+}

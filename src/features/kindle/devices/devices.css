@@ -1,0 +1,78 @@
+.kindle-page { min-width: 0; }
+.kindle-page h1 { font-size: 1.5rem; margin: 0; }
+.kindle-page h2 { margin: 0 0 1rem; }
+.kindle-page p { overflow-wrap: anywhere; }
+.kindle-device-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 20px 32px; padding: 0 0 24px; }
+.kindle-device-identity { flex: 2 1 320px; min-width: 0; }
+.kindle-status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; font-size: .9rem; }
+.kindle-status strong { font-size: 1.1rem; }
+.kindle-dot { height: 7px; width: 7px; border-radius: 50%; background: var(--color-ink-3); }
+.kindle-dot.connected { background: var(--color-ok); }
+.kindle-small { margin: 4px 0; color: var(--color-ink-3); font-size: .78rem; line-height: 1.7; }
+.kindle-mono, .kindle-filename { font-family: var(--font-mono); }
+.kindle-filename { margin: 4px 0 0; font-size: .68rem; color: var(--color-ink-3); overflow-wrap: anywhere; }
+.kindle-usage { flex: 1 1 290px; min-width: 0; }
+.kindle-usage > p:first-child { display: flex; justify-content: space-between; gap: 12px; }
+.kindle-usage-bar { display: flex; height: 4px; margin: 8px 0; background: var(--color-line); }
+.kindle-usage-bar .books { background: var(--color-ink); }
+.kindle-usage-bar .fonts { background: var(--color-accent); }
+.kindle-usage-bar .other { background: #969b92; }
+.kindle-full { flex-basis: 100%; margin: 0; }
+.kindle-actions { display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap; }
+.kindle-tabs { display: flex; gap: 28px; border-block: 1px solid var(--color-line); margin-bottom: 28px; }
+.kindle-tab { padding: 14px 0; border-bottom: 2px solid transparent; font-size: .88rem; color: var(--color-ink-3); text-decoration: none; white-space: nowrap; }
+.kindle-tab.on { color: var(--color-ink); border-bottom-color: var(--color-accent); font-weight: 650; }
+.kindle-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 32px; align-items: start; }
+.kindle-split > section { min-width: 0; }
+.kindle-aside { min-width: 0; border-left: 1px solid var(--color-line); padding-left: 28px; }
+.kindle-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 16px; }
+.kindle-section-heading h2 { margin: 0; }
+.kindle-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--color-line); }
+.kindle-toolbar > .field { flex: 1 1 200px; }
+.kindle-steps { counter-reset: kindle-step; list-style: none; padding: 0; margin: 24px 0; border-top: 1px solid var(--color-line); }
+.kindle-steps li { counter-increment: kindle-step; padding: 18px 0 18px 42px; border-bottom: 1px solid var(--color-line); position: relative; font-size: .9rem; }
+.kindle-steps li::before { content: counter(kindle-step, decimal-leading-zero); position: absolute; left: 0; font-family: var(--font-mono); color: var(--color-accent); }
+.kindle-steps p { margin: 6px 0 0; font-size: .83rem; line-height: 1.7; color: var(--color-ink-3); }
+.kindle-pair { border-top: 1px solid var(--color-line); padding-top: 24px; margin-top: 24px; }
+.kindle-pair fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.kindle-pair legend { font-size: .9rem; margin-bottom: 10px; }
+.kindle-models { display: grid; gap: 8px; }
+.kindle-remembered { padding: 18px 0; border-top: 1px solid var(--color-line); }
+.kindle-remembered .kindle-actions { margin-top: 8px; }
+.kindle-table-scroll { overflow-x: auto; }
+.kindle-book-table { border-collapse: collapse; width: 100%; text-align: left; font-size: .8rem; }
+.kindle-book-table th { color: var(--color-ink-3); font-weight: 500; padding: 10px 8px; border-bottom: 1px solid var(--color-ink); white-space: nowrap; }
+.kindle-book-table td { padding: 14px 8px; border-bottom: 1px solid var(--color-line); vertical-align: middle; }
+.kindle-book-table td:nth-child(2) { min-width: 210px; }
+.kindle-book-table td:nth-child(7) { min-width: 110px; }
+.kindle-book-info { display: flex; gap: 12px; align-items: center; }
+.kindle-book-info > div:last-child { min-width: 0; overflow-wrap: anywhere; }
+.kindle-book-cover { width: 40px; flex: 0 0 40px; }
+.kindle-row-actions { display: flex; flex-wrap: wrap; gap: 4px; justify-content: end; }
+.kindle-danger.btn { color: var(--color-danger); }
+.kindle-library-list { list-style: none; margin: 0 0 16px; padding: 0; border-top: 1px solid var(--color-ink); }
+.kindle-library-list li { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--color-line); }
+.kindle-library-title { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .9rem; }
+.kindle-library-list li > .kindle-small { max-width: 115px; text-align: right; }
+.kindle-queue { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--color-line); }
+.kindle-queue-item { border-bottom: 1px solid var(--color-line); padding: 12px 0; margin-bottom: 12px; overflow-wrap: anywhere; }
+.kindle-queue-item .kindle-section-heading { margin-bottom: 4px; font-size: .85rem; }
+.kindle-queue progress { display: block; width: 100%; height: 4px; margin-block: 8px; accent-color: var(--color-accent); }
+.kindle-license { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--color-line); font-size: .8rem; }
+.kindle-license summary { cursor: pointer; color: var(--color-accent); padding-block: 10px; }
+.kindle-license pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: .72rem; line-height: 1.6; }
+@media (max-width: 900px) {
+  .kindle-split { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .kindle-aside { border-left: 0; padding: 24px 0 0; border-top: 1px solid var(--color-line); }
+}
+@media (max-width: 600px) {
+  .kindle-device-bar { gap: 14px; }
+  .kindle-tabs { gap: 0; justify-content: space-between; }
+  .kindle-tab { font-size: .78rem; padding-block: 14px; }
+  .kindle-toolbar > .field { flex-basis: 100%; }
+  .kindle-toolbar > .kindle-actions { width: 100%; }
+  .kindle-library-list li { gap: 8px; }
+  .kindle-library-list li > .kindle-small { max-width: 78px; font-size: .68rem; }
+  .kindle-book-table { min-width: 840px; }
+  .kindle-table-scroll { max-width: 100%; }
+}
