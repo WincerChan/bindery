@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>登录</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+SC:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.root{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:48px 16px;box-sizing:border-box;font-family:"Noto Sans SC","PingFang SC",system-ui,sans-serif;color:#141414;background:#EFEFEC}
+.mono{font-family:"IBM Plex Mono","SF Mono",ui-monospace,monospace}
+.mark{width:22px;height:22px;background:#141414;position:relative;display:block}
+.mark::after{content:"";position:absolute;right:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#FF5A1F}
+.field{width:100%;height:42px;border:1px solid #D6D6D1;background:#FAFAF8;border-radius:2px;padding:0 12px;font:inherit;font-size:14px;color:#141414;box-sizing:border-box}
+.btn{width:100%;height:42px;border-radius:2px;background:#141414;color:#FAFAF8;border:1px solid #141414;font:inherit;font-size:14px;cursor:pointer}
+</style>
+</helmet>
+<div class="root">
+  <main style="width: 100%; max-width: 340px">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <span class="mark"></span>
+      <h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.02em">Bindery</h1>
+    </div>
+    <p class="mono" style="margin: 10px 0 0; font-size: 11px; letter-spacing: .08em; color: #75756F">PRIVATE LIBRARY · TXT → EPUB</p>
+    <div style="height: 1px; background: #141414; margin: 28px 0 24px"></div>
+    <form style="display: flex; flex-direction: column; gap: 14px">
+      <label style="display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 12.5px; color: #4A4A47">密码</span>
+        <input class="field" type="password" placeholder="输入访问密码" autocomplete="current-password">
+      </label>
+      <button class="btn" type="submit">登录</button>
+    </form>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

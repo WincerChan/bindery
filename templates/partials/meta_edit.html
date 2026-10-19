@@ -1,4 +1,4 @@
-<div id="meta-panel" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+<div id="meta-panel">
   {% set detail_url = "/book/" ~ book_id ~ return_to_query %}
   <form
     id="meta-edit-form"
@@ -13,24 +13,24 @@
   >
     <input type="hidden" name="return_to" value="{{ return_to }}" />
     {% if error %}
-      <div class="rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">
+      <div class="rounded-[2px] border border-danger-line bg-surface text-danger px-3 py-2 text-sm">
         {{ error }}
       </div>
     {% endif %}
     {% if info %}
-      <div class="rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 px-3 py-2 text-sm">
+      <div class="rounded-[2px] border border-line bg-surface text-ok px-3 py-2 text-sm">
         {{ info }}
       </div>
     {% endif %}
     {% if lookup_sources and lookup_sources|length > 1 %}
-      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 flex flex-wrap items-center gap-2">
+      <div class="rounded-[2px] border border-line bg-surface px-3 py-2 text-xs text-ink-2 flex flex-wrap items-center gap-2">
         <span>可选来源：</span>
         {% for item in lookup_sources %}
           <button
             type="button"
             data-apply-source="{{ item.id }}"
             data-source-label="{{ item.label }}"
-            class="px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 transition-colors cursor-pointer {% if item.selected == 'true' %}border-indigo-300 text-indigo-700 bg-indigo-50{% endif %}"
+            class="chip {% if item.selected == 'true' %}chip-on{% endif %}"
           >{{ item.label }}{% if item.selected == 'true' %}（已应用）{% endif %}</button>
         {% endfor %}
       </div>
@@ -40,37 +40,35 @@
     <script type="application/json" id="lookup-candidates-data">{{ lookup_candidates | default({}, true) | tojson }}</script>
     <input type="hidden" data-lookup-allow-cover-fill value="{{ 'true' if lookup_allow_cover_fill else 'false' }}" />
 
-    <div class="flex flex-col lg:flex-row gap-6">
-      <div class="w-[180px] shrink-0">
-        <div class="w-[180px] aspect-[2/3] rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-sm">
+    <div class="meta-edit-layout">
+      <div class="meta-edit-cover w-[112px] md:w-[240px]">
+        {% set tone = (book.book_id[:2] | int(0, 16)) % 5 %}
+        <div class="cover {% if not book.cover_url %}cover-gen cover-tone-{{ tone }}{% endif %}">
           {% if book.cover_url %}
             <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover" />
           {% else %}
-            <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 p-5 text-center">
-              <div class="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500 font-bold text-lg mb-2">B</div>
-              <span class="text-xs font-mono line-clamp-2">{{ book.title }}</span>
-            </div>
+            <div class="cover-gen-inner"><div><div class="cover-gen-rule"></div><div class="cover-gen-title">{{ book.title }}</div></div><div class="cover-gen-author">{{ book.author or "" }}</div></div>
           {% endif %}
         </div>
       </div>
 
-      <div class="min-w-0 flex-1 space-y-6">
+      <div class="meta-edit-main space-y-6">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="min-w-0">
-            <h2 class="text-xl font-bold text-slate-900 truncate">{{ book.title }}</h2>
-            <div class="mt-1 text-xs text-slate-500">编辑并写回到 EPUB（可选：同时写回封面）</div>
-            <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+            <h2 class="text-[21px] md:text-[32px] font-bold text-ink">{{ book.title }}</h2>
+            <div class="mt-1 text-xs text-ink-3">编辑并写回到 EPUB（可选：同时写回封面）</div>
+            <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
               <span class="truncate">{{ book.author or "未知" }}</span>
-              <span class="text-slate-300">·</span>
+              <span class="text-mute">·</span>
               <span class="truncate">{{ book.language }}</span>
               {% if book.series %}
-                <span class="text-slate-300">·</span>
+                <span class="text-mute">·</span>
                 <span class="truncate">{{ book.series }}</span>
               {% endif %}
             </div>
           </div>
-          <div class="flex items-center gap-2">
-            <a class="px-4 py-2 text-sm bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors" href="{{ detail_url }}">取消</a>
+          <div class="flex flex-wrap items-center gap-2">
+            <a class="btn btn-secondary" href="{{ detail_url }}">取消</a>
             <button
               type="button"
               data-fetch-metadata
@@ -78,18 +76,18 @@
               hx-target="#meta-panel"
               hx-swap="outerHTML"
               hx-include="#meta-edit-form"
-              class="px-4 py-2 text-sm bg-white border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-50 font-medium transition-colors cursor-pointer"
+              class="btn btn-secondary"
             >自动填充信息</button>
-            <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm transition-colors cursor-pointer" type="submit">保存并写回</button>
+            <button class="btn btn-primary" type="submit">保存并写回</button>
           </div>
         </div>
-        <div data-fetch-status class="hidden text-xs text-indigo-600">正在从豆瓣检索，请稍候...</div>
+        <div data-fetch-status class="hidden text-xs text-ink">正在从豆瓣检索，请稍候...</div>
 
         <div class="flex flex-wrap gap-4">
-          <div class="space-y-1 min-w-[220px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">书名</label>
+          <div class="space-y-1 min-w-full md:min-w-[220px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">书名</label>
             <div
-              class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-sm text-slate-900 bg-white"
+              class="field min-h-[38px] w-full"
               contenteditable="true"
               data-edit-field="title"
               data-autofill-target="title"
@@ -100,10 +98,10 @@
             >{{ book.title }}</div>
             <input type="hidden" name="title" data-edit-target="title" value="{{ book.title }}" />
           </div>
-          <div class="space-y-1 min-w-[220px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">作者</label>
+          <div class="space-y-1 min-w-full md:min-w-[220px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">作者</label>
             <div
-              class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
+              class="field min-h-[38px] w-full"
               contenteditable="true"
               data-edit-field="author"
               data-autofill-target="author"
@@ -114,10 +112,10 @@
             >{{ book.author or "" }}</div>
             <input type="hidden" name="author" data-edit-target="author" value="{{ book.author or '' }}" />
           </div>
-          <div class="space-y-1 min-w-[220px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">语言</label>
+          <div class="space-y-1 min-w-full md:min-w-[220px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">语言</label>
             <div
-              class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
+              class="field min-h-[38px] w-full"
               contenteditable="true"
               data-edit-field="language"
               data-autofill-target="language"
@@ -129,24 +127,24 @@
             <input type="hidden" name="language" data-edit-target="language" value="{{ book.language }}" />
           </div>
           <div class="space-y-1 min-w-[180px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">星级</label>
+            <label class="text-xs font-semibold text-ink-3 uppercase">星级</label>
             <div class="flex items-center gap-1">
               {% for i in range(1, 6) %}
                 <button
                   type="button"
                   data-rating-star="{{ i }}"
-                  class="text-lg text-slate-300 hover:text-amber-400 transition-colors cursor-pointer"
+                  class="text-lg text-mute hover:text-accent transition-colors cursor-pointer"
                   aria-label="{{ i }} 星"
                 >★</button>
               {% endfor %}
-              <span class="ml-2 text-xs text-slate-500" data-rating-label>未评分</span>
+              <span class="ml-2 text-xs text-ink-3" data-rating-label>未评分</span>
             </div>
             <input type="hidden" name="rating" data-rating-input value="{{ book.rating if book.rating is not none else '' }}" />
           </div>
-          <div class="space-y-1 min-w-[220px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">系列</label>
+          <div class="space-y-1 min-w-full md:min-w-[220px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">系列</label>
             <div
-              class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
+              class="field min-h-[38px] w-full"
               contenteditable="true"
               data-edit-field="series"
               data-singleline="true"
@@ -156,10 +154,10 @@
             >{{ book.series or "" }}</div>
             <input type="hidden" name="series" data-edit-target="series" value="{{ book.series or '' }}" />
           </div>
-          <div class="space-y-1 min-w-[220px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">出版社</label>
+          <div class="space-y-1 min-w-full md:min-w-[220px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">出版社</label>
             <div
-              class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
+              class="field min-h-[38px] w-full"
               contenteditable="true"
               data-edit-field="publisher"
               data-autofill-target="publisher"
@@ -170,10 +168,10 @@
             >{{ book.publisher or "" }}</div>
             <input type="hidden" name="publisher" data-edit-target="publisher" value="{{ book.publisher or '' }}" />
           </div>
-          <div class="space-y-1 min-w-[220px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">标签</label>
+          <div class="space-y-1 min-w-full md:min-w-[220px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">标签</label>
             <div
-              class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
+              class="field min-h-[38px] w-full"
               contenteditable="true"
               data-edit-field="tags"
               data-autofill-target="tags"
@@ -184,10 +182,10 @@
             >{{ book.tags | join(", ") if book.tags else "" }}</div>
             <input type="hidden" name="tags" data-edit-target="tags" value="{{ book.tags | join(', ') if book.tags else '' }}" />
           </div>
-          <div class="space-y-1 min-w-[220px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">发表时间</label>
+          <div class="space-y-1 min-w-full md:min-w-[220px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">发表时间</label>
             <div
-              class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white"
+              class="field min-h-[38px] w-full"
               contenteditable="true"
               data-edit-field="published"
               data-autofill-target="published"
@@ -198,10 +196,10 @@
             >{{ book.published[:10] if book.published else "" }}</div>
             <input type="hidden" name="published" data-edit-target="published" value="{{ book.published[:10] if book.published else '' }}" />
           </div>
-          <div class="space-y-1 min-w-[220px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">ISBN</label>
+          <div class="space-y-1 min-w-full md:min-w-[220px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">ISBN</label>
             <div
-              class="min-h-[38px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-700 bg-white font-mono"
+              class="field min-h-[38px] w-full font-mono"
               contenteditable="true"
               data-edit-field="isbn"
               data-autofill-target="isbn"
@@ -212,32 +210,32 @@
             >{{ book.isbn or "" }}</div>
             <input type="hidden" name="isbn" data-edit-target="isbn" value="{{ book.isbn or '' }}" />
           </div>
-          <div class="space-y-1 min-w-[280px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">封面 <span class="normal-case font-medium text-slate-400">(本地上传)</span></label>
+          <div class="space-y-1 min-w-full md:min-w-[280px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">封面 <span class="normal-case font-medium text-ink-3">(本地上传)</span></label>
             <input
-              class="w-full text-sm text-slate-700 border border-slate-300 rounded-lg file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+              class="field w-full file:mr-3 file:py-2 file:border-0 file:bg-line"
               type="file"
               name="cover_file"
               accept="image/*"
             />
-            <p class="text-[11px] text-slate-500">可选：与 URL 二选一；上传后会写入 EPUB 本体。</p>
+            <p class="text-[11px] text-ink-3">可选：与 URL 二选一；上传后会写入 EPUB 本体。</p>
           </div>
-          <div class="space-y-1 min-w-[280px] flex-1">
-            <label class="text-xs font-semibold text-slate-500 uppercase">封面 <span class="normal-case font-medium text-slate-400">(URL 下载)</span></label>
+          <div class="space-y-1 min-w-full md:min-w-[280px] flex-1">
+            <label class="text-xs font-semibold text-ink-3 uppercase">封面 <span class="normal-case font-medium text-ink-3">(URL 下载)</span></label>
             <input
-              class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
+              class="field w-full"
               type="url"
               name="cover_url"
               data-autofill-target="cover_url"
               placeholder="https://example.com/cover.jpg"
               value="{{ book.cover_fetch_url or '' }}"
             />
-            <p class="text-[11px] text-slate-500">可选：保存时会下载并写回到 EPUB。</p>
+            <p class="text-[11px] text-ink-3">可选：保存时会下载并写回到 EPUB。</p>
           </div>
           <div class="space-y-1 w-full">
-            <label class="text-xs font-semibold text-slate-500 uppercase">内容简介</label>
+            <label class="text-xs font-semibold text-ink-3 uppercase">内容简介</label>
             <div
-              class="min-h-[120px] w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm leading-relaxed text-slate-700 bg-white whitespace-pre-wrap"
+              class="field min-h-[120px] w-full"
               contenteditable="true"
               data-edit-field="description"
               data-autofill-target="description"
@@ -246,21 +244,21 @@
               aria-label="内容简介"
               spellcheck="false"
             >{{ book.description or "" }}</div>
-            <textarea name="description" data-edit-target="description" class="hidden">{{ book.description or '' }}</textarea>
+            <textarea name="description" data-edit-target="description" class="field hidden">{{ book.description or '' }}</textarea>
           </div>
         </div>
 
-        <div class="pt-5 border-t border-slate-100 space-y-4">
+        <div class="pt-5 border-t border-line space-y-4">
           <div>
-            <h3 class="text-sm font-semibold text-slate-900">构建设置</h3>
-            <p class="text-xs text-slate-500 mt-1">解析规则影响重新生成；渲染主题与自定义 CSS 会写回到 EPUB。</p>
+            <h3 class="text-sm font-semibold text-ink">构建设置</h3>
+            <p class="text-xs text-ink-3 mt-1">解析规则影响重新生成；渲染主题与自定义 CSS 会写回到 EPUB。</p>
           </div>
 
           <div class="grid lg:grid-cols-2 gap-6">
             {% if book.can_regenerate %}
               <div class="space-y-1">
-                <label class="text-xs font-semibold text-slate-500 uppercase">切章规则 <span class="normal-case font-medium text-slate-400">(仅 TXT)</span></label>
-                <select name="rule_template" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm">
+                <label class="text-xs font-semibold text-ink-3 uppercase">切章规则 <span class="normal-case font-medium text-ink-3">(仅 TXT)</span></label>
+                <select name="rule_template" class="field w-full">
                   {% for rule in rules %}
                     <option value="{{ rule.rule_id }}" {% if book.rule_template == rule.rule_id %}selected{% endif %}>
                       {{ rule.name }} · v{{ rule.version }}
@@ -273,8 +271,8 @@
             {% endif %}
 
             <div class="space-y-1">
-              <label class="text-xs font-semibold text-slate-500 uppercase">渲染主题</label>
-              <select name="theme_template" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm">
+              <label class="text-xs font-semibold text-ink-3 uppercase">渲染主题</label>
+              <select name="theme_template" class="field w-full">
                 <option value="__book__" {% if book.source_type == "epub" and book.theme_template == "__book__" %}selected{% endif %}>保持书籍样式（仅 EPUB）</option>
                 {% for theme in themes %}
                   <option value="{{ theme.theme_id }}" {% if book.effective_theme_template == theme.theme_id %}selected{% endif %}>
@@ -282,38 +280,38 @@
                   </option>
                 {% endfor %}
               </select>
-              <p class="text-[11px] text-slate-500">会作为最后一层 CSS 追加（用于字体/边距等统一化）。</p>
+              <p class="text-[11px] text-ink-3">会作为最后一层 CSS 追加（用于字体/边距等统一化）。</p>
             </div>
-            <div class="space-y-2 border border-slate-200 rounded-xl p-4 bg-slate-50/30">
-              <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+            <div class="space-y-2 section">
+              <label class="inline-flex items-center gap-2 text-sm text-ink-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   name="strip_original_css"
                   value="1"
-                  class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  class="h-4 w-4 rounded-[2px] border-mute text-ink focus:ring-accent"
                   {% if strip_original_css %}checked{% endif %}
                 />
                 <span class="font-medium">清除原书 CSS（link/style）</span>
               </label>
-              <div class="text-xs text-slate-500">
+              <div class="text-xs text-ink-3">
                 仅本次写回生效：会移除 EPUB 原有样式表链接、内联 &lt;style&gt; 和 CSS 资源文件，再按“渲染主题 + 本书追加 CSS”重新注入。
               </div>
             </div>
-            <div class="space-y-2 border border-slate-200 rounded-xl p-4 bg-slate-50/30">
+            <div class="space-y-2 section">
               <div class="flex items-center justify-between gap-2">
-                <div class="text-sm font-medium text-slate-700">高级：针对本书追加 CSS</div>
+                <div class="text-sm font-medium text-ink-2">高级：针对本书追加 CSS</div>
                 <button
                   type="button"
-                  class="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+                  class="btn btn-quiet btn-sm"
                   data-format-target="book-custom-css"
                 >格式化</button>
               </div>
-              <div class="text-xs text-slate-500">这段 CSS 会追加在主题之后，优先生效。</div>
+              <div class="text-xs text-ink-3">这段 CSS 会追加在主题之后，优先生效。</div>
               <textarea
                 id="book-custom-css"
                 name="custom_css"
                 rows="8"
-                class="w-full p-3 font-mono text-xs border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
+                class="field w-full font-mono"
                 placeholder="/* 例如：body { font-family: 'Noto Serif SC'; } */"
               >{{ book.custom_css or '' }}</textarea>
             </div>
@@ -469,8 +467,8 @@
         ratingStars.forEach((star) => {
           const starValue = Number(star.dataset.ratingStar || 0);
           const active = numeric && starValue <= numeric;
-          star.classList.toggle("text-amber-500", active);
-          star.classList.toggle("text-slate-300", !active);
+          star.classList.toggle("text-accent", active);
+          star.classList.toggle("text-mute", !active);
           star.setAttribute("aria-pressed", active ? "true" : "false");
         });
         if (ratingLabel) ratingLabel.textContent = numeric ? `${numeric} 星` : "未评分";
@@ -481,10 +479,7 @@
         autofillTargets.forEach((target) => {
           const key = target.dataset.autofillTarget;
           const active = changed.has(key);
-          target.classList.toggle("bg-amber-50", active);
-          target.classList.toggle("ring-2", active);
-          target.classList.toggle("ring-amber-300", active);
-          target.classList.toggle("border-amber-300", active);
+          target.classList.toggle("autofill-changed", active);
         });
       }
 
@@ -493,11 +488,7 @@
           const source = (btn.dataset.applySource || "").trim();
           const label = btn.dataset.sourceLabel || source;
           const active = source && source === selectedSource;
-          btn.classList.toggle("border-indigo-300", active);
-          btn.classList.toggle("text-indigo-700", active);
-          btn.classList.toggle("bg-indigo-50", active);
-          btn.classList.toggle("border-slate-300", !active);
-          btn.classList.toggle("bg-white", !active);
+          btn.classList.toggle("chip-on", active);
           btn.textContent = active ? `${label}（已应用）` : label;
         });
       }
@@ -639,8 +630,8 @@
           const titleField = form.querySelector('[data-edit-field="title"]');
           if (titleField) {
             titleField.focus();
-            titleField.classList.add("ring-2", "ring-red-400");
-            setTimeout(() => titleField.classList.remove("ring-2", "ring-red-400"), 1500);
+            titleField.classList.add("ring-2", "ring-danger");
+            setTimeout(() => titleField.classList.remove("ring-2", "ring-danger"), 1500);
           }
         }
       });

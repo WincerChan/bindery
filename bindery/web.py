@@ -159,7 +159,11 @@ async def startup() -> None:
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
-    if path.startswith("/static") or path.startswith("/login"):
+    if path == "/static" or path.startswith("/static/"):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+    if path.startswith("/login"):
         return await call_next(request)
     session_id = request.cookies.get(SESSION_COOKIE)
     if not is_authenticated(session_id):

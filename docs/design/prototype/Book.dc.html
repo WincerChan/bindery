@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>书目详情</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+SC:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EFEFEC}
+a{color:#141414}a:hover{color:#000}
+.root{font-family:"Noto Sans SC","PingFang SC",system-ui,sans-serif;color:#141414;background:#EFEFEC;min-height:100vh;font-size:14px}
+.mono{font-family:"IBM Plex Mono","SF Mono",ui-monospace,monospace}
+.wrap{max-width:1376px;margin:0 auto;padding:0 32px;box-sizing:border-box}
+header{border-bottom:1px solid #D6D6D1}
+.nav{height:52px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:#141414;font-weight:700;font-size:16px;letter-spacing:-.01em}
+.mark{width:14px;height:14px;background:#141414;position:relative;display:block}
+.mark::after{content:"";position:absolute;right:-3px;top:-3px;width:6px;height:6px;border-radius:50%;background:#FF5A1F}
+.links{display:flex;height:52px;align-items:stretch}
+.nl{display:flex;align-items:center;padding:0 12px;color:#4A4A47;text-decoration:none;position:relative;font-size:13.5px}
+.nl.on{color:#141414;font-weight:600}
+.nl.on::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;background:#FF5A1F}
+.btn{height:34px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:2px;font-size:13px;font-family:inherit;cursor:pointer;text-decoration:none;box-sizing:border-box;white-space:nowrap}
+.btn-primary{background:#141414;color:#FAFAF8;border:1px solid #141414}
+.btn-primary:hover{background:#000;color:#FAFAF8}
+.btn-secondary{background:#FAFAF8;color:#141414;border:1px solid #D6D6D1}
+.btn-secondary:hover{border-color:#141414}
+.btn-quiet{background:transparent;color:#4A4A47;border:1px solid transparent}
+.btn-danger{background:transparent;color:#C2341B;border:1px solid #E9B9AE}
+.field{height:34px;border:1px solid #D6D6D1;background:#FAFAF8;border-radius:2px;padding:0 10px;font:inherit;font-size:13px;color:#141414;box-sizing:border-box}
+.lbl{font-family:"IBM Plex Mono","SF Mono",monospace;font-size:11px;letter-spacing:.06em;color:#75756F;text-transform:uppercase}
+.spec{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #141414}
+.cell{padding:12px 16px 12px 0;border-bottom:1px solid #D6D6D1;min-width:0}
+.cell dt{font-size:12px;color:#75756F}
+.cell dd{margin:4px 0 0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dim{color:#B5B5AF}
+h2.sec{font-size:15px;font-weight:600;margin:0}
+</style>
+</helmet>
+<div class="root">
+  <header>
+    <div class="wrap nav">
+      <div style="display: flex; align-items: center; gap: 28px">
+        <a class="brand" href="#"><span class="mark"></span>Bindery</a>
+        <nav class="links" aria-label="主导航">
+          <a class="nl on" href="#">书库</a><a class="nl" href="#">入库</a><a class="nl" href="#">任务</a><a class="nl" href="#">追踪</a><a class="nl" href="#">规则</a><a class="nl" href="#">归档</a>
+        </nav>
+      </div>
+      <button class="btn btn-quiet" type="button" style="color: #75756F">退出</button>
+    </div>
+  </header>
+
+  <main class="wrap" style="padding-top: 20px; padding-bottom: 64px">
+    <nav aria-label="路径" style="font-size: 12.5px; color: #75756F; display: flex; gap: 8px">
+      <a href="#" style="color: #75756F; text-decoration: none">书库</a><span>/</span><span style="color: #141414">专业投机原理（珍藏版）</span>
+    </nav>
+
+    <div style="display: flex; gap: 48px; margin-top: 24px; flex-wrap: wrap; align-items: flex-start">
+      <div style="flex: 0 0 240px">
+        <div style="aspect-ratio: 2/3; box-shadow: 0 0 0 1px rgba(20,20,20,.08); overflow: hidden"><img src="/_blob/f476d4ab014fea242f2d26d7bd899619" alt="专业投机原理 封面" style="width: 100%; height: 100%; object-fit: cover; display: block"></div>
+        <div class="mono" style="margin-top: 10px; display: flex; justify-content: space-between; font-size: 11px; color: #75756F"><span>EPUB</span><span>更新 2026-10-19</span></div>
+      </div>
+
+      <section style="flex: 999 1 560px; min-width: 0">
+        <div class="lbl">书目</div>
+        <h1 style="margin: 8px 0 0; font-size: 32px; line-height: 1.25; font-weight: 700; letter-spacing: -.02em">专业投机原理（珍藏版）</h1>
+        <div style="margin-top: 6px; font-size: 16px; color: #4A4A47">华章经典 · 金融投资系列</div>
+        <div style="margin-top: 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 14px">
+          <span>〔美〕维克托·斯波朗迪</span>
+          <span class="dim">|</span>
+          <span style="color: #4A4A47">中文</span>
+          <span class="dim">|</span>
+          <span style="color: #FF5A1F; letter-spacing: 1px" aria-label="评分 4 星">★★★★<span style="color: #D6D6D1">★</span></span>
+          <span class="dim">|</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; color: #4A4A47"><span style="width: 7px; height: 7px; border-radius: 50%; background: #FF5A1F; display: block"></span>未读</span>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 24px; flex-wrap: wrap">
+          <a class="btn btn-primary" href="#" style="padding: 0 22px">阅读</a>
+          <a class="btn btn-secondary" href="#">下载 EPUB</a>
+          <button class="btn btn-secondary" type="button">标记已读</button>
+          <a class="btn btn-secondary" href="#">编辑</a>
+          <div style="flex: 1 1 0"></div>
+          <button class="btn btn-quiet" type="button" style="color: #C2341B">归档</button>
+        </div>
+
+        <dl class="spec" style="margin: 32px 0 0">
+          <div class="cell"><dt>系列</dt><dd>华章经典 · 金融投资系列</dd></div>
+          <div class="cell"><dt>出版社</dt><dd>机械工业出版社</dd></div>
+          <div class="cell"><dt>出版日期</dt><dd class="mono">2010-04-11</dd></div>
+          <div class="cell"><dt>ISBN</dt><dd class="mono dim">—</dd></div>
+          <div class="cell"><dt>标签</dt><dd>投资、交易</dd></div>
+          <div class="cell"><dt>来源</dt><dd>EPUB 直接入库</dd></div>
+          <div class="cell"><dt>规则模板</dt><dd class="dim">—</dd></div>
+          <div class="cell"><dt>状态</dt><dd>就绪</dd></div>
+          <div class="cell"><dt>入库时间</dt><dd class="mono">2026-10-19 00:34</dd></div>
+        </dl>
+
+        <div style="margin-top: 28px; max-width: 720px">
+          <div style="font-size: 12px; color: #75756F">简介</div>
+          <p style="margin: 8px 0 0; font-size: 14.5px; line-height: 1.85; color: #2A2A28">华尔街交易员维克托·斯波朗迪总结数十年投机生涯的方法论，从市场趋势的判断、风险与资金管理，到交易者的心理纪律，逐层展开。</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; margin-top: 48px">
+          <div style="border-top: 1px solid #D6D6D1; padding-top: 16px">
+            <h2 class="sec">重新生成</h2>
+            <p style="margin: 4px 0 12px; color: #75756F; font-size: 12.5px">切换切章规则后重新生成 EPUB。</p>
+            <div style="display: flex; gap: 8px">
+              <label style="flex: 1 1 0"><span style="position: absolute; left: -9999px">规则模板</span><select class="field" style="width: 100%"><option>默认 · v1</option></select></label>
+              <button class="btn btn-secondary" type="button">重新生成</button>
+            </div>
+          </div>
+          <div style="border-top: 1px solid #D6D6D1; padding-top: 16px">
+            <h2 class="sec" style="color: #C2341B">永久删除</h2>
+            <p style="margin: 4px 0 12px; color: #75756F; font-size: 12.5px">移除源文件、EPUB 与全部记录，无法恢复。</p>
+            <button class="btn btn-danger" type="button">删除这本书…</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

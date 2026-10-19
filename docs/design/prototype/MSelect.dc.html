@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>手机 · 多选</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+SC:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#141414}
+.root{width:390px;height:844px;position:relative;overflow:hidden;background:#EFEFEC;font-family:"Noto Sans SC","PingFang SC",system-ui,sans-serif;color:#141414;font-size:14px}
+.mono{font-family:"IBM Plex Mono","SF Mono",ui-monospace,monospace}
+.top{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 16px;border-bottom:1px solid #D6D6D1;background:#FAFAF8}
+.tb{height:40px;padding:0 10px;border:0;background:transparent;font:inherit;font-size:14px;color:#141414;border-radius:2px}
+.row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #D6D6D1}
+.row.sel{background:#FFE6DB}
+.cb{width:20px;height:20px;accent-color:#FF5A1F;margin:0;flex-shrink:0}
+.gen{container-type:inline-size;position:relative;overflow:hidden;width:48px;height:72px;flex-shrink:0;box-shadow:0 0 0 1px rgba(20,20,20,.08)}
+.gen .gi{position:absolute;inset:0;padding:12cqi 11cqi;box-sizing:border-box}
+.gen .gr{width:24cqi;height:2px;background:currentColor;margin-bottom:10cqi}
+.gen .ch{font-weight:700;font-size:44cqi;line-height:1}
+.c-0{background:#141414;color:#FAFAF8}.c-1{background:#8C8A84;color:#141414}.c-2{background:#D6D6D1;color:#141414}.c-3{background:#3A3A38;color:#FAFAF8}.c-4{background:#BDB8AD;color:#141414}
+.t{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a{font-size:12.5px;color:#4A4A47;margin-top:2px}
+.m{font-family:"IBM Plex Mono","SF Mono",monospace;font-size:11px;color:#75756F;margin-top:4px}
+.bar{position:absolute;left:0;right:0;bottom:0;padding:10px 12px 30px;background:#141414;color:#FAFAF8;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;box-shadow:0 -12px 24px -16px rgba(0,0,0,.5)}
+.bb{height:44px;border:1px solid rgba(250,250,248,.25);background:transparent;color:#FAFAF8;font:inherit;font-size:14px;border-radius:2px}
+</style>
+</helmet>
+<div class="root">
+  <div class="top">
+    <span style="font-weight: 600">已选 <span class="mono" style="color: #FF5A1F; font-size: 16px">3</span> 册</span>
+    <div style="display: flex">
+      <button class="tb" type="button">全选本页</button>
+      <button class="tb" type="button">清空</button>
+      <button class="tb" type="button" style="font-weight: 600">完成</button>
+    </div>
+  </div>
+
+  <div style="padding: 12px 16px; font-size: 12.5px; color: #75756F">点按整行选择，再次点按取消</div>
+
+  <div style="border-top: 1px solid #141414">
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+      <label class="row {{r.cls}}">
+        <input class="cb" type="checkbox" checked="{{r.sel}}">
+        <div class="gen c-{{r.c}}"><div class="gi"><div class="gr"></div><div class="ch">{{r.ch}}</div></div></div>
+        <div style="flex: 1 1 0; min-width: 0">
+          <div class="t">{{r.title}}</div>
+          <div class="a">{{r.author}}</div>
+          <div class="m">{{r.fmt}} · {{r.date}}</div>
+        </div>
+      </label>
+    </sc-for>
+  </div>
+
+  <div class="bar" role="toolbar" aria-label="批量操作">
+    <button class="bb" type="button">批量下载</button>
+    <button class="bb" type="button" style="color: #FF9E7A; border-color: rgba(255,158,122,.45)">批量归档</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const raw = [
+      ['长安的荔枝', '马伯庸', 0, 'TXT', '10-19'], ['活着', '余华', 1, 'TXT', '10-18'],
+      ['三体', '刘慈欣', 2, 'TXT', '10-18'], ['平凡的世界', '路遥', 3, 'TXT', '10-15'],
+      ['许三观卖血记', '余华', 4, 'TXT', '10-12'], ['白鹿原', '陈忠实', 2, 'TXT', '10-11'],
+      ['围城', '钱锺书', 3, 'TXT', '10-10']
+    ];
+    const rows = raw.map((r, i) => {
+      const sel = i === 0 || i === 2 || i === 3;
+      return { title: r[0], author: r[1], c: r[2], fmt: r[3], date: r[4], ch: r[0].charAt(0), sel, cls: sel ? 'sel' : '' };
+    });
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

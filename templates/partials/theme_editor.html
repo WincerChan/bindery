@@ -1,5 +1,5 @@
 <div
-  class="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col min-h-0"
+  class="border-t border-line overflow-hidden flex flex-col min-h-0"
   x-data="{
     css: '',
     init() {
@@ -133,30 +133,30 @@
   }"
   x-init="init()"
 >
-  <div class="p-3 border-b border-slate-200 flex items-center justify-between gap-3 bg-white">
+  <div class="py-3 border-b border-line flex flex-wrap items-center justify-between gap-3">
     <div class="min-w-0">
       <div class="flex items-center gap-2">
-        <h3 class="font-bold text-slate-900 truncate">{{ theme.name }}</h3>
-        <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded border border-green-200">v{{ theme.version }}</span>
+        <h3 class="section-title truncate">{{ theme.name }}</h3>
+        <span class="px-2 py-0.5 bg-surface text-ok text-xs rounded-[2px] border border-line">v{{ theme.version }}</span>
       </div>
-      <div class="text-xs text-slate-500 mt-1 truncate">{{ theme.description or "—" }}</div>
+      <div class="text-xs text-ink-3 mt-1 truncate">{{ theme.description or "—" }}</div>
     </div>
-    <div class="flex items-center gap-2 shrink-0">
+    <div class="flex flex-wrap items-center gap-2">
       {% if saved %}
-        <span class="px-2 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 rounded border border-emerald-200">已保存</span>
+        <span class="px-2 py-1 text-xs font-medium bg-surface text-ok rounded-[2px] border border-line">已保存</span>
       {% endif %}
       <button
         type="button"
-        class="flex items-center gap-2 px-3 py-2 bg-white text-slate-700 text-sm rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"
+        class="btn btn-secondary"
         @click="formatCss()"
       >格式化</button>
-      <button form="theme-form" class="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm rounded-lg hover:bg-slate-900 cursor-pointer" type="submit">
+      <button form="theme-form" class="btn btn-primary" type="submit">
         保存
       </button>
     </div>
   </div>
   {% if error %}
-    <div class="px-4 py-2 text-sm text-red-700 bg-red-50 border-b border-red-200">
+    <div class="px-4 py-2 text-sm text-danger bg-surface border-b border-danger-line">
       {{ error }}
     </div>
   {% endif %}
@@ -170,32 +170,32 @@
     hx-swap="innerHTML"
     class="flex-1 grid grid-cols-12 gap-4 p-4 min-h-0"
   >
-    <div class="col-span-12 lg:col-span-5 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden min-h-0">
-      <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 text-xs font-mono text-slate-500 flex justify-between">
-        <span>THEME CSS</span>
-        <span class="text-pink-600 font-bold">GLOBAL</span>
+    <div class="col-span-12 lg:col-span-5 border-t border-line flex flex-col overflow-hidden min-h-0">
+      <div class="bg-line px-4 py-2 border-b border-line text-xs font-mono text-ink-3 flex justify-between">
+        <span>主题 CSS</span>
+        <span class="text-ink-3 font-bold">全局</span>
       </div>
       <textarea
         x-ref="cssInput"
         @input.debounce.150ms="css = $event.target.value; updatePreview()"
         name="css"
-        class="flex-1 w-full p-4 font-mono text-xs resize-none focus:outline-none text-slate-700 min-h-[240px]"
-        placeholder="/* Add CSS here */"
+        class="field flex-1 w-full font-mono resize-none min-h-[240px]"
+        placeholder="/* 在这里输入 CSS */"
       >{{ theme.css }}</textarea>
-      <div class="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-200 bg-white">
+      <div class="px-4 py-2 text-[11px] text-ink-3 border-t border-line bg-surface">
         保存后会写入主题文件；书籍侧的“渲染主题/自定义 CSS”会写回到 EPUB。
       </div>
     </div>
 
-    <div class="col-span-12 lg:col-span-7 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden min-h-0">
-      <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 text-xs font-mono text-slate-500 flex justify-between">
-        <span>LIVE PREVIEW</span>
-        <span class="text-indigo-600 font-bold">SANDBOX</span>
+    <div class="col-span-12 lg:col-span-7 border-t border-line flex flex-col overflow-hidden min-h-0">
+      <div class="bg-line px-4 py-2 border-b border-line text-xs font-mono text-ink-3 flex justify-between">
+        <span>实时预览</span>
+        <span class="text-ink font-bold">沙盒</span>
       </div>
       <div class="flex-1 p-4 min-h-0">
-        <iframe x-ref="frame" class="w-full h-full rounded-lg border border-slate-200 bg-white"></iframe>
+        <iframe x-ref="frame" class="w-full h-full rounded-[2px] border border-line bg-surface"></iframe>
       </div>
-      <div class="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-200 bg-white flex justify-center">
+      <div class="px-4 py-2 text-[11px] text-ink-3 border-t border-line bg-surface flex justify-center">
         预览仅用于检查排版效果（不会影响页面自身样式）。
       </div>
     </div>

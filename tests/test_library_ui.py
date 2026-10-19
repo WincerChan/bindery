@@ -38,8 +38,8 @@ class LibraryUiTests(unittest.TestCase):
         self.assertIn("data-book-card", tpl)
         self.assertIn('data-book-layout="grid"', tpl)
         self.assertIn('data-book-layout="list"', tpl)
-        self.assertIn("sm:w-[72px]", tpl)
-        self.assertIn("grid grid-cols-3 gap-1.5", tpl)
+        self.assertIn("md:w-[72px]", tpl)
+        self.assertIn("flex items-center justify-end gap-1", tpl)
         self.assertIn("data-book-select", tpl)
         self.assertIn("data-book-select-wrap", tpl)
         self.assertIn("data-book-detail-link", tpl)
@@ -53,10 +53,10 @@ class LibraryUiTests(unittest.TestCase):
         index = (root / "templates" / "index.html").read_text(encoding="utf-8")
         section = (root / "templates" / "partials" / "library_section.html").read_text(encoding="utf-8")
         self.assertIn('{% include "partials/library_section.html" %}', index)
-        self.assertIn("gap-5", section)
-        self.assertIn("grid-cols-auto-180", section)
+        self.assertIn("library-grid", section)
+        self.assertIn("grid-cols-auto-136", section)
         self.assertIn("data-[view=list]:!grid-cols-1", section)
-        self.assertIn("hidden md:flex bg-slate-100", index)
+        self.assertIn("seg hidden md:flex", index)
         self.assertIn("window.matchMedia('(max-width: 767px)')", index)
         self.assertIn("isMobileViewport() ? 'list'", index)
 
@@ -108,7 +108,7 @@ class LibraryUiTests(unittest.TestCase):
     def test_auto_grid_column_uses_flexible_width(self) -> None:
         root = Path(__file__).resolve().parent.parent
         css = (root / "static" / "tailwind.css").read_text(encoding="utf-8")
-        self.assertIn("repeat(auto-fill, minmax(180px, 1fr))", css)
+        self.assertIn("repeat(auto-fill, minmax(136px, 1fr))", css)
 
     def test_book_detail_and_edit_templates_keep_return_to(self) -> None:
         root = Path(__file__).resolve().parent.parent

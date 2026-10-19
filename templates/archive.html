@@ -1,83 +1,40 @@
 {% extends "base.html" %}
-
 {% block title %}归档 · Bindery{% endblock %}
-
 {% block content %}
-<section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-  <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-6">
-    <div>
-      <h2 class="text-xl font-bold text-slate-900">归档书籍</h2>
-      <p class="text-sm text-slate-500 mt-1">已归档 {{ books | length }} 本。</p>
-    </div>
-  </div>
-
-  <div class="flex flex-col md:flex-row md:items-center gap-3 justify-between mb-6 pb-4 border-b border-slate-100">
-    <div class="flex items-center gap-3 text-sm">
-      <span class="font-medium text-slate-700">批量操作</span>
-      <span class="text-slate-500">已选 <span data-archive-selected-count>0</span> 本</span>
-    </div>
-    <div class="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        data-archive-select-all
-        class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-      >全选当前页</button>
-      <button
-        type="button"
-        data-archive-clear
-        class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-      >清空</button>
+<section>
+  <div class="page-head"><h1 class="page-title">归档</h1><span class="meta">{{ books|length }} 册</span>{% if books %}<button type="button" data-archive-select-all class="btn btn-secondary ml-auto">全选本页</button>{% endif %}</div>
+  {% if books %}
+  <div data-archive-bulk-bar class="bulk-bar hidden" role="toolbar" aria-label="归档批量操作">
+    <span>已选 <span data-archive-selected-count class="bulk-count">0</span> 册</span>
+    <div class="bulk-tools"><button type="button" data-archive-clear class="btn btn-quiet">清空</button></div>
+    <div class="bulk-actions">
       <form id="archive-bulk-delete-form" action="/archive/delete-bulk" method="post" class="m-0">
         <div data-archive-book-ids></div>
-        <button
-          type="submit"
-          data-archive-bulk-delete
-          class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-red-200 rounded-lg bg-white text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled
-        >批量删除</button>
+        <button type="submit" data-archive-bulk-delete class="btn btn-quiet bulk-danger" disabled>批量删除</button>
       </form>
     </div>
   </div>
-
-  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+  <div class="border-t border-ink">
+    <div class="archive-row meta max-md:hidden"><span></span><span></span><span>书名 / 作者</span><span>出版</span><span>格式</span><span>更新</span><span>操作</span></div>
     {% for book in books %}
-      <article class="relative bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden transition-shadow flex flex-col opacity-95">
-        <div class="absolute mt-3 ml-3 z-10">
-          <input
-            type="checkbox"
-            value="{{ book.book_id }}"
-            data-archive-select
-            aria-label="选择《{{ book.title }}》"
-            class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-          />
+      {% set tone = (book.book_id[:2] | int(0, 16)) % 5 %}
+      <article class="archive-row">
+        <input type="checkbox" value="{{ book.book_id }}" data-archive-select aria-label="选择《{{ book.title }}》" class="h-4 w-4" />
+        <div class="cover cover-gen cover-tone-{{ tone }} w-[48px] md:w-[72px]">
+          <div class="cover-gen-inner"><div><div class="cover-gen-rule"></div><div class="cover-gen-title">{{ book.title }}</div><div class="cover-gen-char">{{ book.title[:1] }}</div></div></div>
         </div>
-        <div class="aspect-[2/3] bg-slate-100 flex items-center justify-center">
-          <div class="w-12 h-12 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500 font-bold text-xl">
-            {{ book.title[:1] }}
-          </div>
-        </div>
-        <div class="p-4 flex-1 flex flex-col">
-          <h3 class="font-semibold text-slate-900 truncate" title="{{ book.title }}">{{ book.title }}</h3>
-          <p class="text-sm text-slate-500 mt-1 truncate">{{ book.author or "未知" }}</p>
-          <div class="mt-3 text-xs text-slate-400 font-mono truncate" title="{{ book.book_id }}">{{ book.book_id }}</div>
-          <div class="mt-auto pt-3 flex flex-wrap gap-2">
-            <form action="/book/{{ book.book_id }}/restore" method="post" class="m-0">
-              <button class="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors cursor-pointer" type="submit">
-                恢复
-              </button>
-            </form>
-            <form action="/book/{{ book.book_id }}/delete" method="post" onsubmit="return confirm('确定永久删除？');" class="m-0">
-              <button class="px-3 py-1.5 text-xs font-medium bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer" type="submit">
-                删除
-              </button>
-            </form>
-          </div>
+        <div class="min-w-0"><h3 class="text-[15px] font-semibold truncate" title="{{ book.title }}">{{ book.title }}</h3><p class="text-[12.5px] text-ink-3 mt-1 truncate">{{ book.author or "未知" }}</p><div class="meta mt-1 md:hidden">{{ (book.source_type or 'txt')|upper }}{% if book.updated_at %} · {{ book.updated_at[:10] }}{% endif %}</div></div>
+        <div class="hidden md:block text-[12.5px] text-ink-3 truncate">{{ book.publisher or '—' }}{% if book.published %} · {{ book.published[:4] }}{% endif %}</div>
+        <span class="hidden md:block meta">{{ (book.source_type or 'txt')|upper }}</span>
+        <span class="hidden md:block meta">{{ book.updated_at[:10] if book.updated_at else '—' }}</span>
+        <div class="archive-actions flex items-center gap-2">
+          <form action="/book/{{ book.book_id }}/restore" method="post" class="m-0"><button class="btn btn-secondary btn-sm" type="submit">恢复</button></form>
+          <form action="/book/{{ book.book_id }}/delete" method="post" onsubmit="return confirm('确定永久删除？');" class="m-0"><button class="btn btn-danger btn-sm" type="submit">彻底删除</button></form>
         </div>
       </article>
-    {% else %}
-      <div class="col-span-full text-sm text-slate-500 text-center py-12">归档为空。</div>
     {% endfor %}
   </div>
+  {% else %}<div class="text-sm text-ink-3 text-center py-12">归档为空。</div>{% endif %}
 </section>
 
 <script>
@@ -101,6 +58,7 @@
     function syncCheckboxes() {
       document.querySelectorAll('[data-archive-select]').forEach((node) => {
         node.checked = selectedBookIds.has(node.value);
+        node.closest('.archive-row')?.classList.toggle('is-selected', node.checked);
       });
     }
 
@@ -126,6 +84,7 @@
       syncCheckboxes();
       syncHiddenIds();
       const count = selectedBookIds.size;
+      document.querySelector('[data-archive-bulk-bar]')?.classList.toggle('hidden', count === 0);
       if (selectedCount) selectedCount.textContent = String(count);
       if (bulkDeleteBtn) bulkDeleteBtn.disabled = count === 0;
     }
@@ -160,7 +119,7 @@
           event.preventDefault();
           return;
         }
-        const confirmed = window.confirm(`确定永久删除选中的 ${selectedBookIds.size} 本归档书籍吗？`);
+        const confirmed = window.confirm(`确定永久删除选中的 ${selectedBookIds.size} 册归档书籍吗？`);
         if (!confirmed) event.preventDefault();
       });
     }

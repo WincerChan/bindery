@@ -4,11 +4,14 @@
 
 {% block content %}
 <div class="space-y-6">
-  <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-    <form action="/tracker" method="get" class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto flex-1">
-        <div class="relative w-full md:w-64">
-          <svg viewBox="0 0 24 24" fill="none" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-[18px] h-[18px]" aria-hidden="true">
+  <section>
+    <form action="/tracker" method="get" class="flex flex-col items-stretch gap-3 md:flex-row md:flex-wrap md:items-center">
+      <div class="flex items-center gap-3 md:contents">
+        <h1 class="page-title">追踪</h1><span class="meta">{{ stats.total }} 册</span>
+      </div>
+      <div class="flex flex-col gap-3 min-w-0 md:flex-row md:flex-wrap md:items-center md:flex-1">
+        <div class="relative w-full md:w-[260px]">
+          <svg viewBox="0 0 24 24" fill="none" class="absolute left-3 inset-y-0 my-auto text-ink-3 w-[18px] h-[18px]" aria-hidden="true">
             <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2"></path>
             <path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
           </svg>
@@ -16,15 +19,15 @@
             type="search"
             name="q"
             value="{{ q }}"
-            placeholder="Search title, author, tag..."
-            class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="搜索书名、作者、标签"
+            class="field w-full pl-10 pr-4"
           />
         </div>
 
-        <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+        <div class="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
           <select
             name="read_filter"
-            class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[120px]"
+            class="field md:min-w-[120px]"
           >
             <option value="all" {% if read_filter == 'all' %}selected{% endif %}>阅读状态: 全部</option>
             <option value="unread" {% if read_filter == 'unread' %}selected{% endif %}>未读</option>
@@ -34,7 +37,7 @@
 
           <select
             name="library_filter"
-            class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[120px]"
+            class="field md:min-w-[120px]"
           >
             <option value="all" {% if library_filter == 'all' %}selected{% endif %}>入库: 全部</option>
             <option value="in_library" {% if library_filter == 'in' %}selected{% endif %}>已入库</option>
@@ -43,7 +46,7 @@
 
           <select
             name="book_status_filter"
-            class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[120px]"
+            class="field md:min-w-[120px]"
           >
             <option value="all" {% if book_status_filter == 'all' %}selected{% endif %}>连载: 全部</option>
             <option value="ongoing" {% if book_status_filter == 'ongoing' %}selected{% endif %}>更新中</option>
@@ -53,42 +56,42 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <a
           href="/tracker"
-          class="h-10 px-3 inline-flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap"
-        >Clear</a>
+          class="btn btn-secondary"
+        >清除</a>
         <a
           href="{{ export_url }}"
-          class="h-10 px-3 inline-flex items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors whitespace-nowrap"
-        >Export CSV</a>
+          class="btn btn-secondary"
+        >导出 CSV</a>
         <button
           type="submit"
-          class="h-10 px-4 rounded-lg font-medium border border-indigo-600 text-indigo-700 hover:bg-indigo-50 transition-colors whitespace-nowrap"
-        >Filter</button>
+          class="btn btn-secondary"
+        >筛选</button>
         <button
           type="button"
           data-open-add-modal
-          class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors whitespace-nowrap"
+          class="btn btn-primary"
         >
           <span class="text-base leading-none">+</span>
-          <span>Add Book</span>
+          <span>添加书籍</span>
         </button>
       </div>
     </form>
 
-    <div class="mt-3 text-xs text-slate-500">
+    <div class="mt-3 text-xs text-ink-3">
       当前显示 {{ stats.filtered }} / {{ stats.total }} · 已读 {{ stats.read }} · 在读 {{ stats.reading }} · 未读 {{ stats.unread }} · 已入库 {{ stats.in_library }}
     </div>
     {% if duplicate_notice %}
-      <div class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+      <div class="mt-3 text-xs text-ink-2 border-t border-line px-3 py-2">
         已存在追踪条目：{{ duplicate_notice.title }}{% if duplicate_notice.author %} - {{ duplicate_notice.author }}{% endif %}，
         <button
           type="button"
           data-open-edit-from-notice
           data-wish-id="{{ duplicate_notice.id }}"
           data-source-id="wish-edit-data-duplicate-notice"
-          class="underline underline-offset-2 text-amber-800 hover:text-amber-900"
+          class="btn btn-quiet"
         >点此前往编辑该条目。</button>
       </div>
       <form id="wish-edit-data-duplicate-notice" class="hidden" aria-hidden="true">
@@ -104,10 +107,10 @@
     {% endif %}
   </section>
 
-  <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+  <section class="overflow-hidden">
     <div class="overflow-x-auto">
-    <table class="min-w-[900px] w-full text-left border-collapse">
-      <thead class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold">
+    <table class="data-table tracker-table">
+      <thead class="uppercase">
         <tr>
           <th class="px-4 py-3 whitespace-nowrap" style="width: 15em;">书名</th>
           <th class="px-4 py-3 whitespace-nowrap" style="width: 10em;">作者</th>
@@ -118,10 +121,10 @@
           <th class="px-4 py-3 text-right whitespace-nowrap">操作</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-slate-100">
+      <tbody class="divide-y divide-line">
         {% for wish in wishes %}
-          <tr id="wish-row-{{ wish.id }}" class="hover:bg-slate-50/50 transition-colors">
-            <td class="px-4 py-2 text-base font-medium text-slate-900 leading-6">
+          <tr id="wish-row-{{ wish.id }}" class="hover:bg-surface/50 transition-colors">
+            <td class="px-4 py-2 text-base font-medium text-ink leading-6">
               <div class="flex items-start gap-1" style="max-width: 15em;">
                 <span class="block min-w-0 flex-1 truncate" title="{{ wish.title }}">{{ wish.title }}</span>
                 {% if wish.exists_in_library and wish.library_book_id %}
@@ -129,7 +132,7 @@
                     href="/book/{{ wish.library_book_id }}?return_to={{ current_url|urlencode }}"
                     aria-label="查看详情"
                     title="查看详情"
-                    class="inline-flex items-center justify-center text-indigo-500 rounded-md p-1 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                    class="btn btn-quiet btn-sm w-8 md:w-7 p-0 shrink-0"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <path d="M7 17L17 7"></path>
@@ -138,24 +141,29 @@
                   </a>
                 {% endif %}
               </div>
+              <div class="md:hidden flex items-center gap-2 font-mono text-[11px] text-ink-3 mt-1">
+                <span>{{ wish.book_status_label }}</span>
+                {% if wish.rating is not none %}<span class="text-accent" aria-label="{{ wish.rating }} 星">{{ "★" * wish.rating }}</span>{% endif %}
+                <span class="{{ 'read-mark' if wish.read_status == 'read' else '' }}">{% if wish.read_status == 'read' %}✓ {% endif %}{{ wish.read_status_label }}</span>
+              </div>
             </td>
-            <td class="px-4 py-2 text-base text-slate-600 leading-6">
+            <td class="px-4 py-2 text-base text-ink-2 leading-6">
               <span class="block truncate whitespace-nowrap" style="max-width: 10em;" title="{{ wish.author or '—' }}">{{ wish.author or "—" }}</span>
             </td>
             <td class="px-4 py-2 leading-6 whitespace-nowrap">
-              <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded border {{ wish.book_status_class }}">{{ wish.book_status_label }}</span>
+              <span class="tag {{ 'tag-finished' if wish.book_status == 'completed' else 'tag-serial' if wish.book_status == 'ongoing' else 'tag-failed' }}">{{ wish.book_status_label }}</span>
             </td>
-            <td class="px-4 py-2 text-sm text-slate-600 leading-6 whitespace-nowrap">
+            <td class="px-4 py-2 text-sm text-ink-2 leading-6 whitespace-nowrap">
               {% if wish.rating is none %}
-                <span class="text-slate-400">未评分</span>
+                <span class="text-ink-3">未评分</span>
               {% else %}
-                <span>{{ wish.rating }} / 5</span>
+                <span class="text-accent tracking-[1px]" aria-label="{{ wish.rating }} 星">{{ "★" * wish.rating }}<span class="text-line">{{ "★" * (5 - wish.rating) }}</span></span>
               {% endif %}
             </td>
             <td class="px-4 py-2 text-sm leading-6 whitespace-nowrap">
-              <span class="{{ wish.read_status_class }}">{{ wish.read_status_label }}</span>
+              <span class="{{ 'read-mark' if wish.read_status == 'read' else 'unread-dot' if wish.read_status == 'unread' else 'tag tag-running' }}">{% if wish.read_status == 'read' %}✓ {% endif %}{{ wish.read_status_label }}</span>
             </td>
-            <td class="px-4 py-2 text-sm text-slate-500 leading-6 whitespace-nowrap">{{ wish.updated_at_display }}</td>
+            <td class="px-4 py-2 text-sm text-ink-3 leading-6 whitespace-nowrap">{{ wish.updated_at_display }}</td>
             <td class="px-4 py-2 text-right whitespace-nowrap">
               <div class="inline-flex items-center gap-2">
                 <button
@@ -163,13 +171,13 @@
                   data-open-edit-modal
                   data-wish-id="{{ wish.id }}"
                   data-source-id="wish-edit-data-{{ wish.id }}"
-                  class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm"
+                  class="btn btn-secondary btn-sm"
                 >编辑</button>
                 <form action="/tracker/{{ wish.id }}/delete" method="post" class="m-0" onsubmit="return confirm('确定删除该记录？');">
                   <input type="hidden" name="next" value="{{ current_url }}" />
                   <button
                     type="submit"
-                    class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 transition-colors text-sm"
+                    class="btn btn-danger btn-sm"
                   >删除</button>
                 </form>
               </div>
@@ -187,150 +195,150 @@
           </tr>
         {% else %}
           <tr>
-            <td colspan="7" class="px-6 py-12 text-center text-slate-400">
-              <div class="text-sm">No books match your filters.</div>
-              <a href="/tracker" class="text-indigo-600 text-sm font-medium mt-2 hover:underline inline-block">Clear all filters</a>
+            <td colspan="7" class="px-6 py-12 text-center text-ink-3">
+              <div class="text-sm">没有符合筛选条件的书籍。</div>
+              <a href="/tracker" class="text-ink text-sm font-medium mt-2 hover:underline inline-block">清除全部筛选</a>
             </td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
     </div>
-    <div class="border-t border-slate-200 px-4 py-3 flex items-center justify-between text-sm">
-      <div class="text-slate-500">第 {{ page }} / {{ total_pages }} 页</div>
-      <div class="flex items-center gap-2">
+    <div class="border-t border-line px-4 py-3 flex items-center justify-between text-sm">
+      <div class="text-ink-3">第 {{ page }} / {{ total_pages }} 页</div>
+      <div class="flex flex-wrap items-center gap-2">
         {% if has_prev %}
-          <a href="{{ prev_page_url }}" class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">上一页</a>
+          <a href="{{ prev_page_url }}" class="btn btn-secondary btn-sm">上一页</a>
         {% else %}
-          <span class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-100 bg-slate-50 text-slate-400">上一页</span>
+          <span class="h-8 px-3 inline-flex items-center justify-center rounded-[2px] border border-line bg-surface text-ink-3">上一页</span>
         {% endif %}
         {% if has_next %}
-          <a href="{{ next_page_url }}" class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">下一页</a>
+          <a href="{{ next_page_url }}" class="btn btn-secondary btn-sm">下一页</a>
         {% else %}
-          <span class="h-8 px-3 inline-flex items-center justify-center rounded-md border border-slate-100 bg-slate-50 text-slate-400">下一页</span>
+          <span class="h-8 px-3 inline-flex items-center justify-center rounded-[2px] border border-line bg-surface text-ink-3">下一页</span>
         {% endif %}
       </div>
     </div>
   </section>
 
-  <div data-edit-modal class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+  <div data-edit-modal class="fixed inset-0 sheet-mask z-50 hidden items-center justify-center p-4">
+    <div class="modal-panel max-w-md w-full p-6">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-bold text-slate-900">编辑追踪</h3>
-        <button type="button" data-close-edit-modal class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        <h3 class="text-lg font-bold text-ink">编辑追踪</h3>
+        <button type="button" data-close-edit-modal class="btn btn-quiet">×</button>
       </div>
       <form data-edit-form action="/tracker" method="post" class="space-y-4">
         <input type="hidden" name="next" value="{{ current_url }}" />
         <input type="hidden" name="library_book_id" value="" />
-        <p data-edit-identity-note class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+        <p data-edit-identity-note class="hidden text-xs text-ink-2 border-t border-line px-3 py-2">
           已入库条目的书名/作者由书库元数据维护，请在书籍详情页修改。
         </p>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Title</label>
-          <input type="text" name="title" required class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Book Title" />
+          <label class="block text-sm font-medium text-ink-2 mb-1">书名</label>
+          <input type="text" name="title" required class="field w-full" placeholder="输入书名" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Author</label>
-          <input type="text" name="author" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Author Name" />
+          <label class="block text-sm font-medium text-ink-2 mb-1">作者</label>
+          <input type="text" name="author" class="field w-full" placeholder="输入作者" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Tags</label>
-          <input type="text" name="tags" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="玄幻, 仙侠" />
+          <label class="block text-sm font-medium text-ink-2 mb-1">标签</label>
+          <input type="text" name="tags" class="field w-full" placeholder="玄幻, 仙侠" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Comment</label>
-          <textarea name="comment" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="评论"></textarea>
+          <label class="block text-sm font-medium text-ink-2 mb-1">评论</label>
+          <textarea name="comment" rows="3" class="field w-full" placeholder="评论"></textarea>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
-            <select name="book_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+            <label class="block text-sm font-medium text-ink-2 mb-1">状态</label>
+            <select name="book_status" class="field w-full">
               <option value="ongoing">更新中</option>
               <option value="completed" selected>已完结</option>
               <option value="hiatus">已断更</option>
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Rating</label>
-            <select name="rating" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-              <option value="">Unrated</option>
-              <option value="5">5 Stars</option>
-              <option value="4">4 Stars</option>
-              <option value="3">3 Stars</option>
-              <option value="2">2 Stars</option>
-              <option value="1">1 Star</option>
+            <label class="block text-sm font-medium text-ink-2 mb-1">评分</label>
+            <select name="rating" class="field w-full">
+              <option value="">未评分</option>
+              <option value="5">5 星</option>
+              <option value="4">4 星</option>
+              <option value="3">3 星</option>
+              <option value="2">2 星</option>
+              <option value="1">1 星</option>
             </select>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">阅读状态</label>
-          <select name="read_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+          <label class="block text-sm font-medium text-ink-2 mb-1">阅读状态</label>
+          <select name="read_status" class="field w-full">
             <option value="unread">未读</option>
             <option value="reading">在读</option>
             <option value="read">已读</option>
           </select>
         </div>
-        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg mt-2">保存更改</button>
+        <button type="submit" class="btn btn-primary w-full mt-2">保存更改</button>
       </form>
     </div>
   </div>
 
-  <div data-add-modal class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+  <div data-add-modal class="fixed inset-0 sheet-mask z-50 hidden items-center justify-center p-4">
+    <div class="modal-panel max-w-md w-full p-6">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-bold text-slate-900">Add to Tracker</h3>
-        <button type="button" data-close-add-modal class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        <h3 class="text-lg font-bold text-ink">添加追踪</h3>
+        <button type="button" data-close-add-modal class="btn btn-quiet">×</button>
       </div>
       <form action="/tracker" method="post" class="space-y-4">
         <input type="hidden" name="next" value="{{ current_url }}" />
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Title</label>
-          <input type="text" name="title" required class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Book Title" />
-          <div data-add-existing-list class="hidden mt-2 text-xs text-slate-500 space-y-1"></div>
-          <p data-add-duplicate-hint class="hidden mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2"></p>
+          <label class="block text-sm font-medium text-ink-2 mb-1">书名</label>
+          <input type="text" name="title" required class="field w-full" placeholder="输入书名" />
+          <div data-add-existing-list class="hidden mt-2 text-xs text-ink-3 space-y-1"></div>
+          <p data-add-duplicate-hint class="hidden mt-2 text-xs text-ink-2 border-t border-line px-3 py-2"></p>
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Author</label>
-          <input type="text" name="author" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Author Name" />
+          <label class="block text-sm font-medium text-ink-2 mb-1">作者</label>
+          <input type="text" name="author" class="field w-full" placeholder="输入作者" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Tags</label>
-          <input type="text" name="tags" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="玄幻, 仙侠" />
+          <label class="block text-sm font-medium text-ink-2 mb-1">标签</label>
+          <input type="text" name="tags" class="field w-full" placeholder="玄幻, 仙侠" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Comment</label>
-          <textarea name="comment" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="评论"></textarea>
+          <label class="block text-sm font-medium text-ink-2 mb-1">评论</label>
+          <textarea name="comment" rows="3" class="field w-full" placeholder="评论"></textarea>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
-            <select name="book_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+            <label class="block text-sm font-medium text-ink-2 mb-1">状态</label>
+            <select name="book_status" class="field w-full">
               <option value="ongoing">更新中</option>
               <option value="completed" selected>已完结</option>
               <option value="hiatus">已断更</option>
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Rating</label>
-            <select name="rating" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-              <option value="">Unrated</option>
-              <option value="5">5 Stars</option>
-              <option value="4">4 Stars</option>
-              <option value="3">3 Stars</option>
-              <option value="2">2 Stars</option>
-              <option value="1">1 Star</option>
+            <label class="block text-sm font-medium text-ink-2 mb-1">评分</label>
+            <select name="rating" class="field w-full">
+              <option value="">未评分</option>
+              <option value="5">5 星</option>
+              <option value="4">4 星</option>
+              <option value="3">3 星</option>
+              <option value="2">2 星</option>
+              <option value="1">1 星</option>
             </select>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">阅读状态</label>
-          <select name="read_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+          <label class="block text-sm font-medium text-ink-2 mb-1">阅读状态</label>
+          <select name="read_status" class="field w-full">
             <option value="unread">未读</option>
             <option value="reading">在读</option>
             <option value="read">已读</option>
           </select>
         </div>
-        <button type="submit" data-add-submit-btn class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-lg mt-2">Save to Tracker</button>
+        <button type="submit" data-add-submit-btn class="btn btn-primary w-full mt-2">保存到追踪</button>
       </form>
     </div>
   </div>
@@ -420,7 +428,7 @@
       );
       const jumpBtn = document.createElement('button');
       jumpBtn.type = 'button';
-      jumpBtn.className = 'underline underline-offset-2 text-amber-800 hover:text-amber-900';
+      jumpBtn.className = 'underline underline-offset-2 text-ink-2 hover:text-ink';
       jumpBtn.textContent = '点此前往编辑该条目。';
       bindEvent(jumpBtn, 'click', () => jumpToWishEditor(wishId));
       addDuplicateHint.append(prefix, jumpBtn);
@@ -449,7 +457,7 @@
         const prefix = document.createTextNode(author ? `${title} - ${author}，` : `${title}，`);
         const jumpBtn = document.createElement('button');
         jumpBtn.type = 'button';
-        jumpBtn.className = 'underline underline-offset-2 text-indigo-600 hover:text-indigo-800';
+        jumpBtn.className = 'underline underline-offset-2 text-ink hover:text-ink';
         jumpBtn.textContent = '点此前往编辑';
         bindEvent(jumpBtn, 'click', () => jumpToWishEditor(wishId));
         row.append(prefix, jumpBtn);
@@ -612,8 +620,8 @@
       const field = form.elements.namedItem(name);
       if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
       field.readOnly = locked;
-      field.classList.toggle('bg-slate-50', locked);
-      field.classList.toggle('text-slate-500', locked);
+      field.classList.toggle('bg-surface', locked);
+      field.classList.toggle('text-ink-3', locked);
     }
 
     function setIdentityNoteVisible(visible) {

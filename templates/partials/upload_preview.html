@@ -2,7 +2,7 @@
   {% for item in previews %}
     {% set duplicates = item.duplicates or [] %}
     <div
-      class="bg-slate-50 border border-slate-200 rounded-lg p-4"
+      class="border-t border-line p-4"
       {% if duplicates %}data-duplicate-hit="1"{% endif %}
       {% if item.upload_token %}data-upload-token="{{ item.upload_token }}"{% endif %}
       data-preview-format="{{ item.format or '' }}"
@@ -10,22 +10,22 @@
       data-preview-author="{{ item.author or '' }}"
       data-preview-filename="{{ item.filename or '' }}"
     >
-      <div class="font-semibold text-slate-900 mb-3 truncate" title="{{ item.filename or item.title }}">{{ item.filename or item.title }}</div>
+      <div class="font-semibold text-ink mb-3 truncate" title="{{ item.filename or item.title }}">{{ item.filename or item.title }}</div>
       {% if item.error %}
-        <div class="mb-3 text-sm text-red-600">{{ item.error }}</div>
+        <div class="mb-3 text-sm text-danger">{{ item.error }}</div>
       {% endif %}
       {% if duplicates %}
-        <div class="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-2">
+        <div class="mb-3 rounded-[2px] border border-warn bg-surface px-3 py-2 text-xs text-ink-2 space-y-2">
           <p>
             检测到疑似重复书籍：
             {% for dup in duplicates %}
-              <a class="underline decoration-dotted hover:text-amber-900" href="/book/{{ dup.book_id }}">{{ dup.title }}（{{ dup.author }}）</a>{% if not loop.last %}；{% endif %}
+              <a class="underline decoration-dotted hover:text-ink" href="/book/{{ dup.book_id }}">{{ dup.title }}（{{ dup.author }}）</a>{% if not loop.last %}；{% endif %}
             {% endfor %}
             ，请确认是否保留：
           </p>
           {% if item.upload_token %}
             <label class="inline-flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" data-dedupe-keep-checkbox class="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+              <input type="checkbox" data-dedupe-keep-checkbox class="h-4 w-4 rounded-[2px] border-warn text-ink focus:ring-accent" />
               <span>保留（继续新建）</span>
             </label>
           {% endif %}
@@ -33,39 +33,39 @@
       {% endif %}
       <dl class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
         <div>
-          <dt class="text-xs font-semibold text-slate-500 uppercase">格式</dt>
-          <dd class="text-slate-700 font-mono">{{ item.format or "—" }}</dd>
+          <dt class="text-xs font-semibold text-ink-3 uppercase">格式</dt>
+          <dd class="text-ink-2 font-mono">{{ item.format or "—" }}</dd>
         </div>
         <div>
-          <dt class="text-xs font-semibold text-slate-500 uppercase">识别标题</dt>
-          <dd class="text-slate-700">{{ item.title or "—" }}</dd>
+          <dt class="text-xs font-semibold text-ink-3 uppercase">识别标题</dt>
+          <dd class="text-ink-2">{{ item.title or "—" }}</dd>
         </div>
         <div>
-          <dt class="text-xs font-semibold text-slate-500 uppercase">作者</dt>
-          <dd class="text-slate-700">{{ item.author or "未知" }}</dd>
+          <dt class="text-xs font-semibold text-ink-3 uppercase">作者</dt>
+          <dd class="text-ink-2">{{ item.author or "未知" }}</dd>
         </div>
         <div>
           {% if item.format == "EPUB" %}
-            <dt class="text-xs font-semibold text-slate-500 uppercase">章节</dt>
-            <dd class="text-slate-700">{{ item.chapters }}</dd>
+            <dt class="text-xs font-semibold text-ink-3 uppercase">章节</dt>
+            <dd class="text-ink-2">{{ item.chapters }}</dd>
           {% else %}
-            <dt class="text-xs font-semibold text-slate-500 uppercase">卷/章</dt>
-            <dd class="text-slate-700">{{ item.volumes }} / {{ item.chapters }}</dd>
+            <dt class="text-xs font-semibold text-ink-3 uppercase">卷/章</dt>
+            <dd class="text-ink-2">{{ item.volumes }} / {{ item.chapters }}</dd>
           {% endif %}
         </div>
         <div>
-          <dt class="text-xs font-semibold text-slate-500 uppercase">输出文件</dt>
-          <dd class="text-slate-700 font-mono truncate" title="{{ item.output }}">{{ item.output }}</dd>
+          <dt class="text-xs font-semibold text-ink-3 uppercase">输出文件</dt>
+          <dd class="text-ink-2 font-mono truncate" title="{{ item.output }}">{{ item.output }}</dd>
         </div>
         <div>
-          <dt class="text-xs font-semibold text-slate-500 uppercase">落库路径</dt>
-          <dd class="text-slate-700 font-mono truncate" title="{{ item.path }}">{{ item.path }}</dd>
+          <dt class="text-xs font-semibold text-ink-3 uppercase">落库路径</dt>
+          <dd class="text-ink-2 font-mono truncate" title="{{ item.path }}">{{ item.path }}</dd>
         </div>
       </dl>
       {% if item.toc %}
-        <div class="mt-4 pt-3 border-t border-slate-200">
-          <h4 class="text-sm font-semibold text-slate-900 mb-2">TOC 前 10 条</h4>
-          <ul class="list-disc pl-5 text-sm text-slate-600 space-y-1">
+        <div class="mt-4 pt-3 border-t border-line">
+          <h4 class="text-sm font-semibold text-ink mb-2">目录前 10 条</h4>
+          <ul class="list-disc pl-5 text-sm text-ink-2 space-y-1">
             {% for title in item.toc %}
               <li>{{ title }}</li>
             {% endfor %}
@@ -75,5 +75,5 @@
     </div>
   {% endfor %}
 {% else %}
-  <div class="text-sm text-slate-500 text-center py-6">没有可预览的内容。</div>
+  <div class="text-sm text-ink-3 text-center py-6">没有可预览的内容。</div>
 {% endif %}

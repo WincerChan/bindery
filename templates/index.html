@@ -3,21 +3,23 @@
 {% block title %}Bindery · 书库{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="library-page">
   <div
     id="library-controls"
-    class="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200"
+    class="library-toolbar"
   >
-    <div class="relative w-full md:w-96">
-      <svg viewBox="0 0 24 24" fill="none" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" aria-hidden="true">
+    <h1 class="page-title">书库</h1>
+    <span class="meta mr-3" data-library-count>{{ total_books }} 册{% if read_filter == 'unread' %} · 仅未读{% endif %}</span>
+    <div class="library-search">
+      <svg viewBox="0 0 24 24" fill="none" class="absolute left-3 inset-y-0 my-auto w-5 h-5 text-ink-3" aria-hidden="true">
         <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2"></path>
         <path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
       </svg>
       <input
-        class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        class="field w-full pl-10 pr-4"
         type="search"
         name="q"
-        placeholder="搜索标题、作者…"
+        placeholder="搜索书名、作者"
         value="{{ q }}"
         hx-get="/library"
         hx-target="#library-section"
@@ -27,9 +29,9 @@
       />
     </div>
 
-    <div class="flex items-center gap-3 w-full md:w-auto">
+    <div class="library-filters">
       <select
-        class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none"
+        class="field"
         name="sort"
         hx-get="/library"
         hx-target="#library-section"
@@ -44,15 +46,15 @@
       <a
         href="/?sort={{ sort }}&q={{ q|urlencode }}&read_filter={{ 'all' if read_filter == 'unread' else 'unread' }}&per_page={{ per_page }}"
         data-read-filter-toggle
-        class="h-9 px-3 inline-flex items-center justify-center rounded-lg border text-sm font-medium transition-colors cursor-pointer {{ 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' if read_filter == 'unread' else 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50' }}"
-      >{{ '未读过滤：开' if read_filter == 'unread' else '仅看未读' }}</a>
+        class="chip {{ 'chip-on' if read_filter == 'unread' else '' }}"
+      >{{ '仅看未读 ×' if read_filter == 'unread' else '仅看未读' }}</a>
       <input type="hidden" name="page" value="{{ page }}" data-page-input />
       <input type="hidden" name="per_page" value="{{ per_page }}" data-per-page-input />
 
-      <div class="hidden md:flex bg-slate-100 p-1 rounded-lg border border-slate-200" data-view-toggle>
+      <div class="seg hidden md:flex ml-auto" data-view-toggle>
         <button
           type="button"
-          class="toggle-btn p-1.5 rounded text-slate-500 hover:text-slate-700 transition-colors cursor-pointer [&.active]:bg-white [&.active]:shadow-sm [&.active]:text-indigo-600"
+          class="toggle-btn"
           data-view="grid"
           aria-label="封面墙"
           title="封面墙"
@@ -66,7 +68,7 @@
         </button>
         <button
           type="button"
-          class="toggle-btn p-1.5 rounded text-slate-500 hover:text-slate-700 transition-colors cursor-pointer [&.active]:bg-white [&.active]:shadow-sm [&.active]:text-indigo-600"
+          class="toggle-btn"
           data-view="list"
           aria-label="列表"
           title="列表"
@@ -82,58 +84,36 @@
         </button>
       </div>
 
+      <button type="button" data-bulk-mode-toggle class="chip" aria-pressed="false">多选</button>
       <a
         href="/ingest"
-        class="hidden sm:inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-      >入库</a>
+        class="btn btn-primary hidden md:inline-flex"
+      >+ 入库</a>
     </div>
   </div>
 
-  <div
-    class="flex flex-col md:flex-row md:items-center gap-3 justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200"
-    data-bulk-controls
-  >
-    <div class="flex items-center gap-3 text-sm">
-      <span class="font-medium text-slate-800">毗连设置</span>
-      <span class="text-slate-500">已选 <span data-selected-count>0</span> 本</span>
-      <button
-        type="button"
-        data-bulk-mode-toggle
-        class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-      >进入多选</button>
-    </div>
-    <div data-bulk-actions class="hidden flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        data-bulk-select-all
-        class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-      >全选当前页</button>
-      <button
-        type="button"
-        data-bulk-clear
-        class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-      >清空</button>
-      <form id="bulk-download-form" action="/books/download" method="post" target="bulk-download-target" class="m-0">
-        <div data-book-ids></div>
-        <button
-          type="submit"
-          data-bulk-download
-          class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled
-        >批量下载</button>
-      </form>
-      <form id="bulk-archive-form" action="/books/archive" method="post" class="m-0">
-        <div data-book-ids></div>
-        <button
-          type="submit"
-          data-bulk-archive
-          class="h-9 px-3 inline-flex items-center justify-center text-xs font-medium border border-red-200 rounded-lg bg-white text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled
-        >批量归档</button>
-      </form>
+  <div data-bulk-controls>
+    <div data-bulk-actions class="bulk-bar hidden" role="toolbar" aria-label="批量操作">
+      <span>已选 <span data-selected-count class="bulk-count">0</span> 册</span>
+      <div class="bulk-tools">
+        <button type="button" data-bulk-select-all class="btn btn-quiet">全选本页</button>
+        <button type="button" data-bulk-clear class="btn btn-quiet">清空</button>
+        <button type="button" data-bulk-done class="btn btn-secondary md:order-3">完成</button>
+      </div>
+      <div class="bulk-actions">
+        <form id="bulk-download-form" action="/books/download" method="post" target="bulk-download-target" class="m-0">
+          <div data-book-ids></div>
+          <button type="submit" data-bulk-download class="btn btn-quiet" disabled>批量下载</button>
+        </form>
+        <form id="bulk-archive-form" action="/books/archive" method="post" class="m-0">
+          <div data-book-ids></div>
+          <button type="submit" data-bulk-archive class="btn btn-quiet bulk-danger" disabled>批量归档</button>
+        </form>
+      </div>
     </div>
   </div>
   <iframe name="bulk-download-target" class="hidden"></iframe>
+  <a href="/ingest" data-library-fab class="library-fab btn btn-primary md:hidden">+ 入库</a>
 
   {% include "partials/library_section.html" %}
 </div>
@@ -171,6 +151,8 @@
       if (!section) return;
       const page = (section.dataset.page || '').trim();
       if (page) pageInput.value = page;
+      const count = document.querySelector('[data-library-count]');
+      if (count) count.textContent = `${section.dataset.totalBooks || '0'} 册${readFilterInput && readFilterInput.value === 'unread' ? ' · 仅未读' : ''}`;
     }
 
     function updateReadFilterLink() {
@@ -195,7 +177,7 @@
         columns = template.split(/\s+/).filter(Boolean).length;
       }
       if (columns <= 0 && width > 0) {
-        columns = Math.max(1, Math.floor((width + gap) / (180 + gap)));
+        columns = Math.max(1, Math.floor((width + gap) / (136 + gap)));
       }
       return Math.max(1, columns);
     }
@@ -231,6 +213,8 @@
       if (!library) return;
       currentView = isMobileViewport() ? 'list' : (view || 'grid');
       library.dataset.view = currentView;
+      const listHead = library.querySelector('[data-library-list-head]');
+      if (listHead) listHead.classList.toggle('hidden', currentView !== 'list');
       library.querySelectorAll('[data-book-layout]').forEach((node) => {
         const layout = node.dataset.bookLayout;
         if (layout === 'grid') node.classList.toggle('hidden', currentView === 'list');
@@ -274,6 +258,8 @@
       if (!library) return;
       library.querySelectorAll('[data-book-select]').forEach((node) => {
         node.checked = selectedBookIds.has(node.value);
+        const card = node.closest('[data-book-card]');
+        if (card) card.classList.toggle('is-selected', node.checked);
       });
     }
 
@@ -318,6 +304,7 @@
       multiSelectMode = Boolean(enabled);
       const library = getLibrary();
       if (library) {
+        library.dataset.multiSelect = String(multiSelectMode);
         library.querySelectorAll('[data-book-select-wrap]').forEach((node) => {
           node.classList.toggle('hidden', !multiSelectMode);
         });
@@ -332,8 +319,12 @@
         });
       }
       if (bulkActions) bulkActions.classList.toggle('hidden', !multiSelectMode);
+      const fab = document.querySelector('[data-library-fab]');
+      if (fab) fab.classList.toggle('hidden', multiSelectMode);
       if (bulkModeToggleBtn) {
-        bulkModeToggleBtn.textContent = multiSelectMode ? '退出多选' : '进入多选';
+        bulkModeToggleBtn.textContent = multiSelectMode ? '多选中' : '多选';
+        bulkModeToggleBtn.classList.toggle('chip-on', multiSelectMode);
+        bulkModeToggleBtn.setAttribute('aria-pressed', String(multiSelectMode));
       }
       if (!multiSelectMode) {
         selectedBookIds.clear();
@@ -414,6 +405,9 @@
         applyMultiSelectMode(!multiSelectMode);
       });
     }
+
+    const doneBtn = document.querySelector('[data-bulk-done]');
+    if (doneBtn) doneBtn.addEventListener('click', () => applyMultiSelectMode(false));
 
     const searchInput = document.querySelector('#library-controls input[name="q"]');
     const sortSelect = document.querySelector('#library-controls select[name="sort"]');

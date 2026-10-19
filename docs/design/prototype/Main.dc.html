@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>书库 · 封面墙</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+SC:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EFEFEC}
+a{color:#141414}a:hover{color:#000}
+.root{font-family:"Noto Sans SC","PingFang SC",system-ui,sans-serif;color:#141414;background:#EFEFEC;min-height:100vh;font-size:14px}
+.mono{font-family:"IBM Plex Mono","SF Mono",ui-monospace,monospace}
+.wrap{max-width:1376px;margin:0 auto;padding:0 32px;box-sizing:border-box}
+header{border-bottom:1px solid #D6D6D1}
+.nav{height:52px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:#141414;font-weight:700;font-size:16px;letter-spacing:-.01em}
+.mark{width:14px;height:14px;background:#141414;position:relative;display:block}
+.mark::after{content:"";position:absolute;right:-3px;top:-3px;width:6px;height:6px;border-radius:50%;background:#FF5A1F}
+.links{display:flex;height:52px;align-items:stretch}
+.nl{display:flex;align-items:center;padding:0 12px;color:#4A4A47;text-decoration:none;position:relative;font-size:13.5px}
+.nl:hover{color:#141414}
+.nl.on{color:#141414;font-weight:600}
+.nl.on::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;background:#FF5A1F}
+.btn{height:34px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:2px;font-size:13px;font-family:inherit;cursor:pointer;text-decoration:none;box-sizing:border-box;white-space:nowrap}
+.btn-primary{background:#141414;color:#FAFAF8;border:1px solid #141414}
+.btn-primary:hover{background:#000;color:#FAFAF8}
+.btn-secondary{background:#FAFAF8;color:#141414;border:1px solid #D6D6D1}
+.btn-secondary:hover{border-color:#141414}
+.btn-quiet{background:transparent;color:#4A4A47;border:1px solid transparent}
+.field{height:34px;border:1px solid #D6D6D1;background:#FAFAF8;border-radius:2px;padding:0 10px;font:inherit;font-size:13px;color:#141414;box-sizing:border-box}
+.chip{height:34px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;border:1px solid #D6D6D1;border-radius:2px;background:transparent;color:#4A4A47;font:inherit;font-size:13px;cursor:pointer}
+.seg{display:inline-flex;border:1px solid #D6D6D1;border-radius:2px;overflow:hidden;background:#FAFAF8}
+.seg button{width:32px;height:32px;border:0;background:transparent;color:#75756F;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.seg button.on{background:#141414;color:#FAFAF8}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:28px 20px}
+.card{display:flex;flex-direction:column;gap:8px;min-width:0}
+.obj{position:relative;aspect-ratio:2/3;background:#DDDDD8;box-shadow:0 0 0 1px rgba(20,20,20,.08);overflow:hidden}
+.obj img{width:100%;height:100%;object-fit:cover;display:block}
+.obj.hov{box-shadow:0 0 0 1px #141414}
+.hit{position:absolute;inset:0;z-index:2}
+.gen{container-type:inline-size}
+.gen .gi{position:absolute;inset:0;padding:11cqi 10cqi 9cqi;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box}
+.gen .gr{width:20cqi;height:max(2px,1.4cqi);background:currentColor;margin-bottom:8cqi}
+.gen .gt{font-weight:700;font-size:15cqi;line-height:1.18;letter-spacing:-.02em;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.gen .ga{font-family:"IBM Plex Mono","SF Mono",monospace;font-size:max(9px,7cqi);opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-0{background:#141414;color:#FAFAF8}.c-1{background:#8C8A84;color:#141414}.c-2{background:#D6D6D1;color:#141414}.c-3{background:#3A3A38;color:#FAFAF8}.c-4{background:#BDB8AD;color:#141414}
+.act{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex}
+.act a{flex:1 1 0;height:32px;display:flex;align-items:center;justify-content:center;background:#141414;color:#FAFAF8;text-decoration:none;font-size:12.5px;font-weight:500}
+.act a:hover{background:#FF5A1F;color:#141414}
+.tag{position:absolute;top:0;left:0;z-index:3;font-family:"IBM Plex Mono","SF Mono",monospace;font-size:10.5px;padding:2px 6px;letter-spacing:.02em}
+.cap-t{display:block;font-weight:600;font-size:13.5px;line-height:1.4;color:#141414;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
+.cap-a{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:1px;font-size:12px;color:#75756F;line-height:1.5}
+.cap-a span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.rd{font-family:"IBM Plex Mono","SF Mono",monospace;font-size:10.5px;color:#2E7D4F;flex-shrink:0}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid #D6D6D1;padding-top:14px;font-size:12px;color:#75756F}
+</style>
+</helmet>
+<div class="root">
+  <header>
+    <div class="wrap nav">
+      <div style="display: flex; align-items: center; gap: 28px">
+        <a class="brand" href="#"><span class="mark"></span>Bindery</a>
+        <nav class="links" aria-label="主导航">
+          <a class="nl on" href="#">书库</a>
+          <a class="nl" href="#">入库</a>
+          <a class="nl" href="#">任务</a>
+          <a class="nl" href="#">追踪</a>
+          <a class="nl" href="#">规则</a>
+          <a class="nl" href="#">归档</a>
+        </nav>
+      </div>
+      <button class="btn btn-quiet" type="button" style="color: #75756F">退出</button>
+    </div>
+  </header>
+
+  <main class="wrap" style="padding-top: 22px; padding-bottom: 48px">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+      <h1 style="margin: 0 6px 0 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em">书库</h1>
+      <span class="mono" style="font-size: 12px; color: #75756F; margin-right: 14px">32 册 / 未读 27</span>
+      <label style="position: relative; display: block; flex: 0 1 300px">
+        <span style="position: absolute; left: -9999px">搜索</span>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="position: absolute; left: 10px; top: 9px; width: 16px; height: 16px; color: #75756F"><path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="1.6"></path><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+        <input class="field" type="search" placeholder="搜索书名、作者" style="width: 100%; padding-left: 32px">
+      </label>
+      <label><span style="position: absolute; left: -9999px">排序</span>
+        <select class="field"><option>最近修改</option><option>最近导入</option></select>
+      </label>
+      <button class="chip" type="button">仅看未读</button>
+      <div style="flex: 1 1 0"></div>
+      <div class="seg" role="group" aria-label="视图">
+        <button class="on" type="button" aria-label="封面墙"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="width: 15px; height: 15px"><path d="M4 4h6v8H4zM14 4h6v8h-6zM4 15h6v5H4zM14 15h6v5h-6z" stroke="currentColor" stroke-width="1.6"></path></svg></button>
+        <button type="button" aria-label="列表"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="width: 15px; height: 15px"><path d="M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg></button>
+      </div>
+      <button class="btn btn-secondary" type="button">多选</button>
+      <a class="btn btn-primary" href="#"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="width: 14px; height: 14px"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="square"></path></svg>入库</a>
+    </div>
+
+    <div class="grid" style="margin-top: 22px">
+      <div class="card">
+        <div class="obj"><img src="/_blob/f476d4ab014fea242f2d26d7bd899619" alt=""><a class="hit" href="#" aria-label="专业投机原理（珍藏版） 详情"></a></div>
+        <div><a class="cap-t" href="#">专业投机原理（珍藏版）</a><div class="cap-a"><span>维克托·斯波朗迪</span></div></div>
+      </div>
+      <sc-for list="{{books}}" as="b" hint-placeholder-count="15">
+        <div class="card">
+          <div class="obj gen c-{{b.c}} {{b.hov}}">
+            <div class="gi"><div><div class="gr"></div><div class="gt">{{b.title}}</div></div><div class="ga">{{b.author}}</div></div>
+            <a class="hit" href="#" aria-label="{{b.title}} 详情"></a>
+            <sc-if value="{{b.pending}}" hint-placeholder-val="{{false}}">
+              <span class="tag" style="background: #F2B233; color: #141414">生成中</span>
+            </sc-if>
+            <sc-if value="{{b.failed}}" hint-placeholder-val="{{false}}">
+              <span class="tag" style="background: #C2341B; color: #FAFAF8">失败</span>
+            </sc-if>
+            <sc-if value="{{b.hover}}" hint-placeholder-val="{{false}}">
+              <div class="act"><a href="#">阅读</a></div>
+            </sc-if>
+          </div>
+          <div>
+            <a class="cap-t" href="#">{{b.title}}</a>
+            <div class="cap-a"><span>{{b.author}}</span><sc-if value="{{b.read}}" hint-placeholder-val="{{false}}"><span class="rd">✓ 已读</span></sc-if></div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div class="pager" style="margin-top: 32px">
+      <span class="mono">1–16 / 32</span>
+      <div style="display: flex; align-items: center; gap: 4px">
+        <button class="btn btn-quiet" type="button" disabled style="color: #B5B5AF">上一页</button>
+        <span class="mono" style="padding: 0 8px; color: #141414">1 / 2</span>
+        <button class="btn btn-secondary" type="button">下一页</button>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const raw = [
+      ['长安的荔枝', '马伯庸'], ['活着', '余华'], ['三体', '刘慈欣'], ['围城', '钱锺书'],
+      ['边城', '沈从文'], ['呐喊', '鲁迅'], ['平凡的世界', '路遥'], ['白鹿原', '陈忠实'],
+      ['红楼梦', '曹雪芹'], ['文城', '余华'], ['我与地坛', '史铁生'], ['许三观卖血记', '余华'],
+      ['沉默的大多数', '王小波'], ['黄金时代', '王小波'], ['城南旧事', '林海音']
+    ];
+    const order = [0, 2, 3, 1, 4, 2, 0, 3, 4, 2, 1, 3, 0, 4, 2];
+    const books = raw.map((r, i) => ({
+      title: r[0], author: r[1], c: order[i],
+      read: i === 1 || i === 3 || i === 9,
+      pending: i === 10,
+      failed: i === 13,
+      hover: i === 2,
+      hov: i === 2 ? 'hov' : ''
+    }));
+    return { books };
+  }
+}
+</script>
+</body>
+</html>
