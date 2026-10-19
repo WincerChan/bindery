@@ -18,10 +18,10 @@ export interface ProfileApi {
   delete(deviceId: string, id: string): Promise<unknown>;
 }
 const ranges = [
-  { key: "marginX", label: "左右边距", unit: "em", min: 0, fallback: 1, step: 0.1 },
-  { key: "lineHeight", label: "行高", unit: "", min: 0.5, fallback: 1.6, step: 0.05 },
-  { key: "paragraphSpacing", label: "段间距", unit: "em", min: 0, fallback: 0, step: 0.1 },
-  { key: "textIndent", label: "首行缩进", unit: "em", min: 0, fallback: 2, step: 0.1 },
+  { key: "marginX", label: "左右边距", unit: "em", min: 0, max: 4, fallback: 1, step: 0.25 },
+  { key: "lineHeight", label: "行高", unit: "", min: 1.2, max: 2.4, fallback: 1.6, step: 0.05 },
+  { key: "paragraphSpacing", label: "段间距", unit: "em", min: 0, max: 1.5, fallback: 0, step: 0.1 },
+  { key: "textIndent", label: "首行缩进", unit: "em", min: 0, max: 3, fallback: 2, step: 0.5 },
 ] as const;
 type Target = { id: string; model: KindleModel; name: string };
 const copy = (profile: TypesettingProfile): TypesettingProfile => ({ ...profile, settings: { ...profile.settings } });
@@ -151,7 +151,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       <Show when={draft().builtIn}><p class="muted">默认方案不可编辑或删除。点击「另存为」建立自己的方案。</p></Show>
       <TextField label="方案名称" value={draft().name} disabled={immutable()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
       <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}><span>{range.label}</span><output>{draft().settings[range.key] === null ? "沿用书籍" : `${draft().settings[range.key]} ${range.unit}`}</output></label>
-        <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.min} max={20} step={range.step} value={draft().settings[range.key] ?? range.fallback} disabled={immutable()} onInput={event => edit(range.key, Number(event.currentTarget.value))} />
+        <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.min} max={range.max} step={range.step} value={draft().settings[range.key] ?? range.fallback} disabled={immutable()} onInput={event => edit(range.key, Number(event.currentTarget.value))} />
         <button class="quiet" type="button" disabled={immutable() || draft().settings[range.key] === null} onClick={() => edit(range.key, null)}>沿用书籍</button></div>}</For>
       <Select label="字体（设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={immutable()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
         <option value="">设备默认字体（保留书籍字体样式）</option>
