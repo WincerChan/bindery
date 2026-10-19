@@ -14,8 +14,18 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppKindleRouteImport } from './routes/_app.kindle'
 import { Route as AppSecurityRouteImport } from './routes/_app.security'
+import { Route as AppBookBook_idRouteImport } from './routes/_app.book.$book_id'
+import { Route as BookBook_idArchiveRouteImport } from './routes/book.$book_id.archive'
 import { Route as BookBook_idCoverRouteImport } from './routes/book.$book_id.cover'
+import { Route as BookBook_idDeleteRouteImport } from './routes/book.$book_id.delete'
 import { Route as BookBook_idDownloadRouteImport } from './routes/book.$book_id.download'
+import { Route as BookBook_idReadRouteImport } from './routes/book.$book_id.read'
+import { Route as BookBook_idRestoreRouteImport } from './routes/book.$book_id.restore'
+import { Route as AppBookBook_idEditRouteImport } from './routes/_app.book.$book_id_.edit'
+import { Route as BookBook_idCoverExtractRouteImport } from './routes/book.$book_id.cover.extract'
+import { Route as BookBook_idCoverUploadRouteImport } from './routes/book.$book_id.cover.upload'
+import { Route as BookBook_idCoverUrlRouteImport } from './routes/book.$book_id.cover.url'
+import { Route as BookBook_idMetadataFetchRouteImport } from './routes/book.$book_id.metadata.fetch'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -41,9 +51,24 @@ const AppSecurityRoute = AppSecurityRouteImport.update({
   path: '/security',
   getParentRoute: () => AppRoute,
 } as any)
+const AppBookBook_idRoute = AppBookBook_idRouteImport.update({
+  id: '/book/$book_id',
+  path: '/book/$book_id',
+  getParentRoute: () => AppRoute,
+} as any)
+const BookBook_idArchiveRoute = BookBook_idArchiveRouteImport.update({
+  id: '/book/$book_id/archive',
+  path: '/book/$book_id/archive',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BookBook_idCoverRoute = BookBook_idCoverRouteImport.update({
   id: '/book/$book_id/cover',
   path: '/book/$book_id/cover',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookBook_idDeleteRoute = BookBook_idDeleteRouteImport.update({
+  id: '/book/$book_id/delete',
+  path: '/book/$book_id/delete',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookBook_idDownloadRoute = BookBook_idDownloadRouteImport.update({
@@ -51,22 +76,78 @@ const BookBook_idDownloadRoute = BookBook_idDownloadRouteImport.update({
   path: '/book/$book_id/download',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookBook_idReadRoute = BookBook_idReadRouteImport.update({
+  id: '/book/$book_id/read',
+  path: '/book/$book_id/read',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookBook_idRestoreRoute = BookBook_idRestoreRouteImport.update({
+  id: '/book/$book_id/restore',
+  path: '/book/$book_id/restore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppBookBook_idEditRoute = AppBookBook_idEditRouteImport.update({
+  id: '/book/$book_id_/edit',
+  path: '/book/$book_id/edit',
+  getParentRoute: () => AppRoute,
+} as any)
+const BookBook_idCoverExtractRoute = BookBook_idCoverExtractRouteImport.update({
+  id: '/extract',
+  path: '/extract',
+  getParentRoute: () => BookBook_idCoverRoute,
+} as any)
+const BookBook_idCoverUploadRoute = BookBook_idCoverUploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
+  getParentRoute: () => BookBook_idCoverRoute,
+} as any)
+const BookBook_idCoverUrlRoute = BookBook_idCoverUrlRouteImport.update({
+  id: '/url',
+  path: '/url',
+  getParentRoute: () => BookBook_idCoverRoute,
+} as any)
+const BookBook_idMetadataFetchRoute =
+  BookBook_idMetadataFetchRouteImport.update({
+    id: '/book/$book_id/metadata/fetch',
+    path: '/book/$book_id/metadata/fetch',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/kindle': typeof AppKindleRoute
   '/security': typeof AppSecurityRoute
-  '/book/$book_id/cover': typeof BookBook_idCoverRoute
+  '/book/$book_id': typeof AppBookBook_idRoute
+  '/book/$book_id/archive': typeof BookBook_idArchiveRoute
+  '/book/$book_id/cover': typeof BookBook_idCoverRouteWithChildren
+  '/book/$book_id/delete': typeof BookBook_idDeleteRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/read': typeof BookBook_idReadRoute
+  '/book/$book_id/restore': typeof BookBook_idRestoreRoute
+  '/book/$book_id/edit': typeof AppBookBook_idEditRoute
+  '/book/$book_id/cover/extract': typeof BookBook_idCoverExtractRoute
+  '/book/$book_id/cover/upload': typeof BookBook_idCoverUploadRoute
+  '/book/$book_id/cover/url': typeof BookBook_idCoverUrlRoute
+  '/book/$book_id/metadata/fetch': typeof BookBook_idMetadataFetchRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/kindle': typeof AppKindleRoute
   '/security': typeof AppSecurityRoute
   '/': typeof AppIndexRoute
-  '/book/$book_id/cover': typeof BookBook_idCoverRoute
+  '/book/$book_id': typeof AppBookBook_idRoute
+  '/book/$book_id/archive': typeof BookBook_idArchiveRoute
+  '/book/$book_id/cover': typeof BookBook_idCoverRouteWithChildren
+  '/book/$book_id/delete': typeof BookBook_idDeleteRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/read': typeof BookBook_idReadRoute
+  '/book/$book_id/restore': typeof BookBook_idRestoreRoute
+  '/book/$book_id/edit': typeof AppBookBook_idEditRoute
+  '/book/$book_id/cover/extract': typeof BookBook_idCoverExtractRoute
+  '/book/$book_id/cover/upload': typeof BookBook_idCoverUploadRoute
+  '/book/$book_id/cover/url': typeof BookBook_idCoverUrlRoute
+  '/book/$book_id/metadata/fetch': typeof BookBook_idMetadataFetchRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -75,8 +156,18 @@ export interface FileRoutesById {
   '/_app/kindle': typeof AppKindleRoute
   '/_app/security': typeof AppSecurityRoute
   '/_app/': typeof AppIndexRoute
-  '/book/$book_id/cover': typeof BookBook_idCoverRoute
+  '/_app/book/$book_id': typeof AppBookBook_idRoute
+  '/book/$book_id/archive': typeof BookBook_idArchiveRoute
+  '/book/$book_id/cover': typeof BookBook_idCoverRouteWithChildren
+  '/book/$book_id/delete': typeof BookBook_idDeleteRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/read': typeof BookBook_idReadRoute
+  '/book/$book_id/restore': typeof BookBook_idRestoreRoute
+  '/_app/book/$book_id_/edit': typeof AppBookBook_idEditRoute
+  '/book/$book_id/cover/extract': typeof BookBook_idCoverExtractRoute
+  '/book/$book_id/cover/upload': typeof BookBook_idCoverUploadRoute
+  '/book/$book_id/cover/url': typeof BookBook_idCoverUrlRoute
+  '/book/$book_id/metadata/fetch': typeof BookBook_idMetadataFetchRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -85,16 +176,36 @@ export interface FileRouteTypes {
     | '/login'
     | '/kindle'
     | '/security'
+    | '/book/$book_id'
+    | '/book/$book_id/archive'
     | '/book/$book_id/cover'
+    | '/book/$book_id/delete'
     | '/book/$book_id/download'
+    | '/book/$book_id/read'
+    | '/book/$book_id/restore'
+    | '/book/$book_id/edit'
+    | '/book/$book_id/cover/extract'
+    | '/book/$book_id/cover/upload'
+    | '/book/$book_id/cover/url'
+    | '/book/$book_id/metadata/fetch'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/kindle'
     | '/security'
     | '/'
+    | '/book/$book_id'
+    | '/book/$book_id/archive'
     | '/book/$book_id/cover'
+    | '/book/$book_id/delete'
     | '/book/$book_id/download'
+    | '/book/$book_id/read'
+    | '/book/$book_id/restore'
+    | '/book/$book_id/edit'
+    | '/book/$book_id/cover/extract'
+    | '/book/$book_id/cover/upload'
+    | '/book/$book_id/cover/url'
+    | '/book/$book_id/metadata/fetch'
   id:
     | '__root__'
     | '/_app'
@@ -102,15 +213,30 @@ export interface FileRouteTypes {
     | '/_app/kindle'
     | '/_app/security'
     | '/_app/'
+    | '/_app/book/$book_id'
+    | '/book/$book_id/archive'
     | '/book/$book_id/cover'
+    | '/book/$book_id/delete'
     | '/book/$book_id/download'
+    | '/book/$book_id/read'
+    | '/book/$book_id/restore'
+    | '/_app/book/$book_id_/edit'
+    | '/book/$book_id/cover/extract'
+    | '/book/$book_id/cover/upload'
+    | '/book/$book_id/cover/url'
+    | '/book/$book_id/metadata/fetch'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
-  BookBook_idCoverRoute: typeof BookBook_idCoverRoute
+  BookBook_idArchiveRoute: typeof BookBook_idArchiveRoute
+  BookBook_idCoverRoute: typeof BookBook_idCoverRouteWithChildren
+  BookBook_idDeleteRoute: typeof BookBook_idDeleteRoute
   BookBook_idDownloadRoute: typeof BookBook_idDownloadRoute
+  BookBook_idReadRoute: typeof BookBook_idReadRoute
+  BookBook_idRestoreRoute: typeof BookBook_idRestoreRoute
+  BookBook_idMetadataFetchRoute: typeof BookBook_idMetadataFetchRoute
 }
 
 declare module '@tanstack/solid-router' {
@@ -150,11 +276,32 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AppSecurityRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/book/$book_id': {
+      id: '/_app/book/$book_id'
+      path: '/book/$book_id'
+      fullPath: '/book/$book_id'
+      preLoaderRoute: typeof AppBookBook_idRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/book/$book_id/archive': {
+      id: '/book/$book_id/archive'
+      path: '/book/$book_id/archive'
+      fullPath: '/book/$book_id/archive'
+      preLoaderRoute: typeof BookBook_idArchiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/book/$book_id/cover': {
       id: '/book/$book_id/cover'
       path: '/book/$book_id/cover'
       fullPath: '/book/$book_id/cover'
       preLoaderRoute: typeof BookBook_idCoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book/$book_id/delete': {
+      id: '/book/$book_id/delete'
+      path: '/book/$book_id/delete'
+      fullPath: '/book/$book_id/delete'
+      preLoaderRoute: typeof BookBook_idDeleteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/book/$book_id/download': {
@@ -164,6 +311,55 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof BookBook_idDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/book/$book_id/read': {
+      id: '/book/$book_id/read'
+      path: '/book/$book_id/read'
+      fullPath: '/book/$book_id/read'
+      preLoaderRoute: typeof BookBook_idReadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book/$book_id/restore': {
+      id: '/book/$book_id/restore'
+      path: '/book/$book_id/restore'
+      fullPath: '/book/$book_id/restore'
+      preLoaderRoute: typeof BookBook_idRestoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/book/$book_id_/edit': {
+      id: '/_app/book/$book_id_/edit'
+      path: '/book/$book_id/edit'
+      fullPath: '/book/$book_id/edit'
+      preLoaderRoute: typeof AppBookBook_idEditRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/book/$book_id/cover/extract': {
+      id: '/book/$book_id/cover/extract'
+      path: '/extract'
+      fullPath: '/book/$book_id/cover/extract'
+      preLoaderRoute: typeof BookBook_idCoverExtractRouteImport
+      parentRoute: typeof BookBook_idCoverRoute
+    }
+    '/book/$book_id/cover/upload': {
+      id: '/book/$book_id/cover/upload'
+      path: '/upload'
+      fullPath: '/book/$book_id/cover/upload'
+      preLoaderRoute: typeof BookBook_idCoverUploadRouteImport
+      parentRoute: typeof BookBook_idCoverRoute
+    }
+    '/book/$book_id/cover/url': {
+      id: '/book/$book_id/cover/url'
+      path: '/url'
+      fullPath: '/book/$book_id/cover/url'
+      preLoaderRoute: typeof BookBook_idCoverUrlRouteImport
+      parentRoute: typeof BookBook_idCoverRoute
+    }
+    '/book/$book_id/metadata/fetch': {
+      id: '/book/$book_id/metadata/fetch'
+      path: '/book/$book_id/metadata/fetch'
+      fullPath: '/book/$book_id/metadata/fetch'
+      preLoaderRoute: typeof BookBook_idMetadataFetchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -171,21 +367,45 @@ interface AppRouteChildren {
   AppKindleRoute: typeof AppKindleRoute
   AppSecurityRoute: typeof AppSecurityRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppBookBook_idRoute: typeof AppBookBook_idRoute
+  AppBookBook_idEditRoute: typeof AppBookBook_idEditRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppKindleRoute: AppKindleRoute,
   AppSecurityRoute: AppSecurityRoute,
   AppIndexRoute: AppIndexRoute,
+  AppBookBook_idRoute: AppBookBook_idRoute,
+  AppBookBook_idEditRoute: AppBookBook_idEditRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface BookBook_idCoverRouteChildren {
+  BookBook_idCoverExtractRoute: typeof BookBook_idCoverExtractRoute
+  BookBook_idCoverUploadRoute: typeof BookBook_idCoverUploadRoute
+  BookBook_idCoverUrlRoute: typeof BookBook_idCoverUrlRoute
+}
+
+const BookBook_idCoverRouteChildren: BookBook_idCoverRouteChildren = {
+  BookBook_idCoverExtractRoute: BookBook_idCoverExtractRoute,
+  BookBook_idCoverUploadRoute: BookBook_idCoverUploadRoute,
+  BookBook_idCoverUrlRoute: BookBook_idCoverUrlRoute,
+}
+
+const BookBook_idCoverRouteWithChildren =
+  BookBook_idCoverRoute._addFileChildren(BookBook_idCoverRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
-  BookBook_idCoverRoute: BookBook_idCoverRoute,
+  BookBook_idArchiveRoute: BookBook_idArchiveRoute,
+  BookBook_idCoverRoute: BookBook_idCoverRouteWithChildren,
+  BookBook_idDeleteRoute: BookBook_idDeleteRoute,
   BookBook_idDownloadRoute: BookBook_idDownloadRoute,
+  BookBook_idReadRoute: BookBook_idReadRoute,
+  BookBook_idRestoreRoute: BookBook_idRestoreRoute,
+  BookBook_idMetadataFetchRoute: BookBook_idMetadataFetchRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

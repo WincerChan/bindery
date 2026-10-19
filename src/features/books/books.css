@@ -1,0 +1,222 @@
+.books-page {
+  max-width: 1100px;
+  margin-inline: auto;
+  min-width: 0;
+}
+.books-page h1 {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.books-page h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.books-page h3 {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.books-page p {
+  line-height: 1.8;
+}
+.books-breadcrumb {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  font-size: 0.85rem;
+}
+.books-breadcrumb span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.books-detail {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 24px 40px;
+}
+.books-cover {
+  grid-row: span 3;
+  min-width: 0;
+}
+.books-cover small {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.7rem;
+}
+.books-eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+.books-byline,
+.books-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+.books-byline {
+  margin-top: 16px;
+  font-size: 0.85rem;
+}
+.books-actions form {
+  display: contents;
+}
+.books-spec {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.books-spec > div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 18px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.books-spec dt {
+  opacity: 0.65;
+}
+.books-spec dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.books-description {
+  margin-top: 28px;
+}
+.books-description p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 10px;
+}
+.books-bottom {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-line);
+}
+.books-bottom p,
+.books-build p {
+  font-size: 0.8rem;
+  margin: 8px 0 16px;
+  opacity: 0.75;
+}
+.books-edit-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+.books-edit-top {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 32px;
+}
+.books-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  min-width: 0;
+}
+.books-wide,
+.books-rating,
+.books-lookup {
+  grid-column: 1 / -1;
+}
+.books-rating {
+  border: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.books-rating legend {
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+.books-rating output {
+  font-size: 0.8rem;
+  padding-left: 10px;
+}
+.books-lookup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.books-lookup span {
+  font-size: 0.75rem;
+}
+.books-build,
+.books-cover-tools,
+.books-lookup-result {
+  margin-top: 30px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-line);
+}
+.books-cover-tools form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: start;
+}
+.books-notice {
+  padding: 12px 0;
+}
+.books-autofill input,
+.books-autofill textarea {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.books-page textarea {
+  font-family: inherit;
+}
+.books-page #book-custom-css {
+  font-family: monospace;
+}
+.books-page details {
+  margin-top: 20px;
+  font-size: 0.8rem;
+}
+@media (max-width: 640px) {
+  .books-detail {
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 20px;
+  }
+  .books-detail > .books-cover {
+    grid-row: auto;
+  }
+  .books-body,
+  .books-detail > .books-actions {
+    grid-column: 1 / -1;
+  }
+  .books-cover small,
+  .books-eyebrow {
+    display: none;
+  }
+  .books-byline {
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .books-bottom,
+  .books-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .books-edit-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .books-edit-top > .books-cover {
+    display: none;
+  }
+  .books-edit-heading {
+    flex-direction: column;
+  }
+  .books-page .field {
+    min-width: 0;
+  }
+  .books-page input[type="file"] {
+    max-width: 100%;
+  }
+}
