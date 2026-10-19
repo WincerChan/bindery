@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { createServerFn } from "@tanstack/solid-start";
 import { createSignal, For, onSettled, Show } from "solid-js";
+import { authenticated } from "../server/functions";
 import { browserSupportsWebAuthn, passkeyMessage, PasskeyRequestError, postJson, registerPasskey } from "../client/passkeys";
 const getSecurityData = createServerFn({
   method: "GET"
-}).handler(async () => (await import("../server/auth-views")).securityData());
-export const Route = createFileRoute("/security")({
+}).middleware([authenticated]).handler(async () => (await import("../server/auth-views")).securityData());
+export const Route = createFileRoute("/_app/security")({
   loader: () => getSecurityData(),
   head: () => ({
     meta: [{
@@ -66,10 +67,8 @@ function Security() {
       setBusy(false);
     }
   }
-  return <main class="security-page">
-    <nav><a href="/">书库</a><form action="/logout" method="post"><button class="quiet" type="submit">退出登录</button></form></nav>
+  return <div class="security-page">
     <p class="eyebrow">ACCOUNT SECURITY</p><h1>安全</h1><p class="muted">通行密钥保存在设备或密码管理器中，用指纹、面容或设备密码即可登录。</p>
-    <Show when={data().toast}><p role="status" class="notice">{data().toast}</p></Show>
     <Show when={message()}><p role="status" class="notice">{message()}</p></Show>
     <Show when={!data().passkey_configured}><p class="notice">通行密钥不可用：未配置有效的 BINDERY_PUBLIC_ORIGIN。本地开发请用 http://localhost:端口 访问。</p></Show>
     <Show when={data().passkey_configured && !supported()}><p class="muted">当前浏览器不支持通行密钥。</p></Show>
@@ -94,5 +93,5 @@ function Security() {
       </form>
     </section></Show>
     <section><h2>密码</h2><p class="muted">密码始终可作为备用登录方式。修改密码请更新 BINDERY_PASSWORD_HASH 并重启服务。</p></section>
-  </main>;
+  </div>;
 }

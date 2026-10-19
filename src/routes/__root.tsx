@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Scripts } from "@tanstack/solid-router";
 import { Loading } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import stylesheet from "../styles.css?url";
+import { ToastRegion } from "../shell/toast-region";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -25,6 +26,7 @@ function RootDocument(props: { children: JSX.Element }) {
       </head>
       <body>
         <Loading>{props.children}</Loading>
+        <ToastRegion />
         <Scripts />
       </body>
     </html>

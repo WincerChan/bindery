@@ -9,13 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as SecurityRouteImport } from './routes/security'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppKindleRouteImport } from './routes/_app.kindle'
+import { Route as AppSecurityRouteImport } from './routes/_app.security'
+import { Route as BookBook_idCoverRouteImport } from './routes/book.$book_id.cover'
+import { Route as BookBook_idDownloadRouteImport } from './routes/book.$book_id.download'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -23,49 +26,100 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SecurityRoute = SecurityRouteImport.update({
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppKindleRoute = AppKindleRouteImport.update({
+  id: '/kindle',
+  path: '/kindle',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSecurityRoute = AppSecurityRouteImport.update({
   id: '/security',
   path: '/security',
+  getParentRoute: () => AppRoute,
+} as any)
+const BookBook_idCoverRoute = BookBook_idCoverRouteImport.update({
+  id: '/book/$book_id/cover',
+  path: '/book/$book_id/cover',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookBook_idDownloadRoute = BookBook_idDownloadRouteImport.update({
+  id: '/book/$book_id/download',
+  path: '/book/$book_id/download',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
-  '/security': typeof SecurityRoute
+  '/kindle': typeof AppKindleRoute
+  '/security': typeof AppSecurityRoute
+  '/book/$book_id/cover': typeof BookBook_idCoverRoute
+  '/book/$book_id/download': typeof BookBook_idDownloadRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/security': typeof SecurityRoute
+  '/kindle': typeof AppKindleRoute
+  '/security': typeof AppSecurityRoute
+  '/': typeof AppIndexRoute
+  '/book/$book_id/cover': typeof BookBook_idCoverRoute
+  '/book/$book_id/download': typeof BookBook_idDownloadRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
-  '/security': typeof SecurityRoute
+  '/_app/kindle': typeof AppKindleRoute
+  '/_app/security': typeof AppSecurityRoute
+  '/_app/': typeof AppIndexRoute
+  '/book/$book_id/cover': typeof BookBook_idCoverRoute
+  '/book/$book_id/download': typeof BookBook_idDownloadRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/security'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/kindle'
+    | '/security'
+    | '/book/$book_id/cover'
+    | '/book/$book_id/download'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/security'
-  id: '__root__' | '/' | '/login' | '/security'
+  to:
+    | '/login'
+    | '/kindle'
+    | '/security'
+    | '/'
+    | '/book/$book_id/cover'
+    | '/book/$book_id/download'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/kindle'
+    | '/_app/security'
+    | '/_app/'
+    | '/book/$book_id/cover'
+    | '/book/$book_id/download'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
-  SecurityRoute: typeof SecurityRoute
+  BookBook_idCoverRoute: typeof BookBook_idCoverRoute
+  BookBook_idDownloadRoute: typeof BookBook_idDownloadRoute
 }
 
 declare module '@tanstack/solid-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -75,20 +129,63 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/security': {
-      id: '/security'
+    '/_app/': {
+      id: '/_app/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/kindle': {
+      id: '/_app/kindle'
+      path: '/kindle'
+      fullPath: '/kindle'
+      preLoaderRoute: typeof AppKindleRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/security': {
+      id: '/_app/security'
       path: '/security'
       fullPath: '/security'
-      preLoaderRoute: typeof SecurityRouteImport
+      preLoaderRoute: typeof AppSecurityRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/book/$book_id/cover': {
+      id: '/book/$book_id/cover'
+      path: '/book/$book_id/cover'
+      fullPath: '/book/$book_id/cover'
+      preLoaderRoute: typeof BookBook_idCoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book/$book_id/download': {
+      id: '/book/$book_id/download'
+      path: '/book/$book_id/download'
+      fullPath: '/book/$book_id/download'
+      preLoaderRoute: typeof BookBook_idDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
+interface AppRouteChildren {
+  AppKindleRoute: typeof AppKindleRoute
+  AppSecurityRoute: typeof AppSecurityRoute
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppKindleRoute: AppKindleRoute,
+  AppSecurityRoute: AppSecurityRoute,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
-  SecurityRoute: SecurityRoute,
+  BookBook_idCoverRoute: BookBook_idCoverRoute,
+  BookBook_idDownloadRoute: BookBook_idDownloadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

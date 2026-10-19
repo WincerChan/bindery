@@ -12,7 +12,7 @@ import { projectRoot } from "./paths";
 import { DEFAULT_RULE_CONFIG } from "../core/parsing";
 import { ruleTemplateFromData } from "../core/rules";
 import { DEFAULT_THEME_CSS, themeTemplateFromData } from "../core/themes";
-function directory(kind: "rules" | "themes"): string {
+export function templateDirectory(kind: "rules" | "themes"): string {
   const path = resolve(
     readEnv(kind === "rules" ? "BINDERY_RULES_DIR" : "BINDERY_THEMES_DIR") ||
       resolve(
@@ -28,7 +28,7 @@ function load<T>(
   kind: "rules" | "themes",
   convert: (data: Record<string, unknown>, file: string) => T,
 ): T[] {
-  const dir = directory(kind),
+  const dir = templateDirectory(kind),
     file = resolve(dir, "default.json");
   if (!existsSync(file)) {
     const seed = resolve(
