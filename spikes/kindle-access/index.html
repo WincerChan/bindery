@@ -37,7 +37,7 @@
     <h1>Kindle 浏览器 USB 访问验证</h1>
     <p>用于 Windows 桌面 Chrome / Edge + USB 大容量存储模式的 KO3、KPW3。所有步骤的结果都显示在页面上，并汇入 D 节同一个 JSON 报告。此页面无网络请求、外部依赖或构建步骤。</p>
     <ol>
-      <li>在仓库根目录的 WSL 终端运行 <code>python3 -m http.server 8765 --directory spikes/kindle-access</code>，然后在 Windows Chrome / Edge 打开 <a href="http://localhost:8765">http://localhost:8765</a>。</li>
+      <li>在仓库根目录的 WSL 终端运行 <code>python3 -m http.server 8790 --directory spikes/kindle-access</code>，然后在 Windows Chrome / Edge 打开 <a href="http://localhost:8790">http://localhost:8790</a>。</li>
       <li>插入 KO3，选择下面的设备标签，依次运行 B1–B6 和 C。目录选择器中先尝试 Kindle 盘符的根目录，例如 <code>E:\</code>。</li>
       <li>让 B6 持续运行，拔出 Kindle，等待几次检测，再插回并观察同一句柄能否恢复；期间不要重新选择目录。</li>
       <li>先复制或下载本次报告，再关闭标签页／重启浏览器，重新打开相同地址，检查 B4 的「加载时权限」。如浏览器提供「Allow on every visit / 每次访问都允许」，第一次选择目录时选它。</li>
@@ -54,7 +54,7 @@
 
     <section aria-labelledby="environment-heading">
       <h2 id="environment-heading">A. 环境</h2>
-      <p id="secure-warning" class="warning" hidden>当前不是安全上下文，相关 API 可能缺失或拒绝调用。请通过 <code>http://localhost:8765</code> 提供页面；<code>file://</code> 下的行为可能不同。</p>
+      <p id="secure-warning" class="warning" hidden>当前不是安全上下文，相关 API 可能缺失或拒绝调用。请通过 <code>http://localhost:8790</code> 提供页面；<code>file://</code> 下的行为可能不同。</p>
       <p><code>file://</code> 的行为可能不同；建议始终使用同一个 localhost 地址、端口及浏览器配置文件，以便比较持久权限。</p>
       <pre id="environment-output" aria-label="环境检查结果">等待初始化</pre>
       <div class="controls"><button id="persist" type="button" disabled>请求浏览器持久存储</button></div>
