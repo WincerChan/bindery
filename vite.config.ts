@@ -5,6 +5,7 @@ import solid from "vite-plugin-solid";
 import tailwind from "@tailwindcss/vite";
 import { solidStartRcCompatibility } from "./scripts/solid-start-compat.ts";
 import { solidOptions } from "./scripts/solid-options.ts";
+import { pwaBuild } from "./src/client/pwa/build.ts";
 
 export default defineConfig({
   plugins: [
@@ -12,6 +13,7 @@ export default defineConfig({
     tanstackStart(),
     solid(solidOptions),
     tailwind(),
+    pwaBuild(),
   ],
   environments: {
     ssr: {
