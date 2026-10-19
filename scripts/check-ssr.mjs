@@ -140,7 +140,7 @@ try {
   assert.deepEqual(await missing.json(), { detail: "书籍不存在" });
   const kindle = await get("/kindle", cookie);
   assert.equal(kindle.status, 200);
-  assert.match(await kindle.text(), /USB 传书/);
+  assert.match(await kindle.text(), /排版与预览/);
   const hidden = await get("/.vite/manifest.json", cookie);
   assert.equal(hidden.status, 404);
   await hidden.text();
