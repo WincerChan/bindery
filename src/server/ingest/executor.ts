@@ -25,13 +25,18 @@ export function launchWorker(library: LibraryStorage): Worker {
 if (!isMainThread && workerData?.binderyIngest && workerData.module === import.meta.url) {
   const library = new LibraryStorage(workerData.base, new BinderyDatabase(workerData.database));
   let release: (() => void) | null = null;
-  const timer = setInterval(tick, 250);
-  function tick() {
+  let busy = false, stopping = false;
+  const timer = setInterval(() => void tick(), 250);
+  function stop() { clearInterval(timer); if (!busy) { release?.(); release = null; parentPort?.close(); } }
+  async function tick() {
+    if (busy || stopping) return;
+    busy = true;
     try {
       if (!release) { release = acquireConsumer(library); if (!release) return; library.ensure(); recoverJobs(library); }
-      drainJobs(library);
+      await drainJobs(library);
     } catch (error) { console.error("ingest worker:", error); }
+    finally { busy = false; if (stopping) stop(); }
   }
-  parentPort?.on("message", message => { if (message === "stop") { clearInterval(timer); release?.(); release = null; parentPort?.close(); } });
+  parentPort?.on("message", message => { if (message === "stop") { stopping = true; stop(); } });
   tick();
 }

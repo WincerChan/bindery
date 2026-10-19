@@ -1,18 +1,11 @@
+import { NotFoundPage } from "./shared/not-found-page";
 import { createRouter } from "@tanstack/solid-router";
 import { routeTree } from "./routeTree.gen";
 export function getRouter() {
-  return createRouter({ routeTree, scrollRestoration: true, defaultNotFoundComponent: NotFound });
-}
-function NotFound() {
-  return (
-    <main class="auth-page">
-      <h1>页面不存在</h1>
-      <p class="muted">这个页面可能还没有迁移到新版，或者地址有误。</p>
-      <p><a href="/">返回书库</a></p>
-    </main>
-  );
+  return createRouter({ routeTree, scrollRestoration: true, defaultNotFoundComponent: NotFoundPage });
 }
 declare module "@tanstack/solid-router" {
+  interface StaticDataRouteOption { readerLayout?: boolean }
   interface Register {
     router: ReturnType<typeof getRouter>;
   }

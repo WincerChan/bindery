@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import { listEpubSections } from "../../core/epub";
 import { nowIso } from "../db";
+import { ensureTrackerConsistencyForMeta } from "../tracker";
 import { bookView } from "../book-view";
 import { ensureBookEpubCss } from "../epub-css";
 import { HttpError, requireBook } from "../http";
@@ -16,7 +17,7 @@ export function readBookEpub(bookId: string, library: LibraryStorage): Uint8Arra
 }
 export function previewRedirect(request: Request, bookId: string, library: LibraryStorage): Response {
   requireBook(bookId, library);
-  if (!listEpubSections(readBookEpub(bookId, library)).length) throw new HttpError(404, "No sections");
+  if (!listEpubSections(readBookEpub(bookId, library)).length) throw new HttpError(404, "书籍没有章节");
   const query = new URLSearchParams({ resume: "1" });
   const target = readerReturnTo(new URL(request.url).searchParams.get("return_to"), "");
   if (target) query.set("return_to", target);
@@ -24,13 +25,14 @@ export function previewRedirect(request: Request, bookId: string, library: Libra
 }
 export function loadReader(bookId: string, rawSection: string, returnTo: unknown, library: LibraryStorage): ReaderData {
   const meta = requireBook(bookId, library);
+  const tracker = ensureTrackerConsistencyForMeta(meta, library);
   ensureBookEpubCss(meta, library);
   const sections = listEpubSections(readBookEpub(bookId, library));
   const rawIndex = bigIntegerParameter(rawSection);
   if (rawIndex === null) throw new HttpError(422, "请求参数无效");
-  if (rawIndex < 0 || rawIndex >= sections.length) throw new HttpError(404, "Section not found");
+  if (rawIndex < 0 || rawIndex >= sections.length) throw new HttpError(404, "章节不存在");
   const section = Number(rawIndex);
-  const view = bookView(meta, library);
+  const view = bookView(meta, library, tracker);
   return {
     book: { book_id: view.book_id, title: view.title, author: view.author, cover_url: view.cover_url },
     sections, section_index: section, initial_progress: library.db.getReaderProgress(bookId),

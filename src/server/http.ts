@@ -3,12 +3,20 @@ import { isAuthenticated, SESSION_COOKIE } from "./auth";
 import { getLibrary } from "./runtime";
 import type { LibraryStorage } from "./storage";
 import { withToast, type ToastKind } from "../shared/notifications";
+import { missingDetails, type MissingEntity } from "../shared/entities";
 
 export class HttpError extends Error {
   constructor(readonly status: number, readonly detail: string) {
     super(detail);
     this.name = "HttpError";
   }
+}
+export function missingEntity(entity: MissingEntity): never {
+  throw new HttpError(404, missingDetails[entity]);
+}
+export function requireEntity<T>(value: T | null | undefined | false, entity: MissingEntity): T {
+  if (value === null || value === undefined || value === false) missingEntity(entity);
+  return value;
 }
 
 export function requireAuth(request: Request, library = getLibrary()): LibraryStorage {
@@ -24,7 +32,7 @@ export function requireAuth(request: Request, library = getLibrary()): LibrarySt
 export function requireBook(bookId: string, library = getLibrary()) {
   // Match Python's public route boundary before passing IDs to filesystem APIs.
   if (!/^[a-f0-9]{32}$/.test(bookId) || !library.ensureBookExists(bookId)) {
-    throw new HttpError(404, "书籍不存在");
+    missingEntity("book");
   }
   return library.loadMetadata(bookId);
 }

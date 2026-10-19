@@ -1,11 +1,14 @@
+import type { EditWritebackOptions } from "../ingest/edit-staging";
+import { ensureTrackerForBook as ensureTracker, ensureTrackerConsistencyForMeta, applyTrackerStateToMetadataCache } from "../tracker";
 import type { Metadata, Wish } from "../../core/models";
 import { bookView, type BookView } from "../book-view";
 import { requireBook, HttpError } from "../http";
 import { nowIso } from "../db";
-import { newBookId, type LibraryStorage } from "../storage";
+import type { LibraryStorage } from "../storage";
 import { loadRuleTemplates, loadThemeTemplates } from "../templates";
-import { enqueueJob } from "../jobs";
-import { validateCss } from "../../features/books/css";
+import { enqueueEditWriteback } from "../jobs";
+import { strip } from "../../core/python";
+import { validateCss } from "../../core/css";
 import { bookNavigation } from "../../features/books/navigation";
 import {
   lookupBookMetadataCandidates,
@@ -44,79 +47,9 @@ export function parseRating(raw: string): number | null {
   raw = raw.trim();
   return /^[+-]?\d+$/.test(raw) ? Math.max(0, Math.min(5, Number(raw))) : null;
 }
-const normalizeIdentity = (raw: string | null) =>
-  (raw || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^0-9a-zA-Z\u4e00-\u9fff]+/g, "");
-export function ensureTracker(meta: Metadata, library: LibraryStorage): Wish {
-  let wish = library.db.getWishByLibraryBookId(meta.book_id);
-  const now = nowIso();
-  if (!wish) {
-    const title = normalizeIdentity(meta.title),
-      author = normalizeIdentity(meta.author);
-    wish = title
-      ? library.db
-          .listWishes()
-          .find(
-            (w) =>
-              !w.library_book_id &&
-              normalizeIdentity(w.title) === title &&
-              (!author ||
-                !normalizeIdentity(w.author) ||
-                author === normalizeIdentity(w.author)),
-          ) || null
-      : null;
-    if (!wish) {
-      wish = {
-        id: newBookId(),
-        library_book_id: meta.book_id,
-        title: meta.title || "未命名",
-        author: meta.author,
-        rating: meta.rating,
-        read: meta.read,
-        read_status: meta.read ? "read" : "unread",
-        tags: [],
-        comment: null,
-        book_status: "completed",
-        created_at: now,
-        updated_at: now,
-      };
-      library.db.createWish(wish);
-      return wish;
-    }
-  }
-  if (
-    wish.library_book_id !== meta.book_id ||
-    (wish.title || "") !== (meta.title || "") ||
-    (wish.author || null) !== (meta.author || null)
-  ) {
-    library.db.updateWish(wish.id, {
-      library_book_id: meta.book_id,
-      title: meta.title || "未命名",
-      author: meta.author || null,
-      updated_at: now,
-    });
-    wish = library.db.getWishByLibraryBookId(meta.book_id) || wish;
-  }
-  return wish;
-}
-export function syncTracker(
-  meta: Metadata,
-  wish: Wish,
-  library: LibraryStorage,
-): void {
-  const read =
-    (wish.read_status || (wish.read ? "read" : "unread"))
-      .trim()
-      .toLowerCase() === "read";
-  const changed = meta.read !== read || meta.rating !== wish.rating;
-  if (meta.read !== read) {
-    meta.read = read;
-    meta.read_updated_at = nowIso();
-  }
-  meta.rating = wish.rating;
-  if (changed) library.saveMetadata(meta);
+export { ensureTrackerForBook as ensureTracker } from "../tracker";
+export function syncTracker(meta: Metadata, wish: Wish, library: LibraryStorage): void {
+  if (applyTrackerStateToMetadataCache(meta, wish)) library.saveMetadata(meta);
 }
 export function loadBookPage(
   id: string,
@@ -124,8 +57,7 @@ export function loadBookPage(
   library: LibraryStorage,
 ): BookPage {
   const meta = requireBook(id, library),
-    tracker = ensureTracker(meta, library);
-  syncTracker(meta, tracker, library);
+    tracker = ensureTrackerConsistencyForMeta(meta, library);
   return {
     book: bookView(meta, library, tracker),
     navigation: bookNavigation(id, returnTo),
@@ -172,12 +104,12 @@ function applyBuildSettings(meta: Metadata, form: FormData): void {
       : theme && theme !== "__book__"
         ? theme
         : "default";
-  meta.custom_css = textField(form, "custom_css").trim() || null;
+  meta.custom_css = strip(textField(form, "custom_css")) || null;
 }
 export function buildEditDraft(page: BookPage, form: FormData): BookDraft {
   const draft = { ...page.book, tags: [...page.book.tags] };
   applyFields(draft, form);
-  draft.custom_css = textField(form, "custom_css").trim() || null;
+  draft.custom_css = strip(textField(form, "custom_css")) || null;
   draft.cover_fetch_url = textField(form, "cover_url").trim();
   if (draft.source_type !== "epub")
     draft.rule_template =
@@ -308,29 +240,15 @@ export async function fetchBookMetadata(
   return page;
 }
 /** Integration contract: C must durably preserve these options before publishing. */
-export interface EditWritebackOptions {
-  cover_bytes: Uint8Array | null;
-  cover_name: string | null;
-  cover_url: string;
-  strip_original_css: boolean;
-}
+export type { EditWritebackOptions } from "../ingest/edit-staging";
 export type SubmitEditWriteback = (
   meta: Metadata,
   options: EditWritebackOptions,
   library: LibraryStorage,
 ) => Promise<{ queued: boolean }> | { queued: boolean };
-const submitEditWriteback: SubmitEditWriteback = (meta, options, library) => {
-  if (options.cover_bytes || options.cover_url || options.strip_original_css)
-    throw new HttpError(503, "封面和样式写回暂不可用，请稍后重试");
-  return enqueueJob(
-    {
-      book_id: meta.book_id,
-      rule_template: meta.rule_template,
-      action: "edit-writeback",
-    },
-    library,
-  );
-};
+const submitEditWriteback: SubmitEditWriteback = (meta, options, library) => enqueueEditWriteback({
+  book_id: meta.book_id, rule_template: meta.rule_template, ...options,
+}, library);
 export async function saveBookEdit(
   id: string,
   form: FormData,
@@ -343,7 +261,7 @@ export async function saveBookEdit(
   page.strip_original_css = trueFlag(textField(form, "strip_original_css"));
   const error = validateCss(textField(form, "custom_css"));
   if (error) {
-    meta.custom_css = textField(form, "custom_css").trim() || null;
+    meta.custom_css = strip(textField(form, "custom_css")) || null;
     page.book = { ...bookView(meta, library), rating: meta.rating };
     page.error = `自定义 CSS 校验失败：${error}`;
     return { page };
@@ -362,12 +280,6 @@ export async function saveBookEdit(
     cover_url: textField(form, "cover_url").trim(),
     strip_original_css: page.strip_original_css,
   };
-  // Fail before persisting if the shared queue cannot carry these one-shot fields.
-  if (
-    submit === submitEditWriteback &&
-    (options.cover_bytes || options.cover_url || options.strip_original_css)
-  )
-    throw new HttpError(503, "封面和样式写回暂不可用，请稍后重试");
   meta.status = "dirty";
   meta.updated_at = nowIso();
   library.saveMetadata(meta);

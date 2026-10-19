@@ -4,8 +4,11 @@ import { strip } from "../../core/python";
 import { BinderyDatabase, nowIso, transaction } from "../db";
 import type { DatabaseSync } from "node:sqlite";
 import { wishIdentity } from "../db/encoding";
-import { HttpError } from "../http";
+import { HttpError, requireEntity, missingEntity } from "../http";
 import type { LibraryStorage } from "../storage";
+
+import { ensureTrackerForBook, syncTrackerMetadata } from "../tracker";
+export { syncTrackerMetadata } from "../tracker";
 
 const idPattern = /^[a-f0-9]{32}$/;
 export const readLabel = (value: string) => value === "read" ? "已读" : value === "reading" ? "在读" : "未读";
@@ -45,31 +48,6 @@ function duplicateUrl(next: string, id: string) {
   params.set("duplicate", id);
   return `/tracker?${params}`;
 }
-export function syncTrackerMetadata(library: LibraryStorage, wish: Wish, matchId = wish.library_book_id) {
-  const id = bookId(matchId || wish.library_book_id);
-  if (!id || !library.ensureBookExists(id)) return;
-  const meta = library.loadMetadata(id), read = wish.read_status === "read";
-  const changed = meta.read !== read || meta.rating !== wish.rating;
-  if (meta.read !== read) { meta.read = read; meta.read_updated_at = nowIso(); }
-  meta.rating = wish.rating;
-  if (changed) library.saveMetadata(meta);
-}
-function ensureTracker(library: LibraryStorage, meta: Metadata, unlinked: Map<string, Wish[]>) {
-  let wish = library.db.getWishByLibraryBookId(meta.book_id);
-  if (!wish) {
-    const key = identity(meta.title), author = identity(meta.author), candidates = unlinked.get(key) || [];
-    wish = key ? candidates.find(w => !bookId(w.library_book_id) && (!author || !identity(w.author) || identity(w.author) === author)) || null : null;
-    if (wish) {
-      library.db.updateWish(wish.id, { library_book_id: meta.book_id, title: meta.title || "未命名", author: meta.author || null, updated_at: nowIso() });
-      unlinked.set(key, candidates.filter(w => w.id !== wish!.id));
-      return;
-    }
-    const now = nowIso();
-    library.db.createWish({ id: randomBytes(16).toString("hex"), title: meta.title || "未命名", author: meta.author, library_book_id: meta.book_id, read: meta.read, read_status: meta.read ? "read" : "unread", rating: meta.rating, tags: [], comment: null, book_status: "completed", created_at: now, updated_at: now });
-  } else if (wish.title !== meta.title || (wish.author || null) !== (meta.author || null)) {
-    library.db.updateWish(wish.id, { title: meta.title || "未命名", author: meta.author || null, updated_at: nowIso() });
-  }
-}
 function libraryIdentity(books: Metadata[]) {
   const ids = new Set<string>(), titles = new Map<string, string>(), authors = new Map<string, string>();
   for (const book of books) {
@@ -101,7 +79,7 @@ export function trackerPayload(library: LibraryStorage, search: Record<string, s
   for (const wish of library.db.listWishes()) if (!bookId(wish.library_book_id)) {
     const key = identity(wish.title); unlinked.set(key, [...(unlinked.get(key) || []), wish]);
   }
-  for (const meta of books) ensureTracker(library, meta, unlinked);
+  for (const meta of books) ensureTrackerForBook(meta, library, unlinked);
   const filters = trackerFilters(search), items: TrackerItem[] = [], index = libraryIdentity(books);
   const stats = { total: 0, filtered: 0, read: 0, reading: 0, unread: 0, in_library: 0, out_library: 0 };
   for (const wish of library.db.listWishes()) {
@@ -149,9 +127,9 @@ class TrackerTransactionDatabase extends BinderyDatabase {
   override withConnection<T>(fn: (conn: DatabaseSync) => T): T { return fn(this.connection); }
 }
 export function writeTracker(library: LibraryStorage, fields: Record<string, string>, id?: string): string {
-  if (id && !idPattern.test(id)) throw new HttpError(404, "Invalid wish id");
+  if (id && !idPattern.test(id)) missingEntity("wish");
   const existing = id ? library.db.getWish(id) : null;
-  if (id && !existing) throw new HttpError(404, "Wish not found");
+  if (id) requireEntity(existing, "wish");
   const get = (key: string) => strip(fields[key] || "");
   let linked = bookId(get("library_book_id")) || (existing ? bookId(existing.library_book_id) : null);
   if (linked && !library.ensureBookExists(linked)) linked = null;
@@ -180,7 +158,7 @@ export function writeTracker(library: LibraryStorage, fields: Record<string, str
   return safeTrackerNext(get("next"));
 }
 export function removeTracker(library: LibraryStorage, id: string, next: string): string {
-  if (!idPattern.test(id)) throw new HttpError(404, "Invalid wish id");
+  if (!idPattern.test(id)) missingEntity("wish");
   library.db.deleteWish(id);
   return safeTrackerNext(next);
 }

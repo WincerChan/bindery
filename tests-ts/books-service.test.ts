@@ -312,20 +312,12 @@ describe("book detail, editing and tracker state", () => {
     });
     expect(library.db.listJobs().map((j) => j.status)).toContain("failed");
   });
-  it("blocks unsupported rich writeback options before persistence instead of discarding them", async () => {
+  it("durably queues rich writeback options with the production submitter", async () => {
     seed();
-    await expect(
-      saveBookEdit(
-        id,
-        form({ title: "未保存", cover_url: "https://example.com/a.png" }),
-        library,
-      ),
-    ).rejects.toMatchObject({ status: 503 });
-    expect(library.loadMetadata(id).title).toBe("示例书");
-    await expect(
-      saveBookEdit(id, form({ strip_original_css: "1" }), library),
-    ).rejects.toMatchObject({ status: 503 });
-    expect(library.db.listJobs()).toEqual([]);
+    expect(await saveBookEdit(id, form({ title: "已保存", cover_url: "https://example.com/a.png" }), library)).toMatchObject({ queued: true });
+    expect(library.loadMetadata(id).title).toBe("已保存");
+    expect(await saveBookEdit(id, form({ strip_original_css: "1" }), library)).toMatchObject({ queued: true });
+    expect(library.db.listJobs()).toHaveLength(2);
   });
   it("defines injectable submission carrying cover bytes, URL and one-shot CSS flags", async () => {
     seed();
@@ -518,7 +510,7 @@ describe("cover persistence, EPUB and remote request headers", () => {
   });
   it("extracts an embedded EPUB cover and reports missing embedded cover", () => {
     seed();
-    expect(() => extractBookCover(id, library)).toThrow("No cover in EPUB");
+    expect(() => extractBookCover(id, library)).toThrow("EPUB 中没有封面");
     replaceCover(id, png, "cover.png", library);
     extractBookCover(id, library);
     expect(extractCover(readFileSync(epubPath(library.base, id)))?.[0]).toEqual(

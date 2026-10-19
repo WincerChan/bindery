@@ -9,7 +9,7 @@ import { readBookEpub } from "./service";
 /** Validate after the router's decoding; also reject residual/double encodings. */
 export function validateItemPath(raw: string): string {
   if (!raw || raw.length > 4096 || /[%\\\x00-\x1f\x7f?#:]/.test(raw) || raw.startsWith("/") || raw.split("/").some(part => !part || part === "." || part === "..")) {
-    throw new HttpError(404, "Item not found");
+    throw new HttpError(404, "资源不存在");
   }
   return raw;
 }
@@ -75,7 +75,7 @@ export function epubResource(request: Request, bookId: string, rawPath: string, 
   let content: Uint8Array, media: string;
   try { [content, media] = loadEpubItem(data, path, baseHref); }
   catch (error) {
-    if (error instanceof Error && error.message.startsWith("File not found:")) throw new HttpError(404, "Item not found");
+    if (error instanceof Error && error.message.startsWith("File not found:")) throw new HttpError(404, "资源不存在");
     throw error;
   }
   const headers = new Headers(edgeRevalidateHeaders());

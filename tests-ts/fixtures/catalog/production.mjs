@@ -28,7 +28,7 @@ try {
     const response = await request(path); assert.equal(response.status, 200, `GET ${path}`); assert.equal(response.headers.get("cache-control"), "no-store");
     if (!path.includes("export") && !path.includes("duplicate-check")) { const html = await response.text(); assert.match(html, /id="app-content"/); assert.doesNotMatch(html, /服务器内部错误/); }
   }
-  for (const path of ["/rules/missing/editor", "/themes/missing/editor"]) { const response = await request(path); assert.equal(response.status, 404, path); assert.match(await response.text(), path.startsWith("/rules") ? /Rule not found/ : /Theme not found/); }
+  for (const path of ["/rules/missing/editor", "/themes/missing/editor"]) { const response = await request(path); assert.equal(response.status, 404, path); const html = await response.text(); assert.match(html, path.startsWith("/rules") ? /规则不存在/ : /主题不存在/); assert.match(html, /role="alert"/); assert.match(html, /返回书库/); }
   const createdRule = await request("/rules/new", {}); assert.equal(createdRule.status, 303); const ruleId = new URL(createdRule.headers.get("location"), "http://localhost").searchParams.get("rule_id");
   assert.match(ruleId, /^custom-[a-f0-9]{8}$/);
   const ruleSaved = await request(`/rules/${ruleId}/editor`, { config_json: JSON.stringify({ id: ruleId, name: "规则", chapter_patterns: ["^第.*章.*$"], volume_patterns: [], special_headings: [] }) }); assert.equal(ruleSaved.status, 200); assert.match(await ruleSaved.text(), /已保存/);
@@ -51,7 +51,8 @@ try {
   const listed = await request("/tracker?read_filter=read"); const listedHtml = await listed.text(); assert.match(listedHtml, /三体/); assert.match(listedHtml, /重读/);
   for (const family of ["tracker", "wishlist"]) { const exported = await request(`/${family}/export?read_filter=read`); assert.match(exported.headers.get("content-disposition"), /^attachment; filename="bindery-tracker-/); const bytes = Buffer.from(await exported.arrayBuffer()); assert.deepEqual([...bytes.subarray(0, 3)], [239, 187, 191]); assert.match(bytes.toString("utf8"), /三体,刘慈欣,4/); }
   const removed = await request(`/wishlist/${wishId}/delete`, { next: "//evil.test" }); assert.equal(removed.headers.get("location"), "/tracker");
-  assert.equal((await request(`/tracker/${wishId}/update`, { title: "missing" })).status, 404);
+  const missingWish = await request(`/tracker/${wishId}/update`, { title: "missing" });
+  assert.equal(missingWish.status, 404); assert.deepEqual(await missingWish.json(), { detail: "追踪条目不存在" });
   console.log("Catalog production fetch checks passed: pages, aliases, authentication, CRUD, HTML/JSON, CSV and errors");
   if (process.argv[2]) await writeFile(process.argv[2], "Catalog production fetch checks passed");
 } finally { await rm(root, { recursive: true, force: true }); }

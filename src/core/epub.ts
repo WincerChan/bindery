@@ -11,6 +11,7 @@ import {
   normalizeEpubArchivePaths,
   readArchive,
   writeArchive,
+  writeArchiveToSink,
 } from "./archive";
 import type { ArchiveMember } from "./archive";
 import { attr, child, children, descendants, parseXml } from "./xml";
@@ -133,15 +134,11 @@ function makeSection(
         : renderSection(title, normalized, lang, kind),
   };
 }
-function buildArchive(
-  sections: BuildSection[],
+function archiveHeaders(
+  sections: templates.TemplateSection[],
   meta: Metadata,
   options: BuildOptions,
-): Uint8Array {
-  if (!sections.length)
-    sections.push(
-      makeSection(1, "chapter", "正文", ["（无内容）"], meta, null),
-    );
+): ArchiveMember[] {
   const lang = meta.language || "zh-CN",
     identifier = meta.identifier || meta.book_id;
   const cover_href = options.cover
@@ -176,14 +173,53 @@ function buildArchive(
       name: "EPUB/Styles/style.css",
       data: encode(strip(options.css_text || "")),
     },
-    ...sections.map((s) => ({
-      name: `EPUB/${s.href}`,
-      data: encode(s.content),
-    })),
   ];
-  if (cover_href && options.cover)
-    entries.push({ name: `EPUB/${cover_href}`, data: options.cover.data });
+  return entries;
+}
+function buildArchive(sections: BuildSection[], meta: Metadata, options: BuildOptions): Uint8Array {
+  if (!sections.length) sections.push(makeSection(1, "chapter", "正文", ["（无内容）"], meta, null));
+  const entries = archiveHeaders(sections, meta, options);
+  for (const section of sections) entries.push({ name: `EPUB/${section.href}`, data: encode(section.content) });
+  if (options.cover) entries.push({ name: `EPUB/Images/${safeEpubMemberName(options.cover.name, "cover.jpg")}`, data: options.cover.data });
   return writeArchive(entries);
+}
+/**
+ * Two passes keep the original ZIP member order without retaining chapter bodies.
+ * The factory must reopen the same source on each pass. Only the section index,
+ * one rendered section and the ZIP central directory remain in memory.
+ */
+export function writeEpubFromSectionStream(args: {
+  stream_sections: () => Iterable<StreamBuildSection>;
+  source_author: string | null;
+  source_intro: string | null;
+  meta: Metadata;
+} & BuildOptions, write: (chunk: Uint8Array) => void): void {
+  const sections: templates.TemplateSection[] = [];
+  let index = 1;
+  const descriptor = (title: string) => {
+    const number = String(index++).padStart(4, "0");
+    return { item_id: `sec${number}`, href: `Text/section_${number}.xhtml`, title };
+  };
+  if (args.source_intro) sections.push(descriptor("简介"));
+  for (const entry of args.stream_sections()) sections.push(descriptor(entry.title));
+  const empty = !sections.length;
+  if (empty) sections.push(descriptor("正文"));
+  function* entries(): Generator<ArchiveMember> {
+    yield* archiveHeaders(sections, args.meta, args);
+    let i = 0;
+    const member = (section: BuildSection): ArchiveMember => {
+      const expected = sections[i++];
+      if (!expected || expected.title !== section.title || expected.href !== section.href) throw new Error("EPUB section stream changed between passes");
+      return { name: `EPUB/${section.href}`, data: encode(section.content) };
+    };
+    let n = 1;
+    if (args.source_intro) yield member(makeSection(n++, "intro", "简介", splitlines(args.source_intro).map(strip).filter(Boolean), args.meta, args.source_author));
+    for (const section of args.stream_sections()) yield member(makeSection(n++, section.kind, section.title, section.lines, args.meta, args.source_author));
+    if (empty) yield member(makeSection(1, "chapter", "正文", ["（无内容）"], args.meta, null));
+    if (i !== sections.length) throw new Error("EPUB section stream changed between passes");
+    if (args.cover) yield { name: `EPUB/Images/${safeEpubMemberName(args.cover.name, "cover.jpg")}`, data: args.cover.data };
+  }
+  writeArchiveToSink(entries(), write);
 }
 export function buildEpub(
   book: Book,

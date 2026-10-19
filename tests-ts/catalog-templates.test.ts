@@ -75,7 +75,7 @@ describe("rule and theme template behavior", () => {
   });
   it.each(["rules", "themes"] as const)("protects default, missing, active and archived references for %s", kind => {
     expect(() => deleteTemplate(kind, "default", library)).toThrow("默认模板不可删除");
-    expect(() => deleteTemplate(kind, "absent", library)).toThrow(kind === "rules" ? "Rule not found" : "Theme not found");
+    expect(() => deleteTemplate(kind, "absent", library)).toThrow(kind === "rules" ? "规则不存在" : "主题不存在");
     const id = new URL(newTemplate(kind), "http://test").searchParams.get(kind === "rules" ? "rule_id" : "theme_id")!;
     const path = join(templateDirectory(kind), `${id}.json`), meta = metadataFromDict({ book_id: "a".repeat(32), title: "引用", [kind === "rules" ? "rule_template" : "theme_template"]: id });
     library.saveMetadata(meta);
@@ -84,7 +84,7 @@ describe("rule and theme template behavior", () => {
     library.deleteBook(meta.book_id); expect(deleteTemplate(kind, id, library)).not.toContain("error"); expect(existsSync(path)).toBe(false);
   });
   it("rejects unknown IDs without falling back for the editors", () => {
-    expect(() => ruleEditor("../default")).toThrow("Rule not found"); expect(() => themeEditor("missing")).toThrow("Theme not found");
+    expect(() => ruleEditor("../default")).toThrow("规则不存在"); expect(() => themeEditor("missing")).toThrow("主题不存在");
   });
   it("uses global theme defaults and the EPUB keep-book-style sentinel", () => {
     expect(effectiveThemeId(metadataFromDict({ source_type: "epub" }))).toBe("default");

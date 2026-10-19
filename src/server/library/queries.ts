@@ -1,3 +1,4 @@
+import { ensureTrackerConsistencyForMeta } from "../tracker";
 import { bookView } from "../book-view";
 import type { LibraryStorage } from "../storage";
 import { HttpError } from "../http";
@@ -16,7 +17,7 @@ export function libraryPage(library: LibraryStorage, input: Partial<LibrarySearc
   if (page !== search.page) [books] = library.listBooksPage({ ...search, page });
   const current = { ...search, page };
   return {
-    ...current, books: books.map(meta => bookView(meta, library)), total_books, total_pages,
+    ...current, books: books.map(meta => bookView(meta, library, ensureTrackerConsistencyForMeta(meta, library))), total_books, total_pages,
     has_prev: page > 1, has_next: page < total_pages, prev_page: page - 1, next_page: page + 1,
     return_to: libraryReturnTo(current),
   };

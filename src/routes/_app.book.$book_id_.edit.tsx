@@ -1,5 +1,7 @@
+import { loadOrNotFound } from "../shared/not-found";
+import { NotFoundPage } from "../shared/not-found-page";
 import { Show } from "solid-js";
-import { createFileRoute, notFound } from "@tanstack/solid-router";
+import { createFileRoute } from "@tanstack/solid-router";
 import { createServerFn } from "@tanstack/solid-start";
 import { authenticated } from "../server/functions";
 import { BookEditor } from "../features/books/book-editor";
@@ -17,23 +19,8 @@ export const Route = createFileRoute("/_app/book/$book_id_/edit")({
       typeof search.return_to === "string" ? search.return_to : undefined,
   }),
   loaderDeps: ({ search }) => ({ return_to: search.return_to }),
-  loader: async ({ params, deps }) => {
-    try {
-      return await loadEdit({
-        data: { id: params.book_id, return_to: deps.return_to },
-      });
-    } catch (error) {
-      if (error instanceof Error && "status" in error && error.status === 404)
-        throw notFound();
-      throw error;
-    }
-  },
-  notFoundComponent: () => (
-    <div>
-      <h1>书籍不存在</h1>
-      <a href="/">返回书库</a>
-    </div>
-  ),
+  loader: ({ params, deps }) => loadOrNotFound(() => loadEdit({ data: { id: params.book_id, return_to: deps.return_to } })),
+  notFoundComponent: NotFoundPage,
   head: () => ({ meta: [{ title: "编辑 · Bindery" }] }),
   server: {
     handlers: {

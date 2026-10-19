@@ -1,4 +1,6 @@
-import { createFileRoute, notFound } from "@tanstack/solid-router";
+import { loadOrNotFound } from "../shared/not-found";
+import { NotFoundPage } from "../shared/not-found-page";
+import { createFileRoute } from "@tanstack/solid-router";
 import { Show } from "solid-js";
 import { createServerFn } from "@tanstack/solid-start";
 import { authenticated } from "../server/functions";
@@ -10,15 +12,14 @@ const loadEditor = createServerFn({ method: "GET" }).middleware([authenticated])
   .inputValidator((input: string) => input)
   .handler(async ({ data }) => {
     const catalog = await import("../server/catalog/templates");
-    try { return catalog.ruleEditor(data); }
-    catch (error) { if (error instanceof Error && "status" in error && error.status === 404) return null; throw error; }
+    return catalog.ruleEditor(data);
   });
 export const Route = createFileRoute("/_app/rules_/$rule_id/editor")({
-  loader: async ({ params }) => { const data = await loadEditor({ data: params.rule_id }); if (!data) throw notFound(); return data; },
+  loader: ({ params }) => loadOrNotFound(() => loadEditor({ data: params.rule_id })),
   server: { handlers: { POST: authenticatedRoute<{ rule_id: string }>(async context => (await import("../server/catalog/http")).saveEditorHandler("rules")(context)) } },
   head: () => ({ meta: [{ title: "规则编辑 · Bindery" }] }),
   component: Page,
-  notFoundComponent: () => <p role="alert">Rule not found</p>,
+  notFoundComponent: NotFoundPage,
 });
 function Page() { const data = Route.useLoaderData(); return <div class="catalog-page"><p><a href="/rules?tab=parsing">← 规则与主题</a></p><Show when={data()} keyed>{editor => <Editor kind="rules" data={editor} />}</Show></div>; }
 

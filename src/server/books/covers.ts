@@ -194,6 +194,6 @@ export function extractBookCover(id: string, library: LibraryStorage): void {
   const path = epubPath(library.base, id);
   if (!existsSync(path)) throw new HttpError(404, "EPUB 不存在");
   const result = extractCover(readFileSync(path));
-  if (!result) throw new HttpError(404, "No cover in EPUB");
+  if (!result) throw new HttpError(404, "EPUB 中没有封面");
   replaceCover(id, result[0], result[1], library);
 }

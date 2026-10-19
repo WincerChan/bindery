@@ -82,20 +82,10 @@ export function readArchive(data: Uint8Array): ArchiveMember[] {
 export function writeArchive(entries: Iterable<ArchiveMember>): Uint8Array {
   const chunks: Uint8Array[] = [];
   let total = 0;
-  const zip = new Zip((error, data) => {
-    if (error) throw error;
+  writeArchiveToSink(entries, data => {
     chunks.push(data);
     total += data.length;
   });
-  for (const entry of entries) {
-    const file =
-      entry.name === "mimetype"
-        ? new ZipPassThrough(entry.name)
-        : new ZipDeflate(entry.name, { level: 6 });
-    zip.add(file);
-    file.push(entry.data, true);
-  }
-  zip.end();
   const result = new Uint8Array(total);
   let offset = 0;
   for (const chunk of chunks) {
@@ -103,6 +93,21 @@ export function writeArchive(entries: Iterable<ArchiveMember>): Uint8Array {
     offset += chunk.length;
   }
   return result;
+}
+/** Synchronous sink provides backpressure (e.g. a complete write to a file descriptor). */
+export function writeArchiveToSink(entries: Iterable<ArchiveMember>, write: (chunk: Uint8Array) => void): void {
+  const zip = new Zip((error, data) => {
+    if (error) throw error;
+    write(data);
+  });
+  try {
+    for (const entry of entries) {
+      const file = entry.name === "mimetype" ? new ZipPassThrough(entry.name) : new ZipDeflate(entry.name, { level: 6 });
+      zip.add(file);
+      file.push(entry.data, true);
+    }
+    zip.end();
+  } catch (error) { zip.terminate(); throw error; }
 }
 export interface ArchivePatch {
   data: Uint8Array;

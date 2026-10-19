@@ -26,8 +26,8 @@ describe("Python ingest worker parity", () => {
     vi.stubEnv("BINDERY_TEMPLATE_DIR", join(dir, "templates")); vi.stubEnv("BINDERY_RULES_DIR", ""); vi.stubEnv("BINDERY_THEMES_DIR", ""); vi.stubEnv("BINDERY_STAGE_DIR", join(dir, "ts-stage"));
     const library = new LibraryStorage(join(dir, "ts"), new BinderyDatabase(join(dir, "ts", "db.sqlite"))); library.ensure();
     const form = new FormData(); form.append("files", new File([scenario.content], scenario.filename, { type: "text/plain" })); for (const [k, v] of Object.entries(fields)) form.append(k, v);
-    await submitUploads(library, form); drainJobs(library); const meta = library.listBooks()[0]!;
-    if (scenario.regenerate) { regenerateBook(library, meta.book_id, new FormData()); drainJobs(library); }
+    await submitUploads(library, form); (await drainJobs(library)); const meta = library.listBooks()[0]!;
+    if (scenario.regenerate) { regenerateBook(library, meta.book_id, new FormData()); (await drainJobs(library)); }
     writeFileSync(join(dir, "source.txt"), scenario.content);
     writeFileSync(join(dir, "input.json"), JSON.stringify({ book_id: meta.book_id, fields, filename: scenario.filename, regenerate: scenario.regenerate }));
     await promisify(execFile)("uv", ["run", "--no-sync", "python", resolve("tests-ts/fixtures/ingest/reference.py"), dir], { env: { ...process.env, UV_CACHE_DIR: "/tmp/bindery-uv-cache" }, timeout: 20000 });

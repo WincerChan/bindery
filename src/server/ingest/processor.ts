@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { openSync, readSync, closeSync, writeSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { metadataFromDict, type Book, type Job, type Metadata, type Volume } from "../../core/models";
+import { strip } from "../../core/python";
 import { bookFromDict } from "../../core/models";
-import { buildEpub, buildEpubFromSectionStream, extractCover, extractEpubMetadata, stripWebpAssetsAndRefs, updateEpubMetadata, type StreamBuildSection } from "../../core/epub";
+import { buildEpub, writeEpubFromSectionStream, extractCover, extractEpubMetadata, stripWebpAssetsAndRefs, updateEpubMetadata, type StreamBuildSection } from "../../core/epub";
 import type { ParsedBookSection } from "../../core/parsing";
 import { LibraryStorage, coverPath, epubPath, saveBook, saveCoverBytes, sourcePath, writeSourceFile } from "../storage";
 import { parseBookFile, parseBookFileEvents, textFileHasContent } from "../parsing";
@@ -10,6 +11,9 @@ import { getRule } from "../templates";
 import { nowIso } from "../db";
 import { composeBookCss } from "../epub-css";
 import { duplicateBooks, ensureTracker, resolveTxtIdentity } from "./identity";
+import { loadEditWriteback } from "./edit-staging";
+import { downloadCoverFromUrl } from "../books/covers";
+import type { Fetch } from "../books/metadata-lookup";
 import { queueDirectory, detectSourceType } from "./staging";
 
 export const fieldNames = ["title", "author", "language", "description", "series", "identifier", "publisher", "tags", "published", "isbn", "rating", "rule_template", "theme_template", "custom_css"] as const;
@@ -30,7 +34,7 @@ function metadata(id: string, fields: UploadFields, extracted: Partial<Metadata>
   const ratingText = fields.rating.trim(), rating = /^[+-]?\d+$/.test(ratingText) ? Math.max(0, Math.min(5, Number(ratingText))) : null;
   const picked: Partial<Metadata> = {};
   for (const key of ["title", "author", "language", "description", "series", "identifier", "publisher", "published", "isbn"] as const) Object.assign(picked, { [key]: fields[key].trim() || extracted[key] || null });
-  return metadataFromDict({ ...picked, book_id: id, title: picked.title || "未命名", language: picked.language || "zh-CN", source_type: epub ? "epub" : "txt", tags, rating: ratingText ? rating : epub ? extracted.rating ?? null : null, rule_template: epub ? null : fields.rule_template, theme_template: fields.theme_template.trim() === "__book__" && epub ? "__book__" : fields.theme_template.trim() && fields.theme_template.trim() !== "__book__" ? fields.theme_template.trim() : "default", custom_css: fields.custom_css.trim() || null, status: epub ? "synced" : "dirty", epub_updated_at: epub ? now : null, created_at: now, updated_at: now });
+  return metadataFromDict({ ...picked, book_id: id, title: picked.title || "未命名", language: picked.language || "zh-CN", source_type: epub ? "epub" : "txt", tags, rating: ratingText ? rating : epub ? extracted.rating ?? null : null, rule_template: epub ? null : fields.rule_template, theme_template: fields.theme_template.trim() === "__book__" && epub ? "__book__" : fields.theme_template.trim() && fields.theme_template.trim() !== "__book__" ? fields.theme_template.trim() : "default", custom_css: strip(fields.custom_css) || null, status: epub ? "synced" : "dirty", epub_updated_at: epub ? now : null, created_at: now, updated_at: now });
 }
 function appendStub(book: Book, section: ParsedBookSection, current: Volume | null): Volume | null {
   if (section.kind === "volume") {
@@ -49,12 +53,28 @@ function buildTxt(library: LibraryStorage, job: Job, meta: Metadata, file: strin
   const events = parseBookFileEvents(file, name, rule?.rules), first = events.next().value;
   if (!first || !("intro" in first)) throw new Error("无法解析文本元信息");
   const stub = bookFromDict({ title: meta.title, author: meta.author, intro: first.intro }); let current: Volume | null = null;
+  let pass = 0;
   function* sections(): Generator<StreamBuildSection> {
-    for (const section of events) if ("kind" in section) { current = appendStub(stub, section, current); yield { kind: section.kind, title: section.title, lines: section.lines }; }
+    const currentEvents = pass++ === 0 ? events : parseBookFileEvents(file, name, rule?.rules);
+    if (pass > 1) currentEvents.next();
+    for (const section of currentEvents) if ("kind" in section) {
+      if (pass === 1) current = appendStub(stub, section, current);
+      yield { kind: section.kind, title: section.title, lines: section.lines };
+    }
   }
   updateJob(library, job.id, { stage: "生成 EPUB" });
-  const data = buildEpubFromSectionStream({ stream_sections: sections(), source_author: upload ? resolveTxtIdentity(name, first.title, first.author)[1] : first.author, source_intro: first.intro, meta, cover: coverAsset(library, meta), css_text: composeBookCss(meta) });
-  atomicWrite(epubPath(library.base, meta.book_id), data); saveBook(stub, library.base, meta.book_id);
+  const path = epubPath(library.base, meta.book_id), temporary = path + ".ingest.tmp";
+  let fd: number | undefined;
+  try {
+    fd = openSync(temporary, "w");
+    writeEpubFromSectionStream({ stream_sections: sections, source_author: upload ? resolveTxtIdentity(name, first.title, first.author)[1] : first.author, source_intro: first.intro, meta, cover: coverAsset(library, meta), css_text: composeBookCss(meta) }, chunk => {
+      let offset = 0;
+      while (offset < chunk.length) offset += writeSync(fd!, chunk, offset);
+    });
+    closeSync(fd); fd = undefined;
+    renameSync(temporary, path);
+  } finally { if (fd !== undefined) closeSync(fd); rmSync(temporary, { force: true }); }
+  saveBook(stub, library.base, meta.book_id);
 }
 export function runRegenerate(library: LibraryStorage, job: Job): Metadata {
   const meta = library.loadMetadata(job.book_id!);
@@ -70,18 +90,29 @@ function refreshCover(library: LibraryStorage, meta: Metadata): void {
   try { cover = extractCover(readFileSync(epubPath(library.base, meta.book_id))); } catch { return; }
   meta.cover_file = cover ? saveCoverBytes(library.base, meta.book_id, cover[0], cover[1]) : null;
 }
-export function runEditWriteback(library: LibraryStorage, job: Job): Metadata {
+export async function runEditWriteback(library: LibraryStorage, job: Job, fetcher?: Fetch): Promise<Metadata> {
   const meta = library.loadMetadata(job.book_id!);
   if (meta.archived) throw new Error("Book archived");
   updateJob(library, job.id, { stage: "写元数据" });
+  const options = loadEditWriteback(library, job.id);
+  let coverChanged = false;
+  if (options.cover_bytes?.length) {
+    meta.cover_file = saveCoverBytes(library.base, meta.book_id, options.cover_bytes, options.cover_name);
+    coverChanged = true;
+  } else if (options.cover_url) {
+    updateJob(library, job.id, { stage: "下载封面" });
+    const downloaded = await downloadCoverFromUrl(options.cover_url, fetcher);
+    meta.cover_file = saveCoverBytes(library.base, meta.book_id, downloaded.data, downloaded.filename);
+    coverChanged = true;
+  }
   const path = epubPath(library.base, meta.book_id);
-  if (meta.source_type !== "epub" && existsSync(path)) refreshCover(library, meta);
+  if (meta.source_type !== "epub" && !coverChanged && existsSync(path)) refreshCover(library, meta);
   updateJob(library, job.id, { stage: "写回 EPUB" });
   if (meta.source_type !== "epub" && existsSync(sourcePath(library.base, meta.book_id))) {
     const book = parseBookFile(sourcePath(library.base, meta.book_id), meta.book_id, getRule(meta.rule_template || "default")?.rules);
     atomicWrite(path, buildEpub(book, meta, { cover: coverAsset(library, meta), css_text: composeBookCss(meta) })); saveBook(book, library.base, meta.book_id);
   }
-  else atomicWrite(path, updateEpubMetadata(readFileSync(path), meta, { cover: meta.source_type === "epub" ? null : coverAsset(library, meta), css_text: composeBookCss(meta) }));
+  else atomicWrite(path, updateEpubMetadata(readFileSync(path), meta, { cover: meta.source_type === "epub" && !coverChanged ? null : coverAsset(library, meta), css_text: composeBookCss(meta), strip_original_css: meta.source_type === "epub" && options.strip_original_css }));
   updateJob(library, job.id, { stage: "刷新封面" }); refreshCover(library, meta);
   updateMetaSynced(meta); library.saveMetadata(meta); return meta;
 }
@@ -138,12 +169,11 @@ function runUpload(library: LibraryStorage, job: Job): Metadata | null {
   }
   updateMetaSynced(meta); library.saveMetadata(meta); ensureTracker(library, meta); return meta;
 }
-import { openSync, readSync, closeSync } from "node:fs";
 function readProbe(path: string, buffer: Buffer): Uint8Array { const fd = openSync(path, "r"); try { return buffer.subarray(0, readSync(fd, buffer)); } finally { closeSync(fd); } }
-export function processJob(library: LibraryStorage, job: Job): void {
+export async function processJob(library: LibraryStorage, job: Job, fetcher?: Fetch): Promise<void> {
   const upload = ["upload", "upload-epub", "ingest"].includes(job.action);
   try {
-    const meta = upload ? runUpload(library, job) : job.action === "edit-writeback" ? runEditWriteback(library, job) : runRegenerate(library, job);
+    const meta = upload ? runUpload(library, job) : job.action === "edit-writeback" ? await runEditWriteback(library, job, fetcher) : runRegenerate(library, job);
     if (meta) updateJob(library, job.id, { book_id: meta.book_id, status: "success", stage: "完成", message: "完成" });
   } catch (error) {
     if (!upload && job.book_id) {
@@ -151,5 +181,5 @@ export function processJob(library: LibraryStorage, job: Job): void {
       catch (missing) { if ((missing as NodeJS.ErrnoException).code !== "ENOENT") console.error(missing); }
     }
     updateJob(library, job.id, { status: "failed", stage: "失败", message: job.action === "edit-writeback" ? "写回失败" : job.action === "upload-epub" ? "导入失败" : "转换失败", log: error instanceof Error ? error.stack || error.message : String(error) });
-  } finally { if (upload) rmSync(queueDirectory(library, job.id), { recursive: true, force: true }); }
+  } finally { if (upload || job.action === "edit-writeback") rmSync(queueDirectory(library, job.id), { recursive: true, force: true }); }
 }

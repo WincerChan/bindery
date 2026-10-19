@@ -5,7 +5,7 @@ import { DEFAULT_RULE_CONFIG, parseBook } from "../../core/parsing";
 import { RuleTemplateError, validateRuleTemplateJson } from "../../core/rules";
 import { strip } from "../../core/python";
 import { getRule, getTheme, loadRuleTemplates, loadThemeTemplates, templateDirectory } from "../templates";
-import { HttpError } from "../http";
+import { HttpError, requireEntity, missingEntity } from "../http";
 import type { LibraryStorage } from "../storage";
 import { validateThemeCss } from "./theme-css";
 
@@ -13,13 +13,11 @@ import { validateThemeCss } from "./theme-css";
 const summary = (t: { name: string; description: string | null; version: string }) => ({ name: t.name, description: t.description, version: t.version });
 function requireRule(id: string) {
   const rule = loadRuleTemplates().find(t => t.rule_id === id);
-  if (!rule) throw new HttpError(404, "Rule not found");
-  return rule;
+  return requireEntity(rule, "rule");
 }
 function requireTheme(id: string) {
   const theme = loadThemeTemplates().find(t => t.theme_id === id);
-  if (!theme) throw new HttpError(404, "Theme not found");
-  return theme;
+  return requireEntity(theme, "theme");
 }
 export function ruleEditor(id: string) {
   const rule = requireRule(id);
@@ -91,7 +89,7 @@ export function deleteTemplate(kind: "rules" | "themes", id: string, library: Li
     return `${templateUrl(kind, id)}&error=${encodeURIComponent("模板已被书籍引用，无法删除")}`;
   }
   try { unlinkSync(template.file_path); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new HttpError(404, kind === "rules" ? "Rule file missing" : "Theme file missing"); throw error; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") missingEntity(kind === "rules" ? "rule" : "theme"); throw error; }
   return templateUrl(kind, "default");
 }
 export function testRule(sample: string, ruleId = "default") {

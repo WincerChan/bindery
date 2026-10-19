@@ -1,7 +1,6 @@
 import type { Metadata } from "../../core/models";
 import type { LibraryStorage } from "../storage";
-import { newBookId } from "../storage";
-import { nowIso } from "../db";
+import { ensureTrackerConsistencyForMeta } from "../tracker";
 
 export const normalizeIdentity = (s: string | null) => (s || "").trim().toLowerCase().replace(/[^0-9a-z\u4e00-\u9fff]+/g, "");
 export const safeFilename = (s: string) => s.replace(/[^0-9a-zA-Z\u4e00-\u9fff]+/g, "_").replace(/^_+|_+$/g, "") || "book";
@@ -27,22 +26,6 @@ export function duplicateBooks(library: LibraryStorage, title: string | null, au
     return reason ? [{ book_id: meta.book_id, title: meta.title, author: meta.author || "未知", reason }] : [];
   }).slice(0, 3);
 }
-/** Keep manual tracker state when linking, matching Python's ingest path. */
 export function ensureTracker(library: LibraryStorage, meta: Metadata): void {
-  const now = nowIso(), db = library.db;
-  let wish = db.getWishByLibraryBookId(meta.book_id);
-  if (!wish) {
-    wish = db.listWishes().find(w => !/^[a-f0-9]{32}$/.test((w.library_book_id || "").trim().toLowerCase()) && normalizeIdentity(w.title) && normalizeIdentity(w.title) === normalizeIdentity(meta.title) && (!normalizeIdentity(w.author) || !normalizeIdentity(meta.author) || normalizeIdentity(w.author) === normalizeIdentity(meta.author))) || null;
-    if (wish) db.updateWish(wish.id, { library_book_id: meta.book_id, title: meta.title || "未命名", author: meta.author, updated_at: now });
-    else {
-      wish = { id: newBookId(), library_book_id: meta.book_id, title: meta.title || "未命名", author: meta.author, rating: meta.rating, read: meta.read, read_status: meta.read ? "read" : "unread", tags: [], comment: null, book_status: "completed", created_at: now, updated_at: now };
-      db.createWish(wish);
-    }
-  } else if (wish.title !== meta.title || wish.author !== meta.author) db.updateWish(wish.id, { title: meta.title || "未命名", author: meta.author, updated_at: now });
-  const read = wish.read_status === "read";
-  if (meta.read !== read || meta.rating !== wish.rating) {
-    if (meta.read !== read) meta.read_updated_at = now;
-    meta.read = read; meta.rating = wish.rating;
-    library.saveMetadata(meta);
-  }
+  ensureTrackerConsistencyForMeta(meta, library);
 }

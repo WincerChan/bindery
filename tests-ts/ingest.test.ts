@@ -40,7 +40,7 @@ describe("upload persistence, redirect and worker", () => {
     const job = library.db.listJobs()[0]!; expect(job.stage).toBe("排队中"); expect(job.status).toBe("running");
     const directory = queueDirectory(library, job.id), spec = JSON.parse(readFileSync(join(directory, "task.json"), "utf8"));
     expect(spec).not.toHaveProperty("data"); expect(readFileSync(join(directory, spec.payload_name), "utf8")).toContain("正文");
-    expect(drainJobs(library)).toBe(1); expect(library.db.getJob(job.id)?.status).toBe("success"); expect(existsSync(directory)).toBe(false);
+    expect((await drainJobs(library))).toBe(1); expect(library.db.getJob(job.id)?.status).toBe("success"); expect(existsSync(directory)).toBe(false);
     const meta = library.listBooks()[0]!; expect(meta).toMatchObject({ title: "书名", author: "作者", rating: 5, tags: ["甲", "乙", "甲"], language: "zh", description: "简介", series: "系列", identifier: "编号", publisher: "出版", published: "2026", isbn: "123", status: "synced" });
     expect(meta.updated_at).toBe(meta.epub_updated_at); expect(statusView(meta).status_class).toBe("ok");
     expect(extractEpubMetadata(readFileSync(epubPath(library.base, meta.book_id)), "fallback").title).toBe("书名");
@@ -56,11 +56,11 @@ describe("upload persistence, redirect and worker", () => {
     controller!.enqueue(Buffer.from("第一章 开始\n"));
     expect(library.db.listJobs()).toHaveLength(0);
     controller!.enqueue(Buffer.from("正文")); controller!.close();
-    expect(await pending).toBeInstanceOf(Response); expect(library.db.listJobs()).toHaveLength(1); expect(drainJobs(library)).toBe(1);
+    expect(await pending).toBeInstanceOf(Response); expect(library.db.listJobs()).toHaveLength(1); expect((await drainJobs(library))).toBe(1);
   });
   it("batches uploads and keeps HTMX redirect compatibility", async () => {
     const response = await submitUploads(library, form([upload("one.txt"), upload("two.txt")]), new Request("http://localhost/ingest", { headers: { "HX-Request": "true" } })) as Response;
-    expect(response.status).toBe(200); expect(response.headers.get("HX-Redirect")).toContain("/ingest?"); expect(library.db.listJobs()).toHaveLength(2); expect(drainJobs(library)).toBe(2);
+    expect(response.status).toBe(200); expect(response.headers.get("HX-Redirect")).toContain("/ingest?"); expect(library.db.listJobs()).toHaveLength(2); expect((await drainJobs(library))).toBe(2);
   });
   it("retains failed queue-full rows and removes their payloads", async () => {
     vi.stubEnv("BINDERY_INGEST_QUEUE_MAXSIZE", "1"); await submit();
@@ -70,12 +70,12 @@ describe("upload persistence, redirect and worker", () => {
   it("fails empty/blank/unsupported/malformed EPUB inputs and cleans their queue files", async () => {
     const response = await submit(form([upload("empty.txt", "")])); expect(location(response).searchParams.get("toast_kind")).toBe("warning");
     await submit(form([upload("blank.txt", " \n\t"), upload("binary.bin", "\0\x01", "application/octet-stream"), upload("bad.epub", "broken", "application/epub+zip")]));
-    drainJobs(library); const jobs = library.db.listJobs(); expect(jobs).toHaveLength(4); expect(jobs.every(j => j.status === "failed")).toBe(true); expect(jobs.some(j => j.message?.includes("文本为空"))).toBe(true); expect(jobs.some(j => j.message?.includes("不支持"))).toBe(true); expect(jobs.some(j => j.message === "导入失败")).toBe(true);
+    (await drainJobs(library)); const jobs = library.db.listJobs(); expect(jobs).toHaveLength(4); expect(jobs.every(j => j.status === "failed")).toBe(true); expect(jobs.some(j => j.message?.includes("文本为空"))).toBe(true); expect(jobs.some(j => j.message?.includes("不支持"))).toBe(true); expect(jobs.some(j => j.message === "导入失败")).toBe(true);
     expect(readdirSync(join(library.base, ".ingest-queue"))).toEqual([]);
   });
   it("imports EPUB, preserves source theme and rejects regenerating/retrying it", async () => {
     const original = seed(), bytes = readFileSync(epubPath(library.base, original.book_id)); library.deleteBook(original.book_id);
-    const data = form([], { theme_template: "__book__" }); data.append("files", new File([bytes], "import.epub", { type: "application/epub+zip" })); await submit(data); drainJobs(library);
+    const data = form([], { theme_template: "__book__" }); data.append("files", new File([bytes], "import.epub", { type: "application/epub+zip" })); await submit(data); (await drainJobs(library));
     const meta = library.listBooks()[0]!; expect(meta).toMatchObject({ source_type: "epub", title: "测试书", theme_template: "__book__", rule_template: null }); expect(existsSync(sourcePath(library.base, meta.book_id))).toBe(false);
     expect(() => regenerateBook(library, meta.book_id, new FormData())).toThrow("EPUB 导入的书籍无法重新生成"); expect(() => regenerateBook(library, "", new FormData(), library.db.listJobs()[0]!.id)).toThrow("EPUB 导入的书籍无法重试生成");
   });
@@ -91,7 +91,7 @@ describe("preview, staging and dedupe", () => {
     const file = upload("《七界第一仙》（校对版全本）作者：流牙.txt", "==========================================================\n\n第1章 起始\n正文内容\n");
     vi.spyOn(file, "arrayBuffer").mockRejectedValue(new Error("must stream"));
     const previews = await previewUploads(library, [file]); expect(previews[0]).toMatchObject({ title: "七界第一仙", author: "流牙", format: "TXT", chapters: 1, toc: ["第1章 起始"] }); expect(loadStaged(library, previews[0]!.upload_token!)).not.toBeNull();
-    await submit(form([], { upload_tokens: previews[0]!.upload_token! })); drainJobs(library); expect(library.listBooks()[0]).toMatchObject({ title: "七界第一仙", author: "流牙" });
+    await submit(form([], { upload_tokens: previews[0]!.upload_token! })); (await drainJobs(library)); expect(library.listBooks()[0]).toMatchObject({ title: "七界第一仙", author: "流牙" });
   });
   it("handles empty and invalid preview files without exposing library paths", async () => {
     const results = await previewUploads(library, [upload("empty.txt", ""), upload("blank.txt", " \n"), upload("bad.epub", "bad"), upload("bad.bin", "\0", "application/octet-stream")]);
@@ -103,18 +103,18 @@ describe("preview, staging and dedupe", () => {
     writeFileSync(join(stageRoot(library), a.token, "meta.json"), JSON.stringify({ payload_name: "../secret" })); expect(loadStaged(library, a.token)).toBeNull();
   });
   it.each(["", "作者甲"])("normalizes an existing book with incoming author %s and creates no new book", async author => {
-    await submit(form([upload()], { title: "重复样例", author: "作者甲" })); drainJobs(library); const existing = library.listBooks()[0]!;
-    await submit(form([upload()], { title: "重复样例", author, dedupe_mode: "normalize" })); drainJobs(library);
+    await submit(form([upload()], { title: "重复样例", author: "作者甲" })); (await drainJobs(library)); const existing = library.listBooks()[0]!;
+    await submit(form([upload()], { title: "重复样例", author, dedupe_mode: "normalize" })); (await drainJobs(library));
     expect(library.listBooks()).toHaveLength(1); expect(library.db.listJobs().some(j => j.book_id === existing.book_id && j.message === "归一到已入库书籍")).toBe(true);
   });
   it("honors per-file keep overrides and reuses another duplicate", async () => {
-    await submit(form([upload()], { title: "重复样例" })); drainJobs(library);
+    await submit(form([upload()], { title: "重复样例" })); (await drainJobs(library));
     const previews = await previewUploads(library, [upload("one.txt"), upload("two.txt")]);
-    await submit(form([], { title: "重复样例", dedupe_mode: "normalize", upload_tokens: previews.map(p => p.upload_token!), dedupe_keep_tokens: previews[0]!.upload_token! })); drainJobs(library); expect(library.listBooks()).toHaveLength(2);
+    await submit(form([], { title: "重复样例", dedupe_mode: "normalize", upload_tokens: previews.map(p => p.upload_token!), dedupe_keep_tokens: previews[0]!.upload_token! })); (await drainJobs(library)); expect(library.listBooks()).toHaveLength(2);
   });
   it("binds an unlinked manual tracker, preserving reading state, rating and notes", async () => {
     library.db.createWish({ id: "f".repeat(32), title: "手动追踪书", author: "手动作者", library_book_id: null, rating: 5, read: false, read_status: "reading", tags: ["待看"], comment: "先记下来", book_status: "ongoing", created_at: "old", updated_at: "old" });
-    await submit(form([upload()], { title: "手动追踪书", author: "手动作者" })); drainJobs(library);
+    await submit(form([upload()], { title: "手动追踪书", author: "手动作者" })); (await drainJobs(library));
     const wishes = library.db.listWishes(); expect(wishes).toHaveLength(1); expect(wishes[0]).toMatchObject({ id: "f".repeat(32), read_status: "reading", rating: 5, tags: ["待看"], comment: "先记下来", library_book_id: library.listBooks()[0]!.book_id }); expect(library.listBooks()[0]?.rating).toBe(5);
   });
   it("matches title/author and ISBN precedence", () => {
@@ -124,14 +124,14 @@ describe("preview, staging and dedupe", () => {
 });
 
 describe("regeneration, retry, recovery and job views", () => {
-  it("queues regeneration and retry, ignores next and produces synced EPUB via events", () => {
+  it("queues regeneration and retry, ignores next and produces synced EPUB via events", async () => {
     const meta = seed(); expect(regenerateBook(library, meta.book_id, form([], { next: "//evil.test" })).headers.get("Location")).toBe("/jobs?tab=running");
-    const first = library.db.listJobs()[0]!; expect(first.action).toBe("regenerate"); expect(drainJobs(library)).toBe(1); expect(library.loadMetadata(meta.book_id).status).toBe("synced");
+    const first = library.db.listJobs()[0]!; expect(first.action).toBe("regenerate"); expect((await drainJobs(library))).toBe(1); expect(library.loadMetadata(meta.book_id).status).toBe("synced");
     regenerateBook(library, "", new FormData(), first.id); expect(library.db.listJobs().some(j => j.action === "retry" && j.stage === "排队中")).toBe(true);
-    expect(() => regenerateBook(library, "", new FormData(), "missing")).toThrow("Job not found");
+    expect(() => regenerateBook(library, "", new FormData(), "missing")).toThrow("任务不存在");
   });
-  it("marks failed regeneration metadata and stores a diagnostic log", () => {
-    const meta = seed(); rmSync(sourcePath(library.base, meta.book_id)); enqueueJob({ book_id: meta.book_id }, library); drainJobs(library);
+  it("marks failed regeneration metadata and stores a diagnostic log", async () => {
+    const meta = seed(); rmSync(sourcePath(library.base, meta.book_id)); enqueueJob({ book_id: meta.book_id }, library); (await drainJobs(library));
     expect(library.db.listJobs()[0]).toMatchObject({ status: "failed", stage: "失败", message: "转换失败" }); expect(library.db.listJobs()[0]?.log).toContain("Source missing"); expect(library.loadMetadata(meta.book_id).status).toBe("failed");
   });
   it("atomically claims once across storage instances and recovers interrupted stages", async () => {
@@ -146,18 +146,18 @@ describe("regeneration, retry, recovery and job views", () => {
     expect(library.listBooks()).toHaveLength(1);
   }, 20000);
   it("reports missing durable payloads and drains subsequent jobs", async () => {
-    await submit(); const job = library.db.listJobs()[0]!; rmSync(queueDirectory(library, job.id), { recursive: true }); await submit(); expect(drainJobs(library)).toBe(2); expect(library.db.getJob(job.id)?.message).toBe("读取队列文件失败"); expect(library.listBooks()).toHaveLength(1);
+    await submit(); const job = library.db.listJobs()[0]!; rmSync(queueDirectory(library, job.id), { recursive: true }); await submit(); expect((await drainJobs(library))).toBe(2); expect(library.db.getJob(job.id)?.message).toBe("读取队列文件失败"); expect(library.listBooks()).toHaveLength(1);
   });
   it("handles removed or emptied queued files with the reference failure messages", async () => {
     await submit(); const job = library.db.listJobs()[0]!; const directory = queueDirectory(library, job.id); const spec = JSON.parse(readFileSync(join(directory, "task.json"), "utf8"));
-    rmSync(join(directory, spec.payload_name)); drainJobs(library); expect(library.db.getJob(job.id)?.message).toBe("读取队列文件失败");
+    rmSync(join(directory, spec.payload_name)); (await drainJobs(library)); expect(library.db.getJob(job.id)?.message).toBe("读取队列文件失败");
     await submit(); const next = library.db.listJobs().find(j => j.status === "running")!, nextDirectory = queueDirectory(library, next.id); const nextSpec = JSON.parse(readFileSync(join(nextDirectory, "task.json"), "utf8"));
-    writeFileSync(join(nextDirectory, nextSpec.payload_name), ""); drainJobs(library); expect(library.db.getJob(next.id)?.message).toBe("上传文件为空");
+    writeFileSync(join(nextDirectory, nextSpec.payload_name), ""); (await drainJobs(library)); expect(library.db.getJob(next.id)?.message).toBe("上传文件为空");
   });
-  it("filters bulk processing by parsing/theme and uses edit-writeback for EPUB", () => {
+  it("filters bulk processing by parsing/theme and uses edit-writeback for EPUB", async () => {
     seed(); seed("b".repeat(32), true); expect(regenerateBulk(library, form([], { scope: "parsing" })).headers.get("Location")).toBe("/jobs?tab=running"); expect(library.db.listJobs()).toHaveLength(1);
-    regenerateBulk(library, form([], { scope: "themes" })); expect(library.db.listJobs()).toHaveLength(3); expect(library.db.listJobs().some(j => j.action === "edit-writeback")).toBe(true); drainJobs(library); expect(library.db.listJobs().every(j => j.status === "success")).toBe(true);
-    expect(() => regenerateBulk(library, form([], { template_id: "missing" }))).toThrow("Rule not found");
+    regenerateBulk(library, form([], { scope: "themes" })); expect(library.db.listJobs()).toHaveLength(3); expect(library.db.listJobs().some(j => j.action === "edit-writeback")).toBe(true); (await drainJobs(library)); expect(library.db.listJobs().every(j => j.status === "success")).toBe(true);
+    expect(() => regenerateBulk(library, form([], { template_id: "missing" }))).toThrow("规则不存在");
   });
   it("shows grouped paginated jobs, archived identities, invalid counts and cleans history", () => {
     const meta = seed(); for (let i = 0; i < 14; i++) enqueueJob({ book_id: meta.book_id }, library);

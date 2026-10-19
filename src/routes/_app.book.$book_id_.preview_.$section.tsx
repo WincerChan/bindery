@@ -1,4 +1,6 @@
-import { createFileRoute, notFound } from "@tanstack/solid-router";
+import { loadOrNotFound } from "../shared/not-found";
+import { NotFoundPage } from "../shared/not-found-page";
+import { createFileRoute } from "@tanstack/solid-router";
 import { createServerFn } from "@tanstack/solid-start";
 import { authenticated } from "../server/functions";
 import { authenticatedRoute, HttpError } from "../server/http";
@@ -23,19 +25,12 @@ export const Route = createFileRoute("/_app/book/$book_id_/preview_/$section")({
     ...(typeof search.find === "string" ? { find: search.find.slice(0, 200) } : typeof search.find === "number" || typeof search.find === "boolean" ? { find: search.find } : {}),
   }),
   loaderDeps: ({ search }) => ({ returnTo: search.return_to || "/" }),
-  loader: async ({ params, deps }) => {
-    try { return await getReader({ data: { bookId: params.book_id, section: params.section, returnTo: deps.returnTo } }); }
-    catch (error) {
-      if (error && typeof error === "object" && "status" in error && error.status === 404) {
-        throw notFound({ data: error instanceof Error ? error.message : "书籍不存在" });
-      }
-      throw error;
-    }
-  },
+  staticData: { readerLayout: true },
+  loader: ({ params, deps }) => loadOrNotFound(() => getReader({ data: { bookId: params.book_id, section: params.section, returnTo: deps.returnTo } })),
   head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.book.title || "阅读"} · Bindery` }] }),
   headers: () => ({ "Cache-Control": "no-store, max-age=0", "CDN-Cache-Control": "no-store", Pragma: "no-cache", Expires: "0" }),
   component: ReaderPage,
-  notFoundComponent: props => <div role="alert"><h1>{typeof props.data === "string" ? props.data : "书籍不存在"}</h1><a href="/">返回书库</a></div>,
+  notFoundComponent: NotFoundPage,
   errorComponent: () => <div role="alert"><h1>阅读器加载失败，请稍后重试</h1><a href="/">返回书库</a></div>,
 });
 function ReaderPage() {

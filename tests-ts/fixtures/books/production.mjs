@@ -36,6 +36,11 @@ globalThis.fetch = async (url, init) => {
         `<script type="application/ld+json">{"@type":"Book","name":"线上书","author":{"name":"作者"},"description":"线上简介","image":"https://img.test/cover.jpg"}</script>`,
       );
 };
+// Python's flow oracle pauses its worker. Hold the real consumer lock so this
+// probe observes the same pending metadata and does not race archive/delete.
+const consumerLock = join(root, "library", ".ingest-queue", ".consumer");
+mkdirSync(consumerLock, { recursive: true });
+writeFileSync(join(consumerLock, "pid"), String(process.pid));
 const handler = await createProductionHandler();
 async function request(path, values, headers = {}, anonymous = false) {
   const form =
@@ -104,13 +109,6 @@ try {
   const invalidBody = await invalidHtml.text();
   assert.match(invalidBody, /无效草稿/);
   assert.match(invalidBody, /stylesheet/);
-  const rich = await request(
-    base + "/edit",
-    { title: "不应保存", cover_url: "https://example.com/a.png" },
-    { Accept: "application/json" },
-  );
-  assert.equal(rich.status, 503);
-  assert.equal(meta().title, "示例书");
   const lookup = await request(
     base + "/metadata/fetch",
     {
@@ -147,6 +145,14 @@ try {
     status_value: meta().status,
     tracker_read: wish().read_status,
   };
+  const rich = await request(
+    base + "/edit",
+    { title: "示例书", strip_original_css: "1" },
+    { Accept: "application/json" },
+  );
+  assert.equal(rich.status, 200);
+  assert.equal((await rich.json()).queued, true);
+  assert.equal(meta().title, "示例书");
   response = await request(base + "/edit", {
     title: " 新书 ",
     author: " 新作者 ",

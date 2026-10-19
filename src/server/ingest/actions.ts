@@ -1,9 +1,10 @@
+import { validateCss } from "../../core/css";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LibraryStorage } from "../storage";
 import { newBookId } from "../storage";
 import { enqueueJob } from "../jobs";
-import { HttpError, requireBook, redirectWithToast } from "../http";
+import { HttpError, requireEntity, missingEntity, requireBook, redirectWithToast } from "../http";
 import { effectiveThemeId } from "../book-view";
 import { loadRuleTemplates, loadThemeTemplates } from "../templates";
 import { nowIso } from "../db";
@@ -17,6 +18,8 @@ export async function submitUploads(library: LibraryStorage, form: FormData, req
   const files = formFiles(form, "files"), tokens = normalizeTokens(form.getAll("upload_tokens"));
   if (!files.length && !tokens.length) throw new HttpError(400, "Empty file");
   const fields = emptyFields(); for (const field of fieldNames) fields[field] = formText(form, field, fields[field]);
+  const cssError = validateCss(fields.custom_css);
+  if (cssError) return { error: `自定义 CSS 校验失败：${cssError}`, custom_css: fields.custom_css };
   cleanupStagedExcept(library, tokens);
   const staged = tokens.map(token => loadStaged(library, token)).filter(e => e !== null);
   if (tokens.length && !staged.length) return { error: "上传暂存已失效，请重新选择文件后再提交。", custom_css: fields.custom_css };
@@ -60,7 +63,7 @@ export async function submitUploads(library: LibraryStorage, form: FormData, req
 }
 export function regenerateBook(library: LibraryStorage, id: string, form: FormData, retryId?: string): Response {
   let bookId = id;
-  if (retryId) { const job = library.db.getJob(retryId); if (!job?.book_id) throw new HttpError(404, "Job not found"); bookId = job.book_id; }
+  if (retryId) { const job = library.db.getJob(retryId); bookId = requireEntity(job?.book_id, "job"); }
   const meta = requireBook(bookId, library);
   if (meta.source_type === "epub") throw new HttpError(400, retryId ? "EPUB 导入的书籍无法重试生成" : "EPUB 导入的书籍无法重新生成");
   enqueueJob({ book_id: bookId, rule_template: formText(form, "rule_template", "default"), action: retryId ? "retry" : "regenerate" }, library);
@@ -68,7 +71,7 @@ export function regenerateBook(library: LibraryStorage, id: string, form: FormDa
 }
 export function regenerateBulk(library: LibraryStorage, form: FormData): Response {
   const themes = formText(form, "scope", "parsing").trim().toLowerCase() === "themes", template = formText(form, "template_id").trim() || "default";
-  if (themes ? !loadThemeTemplates().some(t => t.theme_id === template) : !loadRuleTemplates().some(t => t.rule_id === template)) throw new HttpError(404, themes ? "Theme not found" : "Rule not found");
+  if (themes ? !loadThemeTemplates().some(t => t.theme_id === template) : !loadRuleTemplates().some(t => t.rule_id === template)) missingEntity(themes ? "theme" : "rule");
   let count = 0;
   for (const meta of library.listBooks()) {
     const rule = meta.rule_template?.trim() || "default";

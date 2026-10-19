@@ -63,7 +63,7 @@ describe("reader preview and progress (Python route assertions)", () => {
     expect(library.db.getReaderProgress(id)).toBeNull();
   });
   it.each(["-1", "99999"])("rejects missing section %s", section => {
-    const { library, id } = fixture(); expect(() => loadReader(id, section, "/", library)).toThrow("Section not found");
+    const { library, id } = fixture(); expect(() => loadReader(id, section, "/", library)).toThrow("章节不存在");
   });
   it.each(["bad", "1.2"])("rejects a non-integer section %s as a validation error", section => {
     const { library, id } = fixture(); expect(() => loadReader(id, section, "/", library)).toThrow("请求参数无效");
@@ -130,7 +130,7 @@ describe("reader search runtime", () => {
     const result = await searchBook(readerRequest(`/?q=beta&offset=${offset}`), id, library).text();
     expect(result).toContain(`"offset":${offset}`); expect(result).toContain(`"next_offset":${offset}`);
     expect(JSON.parse(result)).toMatchObject({ hits: [], has_more: false });
-    expect(() => loadReader(id, offset, "/", library)).toThrow("Section not found");
+    expect(() => loadReader(id, offset, "/", library)).toThrow("章节不存在");
   });
 });
 
@@ -151,11 +151,11 @@ describe("isolated EPUB resource delivery", () => {
     expect(await epubResource(readerRequest("/", { method: "HEAD" }), id, css.name, library).text()).toBe("");
   });
   it.each(["", "/etc/passwd", "../book.json", "Text/../book.json", "Text/./a.xhtml", "Text//a.xhtml", "a\\b", "a%2fb", "%252e%252e", "a\u0000b", "https:evil", "a?b", "a#b"])("rejects ambiguous/unsafe member path %j", path => {
-    expect(() => validateItemPath(path)).toThrow("Item not found");
+    expect(() => validateItemPath(path)).toThrow("资源不存在");
   });
   it("keeps safe nested Unicode names and returns 404 for an absent member", () => {
     const { library, id } = fixture(); expect(validateItemPath("OEBPS/Text/第一章.xhtml")).toBe("OEBPS/Text/第一章.xhtml");
-    expect(() => epubResource(readerRequest(), id, "absent.xhtml", library)).toThrow("Item not found");
+    expect(() => epubResource(readerRequest(), id, "absent.xhtml", library)).toThrow("资源不存在");
   });
   it("removes active content/navigation, keeps typography and local images, and escapes text", () => {
     const html = isolatedBookHtml(encode('<html><head><meta http-equiv="refresh" content="0;url=/security"/><base href="https://evil.test"/><style>p{color:red}</style></head><body onload="alert(1)"><script>parent.evil()</script><iframe src="/security"></iframe><form action="/logout"><input /></form><p id="a" style="font-size:20px">正文 &amp; 文本<img src="../Images/封面.png" onerror="alert(1)"/></p><a href="javascript:alert(1)">bad</a><a href="ch2.xhtml#p">next</a></body></html>'), "/book/ddd/epub/Text/", "http://localhost/");
@@ -176,6 +176,6 @@ describe("isolated EPUB resource delivery", () => {
     }
     const route = authenticatedRoute(({ request }) => epubResource(request, id, "absent", library), () => library);
     const response = await route({ request: readerRequest("/", { headers: { Cookie: `bindery_session=${signIn(library.db)}` } }), params: {} });
-    expect(response.status).toBe(404); expect(await response.json()).toEqual({ detail: "Item not found" }); expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.status).toBe(404); expect(await response.json()).toEqual({ detail: "资源不存在" }); expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });

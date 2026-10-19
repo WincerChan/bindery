@@ -24,7 +24,7 @@ describe("streaming multipart upload transport", () => {
   it("round-trips native Fetch FormData with duplicate file fields and binary cover", async () => {
     const data = new FormData(); data.append("files", new File(["第一章 开始\n正文"], "one.txt")); data.append("files", new File(["第二章 继续\n正文"], "two.txt")); data.append("cover_file", new File([Uint8Array.from([137,80,78,71,13,10,26,10])], "cover.png", { type: "image/png" }));
     const result = await uploadForm(new Request("http://localhost/ingest", { method: "POST", body: data }), library);
-    expect(result.form.getAll("files")).toHaveLength(2); expect((await submitUploads(library, result.form) as Response).status).toBe(303); result.cleanup(); expect(drainJobs(library)).toBe(2); expect(library.listBooks().every(m => m.cover_file === "cover.png")).toBe(true);
+    expect(result.form.getAll("files")).toHaveLength(2); expect((await submitUploads(library, result.form) as Response).status).toBe(303); result.cleanup(); expect((await drainJobs(library))).toBe(2); expect(library.listBooks().every(m => m.cover_file === "cover.png")).toBe(true);
   });
   it("accepts empty multipart forms and enforces field limits without retaining files", async () => {
     const parsed = await uploadForm(new Request("http://localhost/ingest", { method: "POST", body: new FormData() }), library); expect([...parsed.form]).toEqual([]); parsed.cleanup();

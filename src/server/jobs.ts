@@ -4,6 +4,9 @@ import { nowIso } from "./db";
 import { readEnv } from "./env";
 import { HttpError } from "./http";
 import type { Job } from "../core/models";
+import { rmSync } from "node:fs";
+import { stageEditWriteback, loadEditWriteback, type EditWritebackOptions } from "./ingest/edit-staging";
+import { queueDirectory } from "./ingest/staging";
 
 export type JobAction = "regenerate" | "retry" | "edit-writeback" | "upload" | "upload-epub" | "ingest";
 export interface EnqueueInput {
@@ -12,6 +15,16 @@ export interface EnqueueInput {
   book_id: string | null;
   rule_template?: string | null;
   action?: JobAction;
+}
+/** Complete durable files first, then atomically publish the consumable jobs row. */
+export function enqueueEditWriteback(input: Omit<EnqueueInput, "id" | "action" | "book_id"> & EditWritebackOptions & { book_id: string }, library = getLibrary()) {
+  const id = newBookId();
+  try {
+    stageEditWriteback(library, id, input);
+    const result = enqueueJob({ id, book_id: input.book_id, rule_template: input.rule_template, action: "edit-writeback" }, library);
+    if (!result.queued) rmSync(queueDirectory(library, id), { recursive: true, force: true });
+    return result;
+  } catch (error) { rmSync(queueDirectory(library, id), { recursive: true, force: true }); throw error; }
 }
 export function queueCapacity(): number {
   const raw = (readEnv("BINDERY_INGEST_QUEUE_MAXSIZE") || "").trim();
@@ -27,6 +40,10 @@ export function enqueueJob(input: EnqueueInput, library = getLibrary()): { queue
       input.id !== undefined && !/^[a-f0-9]{32}$/.test(input.id) ||
       input.book_id === null && ["regenerate", "retry", "edit-writeback"].includes(action)) {
     throw new HttpError(400, "任务参数错误");
+  }
+  if (action === "edit-writeback") {
+    if (!input.id) return enqueueEditWriteback({ book_id: input.book_id!, rule_template: input.rule_template, cover_bytes: null, cover_name: null, cover_url: "", strip_original_css: false }, library);
+    loadEditWriteback(library, input.id);
   }
   library.ensure();
   const now = nowIso();

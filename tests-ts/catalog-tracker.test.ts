@@ -29,9 +29,9 @@ describe("tracker CRUD and duplicate identities", () => {
   it("supports legacy read flags and normalizes invalid status fields", () => { create({ title: "旧字段", read: "YES", book_status: "bad" }); expect(all()[0]).toMatchObject({ read_status: "read", read: true, book_status: "ongoing" }); });
   it("rejects empty titles and invalid or missing update IDs", () => {
     expect(() => create({ title: " " })).toThrow("书名不能为空");
-    expect(() => writeTracker(library, { title: "x" }, "../x")).toThrow("Invalid wish id");
-    expect(() => writeTracker(library, { title: "x" }, "a".repeat(32))).toThrow("Wish not found");
-    expect(() => removeTracker(library, "BAD", "")).toThrow("Invalid wish id");
+    expect(() => writeTracker(library, { title: "x" }, "../x")).toThrow("追踪条目不存在");
+    expect(() => writeTracker(library, { title: "x" }, "a".repeat(32))).toThrow("追踪条目不存在");
+    expect(() => removeTracker(library, "BAD", "")).toThrow("追踪条目不存在");
     expect(removeTracker(library, "a".repeat(32), "")).toBe("/tracker");
   });
   it("blocks normalized identities but allows the same title by a different author", () => {
