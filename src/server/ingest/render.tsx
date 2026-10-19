@@ -1,0 +1,10 @@
+import { renderToString } from "@solidjs/web";
+import { UploadPreviews } from "../../features/ingest/preview";
+import { JobsSection } from "../../features/ingest/jobs";
+import { IngestPage } from "../../features/ingest/page";
+import type { Preview } from "./preview";
+import type { JobsPayload } from "./queries";
+import { ingestOptions } from "./queries";
+export const renderPreviews = (previews: Preview[]) => renderToString(() => <UploadPreviews previews={previews} />);
+export const renderJobs = (data: JobsPayload) => renderToString(() => <JobsSection data={data} />);
+export const renderIngestError = (error: { error: string; custom_css: string }) => renderToString(() => <IngestPage options={ingestOptions()} {...error} />);

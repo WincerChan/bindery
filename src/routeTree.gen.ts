@@ -14,6 +14,8 @@ import { Route as LibraryRouteImport } from './routes/library'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppArchiveRouteImport } from './routes/_app.archive'
+import { Route as AppIngestRouteImport } from './routes/_app.ingest'
+import { Route as AppJobsRouteImport } from './routes/_app.jobs'
 import { Route as AppKindleRouteImport } from './routes/_app.kindle'
 import { Route as AppRulesRouteImport } from './routes/_app.rules'
 import { Route as AppSecurityRouteImport } from './routes/_app.security'
@@ -22,6 +24,10 @@ import { Route as AppWishlistRouteImport } from './routes/_app.wishlist'
 import { Route as ArchiveDeleteBulkRouteImport } from './routes/archive.delete-bulk'
 import { Route as BooksArchiveRouteImport } from './routes/books.archive'
 import { Route as BooksDownloadRouteImport } from './routes/books.download'
+import { Route as BooksRegenerateRouteImport } from './routes/books.regenerate'
+import { Route as IngestPreviewRouteImport } from './routes/ingest.preview'
+import { Route as JobsCleanupInvalidRouteImport } from './routes/jobs.cleanup-invalid'
+import { Route as JobsPartialRouteImport } from './routes/jobs.partial'
 import { Route as RulesNewRouteImport } from './routes/rules.new'
 import { Route as RulesTestRouteImport } from './routes/rules.test'
 import { Route as ThemesNewRouteImport } from './routes/themes.new'
@@ -31,6 +37,8 @@ import { Route as WishlistDuplicateCheckRouteImport } from './routes/wishlist.du
 import { Route as WishlistExportRouteImport } from './routes/wishlist.export'
 import { Route as BookBook_idCoverRouteImport } from './routes/book.$book_id.cover'
 import { Route as BookBook_idDownloadRouteImport } from './routes/book.$book_id.download'
+import { Route as BookBook_idRegenerateRouteImport } from './routes/book.$book_id.regenerate'
+import { Route as JobsJob_idRetryRouteImport } from './routes/jobs.$job_id.retry'
 import { Route as RulesRule_idDeleteRouteImport } from './routes/rules.$rule_id.delete'
 import { Route as ThemesTheme_idDeleteRouteImport } from './routes/themes.$theme_id.delete'
 import { Route as TrackerWish_idDeleteRouteImport } from './routes/tracker.$wish_id.delete'
@@ -62,6 +70,16 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppArchiveRoute = AppArchiveRouteImport.update({
   id: '/archive',
   path: '/archive',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppIngestRoute = AppIngestRouteImport.update({
+  id: '/ingest',
+  path: '/ingest',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppJobsRoute = AppJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
   getParentRoute: () => AppRoute,
 } as any)
 const AppKindleRoute = AppKindleRouteImport.update({
@@ -102,6 +120,26 @@ const BooksArchiveRoute = BooksArchiveRouteImport.update({
 const BooksDownloadRoute = BooksDownloadRouteImport.update({
   id: '/books/download',
   path: '/books/download',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BooksRegenerateRoute = BooksRegenerateRouteImport.update({
+  id: '/books/regenerate',
+  path: '/books/regenerate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IngestPreviewRoute = IngestPreviewRouteImport.update({
+  id: '/ingest/preview',
+  path: '/ingest/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsCleanupInvalidRoute = JobsCleanupInvalidRouteImport.update({
+  id: '/jobs/cleanup-invalid',
+  path: '/jobs/cleanup-invalid',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsPartialRoute = JobsPartialRouteImport.update({
+  id: '/jobs/partial',
+  path: '/jobs/partial',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RulesNewRoute = RulesNewRouteImport.update({
@@ -147,6 +185,16 @@ const BookBook_idCoverRoute = BookBook_idCoverRouteImport.update({
 const BookBook_idDownloadRoute = BookBook_idDownloadRouteImport.update({
   id: '/book/$book_id/download',
   path: '/book/$book_id/download',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookBook_idRegenerateRoute = BookBook_idRegenerateRouteImport.update({
+  id: '/book/$book_id/regenerate',
+  path: '/book/$book_id/regenerate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsJob_idRetryRoute = JobsJob_idRetryRouteImport.update({
+  id: '/jobs/$job_id/retry',
+  path: '/jobs/$job_id/retry',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RulesRule_idDeleteRoute = RulesRule_idDeleteRouteImport.update({
@@ -195,6 +243,8 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/archive': typeof AppArchiveRoute
+  '/ingest': typeof AppIngestRoute
+  '/jobs': typeof AppJobsRoute
   '/kindle': typeof AppKindleRoute
   '/rules': typeof AppRulesRoute
   '/security': typeof AppSecurityRoute
@@ -203,6 +253,10 @@ export interface FileRoutesByFullPath {
   '/archive/delete-bulk': typeof ArchiveDeleteBulkRoute
   '/books/archive': typeof BooksArchiveRoute
   '/books/download': typeof BooksDownloadRoute
+  '/books/regenerate': typeof BooksRegenerateRoute
+  '/ingest/preview': typeof IngestPreviewRoute
+  '/jobs/cleanup-invalid': typeof JobsCleanupInvalidRoute
+  '/jobs/partial': typeof JobsPartialRoute
   '/rules/new': typeof RulesNewRoute
   '/rules/test': typeof RulesTestRoute
   '/themes/new': typeof ThemesNewRoute
@@ -212,6 +266,8 @@ export interface FileRoutesByFullPath {
   '/wishlist/export': typeof WishlistExportRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/regenerate': typeof BookBook_idRegenerateRoute
+  '/jobs/$job_id/retry': typeof JobsJob_idRetryRoute
   '/rules/$rule_id/delete': typeof RulesRule_idDeleteRoute
   '/themes/$theme_id/delete': typeof ThemesTheme_idDeleteRoute
   '/tracker/$wish_id/delete': typeof TrackerWish_idDeleteRoute
@@ -225,6 +281,8 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/archive': typeof AppArchiveRoute
+  '/ingest': typeof AppIngestRoute
+  '/jobs': typeof AppJobsRoute
   '/kindle': typeof AppKindleRoute
   '/rules': typeof AppRulesRoute
   '/security': typeof AppSecurityRoute
@@ -233,6 +291,10 @@ export interface FileRoutesByTo {
   '/archive/delete-bulk': typeof ArchiveDeleteBulkRoute
   '/books/archive': typeof BooksArchiveRoute
   '/books/download': typeof BooksDownloadRoute
+  '/books/regenerate': typeof BooksRegenerateRoute
+  '/ingest/preview': typeof IngestPreviewRoute
+  '/jobs/cleanup-invalid': typeof JobsCleanupInvalidRoute
+  '/jobs/partial': typeof JobsPartialRoute
   '/rules/new': typeof RulesNewRoute
   '/rules/test': typeof RulesTestRoute
   '/themes/new': typeof ThemesNewRoute
@@ -243,6 +305,8 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/regenerate': typeof BookBook_idRegenerateRoute
+  '/jobs/$job_id/retry': typeof JobsJob_idRetryRoute
   '/rules/$rule_id/delete': typeof RulesRule_idDeleteRoute
   '/themes/$theme_id/delete': typeof ThemesTheme_idDeleteRoute
   '/tracker/$wish_id/delete': typeof TrackerWish_idDeleteRoute
@@ -258,6 +322,8 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/_app/archive': typeof AppArchiveRoute
+  '/_app/ingest': typeof AppIngestRoute
+  '/_app/jobs': typeof AppJobsRoute
   '/_app/kindle': typeof AppKindleRoute
   '/_app/rules': typeof AppRulesRoute
   '/_app/security': typeof AppSecurityRoute
@@ -266,6 +332,10 @@ export interface FileRoutesById {
   '/archive/delete-bulk': typeof ArchiveDeleteBulkRoute
   '/books/archive': typeof BooksArchiveRoute
   '/books/download': typeof BooksDownloadRoute
+  '/books/regenerate': typeof BooksRegenerateRoute
+  '/ingest/preview': typeof IngestPreviewRoute
+  '/jobs/cleanup-invalid': typeof JobsCleanupInvalidRoute
+  '/jobs/partial': typeof JobsPartialRoute
   '/rules/new': typeof RulesNewRoute
   '/rules/test': typeof RulesTestRoute
   '/themes/new': typeof ThemesNewRoute
@@ -276,6 +346,8 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/regenerate': typeof BookBook_idRegenerateRoute
+  '/jobs/$job_id/retry': typeof JobsJob_idRetryRoute
   '/rules/$rule_id/delete': typeof RulesRule_idDeleteRoute
   '/themes/$theme_id/delete': typeof ThemesTheme_idDeleteRoute
   '/tracker/$wish_id/delete': typeof TrackerWish_idDeleteRoute
@@ -292,6 +364,8 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/archive'
+    | '/ingest'
+    | '/jobs'
     | '/kindle'
     | '/rules'
     | '/security'
@@ -300,6 +374,10 @@ export interface FileRouteTypes {
     | '/archive/delete-bulk'
     | '/books/archive'
     | '/books/download'
+    | '/books/regenerate'
+    | '/ingest/preview'
+    | '/jobs/cleanup-invalid'
+    | '/jobs/partial'
     | '/rules/new'
     | '/rules/test'
     | '/themes/new'
@@ -309,6 +387,8 @@ export interface FileRouteTypes {
     | '/wishlist/export'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/regenerate'
+    | '/jobs/$job_id/retry'
     | '/rules/$rule_id/delete'
     | '/themes/$theme_id/delete'
     | '/tracker/$wish_id/delete'
@@ -322,6 +402,8 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/archive'
+    | '/ingest'
+    | '/jobs'
     | '/kindle'
     | '/rules'
     | '/security'
@@ -330,6 +412,10 @@ export interface FileRouteTypes {
     | '/archive/delete-bulk'
     | '/books/archive'
     | '/books/download'
+    | '/books/regenerate'
+    | '/ingest/preview'
+    | '/jobs/cleanup-invalid'
+    | '/jobs/partial'
     | '/rules/new'
     | '/rules/test'
     | '/themes/new'
@@ -340,6 +426,8 @@ export interface FileRouteTypes {
     | '/'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/regenerate'
+    | '/jobs/$job_id/retry'
     | '/rules/$rule_id/delete'
     | '/themes/$theme_id/delete'
     | '/tracker/$wish_id/delete'
@@ -354,6 +442,8 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/_app/archive'
+    | '/_app/ingest'
+    | '/_app/jobs'
     | '/_app/kindle'
     | '/_app/rules'
     | '/_app/security'
@@ -362,6 +452,10 @@ export interface FileRouteTypes {
     | '/archive/delete-bulk'
     | '/books/archive'
     | '/books/download'
+    | '/books/regenerate'
+    | '/ingest/preview'
+    | '/jobs/cleanup-invalid'
+    | '/jobs/partial'
     | '/rules/new'
     | '/rules/test'
     | '/themes/new'
@@ -372,6 +466,8 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/regenerate'
+    | '/jobs/$job_id/retry'
     | '/rules/$rule_id/delete'
     | '/themes/$theme_id/delete'
     | '/tracker/$wish_id/delete'
@@ -389,6 +485,10 @@ export interface RootRouteChildren {
   ArchiveDeleteBulkRoute: typeof ArchiveDeleteBulkRoute
   BooksArchiveRoute: typeof BooksArchiveRoute
   BooksDownloadRoute: typeof BooksDownloadRoute
+  BooksRegenerateRoute: typeof BooksRegenerateRoute
+  IngestPreviewRoute: typeof IngestPreviewRoute
+  JobsCleanupInvalidRoute: typeof JobsCleanupInvalidRoute
+  JobsPartialRoute: typeof JobsPartialRoute
   RulesNewRoute: typeof RulesNewRoute
   RulesTestRoute: typeof RulesTestRoute
   ThemesNewRoute: typeof ThemesNewRoute
@@ -398,6 +498,8 @@ export interface RootRouteChildren {
   WishlistExportRoute: typeof WishlistExportRoute
   BookBook_idCoverRoute: typeof BookBook_idCoverRoute
   BookBook_idDownloadRoute: typeof BookBook_idDownloadRoute
+  BookBook_idRegenerateRoute: typeof BookBook_idRegenerateRoute
+  JobsJob_idRetryRoute: typeof JobsJob_idRetryRoute
   RulesRule_idDeleteRoute: typeof RulesRule_idDeleteRoute
   ThemesTheme_idDeleteRoute: typeof ThemesTheme_idDeleteRoute
   TrackerWish_idDeleteRoute: typeof TrackerWish_idDeleteRoute
@@ -441,6 +543,20 @@ declare module '@tanstack/solid-router' {
       path: '/archive'
       fullPath: '/archive'
       preLoaderRoute: typeof AppArchiveRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ingest': {
+      id: '/_app/ingest'
+      path: '/ingest'
+      fullPath: '/ingest'
+      preLoaderRoute: typeof AppIngestRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/jobs': {
+      id: '/_app/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof AppJobsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/kindle': {
@@ -497,6 +613,34 @@ declare module '@tanstack/solid-router' {
       path: '/books/download'
       fullPath: '/books/download'
       preLoaderRoute: typeof BooksDownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/books/regenerate': {
+      id: '/books/regenerate'
+      path: '/books/regenerate'
+      fullPath: '/books/regenerate'
+      preLoaderRoute: typeof BooksRegenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ingest/preview': {
+      id: '/ingest/preview'
+      path: '/ingest/preview'
+      fullPath: '/ingest/preview'
+      preLoaderRoute: typeof IngestPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs/cleanup-invalid': {
+      id: '/jobs/cleanup-invalid'
+      path: '/jobs/cleanup-invalid'
+      fullPath: '/jobs/cleanup-invalid'
+      preLoaderRoute: typeof JobsCleanupInvalidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs/partial': {
+      id: '/jobs/partial'
+      path: '/jobs/partial'
+      fullPath: '/jobs/partial'
+      preLoaderRoute: typeof JobsPartialRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rules/new': {
@@ -562,6 +706,20 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof BookBook_idDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/book/$book_id/regenerate': {
+      id: '/book/$book_id/regenerate'
+      path: '/book/$book_id/regenerate'
+      fullPath: '/book/$book_id/regenerate'
+      preLoaderRoute: typeof BookBook_idRegenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs/$job_id/retry': {
+      id: '/jobs/$job_id/retry'
+      path: '/jobs/$job_id/retry'
+      fullPath: '/jobs/$job_id/retry'
+      preLoaderRoute: typeof JobsJob_idRetryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rules/$rule_id/delete': {
       id: '/rules/$rule_id/delete'
       path: '/rules/$rule_id/delete'
@@ -623,6 +781,8 @@ declare module '@tanstack/solid-router' {
 
 interface AppRouteChildren {
   AppArchiveRoute: typeof AppArchiveRoute
+  AppIngestRoute: typeof AppIngestRoute
+  AppJobsRoute: typeof AppJobsRoute
   AppKindleRoute: typeof AppKindleRoute
   AppRulesRoute: typeof AppRulesRoute
   AppSecurityRoute: typeof AppSecurityRoute
@@ -635,6 +795,8 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppArchiveRoute: AppArchiveRoute,
+  AppIngestRoute: AppIngestRoute,
+  AppJobsRoute: AppJobsRoute,
   AppKindleRoute: AppKindleRoute,
   AppRulesRoute: AppRulesRoute,
   AppSecurityRoute: AppSecurityRoute,
@@ -654,6 +816,10 @@ const rootRouteChildren: RootRouteChildren = {
   ArchiveDeleteBulkRoute: ArchiveDeleteBulkRoute,
   BooksArchiveRoute: BooksArchiveRoute,
   BooksDownloadRoute: BooksDownloadRoute,
+  BooksRegenerateRoute: BooksRegenerateRoute,
+  IngestPreviewRoute: IngestPreviewRoute,
+  JobsCleanupInvalidRoute: JobsCleanupInvalidRoute,
+  JobsPartialRoute: JobsPartialRoute,
   RulesNewRoute: RulesNewRoute,
   RulesTestRoute: RulesTestRoute,
   ThemesNewRoute: ThemesNewRoute,
@@ -663,6 +829,8 @@ const rootRouteChildren: RootRouteChildren = {
   WishlistExportRoute: WishlistExportRoute,
   BookBook_idCoverRoute: BookBook_idCoverRoute,
   BookBook_idDownloadRoute: BookBook_idDownloadRoute,
+  BookBook_idRegenerateRoute: BookBook_idRegenerateRoute,
+  JobsJob_idRetryRoute: JobsJob_idRetryRoute,
   RulesRule_idDeleteRoute: RulesRule_idDeleteRoute,
   ThemesTheme_idDeleteRoute: ThemesTheme_idDeleteRoute,
   TrackerWish_idDeleteRoute: TrackerWish_idDeleteRoute,
