@@ -86,6 +86,8 @@
 .kindle-queue-item { display: grid; gap: 6px; overflow-wrap: anywhere; }
 .kindle-queue-item .kindle-section-heading { font-size: 13.5px; }
 .kindle-queue-item strong { font-weight: 400; }
+.kindle-queue-summary { margin: 0; }
+.kindle-progress-detail { font-variant-numeric: tabular-nums; }
 .kindle-queue-state { color: var(--color-ink-2); font-size: 12.5px; }
 .kindle-queue-state.is-failed { color: var(--color-danger); }
 .kindle-queue-state.is-complete { color: var(--color-ok); }
@@ -93,6 +95,11 @@
 .kindle-queue progress::-webkit-progress-bar { background: var(--color-track); }
 .kindle-queue progress::-webkit-progress-value { background: var(--color-accent); }
 .kindle-queue progress::-moz-progress-bar { background: var(--color-accent); }
+.kindle-queue progress:indeterminate { background: linear-gradient(to right, var(--color-track) 35%, var(--color-accent) 50%, var(--color-track) 65%); background-size: 200% 100%; animation: kindle-progress 1.6s linear infinite; }
+.kindle-queue progress:indeterminate::-webkit-progress-bar { background: transparent; }
+.kindle-queue progress:indeterminate::-moz-progress-bar { background: transparent; }
+@keyframes kindle-progress { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .kindle-queue progress:indeterminate { animation: none; } }
 .kindle-queue progress.is-complete { color: var(--color-ok); }
 .kindle-queue progress.is-complete::-webkit-progress-value { background: var(--color-ok); }
 .kindle-queue progress.is-complete::-moz-progress-bar { background: var(--color-ok); }

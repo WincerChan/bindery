@@ -1,10 +1,62 @@
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
-import { defaultProfile, type TypesettingProfile } from "../../../client/kindle";
+import { defaultProfile, type TransferItem, type TypesettingProfile } from "../../../client/kindle";
 import { BookCover, Button, Checkbox, Chip, EmptyState, Select, TextField } from "../../../ui";
 import { useKindle } from "../context";
 import { bytes } from "./format";
 import type { KindleLibraryBook } from "./library";
 import { BokoLicense } from "./boko-license";
+
+const megabytes = (value: number) => (value / (1024 * 1024)).toLocaleString("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+function progressDetail(item: TransferItem) {
+  if ((item.phase !== "download" && item.phase !== "write") || item.loaded === undefined || item.state === "失败" || item.state === "等待" || item.state === "完成") return item.message;
+  const label = item.phase === "write" ? "已写入" : "已下载";
+  const amount = item.total === undefined ? `${megabytes(item.loaded ?? 0)} MB（总大小未知）` : `${megabytes(item.loaded ?? 0)} / ${megabytes(item.total)} MB`;
+  const rate = item.bytesPerSecond === undefined ? "" : ` · ${megabytes(item.bytesPerSecond)} MB/s`;
+  const eta = item.etaSeconds === undefined ? "" : ` · 剩余约 ${Math.ceil(item.etaSeconds)} 秒`;
+  return `${label} ${amount}${rate}${eta}`;
+}
+function stageAnnouncement(item: TransferItem) {
+  if (item.state === "等待" || item.state === "完成" || item.state === "失败") return `${item.state}：${item.message}`;
+  return ({ download: "正在下载 EPUB", convert: "正在转换 KFX，耗时为估计", write: "正在写入 Kindle", thumbnail: "正在生成封面缩略图", finalize: "正在完成写入" })[item.phase];
+}
+function TransferQueueRow(props: { item: () => TransferItem; title: string; deviceName: string; cancel: () => void }) {
+  const item = props.item;
+  const determinate = () => (item().phase === "download" || item().phase === "write") && item().total !== undefined && item().total! > 0;
+  const value = () => item().state === "完成" ? 1 : item().state === "等待" || item().state === "失败" ? 0 : determinate() ? item().loaded ?? 0 : undefined;
+  const max = () => item().state !== "完成" && item().state !== "失败" && item().state !== "等待" && determinate() ? item().total : 1;
+  return <li class="kindle-queue-item" data-queue-item={item().id}>
+    <div class="kindle-section-heading"><strong>{props.title}</strong><span class={`kindle-queue-state ${item().state === "失败" ? "is-failed" : item().state === "完成" ? "is-complete" : ""}`}>{item().state}</span></div>
+    <p class="kindle-small">目标：{props.deviceName}</p>
+    <progress class={item().state === "完成" ? "is-complete" : ""} aria-label={`${props.title} 传输进度`} aria-valuetext={progressDetail(item())} max={max()} value={value()} />
+    <p class="kindle-small kindle-progress-detail">{progressDetail(item())}</p>
+    <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{props.title}：{stageAnnouncement(item())}</span>
+    <Show when={item().state !== "完成" && item().state !== "失败"}><Button variant="quiet" size="sm" onClick={props.cancel}>取消</Button></Show>
+  </li>;
+}
+export function KindleTransferQueueProgress(props: { items: readonly TransferItem[]; title: (id: string) => string; deviceName: (id: string) => string; cancel: (id: string) => void }) {
+  const byId = createMemo(() => new Map(props.items.map(item => [item.id, item])));
+  const ids = createMemo(() => props.items.map(item => item.id));
+  const summary = () => {
+    const items = props.items, downloads = items.filter(item => item.downloadTotal !== undefined), known = items.filter(item => item.writeTotal !== undefined);
+    const prefix = `共 ${items.length} 本 · 已完成 ${items.filter(item => item.state === "完成").length}`;
+    const downloaded = downloads.reduce((sum, item) => sum + item.downloadedBytes, 0), downloadTotal = downloads.reduce((sum, item) => sum + item.downloadTotal!, 0);
+    const downloadUnknown = items.length - downloads.length;
+    const download = downloads.length ? ` · 已下载 ${megabytes(downloaded)} / ${megabytes(downloadTotal)} MB${downloadUnknown ? `（另 ${downloadUnknown} 本下载大小未知）` : ""}` : "";
+    if (!known.length) return prefix + download;
+    const written = known.reduce((sum, item) => sum + item.writtenBytes, 0), total = known.reduce((sum, item) => sum + item.writeTotal!, 0);
+    const unknown = items.length - known.length;
+    return `${prefix}${download} · 已写入 ${megabytes(written)} / ${megabytes(total)} MB${unknown ? `（另 ${unknown} 本待转换）` : ""}`;
+  };
+  return <>
+    <p class="kindle-small kindle-mono kindle-queue-summary" data-queue-summary>{summary()}</p>
+    <ol class="kindle-queue-list"><For each={ids()} fallback={<li class="muted">选择书籍后开始传输。</li>}>{id => {
+      // Stable IDs preserve rows and live regions when immutable progress snapshots arrive.
+      const initial = byId().get(id)!;
+      const item = createMemo(() => byId().get(id) ?? initial);
+      return <TransferQueueRow item={item} title={props.title(initial.bookId)} deviceName={props.deviceName(initial.deviceId)} cancel={() => props.cancel(id)} />;
+    }}</For></ol>
+  </>;
+}
 
 export function KindleTransferPage(props: { books: KindleLibraryBook[]; loadProfiles: (deviceId: string) => Promise<TypesettingProfile[]> }) {
   const k = useKindle(), [filter, setFilter] = createSignal("不在设备"), [query, setQuery] = createSignal("");
@@ -67,14 +119,8 @@ export function KindleTransferPage(props: { books: KindleLibraryBook[]; loadProf
           <p class="kindle-small">覆盖仅替换 Bindery 记录的同一本书，保留原文件名与 .sdr 阅读记录。其他来源或不同书籍的同名文件会另存副本。</p>
         </div>
         <Show when={notice()}><p class="notice" role="status">{notice()}</p></Show>
-        <section class="kindle-queue" aria-label="传输队列"><div class="kindle-section-heading"><h2>队列</h2><span class="kindle-small kindle-mono">{k.items().filter(i => i.state === "完成").length} / {k.items().length} 完成</span></div>
-          <ol class="kindle-queue-list"><For each={k.items()} fallback={<li class="muted">选择书籍后开始传输。</li>}>{item => <li class="kindle-queue-item" data-queue-item={item.id}>
-            <div class="kindle-section-heading"><strong>{title(item.bookId)}</strong><span class={`kindle-queue-state ${item.state === "失败" ? "is-failed" : item.state === "完成" ? "is-complete" : ""}`}>{item.state}</span></div>
-            <p class="kindle-small">目标：{k.remembered().find(d => d.id === item.deviceId)?.identity.name || item.deviceId}</p>
-            <progress class={item.state === "完成" ? "is-complete" : ""} aria-label={`${title(item.bookId)} 传输进度`} max={1} value={item.state === "完成" ? 1 : item.state === "等待" || item.state === "失败" ? 0 : undefined} />
-            <p class="kindle-small" role="status">{item.message}</p>
-            <Show when={item.state !== "完成" && item.state !== "失败"}><Button variant="quiet" size="sm" onClick={() => k.cancel(item.id)}>取消</Button></Show>
-          </li>}</For></ol>
+        <section class="kindle-queue" aria-label="传输队列"><div class="kindle-section-heading"><h2>队列</h2></div>
+          <KindleTransferQueueProgress items={k.items()} title={title} deviceName={id => k.remembered().find(d => d.id === id)?.identity.name || id} cancel={k.cancel} />
           <div class="kindle-actions"><Button variant="quiet" disabled={!active().length} onClick={() => active().forEach(i => k.cancel(i.id))}>取消所有未完成</Button><Button class="kindle-start-transfer" disabled={!deviceId() || !k.inventory() || !chosen().length || profilesBusy() || k.busy()} onClick={start}>开始传输（{chosen().length}）</Button></div><div class="kindle-actions"><Button variant="quiet" disabled={!k.items().some(i => i.state === "完成" || i.state === "失败")} onClick={k.clearFinished}>清除已结束</Button></div>
         </section>
         <p class="kindle-small">EPUB 从书库下载，在浏览器内由 boko Web Worker 转换 KFX，再经 USB 写入 Kindle。切换 Kindle 标签页时队列继续；刷新或关闭网页会中断传输。转换阶段无法提供精确百分比。</p>

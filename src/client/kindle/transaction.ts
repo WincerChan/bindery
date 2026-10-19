@@ -1,4 +1,4 @@
-import { assertReachable, assertWindowsWritePath, directoryEntries, documentPath, EntryAccessError, entryName, entryOperation, optionalDirectory, optionalEntry, readInternalJson, writeBytes, type KindleDirectory, type KindleFile, type UnreadableEntry } from "./fs";
+import { assertReachable, assertWindowsWritePath, directoryEntries, documentPath, EntryAccessError, entryName, entryOperation, optionalDirectory, optionalEntry, readInternalJson, writeBytes, type KindleDirectory, type KindleFile, type UnreadableEntry, type WriteProgress } from "./fs";
 import { assertDevice, type PairedDevice } from "./identity";
 
 const locks = new Map<string, Promise<unknown>>();
@@ -96,7 +96,7 @@ export async function recoverDevice(root: KindleDirectory) {
   await remove(root, internal, "pending.json", ".bindery");
 }
 /** Caller holds withDeviceLock. Backups + journal precede any target change; manifest is last. */
-export async function applyDevicePatches(root: KindleDirectory, patches: DevicePatch[], signal?: AbortSignal) {
+export async function applyDevicePatches(root: KindleDirectory, patches: DevicePatch[], signal?: AbortSignal, progress?: (patch: DevicePatch, progress: WriteProgress) => void) {
   const check = () => { if (signal?.aborted) throw new DOMException("操作已取消", "AbortError"); };
   check();
   for (const patch of patches) { validatePath(patch.path); if (patch.data !== null) assertWindowsWritePath(patch.path.join("/")); }
@@ -115,7 +115,7 @@ export async function applyDevicePatches(root: KindleDirectory, patches: DeviceP
     for (const patch of patches) {
       check(); const target = await parent(root, patch.path, true);
       if (patch.data === null) await remove(root, target.dir, target.name, patch.path.slice(0, -1).join("/"), true);
-      else await entryOperation(root, patch.path.join("/"), () => writeBytes(target.dir, target.name, patch.data!));
+      else await entryOperation(root, patch.path.join("/"), () => writeBytes(target.dir, target.name, patch.data!, { signal, progress: value => progress?.(patch, value) }));
     }
     check(); journal.committed = true;
     await entryOperation(root, ".bindery/pending.json", () => writeBytes(internal, "pending.json", JSON.stringify(journal)));

@@ -16,6 +16,7 @@ export class FakeFileSystem {
   beforeOperation?: (operation: FakeOperation) => void;
   readonly failures = new Map<string, string>();
   windowsPathLimit: number | null = null;
+  writeLatencyMs: number | ((path: string) => number) = 0;
   injectFailure(operation: "getFile" | "remove" | "values" | "createWritable" | "write" | "close", path: string, error = "NotFoundError") {
     this.failures.set(`${operation}:${path.replace(/^\/?/, "/").toLowerCase()}`, error);
   }
@@ -82,12 +83,20 @@ export class FakeFile implements KindleFile {
   async getFile() { this.fs.check("getFile", this.path, this.entry); return new File([this.entry.data.slice()], this.name, { lastModified: this.entry.modified }); }
   async createWritable() {
     this.fs.check("createWritable", this.path, this.entry);
-    let staged: Uint8Array<ArrayBuffer> = new Uint8Array(0), closed = false;
+    let staged: Uint8Array<ArrayBuffer>[] = [], closed = false;
     const check = (operation: string) => { if (closed) fail("InvalidStateError"); this.fs.check(operation, this.path, this.entry); };
     return {
-      write: async (data: string | Blob | Uint8Array<ArrayBuffer>) => { check("write"); staged = typeof data === "string" ? new TextEncoder().encode(data) : data instanceof Blob ? new Uint8Array(await data.arrayBuffer()) : new Uint8Array(data); },
-      close: async () => { check("close"); this.entry.data = staged; this.entry.modified = Date.now(); closed = true; },
-      abort: async () => { closed = true; staged = new Uint8Array(); },
+      write: async (data: string | Blob | Uint8Array<ArrayBuffer>) => {
+        const latency = typeof this.fs.writeLatencyMs === "function" ? this.fs.writeLatencyMs(this.path) : this.fs.writeLatencyMs;
+        if (latency > 0) await new Promise(resolve => setTimeout(resolve, latency));
+        check("write"); staged.push(typeof data === "string" ? new TextEncoder().encode(data) : data instanceof Blob ? new Uint8Array(await data.arrayBuffer()) : new Uint8Array(data));
+      },
+      close: async () => {
+        check("close"); const bytes = new Uint8Array(staged.reduce((sum, chunk) => sum + chunk.byteLength, 0));
+        let offset = 0; for (const chunk of staged) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+        this.entry.data = bytes; this.entry.modified = Date.now(); closed = true;
+      },
+      abort: async () => { this.fs.operations.push({ operation: "abort", path: this.path }); closed = true; staged = []; },
     };
   }
 }

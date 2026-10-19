@@ -102,9 +102,28 @@ export async function readInternalJson(root: KindleDirectory, name: string): Pro
   if (!internal || !await optionalEntry(root, internal, name, ".bindery")) return undefined;
   return entryOperation(root, `.bindery/${name}`, () => readJson(internal, name));
 }
-export async function writeBytes(root: KindleDirectory, name: string, data: Uint8Array<ArrayBuffer> | string | Blob) {
+export interface WriteProgress { loaded: number; total: number; committing: boolean }
+export interface WriteOptions { signal?: AbortSignal; progress?: (progress: WriteProgress) => void }
+export const WRITE_CHUNK_SIZE = 1024 * 1024;
+export async function writeBytes(root: KindleDirectory, name: string, data: Uint8Array<ArrayBuffer> | string | Blob, options: WriteOptions = {}) {
+  const check = () => { if (options.signal?.aborted) throw new DOMException("操作已取消", "AbortError"); };
+  check();
   const writable = await (await root.getFileHandle(entryName(name), { create: true })).createWritable();
-  try { await writable.write(data); await writable.close(); }
+  try {
+    check();
+    const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+    const total = bytes instanceof Blob ? bytes.size : bytes.byteLength;
+    options.progress?.({ loaded: 0, total, committing: false });
+    for (let offset = 0; offset < total; offset += WRITE_CHUNK_SIZE) {
+      check();
+      const end = Math.min(total, offset + WRITE_CHUNK_SIZE);
+      await writable.write(bytes instanceof Blob ? bytes.slice(offset, end) : bytes.subarray(offset, end));
+      check(); options.progress?.({ loaded: end, total, committing: false });
+    }
+    check(); options.progress?.({ loaded: total, total, committing: true }); check();
+    // Chrome commits its .crswap file here. Accepted chunks alone are not a committed file.
+    await writable.close(); check();
+  }
   catch (error) { try { await writable.abort(); } catch { /* Original error carries disconnect/permission information. */ } throw error; }
 }
 export function errorMessage(error: unknown): string {
