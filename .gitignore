@@ -4,7 +4,7 @@ __pycache__/
 .uv/
 .uv-cache/
 .bindery-user-templates/
-library/
+/library/
 bindery.db
 bindery.egg-info/
 .DS_Store
