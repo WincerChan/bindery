@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, Show } from "solid-js";
+import { createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import { Button, ConfirmDialog, Textarea } from "../../ui";
 import { showToast } from "../../client/toast";
 import type { EditorData, RulePreviewData } from "../../server/catalog/templates";
@@ -20,7 +20,7 @@ export function TemplateDelete(props: { kind: "rules" | "themes"; id: string }) 
   </ConfirmDialog></>;
 }
 export function Editor(props: { data: EditorData; kind: "rules" | "themes" }) {
-  const [raw, setRaw] = createSignal(props.data.raw), [message, setMessage] = createSignal(props.data.error || (props.data.saved ? "已保存" : "")), [busy, setBusy] = createSignal(false);
+  const [raw, setRaw] = createSignal(untrack(() => props.data.raw)), [message, setMessage] = createSignal(untrack(() => props.data.error || (props.data.saved ? "已保存" : ""))), [busy, setBusy] = createSignal(false);
   const [preview, setPreview] = createSignal<RulePreviewData>(null), [testError, setTestError] = createSignal("");
   let testForm!: HTMLFormElement, debounce: ReturnType<typeof setTimeout> | undefined, abort: AbortController | undefined, sequence = 0;
   onCleanup(() => { clearTimeout(debounce); abort?.abort(); sequence++; });

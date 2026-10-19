@@ -1,11 +1,11 @@
-import { createSignal, For, onCleanup, Show } from "solid-js";
+import { createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import { Button, Select, Textarea, TextField } from "../../ui";
 import { formatCss } from "./css-format";
 import { UploadPreviews } from "./preview";
 import type { ingestOptions } from "../../server/ingest/queries";
 import type { Preview } from "../../server/ingest/preview";
 export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; error?: string; custom_css?: string }) {
-  const [previews, setPreviews] = createSignal<Preview[]>([]), [busy, setBusy] = createSignal(false), [submitting, setSubmitting] = createSignal(false), [error, setError] = createSignal(props.error || ""), [feedback, setFeedback] = createSignal(""), [title, setTitle] = createSignal(""), [author, setAuthor] = createSignal(""), [theme, setTheme] = createSignal("default"), [css, setCss] = createSignal(props.custom_css || "");
+  const [previews, setPreviews] = createSignal<Preview[]>([]), [busy, setBusy] = createSignal(false), [submitting, setSubmitting] = createSignal(false), [error, setError] = createSignal(untrack(() => props.error || "")), [feedback, setFeedback] = createSignal(""), [title, setTitle] = createSignal(""), [author, setAuthor] = createSignal(""), [theme, setTheme] = createSignal("default"), [css, setCss] = createSignal(untrack(() => props.custom_css || ""));
   let form!: HTMLFormElement, input!: HTMLInputElement, controller: AbortController | undefined;
   onCleanup(() => controller?.abort());
   async function preview() {

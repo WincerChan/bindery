@@ -13,7 +13,7 @@ import type { Cases } from "./fixtures/client-rendering";
 import { clientDocument, elements, fire } from "./support/client-dom";
 
 type Probe = typeof import("./fixtures/client-rendering");
-let ui: Probe, ssr: Probe;
+let ui: Probe, ssr: Probe, dev: Probe;
 const directory = mkdtempSync(join(tmpdir(), "bindery-client-rendering-"));
 const disposers: (() => void)[] = [];
 function browserGlobals() {
@@ -25,22 +25,23 @@ beforeEach(browserGlobals);
 beforeAll(async () => {
   browserGlobals();
   const entry = resolve("tests-ts/fixtures/client-rendering.tsx");
-  for (const server of [false, true]) {
+  for (const mode of ["client", "server", "development"]) {
+    const server = mode === "server", development = mode === "development";
     const result = await build({
-      configFile: false, logLevel: "silent", plugins: [solid(solidOptions)],
+      configFile: false, logLevel: "silent", plugins: [solid({ ...solidOptions, dev: development, hot: false })],
       // Avoid Vitest's `test` condition selecting the signals dev runtime.
-      resolve: { conditions: server ? ["node", "production"] : ["browser", "production"] },
-      define: { "process.env.NODE_ENV": JSON.stringify("production") },
+      resolve: { conditions: server ? ["node", "production"] : ["browser", development ? "development" : "production"] },
+      define: { "process.env.NODE_ENV": JSON.stringify(development ? "development" : "production") },
       ssr: { noExternal: true },
       build: { write: false, minify: true, ...(server ? { ssr: entry } : { lib: { entry, formats: ["es" as const] } }) },
     });
     const chunk = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);
     if (!chunk || chunk.type !== "chunk") throw new Error("Missing rendering probe bundle");
     expect(chunk.imports).toEqual([]);
-    const filename = join(directory, server ? "server.mjs" : "client.mjs");
+    const filename = join(directory, mode + ".mjs");
     writeFileSync(filename, chunk.code);
     const module: Probe = await import(/* @vite-ignore */ pathToFileURL(filename).href);
-    if (server) ssr = module; else ui = module;
+    if (server) ssr = module; else if (development) dev = module; else ui = module;
   }
 });
 afterEach(() => {
@@ -226,4 +227,29 @@ it("updates reader TOC and search result fragments, highlighting and load-more s
   fetch.mockResolvedValue({ ok: true, json: async () => ({ query: "空", indexed_sections: 1, hits: [], has_more: false }) });
   input.value = "空"; fire(input, "input"); mounted.flush(); fire(form, "submit"); await settle(); mounted.flush();
   expect(elements(results(), "li")).toHaveLength(0); expect(mounted.root.textContent).toContain("没有找到匹配内容");
+});
+
+it("renders route views with the development runtime and no untracked reactive reads", () => {
+  const warnings = vi.spyOn(console, "warn").mockImplementation(() => {});
+  try {
+    const cases: Partial<Cases> = {
+      ingest: { options: { rules: [], themes: [] }, error: "", custom_css: "p{}" },
+      editor: { data: editor("规则"), kind: "rules" },
+      trackerForm: { wish: tracker(["甲"]).wishes[0], next: "/tracker", onClose() {} },
+      library: library(["甲"]), archive: [book("甲")], tracker: tracker(["甲"]),
+      rules: { rules: [editor("甲")], themes: [], tab: "parsing", ruleId: "甲", themeId: "", error: "", editor: editor("甲") },
+      rulePreview: { volumes: 0, chapters: 1, toc: ["章"] }, jobs: jobs(["甲"]), previews: [],
+      detail: detail(), pagination: { page: 1, total: 20, perPage: 10, href: "/" },
+      reader: { book: { book_id: "id", title: "书名", author: null, cover_url: null }, sections: [{ title: "第一章", item_path: 'Text/::|/x*y #?%.xhtml' }], section_index: 0, initial_progress: null, return_to: "/" },
+    };
+    for (const kind of Object.keys(cases) as (keyof Cases)[]) {
+      const node = root(), mounted = dev.mount(node, kind, cases[kind]!);
+      disposers.push(mounted.dispose); mounted.flush();
+      if (kind === "detail") {
+        fire(elements(node, "a").find(element => element.textContent === "编辑")!, "click"); mounted.flush();
+      }
+    }
+    const reads = warnings.mock.calls.map(call => String(call[0])).filter(message => message.includes("STRICT_READ_UNTRACKED"));
+    expect(reads).toEqual([]);
+  } finally { warnings.mockRestore(); }
 });

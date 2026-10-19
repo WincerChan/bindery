@@ -150,11 +150,11 @@ describe("isolated EPUB resource delivery", () => {
     expect(cssResponse.headers.get("content-type")).toBe("text/css; charset=utf-8"); expect(await cssResponse.text()).toBe(new TextDecoder().decode(css.data));
     expect(await epubResource(readerRequest("/", { method: "HEAD" }), id, css.name, library).text()).toBe("");
   });
-  it.each(["", "/etc/passwd", "../book.json", "Text/../book.json", "Text/./a.xhtml", "Text//a.xhtml", "a\\b", "a%2fb", "%252e%252e", "a\u0000b", "https:evil", "a?b", "a#b"])("rejects ambiguous/unsafe member path %j", path => {
-    expect(() => validateItemPath(path)).toThrow("资源不存在");
+  it.each(["", "/etc/passwd", "../book.json", "Text/../book.json", "Text/./a.xhtml", "Text//a.xhtml", "a\\b", "a\u0000b"])("rejects ambiguous/unsafe member path %j", path => {
+    expect(() => validateItemPath(path, new Set([path]))).toThrow("资源不存在");
   });
   it("keeps safe nested Unicode names and returns 404 for an absent member", () => {
-    const { library, id } = fixture(); expect(validateItemPath("OEBPS/Text/第一章.xhtml")).toBe("OEBPS/Text/第一章.xhtml");
+    const { library, id } = fixture(); expect(validateItemPath("OEBPS/Text/第一章.xhtml", new Set(["OEBPS/Text/第一章.xhtml"]))).toBe("OEBPS/Text/第一章.xhtml");
     expect(() => epubResource(readerRequest(), id, "absent.xhtml", library)).toThrow("资源不存在");
   });
   it("removes active content/navigation, keeps typography and local images, and escapes text", () => {

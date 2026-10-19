@@ -330,7 +330,13 @@ export function pathLookupKeys(path: string): string[] {
       ]
     : [];
 }
-export class EpubArchive {
+/** Reader archives can provide indexed, on-demand reads without unpacking the ZIP. */
+export interface EpubSource {
+  read(path: string): Uint8Array | undefined;
+  opf(): [string, Element];
+  resolve?(from: string, href: string): string;
+}
+export class EpubArchive implements EpubSource {
   entries: ArchiveMember[];
   index = new Map<string, ArchiveMember>();
   constructor(data: Uint8Array) {
@@ -401,7 +407,7 @@ export class EpubArchive {
     return [path, parseXml(data)];
   }
 }
-export function manifestFromOpf(path: string, root: Element): ManifestItem[] {
+export function manifestFromOpf(path: string, root: Element, resolve = resolveOpfHref): ManifestItem[] {
   const manifest = child(root, "manifest");
   if (!manifest) return [];
   return children(manifest, "item").map((node) => {
@@ -413,7 +419,7 @@ export function manifestFromOpf(path: string, root: Element): ManifestItem[] {
       properties: new Set(
         strip(attr(node, "properties")).split(/\s+/).filter(Boolean),
       ),
-      member_path: href ? resolveOpfHref(path, href) : "",
+      member_path: href ? resolve(path, href) : "",
     };
   });
 }
@@ -440,7 +446,7 @@ export function spineDocumentItems(
 const nodeText = (node?: Element): string | null =>
   node ? strip(node.textContent || "") || null : null;
 function tocTitleIndex(
-  archive: EpubArchive,
+  archive: EpubSource,
   items: ManifestItem[],
 ): Map<string, string> {
   const titles = new Map<string, string>();
@@ -479,7 +485,7 @@ function tocTitleIndex(
       links = descendants(root, "a").filter((n) => n.hasAttribute("href"));
     for (const link of links)
       add(
-        resolveRelative(item.member_path, attr(link, "href")),
+        archive.resolve?.(item.member_path, attr(link, "href")) ?? resolveRelative(item.member_path, attr(link, "href")),
         nodeText(link),
       );
   }
@@ -505,7 +511,7 @@ function tocTitleIndex(
         );
       if (content)
         add(
-          resolveRelative(item.member_path, attr(content, "src")),
+          archive.resolve?.(item.member_path, attr(content, "src")) ?? resolveRelative(item.member_path, attr(content, "src")),
           nodeText(text),
         );
     }
@@ -529,7 +535,7 @@ function extractTitleFromHtml(text: string): string | null {
   return null;
 }
 function documentTitle(
-  archive: EpubArchive,
+  archive: EpubSource,
   item: ManifestItem,
   titles: Map<string, string>,
   index: number,
@@ -551,15 +557,19 @@ function documentTitle(
     `章节 ${index + 1}`
   );
 }
-export function listEpubSections(data: Uint8Array): EpubSection[] {
-  const archive = new EpubArchive(data),
-    [path, root] = archive.opf(),
-    items = manifestFromOpf(path, root),
-    titles = tocTitleIndex(archive, items);
-  return spineDocumentItems(root, items).map((item, i) => ({
+export function parseEpubPackage(archive: EpubSource) {
+  const [path, root] = archive.opf(),
+    items = manifestFromOpf(path, root, archive.resolve?.bind(archive)),
+    titles = tocTitleIndex(archive, items),
+    documents = spineDocumentItems(root, items);
+  const sections = documents.map((item, i) => ({
     title: documentTitle(archive, item, titles, i),
     item_path: item.member_path,
   }));
+  return { items, documents, sections };
+}
+export function listEpubSections(data: Uint8Array): EpubSection[] {
+  return parseEpubPackage(new EpubArchive(data)).sections;
 }
 export function* iterEpubSectionDocuments(
   data: Uint8Array,

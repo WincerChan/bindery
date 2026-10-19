@@ -10,6 +10,9 @@ import { RulePreview } from "../../src/features/catalog/editors";
 import { JobsSection } from "../../src/features/ingest/jobs";
 import { UploadPreviews } from "../../src/features/ingest/preview";
 import { BookDetail } from "../../src/features/books/book-detail";
+import { IngestPage } from "../../src/features/ingest/page";
+import { Editor } from "../../src/features/catalog/editors";
+import { TrackerForm } from "../../src/features/catalog/tracker";
 import { Reader } from "../../src/features/reader/reader";
 import { Pagination } from "../../src/ui/pagination";
 import type { LibraryPageData } from "../../src/server/library/queries";
@@ -23,7 +26,10 @@ export type Cases = {
   jobs: ComponentProps<typeof JobsSection>["data"];
   previews: ComponentProps<typeof UploadPreviews>["previews"];
   detail: ComponentProps<typeof BookDetail>["page"];
-  reader: ComponentProps<typeof Reader>["data"];
+  reader: ComponentProps<typeof Reader>["data"] & { query?: string };
+  ingest: ComponentProps<typeof IngestPage>;
+  editor: ComponentProps<typeof Editor>;
+  trackerForm: ComponentProps<typeof TrackerForm>;
   pagination: ComponentProps<typeof Pagination>;
 };
 
@@ -38,7 +44,10 @@ function view<K extends keyof Cases>(kind: K, data: () => Cases[K]) {
     case "jobs": return <JobsSection data={(data as () => Cases["jobs"])()} />;
     case "previews": return <UploadPreviews previews={(data as () => Cases["previews"])()} />;
     case "detail": return <BookDetail page={(data as () => Cases["detail"])()} />;
-    case "reader": return <Reader data={(data as () => Cases["reader"])()} query={new URLSearchParams()} />;
+    case "reader": return <Reader data={(data as () => Cases["reader"])()} query={new URLSearchParams((data as () => Cases["reader"])().query ?? "")} />;
+    case "ingest": return <IngestPage {...(data as () => Cases["ingest"])()} />;
+    case "editor": return <Editor {...(data as () => Cases["editor"])()} />;
+    case "trackerForm": return <TrackerForm {...(data as () => Cases["trackerForm"])()} />;
     case "pagination": return <Pagination {...(data as () => Cases["pagination"])()} />;
   }
 }

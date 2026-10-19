@@ -49,7 +49,7 @@ HTML 过滤去除 script、事件属性、meta refresh、base、嵌入子文档�
 与 Python 的有意差异：
 
 1. Python 原 script/base 正则不是安全清洗器。本切片禁用书籍脚本、外部资源和交互式嵌入；这些内容不会按原样执行。自包含文本、CSS、图片、字体和脚注保留。此安全隔离要求优先于原始 HTML 字节一致。
-2. 资源路径已由路由解码，再拒绝空路径/段、`.`、`..`、反斜线、残余百分号/双重编码、控制字符、冒号、查询/fragment 字符和超过 4096 字符的路径。常规百分号编码的中文/空格资源已通过生产路由验证；包含字面百分号或非规范路径的成员会被拒绝。
+2. 资源路径由路由解码一次后，与 ZIP 中央目录的成员名精确匹配；拒绝空路径/段、`.`、`..`、绝对路径、反斜线、NUL/控制字符和不存在的成员，不做 basename 或目录别名回退。允许成员名中的 `: | * ~ ? < > " # %`、空格和中文，不再按这些字符或 4096 字符限制拒绝。字面 `%2e%2e` 等名称只有确实存在时才能访问，路由端不会再次解码。生成的章节、资源、CSS 引用和脚注 URL 逐路径段百分号编码；书内相对引用经成员列表解析后重新生成 URL，避免冒号、问号和井号被当作 scheme/query/fragment。
 3. 参数 422 仍保留状态码；detail 使用共享 API 合约的 `请求参数无效`，而非 FastAPI 的 Pydantic 错误数组。JavaScript 无法恢复的无效旧 section（包括 -1）恢复到所请求章节；数据库仍照常保存 -1，避免旧记录导致空白阅读页。
 4. 采用现有平面 UI kit、40px 控件、6px 圆角、原生 dialog 和链接，替换旧 Alpine/HTMX 的呈现与源码字符串断言。阅读设置增加中文字体候选；颜色和字形按新界面调整，保留已有 `bindery:reader` 设置键及兼容字段。
 
@@ -100,7 +100,7 @@ D 应在 `loadReader` 的 requireBook 后、CSS 懒同步前调用此 API。当�
 
 ## 未验证项与沙箱外验收
 
-共享请求落地前，全屏布局和打开阅读器的 tracker 副作用仍是已知差距。沙箱禁止 sockets，未启动 HTTP 服务器，也没有实际浏览器水合/布局/iframe 权限验证。真实书籍超长章节、图片/字体加载后的分页、手机点击/选字、浏览器历史与原生 dialog 焦点需由编排方检查。EPUB 解压仍沿用共享核心的同步整体解压及其既有内存/ZIP 格式限制。
+共享请求落地前，全屏布局和打开阅读器的 tracker 副作用仍是已知差距。沙箱禁止 sockets，未启动 HTTP 服务器，也没有实际浏览器水合/布局/iframe 权限验证。真实书籍超长章节、图片/字体加载后的分页、手机点击/选字、浏览器历史与原生 dialog 焦点需由编排方检查。阅读器现已使用按需解压和有界索引缓存（见下方修复记录）；其他需要完整 EPUB 的共享核心调用仍使用原实现。
 
 编排方先准备测试书库、数据库、模板的**临时副本**，在合并五个切片并重建路由树后执行：
 
@@ -135,3 +135,54 @@ curl -i -H "Cookie: $READER_COOKIE" -H 'Content-Type: application/json' \
 ```text
 :sparkles: feat(reader): Add isolated EPUB reader and progress tracking
 ```
+
+
+## 2026-10-20 · 真实 EPUB 路径、性能及开发模式修复
+
+工作树 `/workspaces/bindery-wt-r`，分支 `feat/reader-fixes`。未提交、推送、切换分支、安装依赖或使用网络、socket、浏览器；未访问另一工作树的书库，也未修改 Kindle 文件或 Python 参考。
+
+### 原因与实现
+
+- 旧 `validateItemPath` 把合法 ZIP 名称中的冒号、百分号、井号、问号当作危险路径；`EpubArchive.locate` 又存在目录/basename 别名回退。阅读器现从 ZIP 中央目录建立精确成员集合，验证结构后必须命中集合。路径字符规则见上方第 2 条。
+- 新增 `src/core/epub-path.ts`，统一段编码和基于成员集合的相对引用解析。支持已编码及生产者使用的原始名称、嵌套目录、fragment、字面百分号；只解码一次。章节 URL、HTML 的 href/src、内联 style、CSS 的 `url()` / 字符串 `@import` 都生成本书内完整编码的 URL；CSS 注释和无关字符串保持原样。搜索结果仍走数字章节路由，查询内容使用 URLSearchParams 编码。
+- 新增 `src/server/reader/archive.ts`：读取尾部 EOCD 和中央目录，记录名称、局部头偏移、压缩大小、原始大小、方法和 flags；每次读取只打开文件并读取目标成员的数据，对 deflate slice 调用 `inflateSync`。支持 stored/deflate、data descriptor、ZIP64、UTF-8/CP437 和通过原名称 CRC 校验的 Unicode path extra field；拒绝加密、未知压缩方法和损坏边界。
+- 按文件路径、大小、纳秒级 mtime 缓存索引和解析后的 OPF manifest、spine、TOC/章节标题及 media type 映射。LRU 上限为 16 本 / 32 MiB 的索引、解析数据和 CSS 检查结果估算大小，不常驻整本归档或解压章节；解析后增长也会触发淘汰。EPUB 替换、大小/mtime 变化或删除会失效。
+- `service.ts` 和 `search.ts` 复用归档缓存；检索仍按次读取 spine 正文，没有常驻全文缓存。`epub-css.ts` 的阅读器路径使用索引检查实际 CSS 成员，只有需要修改时才读取整本并保留既有原子写回流程。供排版/导出使用的 `readBookEpub` 和共享完整归档 API 保持原有语义。
+- Reader 的恢复位置和初始检索词是 ReaderFrames 会话的初始化快照，使用显式 `untrack`；动态展示仍通过 JSX，设置和目录副作用仍使用 effect compute，effect 回调不返回 setter 结果。开发运行时审计还修复了 LibraryPage、BookDetail、BookEditor、IngestPage、Editor、TrackerForm 中的同类本地状态初始化读取，书库既有查询同步 effect 保留。
+- PWA 插件在开发模式为 `/manifest.json` 的 GET/HEAD 直接提供同一份 manifest JSON；生产构建的 manifest、service worker 和预缓存生成流程保持原样。
+
+iframe 的 `sandbox="allow-same-origin"`、无脚本许可、响应 CSP、nosniff、no-referrer、认证及缓存响应策略完全保留，没有增加书籍脚本桥接。
+
+### 合成 EPUB 性能测量
+
+`tests-ts/fixtures/reader/obfuscated.ts` 在测试中生成内容，无版权书籍数据。大样本为 **21,947,303 字节（约 20.93 MiB）、2241 个成员、2227 个 spine 章节**，含嵌套混淆目录与相对 CSS/图片/字体；PNG 是程序生成的有效 1×1 图片。性能样本的章节 href 使用旧实现也能定位的原始 `: | * ~` 名称，使前后工作量可比；完整特殊字符组合由其他测试覆盖。
+
+独立运行 `BINDERY_READER_PERF_REPORT=/tmp/bindery-reader-performance-r.json pnpm exec vitest run tests-ts/reader-realworld.test.ts`。同一进程/同一文件中，旧路径通过完整读文件 + `loadEpubItem` + 隔离 HTML 处理；新路径调用实际 `loadReader` / `epubResource`。资源各取 7 次的中位数，首章为冷缓存的一次采样，未包括生成 fixture 的时间。
+
+| 服务端操作 | 旧实现 | 新实现 |
+| --- | ---: | ---: |
+| 单章资源响应，中位数 | 266.2 ms | 1.5 ms |
+| CSS 检查 + spine/TOC + 首章响应 | 903.3 ms | 69.6 ms |
+
+性能门禁使用实际计数而非机器相关时间阈值：冷启动仅读取 container、OPF、nav 和目标章节 **4 个成员**；热请求每次 **1 个成员**，压缩读取字节数等于该成员的压缩大小；索引和 package 各只构建/解析一次。测试还覆盖按条目/字节淘汰、LRU 命中顺序和 package 解析导致的缓存增长。
+
+这些数字是无 socket 的服务端路径测量，不能等同于浏览器首章可见时间。用户真实 EPUB 的布局、字体、图片、iframe load 和 Start 开发水合仍需编排方 Chrome 复验。
+
+### 验证与边界
+
+新增 `reader-realworld.test.ts`、`reader-archive.test.ts` 和生成 fixture；生产 handler 测试覆盖混淆 spine 章节的 SSR iframe src、图片/CSS/字体、脚注、字面 `%2e%2e` / `%2F` / `#` / `?`、GET/HEAD、遍历/控制字符拒绝及既有隔离策略。缓存测试独立覆盖 mtime 改变和保持 mtime 的 size 改变。
+
+`client-rendering.test.ts` 保留生产 SSR/hydration/CSR 测试，并额外构建真实开发 runtime，渲染 13 类视图（包括详情→编辑）捕获 `STRICT_READ_UNTRACKED`。反向临时撤销 Reader 的两处显式快照后，该测试准确报告 Reader 的 **3 条**警告并失败；恢复修复后通过。开发 manifest 通过直接调用 Vite middleware 的 GET/HEAD 测试验证，不启动 dev server。未在此沙箱执行真实 Chrome、水合启动或布局测试。
+
+最终门禁按顺序执行：
+
+```sh
+pnpm build
+pnpm typecheck
+PYTHONDONTWRITEBYTECODE=1 UV_OFFLINE=1 pnpm test
+git diff --check
+```
+
+构建、strict 类型检查、**53 个文件 / 1020 项测试**全部通过，无失败或跳过；新增文件另做末尾换行和尾随空白检查。构建保留既有 inputValidator 弃用和 ingest 混合 import 提示。`PYTHONDONTWRITEBYTECODE` / `UV_OFFLINE` 用于避免 Python 参考产生字节码写入及 uv 网络访问，不改变测试收集或断言。
+
+早先两次默认并发全量运行分别出现既有 Kindle production 子进程的 Node 原生 `v8::ToLocalChecked Empty MaybeLocal` 崩溃，以及 catalog production 探针的一次 SQLite busy（503）。两项单独重跑通过；`pnpm test --maxWorkers=2` 全部通过，之后两次默认并发全量运行也全部通过。没有修改这些失败探针或 Kindle 实现。是否与并发压力有关仍是未确认假设，原生崩溃及 busy 的根因未进一步定位。

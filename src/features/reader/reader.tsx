@@ -1,16 +1,17 @@
-import { createEffect, createSignal, For, onCleanup, onSettled, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { BookCover, Button, Dialog, Select, TextField } from "../../ui";
 import { contentUrl, defaultSettings, highlightedParts, initialPosition, normalizeSettings, sectionUrl, type ReaderData, type ReaderSettings, type SearchHit, type SearchResults } from "./model";
 import { ReaderFrames } from "./frame";
 import { ProgressWriter } from "./progress";
 
 export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
-  const initial = initialPosition(props.data, props.query), book = () => props.data.book;
+  // Resume/query seed this reader session once; subsequent turns belong to ReaderFrames.
+  const initial = untrack(() => initialPosition(props.data, props.query)), book = () => props.data.book;
   const [position, setPosition] = createSignal({ section: initial.section, page: Math.min(initial.page, 999_999), pageCount: 1, frame: 0 });
   const [settings, setSettings] = createSignal<ReaderSettings>({ ...defaultSettings });
   const [tocOpen, setTocOpen] = createSignal(false), [settingsOpen, setSettingsOpen] = createSignal(false), [searchOpen, setSearchOpen] = createSignal(false);
   const [busy, setBusy] = createSignal(true), [error, setError] = createSignal(""), [progressError, setProgressError] = createSignal("");
-  const [query, setQuery] = createSignal(props.query.get("find") || ""), [results, setResults] = createSignal<SearchResults | null>(null), [searchBusy, setSearchBusy] = createSignal(false), [searchError, setSearchError] = createSignal("");
+  const [query, setQuery] = createSignal(untrack(() => props.query.get("find") || "")), [results, setResults] = createSignal<SearchResults | null>(null), [searchBusy, setSearchBusy] = createSignal(false), [searchError, setSearchError] = createSignal("");
   const [clock, setClock] = createSignal("");
   let a!: HTMLIFrameElement, b!: HTMLIFrameElement, c!: HTMLIFrameElement, controller: ReaderFrames | undefined, writer: ProgressWriter | undefined, searchRequest: AbortController | undefined;
   let cleanup: (() => void) | undefined, disposed = false, firstPosition = true;

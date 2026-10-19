@@ -1,8 +1,10 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Connect, ViteDevServer } from "vite";
 import { readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { canCacheResponse, cachePrefix, outdatedCaches, requestStrategy, type PwaRequest } from "../src/client/pwa/policy";
-import { collectPrecache } from "../src/client/pwa/build";
+import { collectPrecache, pwaBuild } from "../src/client/pwa/build";
 import { manifest } from "../src/client/pwa/manifest";
 
 const scope = "https://bindery.example/";
@@ -105,4 +107,23 @@ describe("install manifest and PNG icons", () => {
     }
     expect(foreground).toBeGreaterThan(size * size * .1);
   });
+});
+
+it("serves the same valid manifest in Vite dev without a server or socket", () => {
+  let middleware!: Connect.NextHandleFunction;
+  const hook = pwaBuild().configureServer;
+  if (typeof hook !== "function") throw new Error("Missing dev manifest hook");
+  hook.call({} as never, { middlewares: { use: (handler: Connect.NextHandleFunction) => { middleware = handler; } } } as unknown as ViteDevServer);
+  for (const method of ["GET", "HEAD"]) {
+    const headers = new Map<string, unknown>(); let body: string | undefined;
+    middleware({ url: "/manifest.json?v=dev", method } as IncomingMessage, {
+      setHeader: (name: string, value: unknown) => headers.set(name, value), end: (value?: string) => { body = value; },
+    } as unknown as ServerResponse, () => { throw new Error("Manifest fell through to HTML"); });
+    expect(headers.get("Content-Type")).toBe("application/manifest+json; charset=utf-8");
+    expect(headers.get("Cache-Control")).toBe("no-cache");
+    if (method === "GET") expect(JSON.parse(body!)).toEqual(manifest); else expect(body).toBeUndefined();
+  }
+  let calls = 0;
+  for (const request of [{ url: "/", method: "GET" }, { url: "/manifest.json", method: "POST" }]) middleware(request as IncomingMessage, {} as ServerResponse, () => { calls++; });
+  expect(calls).toBe(2);
 });

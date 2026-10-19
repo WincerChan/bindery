@@ -1,3 +1,5 @@
+import { encodeEpubPath } from "../../core/epub-path";
+
 export interface ReaderProgress { book_id: string; section: number; page: number; page_count: number; updated_at: string }
 export interface SearchHit { index: number; title: string; offset: number; snippet: string }
 export interface SearchResults { query: string; hits: SearchHit[]; indexed_sections: number; offset?: number; limit?: number; next_offset?: number; has_more?: boolean }
@@ -23,7 +25,7 @@ export function sectionUrl(bookId: string, section: number, returnTo = "/", extr
   return `/book/${bookId}/preview/${section}${query.size ? `?${query}` : ""}`;
 }
 export function contentUrl(bookId: string, path: string): string {
-  return `/book/${bookId}/epub/${path.split("/").map(encodeURIComponent).join("/")}`;
+  return `/book/${bookId}/epub/${encodeEpubPath(path)}`;
 }
 export function initialPosition(data: ReaderData, query: URLSearchParams): { section: number; page: number } {
   let section = data.section_index, page = 1;

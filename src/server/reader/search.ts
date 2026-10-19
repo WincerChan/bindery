@@ -1,8 +1,8 @@
-import { iterEpubSectionDocuments, type EpubSectionDocument } from "../../core/epub";
+import type { EpubSectionDocument } from "../../core/epub";
 import { requireBook, HttpError } from "../http";
 import type { LibraryStorage } from "../storage";
 import type { SearchResults, SearchHit } from "../../features/reader/model";
-import { readBookEpub } from "./service";
+import { readBookArchive } from "./service";
 import { unescapeSearchHtml } from "./entities";
 import { bigIntegerParameter, integerParameter } from "./parameters";
 
@@ -47,7 +47,14 @@ export function searchBook(request: Request, bookId: string, library: LibrarySto
   if (rawOffset === null || rawOffset < 0) throw new HttpError(422, "请求参数无效");
   if (!query) return Response.json({ query: "", hits: [], indexed_sections: 0 } satisfies SearchResults);
   const offset = Number(rawOffset > Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : rawOffset);
-  const result = searchDocuments(iterEpubSectionDocuments(readBookEpub(bookId, library)), query, limit, offset);
+  const archive = readBookArchive(bookId, library), { sections, documents } = archive.metadata();
+  function* spine(): Generator<EpubSectionDocument> {
+    for (let index = 0; index < documents.length; index++) {
+      const content = archive.read(documents[index].member_path);
+      if (content) yield { ...sections[index], index, content, media_type: documents[index].media_type };
+    }
+  }
+  const result = searchDocuments(spine(), query, limit, offset);
   if (rawOffset > Number.MAX_SAFE_INTEGER) {
     // Preserve Python's unbounded offset on the wire; no EPUB can have 2^53 sections.
     const { next_offset: _next, ...details } = result;

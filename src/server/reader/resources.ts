@@ -1,17 +1,36 @@
 import { DOMParser } from "@xmldom/xmldom";
 import type { Node, Element } from "@xmldom/xmldom";
-import { epubBaseHref, loadEpubItem } from "../../core/epub";
+import { guessMediaType } from "../../core/epub";
+import { encodeEpubPath, isSafeEpubPath, resolveEpubReference } from "../../core/epub-path";
 import { escapeHtml } from "../../core/epub-html";
 import { edgeRevalidateHeaders, HttpError, requireBook } from "../http";
 import type { LibraryStorage } from "../storage";
-import { readBookEpub } from "./service";
+import { readBookArchive } from "./service";
 
-/** Validate after the router's decoding; also reject residual/double encodings. */
-export function validateItemPath(raw: string): string {
-  if (!raw || raw.length > 4096 || /[%\\\x00-\x1f\x7f?#:]/.test(raw) || raw.startsWith("/") || raw.split("/").some(part => !part || part === "." || part === "..")) {
-    throw new HttpError(404, "资源不存在");
-  }
+/** The router has already decoded exactly once. Never normalize or decode again. */
+export function validateItemPath(raw: string, members: { has(path: string): boolean }): string {
+  if (!isSafeEpubPath(raw) || !members.has(raw)) throw new HttpError(404, "资源不存在");
   return raw;
+}
+
+type ResourceUrl = (raw: string) => string | null;
+function cssUnescape(value: string): string {
+  return value.replace(/\\(?:([0-9a-f]{1,6})\s?|([^\r\n\f])|\r\n|[\r\n\f])/gi, (_match, hex: string | undefined, character: string | undefined) => {
+    const point = hex ? parseInt(hex, 16) : 0;
+    return hex ? String.fromCodePoint(point && point <= 0x10ffff && (point < 0xd800 || point > 0xdfff) ? point : 0xfffd) : character ?? "";
+  });
+}
+/** Rewrite URLs in CSS tokens, leaving comments and unrelated quoted strings intact. */
+export function rewriteBookCss(css: string, resolve: ResourceUrl): string {
+  const string = `"(?:\\\\[\\s\\S]|[^"\\\\])*"|'(?:\\\\[\\s\\S]|[^'\\\\])*'`;
+  const tokens = new RegExp(`/\\*[\\s\\S]*?\\*/|@import\\s+(${string})|url\\(\\s*(${string}|(?:\\\\[\\s\\S]|[^\\)"'])*?)\\s*\\)|${string}`, "gi");
+  return css.replace(tokens, (token, imported: string | undefined, url: string | undefined) => {
+    if (imported === undefined && url === undefined) return token;
+    const value = (imported ?? url!).trim(), raw = cssUnescape(/^["']/.test(value) ? value.slice(1, -1) : value);
+    const target = /^data:/i.test(raw) ? raw : resolve(raw) ?? "";
+    const quoted = JSON.stringify(target).replace(/</g, "\\3c ");
+    return imported === undefined ? `url(${quoted})` : `@import ${quoted}`;
+  });
 }
 
 // This filtering improves rendering and removes automatic navigation. The security
@@ -21,12 +40,13 @@ const allowed = new Set("html head body title style link article section header 
 const voids = new Set(["br", "hr", "img", "link", "wbr", "col"]);
 const attributes = new Set("id class title lang dir style alt width height colspan rowspan scope start reversed type open role aria-label aria-hidden viewbox d fill stroke stroke-width x y x1 y1 x2 y2 cx cy r rx ry points transform preserveaspectratio offset stop-color clip-path".split(" "));
 
-export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestUrl: string): string {
+export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestUrl: string, resolve?: ResourceUrl): string {
   const origin = new URL(requestUrl).origin, base = new URL(baseHref, origin);
   const prefix = base.pathname.split("/epub/")[0] + "/epub/";
   const safeUrl = (raw: string, image = false) => {
     if (!raw.trim()) return null;
     if (image && /^data:image\/(?:png|jpeg|gif|webp|avif|svg\+xml)[;,]/i.test(raw)) return raw;
+    if (resolve) return resolve(raw);
     try {
       const resolved = new URL(raw, raw.startsWith("#") ? requestUrl : base);
       return resolved.origin === origin && resolved.pathname.startsWith(prefix) && !resolved.username && !resolved.password ? resolved.href : null;
@@ -40,6 +60,7 @@ export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestU
       let value: string | null = attribute.value;
       if (name === "href" || name === "xlink:href" || name === "src") value = safeUrl(value, tag === "img" || tag === "image");
       else if (!attributes.has(name)) continue;
+      else if (["style", "fill", "stroke", "clip-path"].includes(name) && resolve) value = rewriteBookCss(value, resolve);
       if (value !== null) attrs += ` ${name}="${escapeHtml(value)}"`;
     }
     return attrs;
@@ -53,7 +74,7 @@ export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestU
     for (let child = el.firstChild; child; child = child.nextSibling) body += render(child);
     if (!allowed.has(tag)) return body;
     if (tag === "html" || tag === "head" || tag === "body") return body;
-    if (tag === "style") return `<style>${(el.textContent || "").replace(/</g, "\\3c ")}</style>`;
+    if (tag === "style") return `<style>${(resolve ? rewriteBookCss(el.textContent || "", resolve) : el.textContent || "").replace(/</g, "\\3c ")}</style>`;
     if (tag === "title") return "";
     if (tag === "link" && (el.getAttribute("rel") || "").toLowerCase() !== "stylesheet") return "";
     return `<${tag}${renderAttributes(el, tag)}>${voids.has(tag) ? "" : `${body}</${tag}>`}`;
@@ -70,21 +91,26 @@ export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestU
 
 export function epubResource(request: Request, bookId: string, rawPath: string, library: LibraryStorage): Response {
   requireBook(bookId, library);
-  const path = validateItemPath(rawPath), data = readBookEpub(bookId, library);
-  const baseHref = epubBaseHref(`/book/${bookId}/epub/`, path);
-  let content: Uint8Array, media: string;
-  try { [content, media] = loadEpubItem(data, path, baseHref); }
-  catch (error) {
-    if (error instanceof Error && error.message.startsWith("File not found:")) throw new HttpError(404, "资源不存在");
-    throw error;
-  }
+  const archive = readBookArchive(bookId, library), path = validateItemPath(rawPath, archive);
+  const prefix = `/book/${bookId}/epub/`, origin = new URL(request.url).origin;
+  const baseHref = prefix + encodeEpubPath(path.split("/").slice(0, -1).join("/")) + (path.includes("/") ? "/" : "");
+  const resourceUrl: ResourceUrl = raw => {
+    const resolved = resolveEpubReference(path, raw, archive.has);
+    if (!resolved) return null;
+    let fragment = resolved.fragment;
+    try { fragment = decodeURIComponent(fragment); } catch { /* literal percent in an ID */ }
+    return origin + prefix + encodeEpubPath(resolved.path) + (fragment ? `#${encodeURIComponent(fragment)}` : "");
+  };
+  let content = archive.read(path)!, media = guessMediaType(path);
+  if (media === "application/octet-stream") media = archive.mediaType(path) || media;
+  if (media === "text/css") content = new TextEncoder().encode(rewriteBookCss(new TextDecoder().decode(content), resourceUrl));
   const headers = new Headers(edgeRevalidateHeaders());
   const source = new URL(`/book/${bookId}/epub/`, request.url).href;
   headers.set("Content-Security-Policy", `sandbox allow-same-origin; default-src 'none'; script-src 'none'; style-src 'unsafe-inline' ${source}; img-src data: ${source}; font-src data: ${source}; media-src ${source}; object-src 'none'; frame-src 'none'; connect-src 'none'; form-action 'none'; base-uri ${source}; frame-ancestors 'self'`);
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Referrer-Policy", "no-referrer");
   if (media.toLowerCase().includes("html")) {
-    content = new TextEncoder().encode(isolatedBookHtml(content, baseHref, request.url));
+    content = new TextEncoder().encode(isolatedBookHtml(content, baseHref, request.url, resourceUrl));
     media = "text/html; charset=utf-8";
   } else if (media.startsWith("text/") && !media.includes("charset=")) media += "; charset=utf-8";
   headers.set("Content-Type", media);
