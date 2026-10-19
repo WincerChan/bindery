@@ -1,7 +1,41 @@
-import { unzipSync, Zip, ZipDeflate, ZipPassThrough } from "fflate";
+import { deflateSync, inflateSync, unzipSync, Zip, ZipPassThrough } from "fflate";
 export interface ArchiveMember {
   name: string;
   data: Uint8Array;
+}
+export type Deflater = (data: Uint8Array) => Uint8Array<ArrayBuffer>;
+const defaultDeflater: Deflater = data => deflateSync(data, { level: 6 });
+function inflatesTo(packed: Uint8Array, data: Uint8Array): boolean {
+  try {
+    const out = inflateSync(packed, { out: new Uint8Array(data.length) });
+    if (out.length !== data.length) return false;
+    for (let i = 0; i < data.length; i++) if (out[i] !== data[i]) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+/**
+ * One-shot deflate verified by a round trip. fflate's streaming ZipDeflate emits a
+ * corrupt stream for some real EPUB members (seen on a 658 KB TTF font); a member whose
+ * deflate output does not inflate back to the original is stored uncompressed instead.
+ */
+export class VerifiedZipDeflate extends ZipPassThrough {
+  private readonly packed: Uint8Array<ArrayBuffer> | null;
+  constructor(filename: string, data: Uint8Array, deflate: Deflater = defaultDeflater) {
+    super(filename);
+    let packed: Uint8Array<ArrayBuffer> | null = null;
+    try {
+      packed = deflate(data);
+    } catch {
+      packed = null;
+    }
+    this.packed = packed && inflatesTo(packed, data) ? packed : null;
+    this.compression = this.packed ? 8 : 0;
+  }
+  protected override process(chunk: Uint8Array<ArrayBuffer>, final: boolean): void {
+    this.ondata(null, this.packed ?? chunk, final);
+  }
 }
 export function normpath(path: string): string {
   const absolute = path.startsWith("/"),
@@ -95,14 +129,18 @@ export function writeArchive(entries: Iterable<ArchiveMember>): Uint8Array {
   return result;
 }
 /** Synchronous sink provides backpressure (e.g. a complete write to a file descriptor). */
-export function writeArchiveToSink(entries: Iterable<ArchiveMember>, write: (chunk: Uint8Array) => void): void {
+export function writeArchiveToSink(
+  entries: Iterable<ArchiveMember>,
+  write: (chunk: Uint8Array) => void,
+  deflate: Deflater = defaultDeflater,
+): void {
   const zip = new Zip((error, data) => {
     if (error) throw error;
     write(data);
   });
   try {
     for (const entry of entries) {
-      const file = entry.name === "mimetype" ? new ZipPassThrough(entry.name) : new ZipDeflate(entry.name, { level: 6 });
+      const file = entry.name === "mimetype" ? new ZipPassThrough(entry.name) : new VerifiedZipDeflate(entry.name, entry.data, deflate);
       zip.add(file);
       file.push(entry.data, true);
     }
