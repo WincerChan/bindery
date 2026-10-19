@@ -5,11 +5,16 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 import { signIn } from "../src/server/auth";
+import { epubPath } from "../src/server/storage";
+import { obfuscatedEpub } from "./fixtures/reader/obfuscated";
 import { readerFixture } from "./fixtures/reader/support";
 
 it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and authenticates all six compiled preview/profile RPCs without sockets", async () => {
   const fixture = readerFixture();
   try {
+    const book = obfuscatedEpub();
+    writeFileSync(epubPath(fixture.library.base, fixture.id), book.data);
+    writeFileSync(join(fixture.root, "typeset-paths.json"), JSON.stringify({ paths: book.paths, css: book.css, importedCss: book.importedCss, image: book.image, font: book.font }));
     const script = join(fixture.root, "check-typeset.mjs");
     writeFileSync(script, `
       import assert from "node:assert/strict";
@@ -20,12 +25,15 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       for (const key of ["BINDERY_LIBRARY_DIR", "BINDERY_DB_PATH", "BINDERY_PASSWORD_HASH", "BINDERY_PUBLIC_ORIGIN", "BINDERY_RULES_DIR", "BINDERY_THEMES_DIR", "BINDERY_TEMPLATE_DIR"]) { process.env[key] = ""; process.env[key + "_FILE"] = ""; }
       process.env.BINDERY_LIBRARY_DIR = join(root, "library"); process.env.BINDERY_DB_PATH = join(root, "db.sqlite");
       const handler = await createProductionHandler();
-      const get = (path, auth = true) => handler(new Request("http://localhost" + path, { headers: { Cookie: auth ? "bindery_session=" + session : "" } }));
+      const get = (path, auth = true, method = "GET") => handler(new Request("http://localhost" + path, { method, headers: { Cookie: auth ? "bindery_session=" + session : "" } }));
+      const book = JSON.parse(readFileSync(join(root, "typeset-paths.json"), "utf8"));
+      const encodePath = path => path.split("/").map(part => encodeURIComponent(part).replace(/[!'()*~]/g, ch => "%" + ch.charCodeAt(0).toString(16).toUpperCase())).join("/");
       for (const page of ["/kindle/preview?book=" + bookId, "/kindle/fonts"]) {
         assert.equal((await get(page, false)).status, 303);
         const response = await get(page); assert.equal(response.status, 200); const html = await response.text();
         assert.match(html, /检测中/); assert.doesNotMatch(html, /allow-scripts|srcdoc=/); assert.ok(!html.includes(root));
         assert.match(html, page.includes("preview") ? /Kindle 章节排版预览/ : /字体管理/);
+        if (page.includes("preview")) assert.ok(html.includes("/book/" + bookId + "/epub/" + encodePath(book.paths[0])), "iframe member path must round-trip");
       }
       const manifest = readdirSync(serverDir).filter(name => name.includes("server-fn-resolver")).map(name => readFileSync(join(serverDir, name), "utf8")).join("\\n");
       function rpc(name, method, data, auth = true) {
@@ -42,9 +50,29 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       }
       const result = async response => { assert.equal(response.status, 200); const payload = await response.json(); assert.ok(!payload.error, JSON.stringify(payload)); return payload.result; };
       const preview = await result(await rpc("getPreview", "GET", bookId)); assert.equal(preview.bookId, bookId); assert.ok(preview.sections.length > 0);
-      const assetPath = "/kindle/content/" + bookId + "/11/epub/" + preview.sections[0].item_path;
+      assert.deepEqual(preview.sections.map(section => section.item_path), book.paths);
+      const assetPath = "/kindle/content/" + bookId + "/11/epub/" + encodePath(preview.sections[0].item_path);
       assert.equal((await get(assetPath, false)).status, 303);
       const asset = await get(assetPath); assert.equal(asset.status, 200); assert.ok((await asset.text()).includes('<base href="http://localhost/kindle/content/'));
+      for (const mode of ["00", "01", "10", "11"]) {
+        const prefix = "/kindle/content/" + bookId + "/" + mode + "/epub/";
+        for (const member of [...book.paths, book.css, book.importedCss, book.image, book.font, ...["%2e%2e", "%2F", "#", "?", "a:b", "::|"].map(name => "OEBPS/Images/" + name)]) {
+          const response = await get(prefix + encodePath(member));
+          const removed = (mode[0] === "1" && member === book.font) || (mode[1] === "1" && member === book.image);
+          assert.equal(response.status, removed ? 404 : 200, mode + " " + member);
+          const content = await response.text();
+          if (removed) continue;
+          assert.match(response.headers.get("content-security-policy"), /sandbox allow-same-origin; default-src 'none'; script-src 'none'/);
+          if (member === book.paths[0]) {
+            assert.ok(content.includes(prefix + encodePath(book.css))); assert.ok(content.includes(prefix + encodePath(book.paths[1]) + "#note"));
+            assert.doesNotMatch(content, /<script|<form|parent.attack/);
+            if (mode[1] === "1") assert.doesNotMatch(content, /<img/);
+            else assert.ok(content.includes(prefix + encodePath(book.image)));
+          }
+        }
+        const head = await get(prefix + encodePath(book.paths[0]), true, "HEAD"); assert.equal(head.status, 200); assert.equal(await head.text(), "");
+        for (const path of ["%00x", "a%5Cb", "a%0Ab", "a%2F..%2Fx", "absent.xhtml"]) assert.equal((await get(prefix + path)).status, 404);
+      }
       assert.deepEqual(await result(await rpc("getChapters", "GET", bookId)), preview.sections);
       const initial = await result(await rpc("listKindleProfiles", "GET", "test-device")); assert.equal(initial.length, 1); assert.equal(initial[0].builtIn, true);
       const created = await result(await rpc("createKindleProfile", "POST", input)); assert.equal(created.deviceId, "test-device");

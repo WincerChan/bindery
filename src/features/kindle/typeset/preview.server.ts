@@ -1,13 +1,12 @@
 import { statSync } from "node:fs";
-import { listEpubSections } from "../../../core/epub";
 import { requireBook } from "../../../server/http";
-import { readBookEpub } from "../../../server/reader/service";
+import { readBookArchive } from "../../../server/reader/service";
 import { epubPath, type LibraryStorage } from "../../../server/storage";
 import type { PreviewData } from "./model";
 
 export function previewChapters(library: LibraryStorage, bookId: string) {
   requireBook(bookId, library);
-  return listEpubSections(readBookEpub(bookId, library));
+  return readBookArchive(bookId, library).metadata().sections;
 }
 export function previewData(library: LibraryStorage, requested: string): PreviewData {
   const books = library.listBooks().filter(book => statSync(epubPath(library.base, book.book_id), { throwIfNoEntry: false })?.isFile())

@@ -1,6 +1,6 @@
 import { XMLSerializer } from "@xmldom/xmldom";
 import { canonicalZipMember, relativeHref, writeArchive, type ArchiveMember } from "./archive";
-import { EpubArchive, extractCover, isDocumentMediaType, manifestFromOpf, resolveOpfHref } from "./epub";
+import { EpubArchive, epubCoverItem, extractCover, isDocumentMediaType, manifestFromOpf, resolveOpfHref, type EpubSource } from "./epub";
 import { rewriteCssUrls, stripCss } from "./css-strip";
 import { appendElement, attr, child, children, descendants, OPF_NS, parseXml, serializeElementTree } from "./xml";
 import type { Element } from "./xml";
@@ -16,14 +16,20 @@ function resourcePath(from: string, href: string): string {
   return resolveOpfHref(from, decode(href.trim().split(/[?#]/)[0]));
 }
 
-/** Shared by Kindle transfer and preview. Only the returned copy is changed. */
-export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions): Uint8Array<ArrayBuffer> {
-  if (!options.stripFonts && !options.stripImages) return new Uint8Array(data);
-  const archive = new EpubArchive(data), [opf, root] = archive.opf(), items = manifestFromOpf(opf, root);
-  const cover = options.stripImages ? extractCover(data)?.[1] : undefined;
+/** A reusable plan contains metadata and member names, never a whole EPUB copy. */
+export function createEpubAssetStripper(
+  archive: EpubSource, memberNames: Iterable<string>, options: EpubStripOptions,
+  coverOverride?: string | null, resolve = resourcePath, onGrowth = (_bytes: number) => {},
+) {
+  const names = [...memberNames], namesSet = new Set(names), [opf, root] = archive.opf();
+  const items = manifestFromOpf(opf, root, archive.resolve?.bind(archive));
+  const candidate = epubCoverItem(items, root)?.member_path;
+  const cover = coverOverride === undefined ? (candidate && namesSet.has(candidate) ? candidate : undefined) : coverOverride ?? undefined;
+  const mediaTypes = new Map(items.map(item => [item.member_path, item.media_type]));
+  const resourcePath = resolve;
   const images = new Set(items.filter(item => item.media_type.startsWith("image/")).map(item => resourcePath(opf, item.href)));
   const fonts = new Set(items.filter(item => fontMedia.test(item.media_type)).map(item => resourcePath(opf, item.href)));
-  const removed = new Set(archive.entries.map(entry => canonicalZipMember(entry.name)).filter(name =>
+  const removed = new Set(names.filter(name =>
     (options.stripFonts && (fontFile.test(name) || fonts.has(name))) ||
     (options.stripImages && name !== cover && (imageFile.test(name) || images.has(name))),
   ));
@@ -42,10 +48,11 @@ export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions): Ui
   }
   const docs = new Set(items.filter(item => isDocumentMediaType(item.media_type)).map(item => resourcePath(opf, item.href)));
   const styles = new Set(items.filter(item => item.media_type === "text/css").map(item => resourcePath(opf, item.href)));
+  const guideCovers = new Set(children(child(root, "guide") ?? root, "reference").filter(ref => attr(ref, "type") === "cover").map(ref => resourcePath(opf, attr(ref, "href"))));
   const isImage = (from: string, url: string) => /^data:image\//i.test(url) || images.has(resourcePath(from, url)) || imageFile.test(url.split(/[?#]/)[0]);
   const css = (text: string, from: string, keepCover: boolean) => stripCss(text, { ...options, isImage: url => isImage(from, url) && !(keepCover && cover && resourcePath(from, url) === cover) });
   const encoder = new TextEncoder(), decoder = new TextDecoder(), serializer = new XMLSerializer();
-  const coverStyles = new Map<string, string>(), coverEntries: ArchiveMember[] = [];
+  const coverStyles = new Map<string, string>(), coverSources = new Map<string, string>();
   const rewriteCoverCss = (text: string, from: string) => rewriteCssUrls(text, url => {
     const target = coverStyles.get(resourcePath(from, url));
     return target ? relativeHref(from, target).split("/").map(part => part === ".." ? part : encodeURIComponent(part)).join("/") : undefined;
@@ -53,15 +60,14 @@ export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions): Ui
   let coverStylesReady = false;
   function prepareCoverStyles() {
     if (coverStylesReady || !options.stripImages) return;
-    coverStylesReady = true;
-    const sources = archive.entries.filter(entry => styles.has(canonicalZipMember(entry.name)) || /\.css$/i.test(entry.name));
-    const names = new Set(archive.entries.map(entry => canonicalZipMember(entry.name))), ids = new Set(children(manifest!, "item").map(item => attr(item, "id")));
-    const texts = new Map(sources.map(entry => [canonicalZipMember(entry.name), css(decoder.decode(entry.data), canonicalZipMember(entry.name), true)]));
+    const sources = names.filter(name => styles.has(name) || /\.css$/i.test(name));
+    const taken = new Set(names), ids = new Set(children(manifest!, "item").map(item => attr(item, "id")));
+    const texts = new Map(sources.map(name => [name, css(decoder.decode(archive.read(name)!), name, true)]));
     let index = 0;
     const add = (name: string) => {
       let member: string, id: string;
-      do { id = `bindery-kindle-cover-${++index}`; member = resolveOpfHref(name, `${id}.css`); } while (names.has(member) || ids.has(id));
-      names.add(member); ids.add(id); coverStyles.set(name, member);
+      do { id = `bindery-kindle-cover-${++index}`; member = resolveOpfHref(name, `${id}.css`); } while (taken.has(member) || ids.has(id));
+      taken.add(member); ids.add(id); coverStyles.set(name, member); coverSources.set(member, name);
       appendElement(manifest!, OPF_NS, "item", undefined, { id, href: relativeHref(opf, member), "media-type": "text/css" });
     };
     // Shared stylesheets lose every image in body chapters. Cover pages get a variant only
@@ -72,34 +78,53 @@ export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions): Ui
       added = false;
       for (const [name, text] of texts) if (!coverStyles.has(name) && rewriteCoverCss(text, name) !== text) { add(name); added = true; }
     } while (added);
-    for (const [name, member] of coverStyles) coverEntries.push({ name: member, data: encoder.encode(rewriteCoverCss(texts.get(name)!, name)) });
+    coverStylesReady = true;
+    onGrowth([...coverSources].reduce((bytes, [name, source]) => bytes + 512 + (name.length + source.length) * 4, 0));
   }
-  const entries: ArchiveMember[] = [];
-  for (const entry of archive.entries) {
-    const name = canonicalZipMember(entry.name);
-    if (removed.has(name)) continue;
-    let content = entry.data;
+  function coverDocument(name: string, doc: Element): boolean {
+    const nodes = [doc, ...descendants(doc)];
+    return Boolean(cover && (
+      guideCovers.has(name) ||
+      nodes.some(node => attr(node, "epub:type").split(/\s+/).includes("cover")) ||
+      (nodes.some(node => ["img", "image"].includes(node.localName ?? "") && referencesCoverInDocument(name, node)) &&
+        (!descendants(doc, "body")[0]?.textContent?.trim() || /(?:^|\/)cover\.[^/]+$/i.test(name)))
+    ));
+  }
+  function referencesCoverInDocument(name: string, node: Element): boolean {
+    return Boolean(cover && (
+      ["src", "href", "xlink:href"].some(key => resourcePath(name, attr(node, key)) === cover) ||
+      attr(node, "srcset").split(",").some(candidate => resourcePath(name, candidate.trim().split(/\s+/)[0]) === cover)
+    ));
+  }
+  const document = (name: string) => docs.has(name) || /\.(?:xhtml|html?|svg)$/i.test(name);
+  let packageReady = false;
+  function packageDocument(): Uint8Array {
+    // Only the package response needs to know whether any document uses cover CSS.
+    // Normal chapter/asset requests never scan sibling documents.
+    if (!packageReady && !coverStylesReady && cover && options.stripImages) {
+      if ([...guideCovers].some(name => namesSet.has(name) && !removed.has(name) && document(name))) prepareCoverStyles();
+      else for (const name of names) if (!removed.has(name) && document(name) && coverDocument(name, parseXml(archive.read(name)!))) {
+        prepareCoverStyles(); break;
+      }
+      packageReady = true;
+    }
+    return serializeElementTree(root);
+  }
+  function transform(name: string, content: Uint8Array): Uint8Array | undefined {
+    if (!options.stripFonts && !options.stripImages) return content;
+    if (removed.has(name)) return undefined;
+    if (name === opf) return packageDocument();
     if (name === "META-INF/encryption.xml") {
       const encryption = parseXml(content);
       for (const node of descendants(encryption, "EncryptedData")) {
         if (descendants(node, "CipherReference").some(ref => removed.has(resourcePath("", attr(ref, "URI"))))) remove(node);
       }
-      if (!descendants(encryption, "EncryptedData").length) continue;
+      if (!descendants(encryption, "EncryptedData").length) return undefined;
       content = encoder.encode(serializer.serializeToString(encryption));
     } else if (styles.has(name) || /\.css$/i.test(name)) content = encoder.encode(css(decoder.decode(content), name, false));
     else if (docs.has(name) || /\.(?:xhtml|html?|svg)$/i.test(name)) {
       const doc = parseXml(content), nodes = [doc, ...descendants(doc)];
-      // A cover reference is retained even in SVG / picture based cover pages.
-      const referencesCover = (node: Element) => Boolean(cover && (
-        ["src", "href", "xlink:href"].some(key => resourcePath(name, attr(node, key)) === cover) ||
-        attr(node, "srcset").split(",").some(candidate => resourcePath(name, candidate.trim().split(/\s+/)[0]) === cover)
-      ));
-      const coverPage = Boolean(cover && (
-        children(child(root, "guide") ?? root, "reference").some(ref => attr(ref, "type") === "cover" && resourcePath(opf, attr(ref, "href")) === name) ||
-        nodes.some(node => attr(node, "epub:type").split(/\s+/).includes("cover")) ||
-        (nodes.some(node => ["img", "image"].includes(node.localName ?? "") && referencesCover(node)) &&
-          (!descendants(doc, "body")[0]?.textContent?.trim() || /(?:^|\/)cover\.[^/]+$/i.test(name)))
-      ));
+      const coverPage = coverDocument(name, doc), referencesCover = (node: Element) => referencesCoverInDocument(name, node);
       if (coverPage) prepareCoverStyles();
       for (const node of nodes) {
         if (options.stripFonts) {
@@ -136,9 +161,47 @@ export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions): Ui
       // XMLSerializer retains the default XHTML namespace, so browser HTML parsing and boko agree.
       content = encoder.encode(serializer.serializeToString(doc));
     }
-    entries.push({ name: entry.name, data: content });
+    return content;
   }
-  const packageEntry = entries.find(entry => canonicalZipMember(entry.name) === opf)!;
-  packageEntry.data = serializeElementTree(root);
-  return new Uint8Array(writeArchive([...entries, ...coverEntries]));
+  const has = (name: string) => {
+    if (!namesSet.has(name) && /(?:^|\/)bindery-kindle-cover-\d+\.css$/.test(name)) packageDocument();
+    return !removed.has(name) && (namesSet.has(name) || coverSources.has(name));
+  };
+  const transformCoverStyle = (name: string, content: Uint8Array) => {
+    const source = coverSources.get(name)!;
+    return encoder.encode(rewriteCoverCss(css(decoder.decode(content), source, true), source));
+  };
+  return {
+    opf,
+    removed,
+    transform,
+    has,
+    read(name: string): Uint8Array | undefined {
+      if (!has(name)) return undefined;
+      const content = archive.read(coverSources.get(name) ?? name);
+      return content && (coverSources.has(name) ? transformCoverStyle(name, content) : transform(name, content));
+    },
+    mediaType: (name: string) => coverSources.has(name) ? "text/css" : mediaTypes.get(name),
+    source: (name: string) => coverSources.get(name) ?? name,
+    transformCoverStyle,
+    additionalNames: () => coverSources.keys(),
+    // The preview charges metadata/cover maps to the reader's bounded LRU.
+    weight: () => names.reduce((bytes, name) => bytes + 192 + name.length * 12, 0) + serializeElementTree(root).byteLength * 2 + coverSources.size * 256,
+  };
+}
+
+/** Shared by Kindle transfer and preview. Only the returned copy is changed. */
+export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions): Uint8Array<ArrayBuffer> {
+  if (!options.stripFonts && !options.stripImages) return new Uint8Array(data);
+  const archive = new EpubArchive(data);
+  const stripper = createEpubAssetStripper(archive, archive.entries.map(entry => canonicalZipMember(entry.name)), options, options.stripImages ? extractCover(data)?.[1] ?? null : null);
+  const entries: ArchiveMember[] = [];
+  for (const entry of archive.entries) {
+    const content = stripper.transform(canonicalZipMember(entry.name), entry.data);
+    if (content) entries.push({ name: entry.name, data: content });
+  }
+  // A cover document can occur after the package entry in ZIP order.
+  entries.find(entry => canonicalZipMember(entry.name) === stripper.opf)!.data = stripper.transform(stripper.opf, archive.read(stripper.opf)!)!;
+  for (const name of stripper.additionalNames()) entries.push({ name, data: stripper.transformCoverStyle(name, archive.read(stripper.source(name))!) });
+  return new Uint8Array(writeArchive(entries));
 }

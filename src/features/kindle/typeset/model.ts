@@ -1,12 +1,13 @@
 import { inspectFont, isFontFile, type DeviceFont, type FontFamily } from "../../../client/kindle/fonts";
 import { KINDLE_MODELS, type KindleModel } from "../../../client/kindle/identity";
 import type { EpubStripOptions } from "../../../core/epub-strip";
+import { encodeEpubPath } from "../../../core/epub-path";
 
 export interface PreviewBook { id: string; title: string; author: string | null }
 export interface PreviewChapter { title: string; item_path: string }
 export interface PreviewData { books: PreviewBook[]; bookId: string; sections: PreviewChapter[]; error: string }
 export function previewContentUrl(bookId: string, path: string, options: EpubStripOptions): string {
-  const member = path.split("/").map(encodeURIComponent).join("/");
+  const member = encodeEpubPath(path);
   return options.stripFonts || options.stripImages
     ? `/kindle/content/${bookId}/${options.stripFonts ? 1 : 0}${options.stripImages ? 1 : 0}/epub/${member}`
     : `/book/${bookId}/epub/${member}`;

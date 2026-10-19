@@ -92,20 +92,28 @@ export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestU
 export function epubResource(request: Request, bookId: string, rawPath: string, library: LibraryStorage): Response {
   requireBook(bookId, library);
   const archive = readBookArchive(bookId, library), path = validateItemPath(rawPath, archive);
-  const prefix = `/book/${bookId}/epub/`, origin = new URL(request.url).origin;
+  let media = guessMediaType(path);
+  if (media === "application/octet-stream") media = archive.mediaType(path) || media;
+  return epubMemberResponse(request, `/book/${bookId}/epub/`, path, archive, archive.read(path)!, media, edgeRevalidateHeaders());
+}
+
+/** Reader and Kindle preview share exact URL resolution and the same isolation boundary. */
+export function epubMemberResponse(
+  request: Request, prefix: string, path: string, members: { has(path: string): boolean },
+  content: Uint8Array, media: string, responseHeaders: HeadersInit,
+): Response {
+  const origin = new URL(request.url).origin;
   const baseHref = prefix + encodeEpubPath(path.split("/").slice(0, -1).join("/")) + (path.includes("/") ? "/" : "");
   const resourceUrl: ResourceUrl = raw => {
-    const resolved = resolveEpubReference(path, raw, archive.has);
+    const resolved = resolveEpubReference(path, raw, member => members.has(member));
     if (!resolved) return null;
     let fragment = resolved.fragment;
     try { fragment = decodeURIComponent(fragment); } catch { /* literal percent in an ID */ }
     return origin + prefix + encodeEpubPath(resolved.path) + (fragment ? `#${encodeURIComponent(fragment)}` : "");
   };
-  let content = archive.read(path)!, media = guessMediaType(path);
-  if (media === "application/octet-stream") media = archive.mediaType(path) || media;
   if (media === "text/css") content = new TextEncoder().encode(rewriteBookCss(new TextDecoder().decode(content), resourceUrl));
-  const headers = new Headers(edgeRevalidateHeaders());
-  const source = new URL(`/book/${bookId}/epub/`, request.url).href;
+  const headers = new Headers(responseHeaders);
+  const source = new URL(prefix, request.url).href;
   headers.set("Content-Security-Policy", `sandbox allow-same-origin; default-src 'none'; script-src 'none'; style-src 'unsafe-inline' ${source}; img-src data: ${source}; font-src data: ${source}; media-src ${source}; object-src 'none'; frame-src 'none'; connect-src 'none'; form-action 'none'; base-uri ${source}; frame-ancestors 'self'`);
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Referrer-Policy", "no-referrer");

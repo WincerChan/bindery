@@ -127,6 +127,7 @@ export class ReaderArchive implements EpubSource {
     return this.parsed;
   }
   mediaType(path: string): string | undefined { this.metadata(); return this.mediaTypes!.get(path); }
+  retainMetadata(bytes: number): void { this.weight += bytes; this.resized(); }
   cssChecked(css: string): boolean { return this.checkedCss === css; }
   markCssChecked(css: string): void {
     // One effective CSS value per archive identity, bounded even with repeated edits.

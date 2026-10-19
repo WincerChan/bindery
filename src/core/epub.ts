@@ -603,8 +603,12 @@ export function extractCover(data: Uint8Array): [Uint8Array, string] | null {
   } catch {
     return null;
   }
-  const items = manifestFromOpf(path, root),
-    metadata = child(root, "metadata");
+  const cover = epubCoverItem(manifestFromOpf(path, root), root);
+  const payload = cover ? archive.read(cover.member_path) : undefined;
+  return cover && payload ? [payload, cover.member_path] : null;
+}
+export function epubCoverItem(items: ManifestItem[], root: Element): ManifestItem | undefined {
+  const metadata = child(root, "metadata");
   let cover: ManifestItem | undefined;
   for (const node of metadata ? children(metadata, "meta") : []) {
     if (strip(attr(node, "name")) !== "cover") continue;
@@ -625,8 +629,7 @@ export function extractCover(data: Uint8Array): [Uint8Array, string] | null {
       (i.item_id.toLowerCase().includes("cover") ||
         i.member_path.toLowerCase().includes("cover")),
   );
-  const payload = cover ? archive.read(cover.member_path) : undefined;
-  return cover && payload ? [payload, cover.member_path] : null;
+  return cover;
 }
 export function extractEpubMetadata(data: Uint8Array, fallbackTitle: string) {
   const archive = new EpubArchive(data),

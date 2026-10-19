@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { writeArchive } from "../../src/core/archive";
+import { readArchive, writeArchive } from "../../src/core/archive";
 
 const encode = (text: string) => new TextEncoder().encode(text);
 export const assetCover = new Uint8Array(readFileSync(new URL("../fixtures/cover 中文.png", import.meta.url)));
@@ -33,4 +33,14 @@ export function assetEpub(encrypted = false): Uint8Array<ArrayBuffer> {
   ];
   if (encrypted) entries.push({ name: "META-INF/encryption.xml", data: encode('<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#"><CipherData><CipherReference URI="EPUB/Fonts/book.ttf"/></CipherData></EncryptedData><EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#"><CipherData><CipherReference URI="EPUB/Images/art.png"/></CipherData></EncryptedData></encryption>') });
   return new Uint8Array(writeArchive(entries));
+}
+
+export function coverStyleEpub(): Uint8Array {
+  const entries = readArchive(assetEpub(true)).map(entry => {
+    if (entry.name.endsWith("book.css")) return { ...entry, data: encode('@import "cover-assets.css"; p { color: black; }') };
+    if (entry.name.endsWith("content.opf")) return { ...entry, data: encode(new TextDecoder().decode(entry.data).replace("</manifest>", '<item id="cover-css" href="Styles/cover-assets.css" media-type="text/css"/></manifest>')) };
+    return entry;
+  });
+  entries.push({ name: "EPUB/Styles/cover-assets.css", data: encode('.art { background-image: url("../Images/cover.png"); }') });
+  return writeArchive(entries);
 }
