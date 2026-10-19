@@ -1,0 +1,21 @@
+.ingest-page, .ingest-jobs-page { min-width: 0; }
+.ingest-page form > *, .ingest-page section > *, .ingest-jobs-section > * { margin-block: 16px; }
+.ingest-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.ingest-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-start; }
+.ingest-page section, .ingest-preview, .ingest-jobs-list > li { border-top: 1px solid var(--color-line); padding-block: 20px; }
+.ingest-page details summary, .ingest-job-log summary { cursor: pointer; padding-block: 10px; }
+.ingest-preview { overflow-wrap: anywhere; }
+.ingest-preview dl { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.ingest-preview dt { color: var(--color-ink-3); font-size: 12px; }
+.ingest-preview dd { margin: 4px 0; }
+.ingest-jobs-list { list-style: none; padding: 0; }
+.ingest-job { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1.5fr) minmax(0,1fr); gap: 12px; overflow-wrap: anywhere; }
+.ingest-job p { margin-block: 5px; }
+.ingest-job-id, .ingest-job time { font-size: 12px; }
+.ingest-job-message, .ingest-job-log { grid-column: 1 / -1; }
+.ingest-job-log pre { white-space: pre-wrap; max-height: 360px; overflow: auto; font-size: 12px; }
+@media (max-width: 640px) {
+  .ingest-fields, .ingest-job { grid-template-columns: minmax(0,1fr); }
+  .ingest-preview dl { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .ingest-job time { overflow-wrap: anywhere; }
+}

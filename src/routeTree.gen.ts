@@ -12,10 +12,18 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppIngestRouteImport } from './routes/_app.ingest'
+import { Route as AppJobsRouteImport } from './routes/_app.jobs'
 import { Route as AppKindleRouteImport } from './routes/_app.kindle'
 import { Route as AppSecurityRouteImport } from './routes/_app.security'
+import { Route as BooksRegenerateRouteImport } from './routes/books.regenerate'
+import { Route as IngestPreviewRouteImport } from './routes/ingest.preview'
+import { Route as JobsCleanupInvalidRouteImport } from './routes/jobs.cleanup-invalid'
+import { Route as JobsPartialRouteImport } from './routes/jobs.partial'
 import { Route as BookBook_idCoverRouteImport } from './routes/book.$book_id.cover'
 import { Route as BookBook_idDownloadRouteImport } from './routes/book.$book_id.download'
+import { Route as BookBook_idRegenerateRouteImport } from './routes/book.$book_id.regenerate'
+import { Route as JobsJob_idRetryRouteImport } from './routes/jobs.$job_id.retry'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -31,6 +39,16 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIngestRoute = AppIngestRouteImport.update({
+  id: '/ingest',
+  path: '/ingest',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppJobsRoute = AppJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppKindleRoute = AppKindleRouteImport.update({
   id: '/kindle',
   path: '/kindle',
@@ -40,6 +58,26 @@ const AppSecurityRoute = AppSecurityRouteImport.update({
   id: '/security',
   path: '/security',
   getParentRoute: () => AppRoute,
+} as any)
+const BooksRegenerateRoute = BooksRegenerateRouteImport.update({
+  id: '/books/regenerate',
+  path: '/books/regenerate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IngestPreviewRoute = IngestPreviewRouteImport.update({
+  id: '/ingest/preview',
+  path: '/ingest/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsCleanupInvalidRoute = JobsCleanupInvalidRouteImport.update({
+  id: '/jobs/cleanup-invalid',
+  path: '/jobs/cleanup-invalid',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsPartialRoute = JobsPartialRouteImport.update({
+  id: '/jobs/partial',
+  path: '/jobs/partial',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BookBook_idCoverRoute = BookBook_idCoverRouteImport.update({
   id: '/book/$book_id/cover',
@@ -51,66 +89,130 @@ const BookBook_idDownloadRoute = BookBook_idDownloadRouteImport.update({
   path: '/book/$book_id/download',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookBook_idRegenerateRoute = BookBook_idRegenerateRouteImport.update({
+  id: '/book/$book_id/regenerate',
+  path: '/book/$book_id/regenerate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsJob_idRetryRoute = JobsJob_idRetryRouteImport.update({
+  id: '/jobs/$job_id/retry',
+  path: '/jobs/$job_id/retry',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/ingest': typeof AppIngestRoute
+  '/jobs': typeof AppJobsRoute
   '/kindle': typeof AppKindleRoute
   '/security': typeof AppSecurityRoute
+  '/books/regenerate': typeof BooksRegenerateRoute
+  '/ingest/preview': typeof IngestPreviewRoute
+  '/jobs/cleanup-invalid': typeof JobsCleanupInvalidRoute
+  '/jobs/partial': typeof JobsPartialRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/regenerate': typeof BookBook_idRegenerateRoute
+  '/jobs/$job_id/retry': typeof JobsJob_idRetryRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/ingest': typeof AppIngestRoute
+  '/jobs': typeof AppJobsRoute
   '/kindle': typeof AppKindleRoute
   '/security': typeof AppSecurityRoute
+  '/books/regenerate': typeof BooksRegenerateRoute
+  '/ingest/preview': typeof IngestPreviewRoute
+  '/jobs/cleanup-invalid': typeof JobsCleanupInvalidRoute
+  '/jobs/partial': typeof JobsPartialRoute
   '/': typeof AppIndexRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/regenerate': typeof BookBook_idRegenerateRoute
+  '/jobs/$job_id/retry': typeof JobsJob_idRetryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/ingest': typeof AppIngestRoute
+  '/_app/jobs': typeof AppJobsRoute
   '/_app/kindle': typeof AppKindleRoute
   '/_app/security': typeof AppSecurityRoute
+  '/books/regenerate': typeof BooksRegenerateRoute
+  '/ingest/preview': typeof IngestPreviewRoute
+  '/jobs/cleanup-invalid': typeof JobsCleanupInvalidRoute
+  '/jobs/partial': typeof JobsPartialRoute
   '/_app/': typeof AppIndexRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/regenerate': typeof BookBook_idRegenerateRoute
+  '/jobs/$job_id/retry': typeof JobsJob_idRetryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
+    | '/ingest'
+    | '/jobs'
     | '/kindle'
     | '/security'
+    | '/books/regenerate'
+    | '/ingest/preview'
+    | '/jobs/cleanup-invalid'
+    | '/jobs/partial'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/regenerate'
+    | '/jobs/$job_id/retry'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/ingest'
+    | '/jobs'
     | '/kindle'
     | '/security'
+    | '/books/regenerate'
+    | '/ingest/preview'
+    | '/jobs/cleanup-invalid'
+    | '/jobs/partial'
     | '/'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/regenerate'
+    | '/jobs/$job_id/retry'
   id:
     | '__root__'
     | '/_app'
     | '/login'
+    | '/_app/ingest'
+    | '/_app/jobs'
     | '/_app/kindle'
     | '/_app/security'
+    | '/books/regenerate'
+    | '/ingest/preview'
+    | '/jobs/cleanup-invalid'
+    | '/jobs/partial'
     | '/_app/'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/regenerate'
+    | '/jobs/$job_id/retry'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  BooksRegenerateRoute: typeof BooksRegenerateRoute
+  IngestPreviewRoute: typeof IngestPreviewRoute
+  JobsCleanupInvalidRoute: typeof JobsCleanupInvalidRoute
+  JobsPartialRoute: typeof JobsPartialRoute
   BookBook_idCoverRoute: typeof BookBook_idCoverRoute
   BookBook_idDownloadRoute: typeof BookBook_idDownloadRoute
+  BookBook_idRegenerateRoute: typeof BookBook_idRegenerateRoute
+  JobsJob_idRetryRoute: typeof JobsJob_idRetryRoute
 }
 
 declare module '@tanstack/solid-router' {
@@ -136,6 +238,20 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ingest': {
+      id: '/_app/ingest'
+      path: '/ingest'
+      fullPath: '/ingest'
+      preLoaderRoute: typeof AppIngestRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/jobs': {
+      id: '/_app/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof AppJobsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/kindle': {
       id: '/_app/kindle'
       path: '/kindle'
@@ -149,6 +265,34 @@ declare module '@tanstack/solid-router' {
       fullPath: '/security'
       preLoaderRoute: typeof AppSecurityRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/books/regenerate': {
+      id: '/books/regenerate'
+      path: '/books/regenerate'
+      fullPath: '/books/regenerate'
+      preLoaderRoute: typeof BooksRegenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ingest/preview': {
+      id: '/ingest/preview'
+      path: '/ingest/preview'
+      fullPath: '/ingest/preview'
+      preLoaderRoute: typeof IngestPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs/cleanup-invalid': {
+      id: '/jobs/cleanup-invalid'
+      path: '/jobs/cleanup-invalid'
+      fullPath: '/jobs/cleanup-invalid'
+      preLoaderRoute: typeof JobsCleanupInvalidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs/partial': {
+      id: '/jobs/partial'
+      path: '/jobs/partial'
+      fullPath: '/jobs/partial'
+      preLoaderRoute: typeof JobsPartialRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/book/$book_id/cover': {
       id: '/book/$book_id/cover'
@@ -164,16 +308,34 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof BookBook_idDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/book/$book_id/regenerate': {
+      id: '/book/$book_id/regenerate'
+      path: '/book/$book_id/regenerate'
+      fullPath: '/book/$book_id/regenerate'
+      preLoaderRoute: typeof BookBook_idRegenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs/$job_id/retry': {
+      id: '/jobs/$job_id/retry'
+      path: '/jobs/$job_id/retry'
+      fullPath: '/jobs/$job_id/retry'
+      preLoaderRoute: typeof JobsJob_idRetryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppIngestRoute: typeof AppIngestRoute
+  AppJobsRoute: typeof AppJobsRoute
   AppKindleRoute: typeof AppKindleRoute
   AppSecurityRoute: typeof AppSecurityRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppIngestRoute: AppIngestRoute,
+  AppJobsRoute: AppJobsRoute,
   AppKindleRoute: AppKindleRoute,
   AppSecurityRoute: AppSecurityRoute,
   AppIndexRoute: AppIndexRoute,
@@ -184,8 +346,14 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  BooksRegenerateRoute: BooksRegenerateRoute,
+  IngestPreviewRoute: IngestPreviewRoute,
+  JobsCleanupInvalidRoute: JobsCleanupInvalidRoute,
+  JobsPartialRoute: JobsPartialRoute,
   BookBook_idCoverRoute: BookBook_idCoverRoute,
   BookBook_idDownloadRoute: BookBook_idDownloadRoute,
+  BookBook_idRegenerateRoute: BookBook_idRegenerateRoute,
+  JobsJob_idRetryRoute: JobsJob_idRetryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
