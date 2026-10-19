@@ -1,0 +1,47 @@
+[
+  {
+    "name": "test_parse_douban_subject_html_from_ld_json",
+    "source": "douban",
+    "html": "\n        <html>\n          <head>\n            <script type=\"application/ld+json\">\n              {\n                \"@context\": \"https://schema.org\",\n                \"@type\": \"Book\",\n                \"name\": \"The Three-Body Problem\",\n                \"author\": [{\"@type\": \"Person\", \"name\": \"Cixin Liu\"}],\n                \"description\": \"A sci-fi classic.\",\n                \"publisher\": {\"@type\": \"Organization\", \"name\": \"Chongqing Press\"},\n                \"datePublished\": \"2008-01-01\",\n                \"isbn\": \"9787536692930\",\n                \"inLanguage\": \"zh-CN\",\n                \"keywords\": \"Sci-Fi, Space\"\n              }\n            </script>\n          </head>\n        </html>\n        "
+  },
+  {
+    "name": "test_parse_douban_subject_html_prefers_a_tag_text",
+    "source": "douban",
+    "html": "\n        <html>\n          <head>\n            <script type=\"application/ld+json\">\n              {\n                \"@context\": \"https://schema.org\",\n                \"@type\": \"Book\",\n                \"name\": \"示例书\",\n                \"keywords\": \"不会采用, 关键词\"\n              }\n            </script>\n          </head>\n          <body>\n            <a class=\"tag\">小说</a>\n            <a class=\"tag\">悬疑</a>\n            <script>\n              criteria = '7:文学|7:惊悚|3:/subject/123/';\n            </script>\n          </body>\n        </html>\n        "
+  },
+  {
+    "name": "test_parse_douban_subject_html_falls_back_to_criteria",
+    "source": "douban",
+    "html": "\n        <html>\n          <head>\n            <script type=\"application/ld+json\">\n              {\n                \"@context\": \"https://schema.org\",\n                \"@type\": \"Book\",\n                \"name\": \"示例书\",\n                \"keywords\": \"不会采用, 关键词\"\n              }\n            </script>\n          </head>\n          <body>\n            <script>\n              criteria = '7:小说|7:文学|7:悬疑|3:/subject/36397240/';\n            </script>\n          </body>\n        </html>\n        "
+  },
+  {
+    "name": "test_parse_douban_subject_html_prefers_last_intro_block",
+    "source": "douban",
+    "html": "\n        <html>\n          <body>\n            <div id=\"link-report\">\n              <div class=\"intro\">\n                <p>短简介。</p>\n              </div>\n              <div class=\"intro\">\n                <p>完整简介第一段。</p>\n                <p>完整简介第二段。<br>换行继续。</p>\n              </div>\n            </div>\n          </body>\n        </html>\n        "
+  },
+  {
+    "name": "test_parse_douban_subject_html_prefers_nbg_cover_href",
+    "source": "douban",
+    "html": "\n        <html>\n          <head>\n            <meta property=\"og:image\" content=\"https://img9.doubanio.com/view/subject/l/public/s1234567.jpg\" />\n          </head>\n          <body>\n            <a class=\"nbg\" href=\"https://img3.doubanio.com/view/subject/l/public/s7654321.jpg\">cover</a>\n          </body>\n        </html>\n        "
+  },
+  {
+    "name": "test_parse_douban_subject_html_falls_back_to_og_image",
+    "source": "douban",
+    "html": "\n        <html>\n          <head>\n            <meta property=\"og:image\" content=\"https://img9.doubanio.com/view/subject/l/public/s1234567.jpg\" />\n          </head>\n          <body></body>\n        </html>\n        "
+  },
+  {
+    "name": "test_parse_douban_subject_html_publisher_fallback_keeps_spaces",
+    "source": "douban",
+    "html": "\n        <html>\n          <body>\n            <div id=\"info\">\n              <span class=\"pl\">出版社:</span> Random House Children's Books\n              <br />\n              <span class=\"pl\">出版年:</span> 2010-01\n            </div>\n          </body>\n        </html>\n        "
+  },
+  {
+    "name": "test_parse_amazon_product_html_from_ld_json",
+    "source": "amazon",
+    "html": "\n        <html>\n          <head>\n            <script type=\"application/ld+json\">\n              {\n                \"@context\": \"https://schema.org\",\n                \"@type\": \"Book\",\n                \"name\": \"Dune\",\n                \"author\": {\"@type\": \"Person\", \"name\": \"Frank Herbert\"},\n                \"description\": \"Epic science fiction novel.\",\n                \"datePublished\": \"1965-08-01\",\n                \"isbn\": \"9780441172719\",\n                \"inLanguage\": \"en\",\n                \"keywords\": \"science fiction, desert\"\n              }\n            </script>\n          </head>\n          <body>\n            Publisher: Ace\n          </body>\n        </html>\n        "
+  },
+  {
+    "name": "test_parse_amazon_product_html_falls_back_without_ld_json",
+    "source": "amazon",
+    "html": "\n        <html>\n          <head>\n            <meta name=\"title\" content=\"Amazon.com: Pirates Past Noon: 9780679824251: Osborne, Mary Pope: Books\" />\n          </head>\n          <body>\n            <span id=\"productTitle\">Pirates Past Noon (Magic Tree House, No. 4)</span>\n            <div id=\"bylineInfo\">\n              <a>Mary Pope Osborne</a>\n              <span class=\"contribution\"><span>(作者)</span></span>\n              <a>Sal Murdocca</a>\n              <span class=\"contribution\"><span>(插图作者)</span></span>\n            </div>\n            <div id=\"bookDescription_feature_div\">\n              <span class=\"a-expander-partial-collapse-content\">\n                Jack and Annie are in deep trouble when the Magic Tree House whisks them back to the days of\n                desert islands, secret maps, hidden gold, and ruthless pirates.\n              </span>\n            </div>\n\n            <div id=\"rpi-attribute-book_details-publisher\">\n              <div class=\"rpi-attribute-value\"><span>Random House Children's Books</span></div>\n            </div>\n            <div id=\"rpi-attribute-book_details-publication_date\">\n              <div class=\"rpi-attribute-value\"><span>1994-03-08</span></div>\n            </div>\n            <div id=\"rpi-attribute-book_details-language\">\n              <div class=\"rpi-attribute-value\"><span>English</span></div>\n            </div>\n            <div id=\"rpi-attribute-book_details-isbn13\">\n              <div class=\"rpi-attribute-value\"><span>978-0679824251</span></div>\n            </div>\n          </body>\n        </html>\n        "
+  }
+]
