@@ -1,0 +1,11 @@
+import { renderToString } from "@solidjs/web";
+import { Editor, RulePreview } from "../../../src/features/catalog/editors";
+import { RulesPage } from "../../../src/features/catalog/rules";
+import { TrackerForm, TrackerPage } from "../../../src/features/catalog/tracker";
+import type { EditorData, RulePreviewData, catalogPage } from "../../../src/server/catalog/templates";
+import type { TrackerItem, TrackerPageData } from "../../../src/server/catalog/tracker";
+export const editor = (data: EditorData, kind: "rules" | "themes") => renderToString(() => <Editor data={data} kind={kind} />);
+export const rules = (data: ReturnType<typeof catalogPage>) => renderToString(() => <RulesPage data={data} />);
+export const preview = (data: RulePreviewData) => renderToString(() => <RulePreview preview={data} />);
+export const tracker = (data: TrackerPageData) => renderToString(() => <TrackerPage data={data} />);
+export const form = (wish?: TrackerItem) => renderToString(() => <TrackerForm wish={wish} next="/tracker?page=2" onClose={() => {}} />);

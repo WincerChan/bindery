@@ -1,0 +1,65 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { LibraryStorage, saveBook } from "../src/server/storage";
+import { BinderyDatabase } from "../src/server/db";
+import { metadataFromDict } from "../src/core/models";
+import { parseBook } from "../src/core/parsing";
+import { catalogPage, newTemplate, saveRule, saveTheme, deleteTemplate, testRule } from "../src/server/catalog/templates";
+import { duplicateCheck, trackerCsv, trackerPage, writeTracker } from "../src/server/catalog/tracker";
+import { validateThemeCss } from "../src/server/catalog/theme-css";
+
+let root: string, library: LibraryStorage;
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), "bindery-catalog-parity-"));
+  for (const name of ["BINDERY_RULES_DIR", "BINDERY_THEMES_DIR", "BINDERY_TEMPLATE_DIR"]) { vi.stubEnv(name, ""); vi.stubEnv(`${name}_FILE`, ""); }
+  vi.stubEnv("BINDERY_TEMPLATE_DIR", join(root, "ts/templates"));
+  library = new LibraryStorage(join(root, "ts/library"), new BinderyDatabase(join(root, "ts/data.db"))); library.ensure();
+});
+afterEach(() => { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
+async function reference(mode: string) {
+  const { stdout } = await promisify(execFile)("uv", ["run", "--no-sync", "python", "tests-ts/fixtures/catalog/reference.py", mode, join(root, "python")], { env: { ...process.env, UV_CACHE_DIR: join(root, "uv-cache") }, maxBuffer: 2_000_000 });
+  return JSON.parse(stdout);
+}
+it("matches Python tracker redirects, identity merging, seeding, DB/cache side effects and CSV bytes", async () => {
+  const results: [number, string][] = [];
+  const create = (fields: Record<string, string>) => results.push([303, writeTracker(library, fields).replace(/[a-f0-9]{32}/g, "<id>")]);
+  const update = (id: string, fields: Record<string, string>) => results.push([303, writeTracker(library, fields, id).replace(/[a-f0-9]{32}/g, "<id>")]);
+  const all = () => library.db.listWishes();
+  const book = (id: string, title: string, author: string) => { saveBook(parseBook("第一章 开始\n正文", title), library.base, id); library.saveMetadata(metadataFromDict({ book_id: id, title, author })); };
+  create({ title: "三体", author: "刘慈欣", tags: " 科幻，SCI, sci\n重读", rating: "5", comment: '准备\n"重读"', read_status: "read" });
+  const original = all()[0].id;
+  create({ title: "三 体", author: "刘慈欣", next: "/wishlist?q=x&page=2#fragment" }); create({ title: "三体", author: "另一作者" }); create({ title: "球状闪电", author: "刘慈欣" });
+  const second = all().find(w => w.title === "球状闪电")!;
+  update(second.id, { title: "三体", author: "刘慈欣", tags: "合并后", rating: "3", comment: "应保留单条", read_status: "read" });
+  const mergedKeptId = Boolean(library.db.getWish(original) && !library.db.getWish(second.id));
+  const linkedId = "c".repeat(32); book(linkedId, "库内原名", "库作者"); const before = readFileSync(join(library.base, linkedId, "book.json"), "utf8");
+  create({ title: "忽略", author: "忽略", library_book_id: linkedId, read_status: "read", rating: "4" }); const linked = all().find(w => w.library_book_id === linkedId)!;
+  update(linked.id, { title: "忽略更新", read_status: "reading", rating: "5" });
+  const meta = library.loadMetadata(linkedId); meta.title = "库内新名"; library.saveMetadata(meta);
+  create({ title: "同名待关联", tags: "保留", rating: "4", read_status: "unread" }); book("d".repeat(32), "同名待关联", "作者甲"); book("e".repeat(32), "同名待关联", "作者乙");
+  const page = trackerPage(library, { duplicate: original });
+  const rows = all().map(({ id, created_at, updated_at, ...row }) => { library.db.updateWish(id, { updated_at: "2026-04-01T10:00:00+00:00" }); return row; }).sort((a, b) => a.title < b.title ? -1 : a.title > b.title ? 1 : (a.author || "") < (b.author || "") ? -1 : (a.author || "") > (b.author || "") ? 1 : 0);
+  const duplicate = duplicateCheck(library, "三体", "刘慈欣");
+  const clean = (items: typeof duplicate.matches) => items.map(({ id, ...item }) => item);
+  const metadata = library.loadMetadata(linkedId);
+  expect({ results, rows, stats: page.stats, duplicate: { ...duplicate, matches: clean(duplicate.matches), blocking_matches: clean(duplicate.blocking_matches), exact_matches: clean(duplicate.exact_matches) }, csv: trackerCsv(library, { read_filter: "reading" }), merged_kept_id: mergedKeptId, metadata: { title: metadata.title, read: metadata.read, rating: metadata.rating }, book_unchanged: before === readFileSync(join(library.base, linkedId, "book.json"), "utf8") }).toEqual(await reference("tracker"));
+});
+it("matches Python template saves, invalid-input file preservation, archived reference protection and CSS validation", async () => {
+  catalogPage({});
+  const ruleId = new URL(newTemplate("rules"), "http://test").searchParams.get("rule_id")!;
+  const raw = JSON.stringify({ id: ruleId, name: "规则", chapter_patterns: ["^第.*章.*$"], volume_patterns: [], special_headings: [], heading_max_len: "40", heading_max_commas: "1", skip_candidate_re: "广告", extra: { keep: true } });
+  const saved = saveRule(ruleId, raw), rule = JSON.parse(saved.raw); rule.id = "<rule>";
+  const rulePath = join(root, "ts/templates/rules", `${ruleId}.json`), before = readFileSync(rulePath, "utf8"), rejected = saveRule(ruleId, "{bad");
+  const themeId = new URL(newTemplate("themes"), "http://test").searchParams.get("theme_id")!;
+  const css = '/* { */\np { content:"}"; color:blue; }\n\n', themeSaved = saveTheme(themeId, css);
+  const themePath = join(root, "ts/templates/themes", `${themeId}.json`), themeBefore = readFileSync(themePath, "utf8"), themeBad = saveTheme(themeId, "p {"), theme = JSON.parse(themeBefore); theme.id = "<theme>";
+  const themeUnchanged = themeBefore === readFileSync(themePath, "utf8");
+  library.saveMetadata(metadataFromDict({ book_id: "a".repeat(32), title: "归档引用", archived: true, theme_template: themeId }));
+  const blocked = deleteTemplate("themes", themeId, library).includes("error="); library.deleteBook("a".repeat(32)); const deleted = deleteTemplate("themes", themeId, library);
+  const cases = ["", "   ", "body { color:red; }", "body {", "}body{}", 'p{content:"x}', "/* nope", "p{\0}", "a".repeat(200001), "😀".repeat(100001)];
+  expect({ saved: saved.saved, rule, invalid_unchanged: before === readFileSync(rulePath, "utf8"), rejected_raw: rejected.raw, preview: testRule("第一章 开始\n正文\n第二章 继续\n正文", ruleId), theme_saved: themeSaved.saved, theme, theme_error: themeBad.error, theme_unchanged: themeUnchanged, blocked, deleted, css_validation: cases.map(validateThemeCss) }).toEqual(await reference("templates"));
+});

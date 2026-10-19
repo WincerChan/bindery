@@ -1,0 +1,20 @@
+import { createFileRoute } from "@tanstack/solid-router";
+import { createServerFn } from "@tanstack/solid-start";
+import { authenticated } from "../server/functions";
+import { authenticatedRoute } from "../server/http";
+import { TrackerPage } from "../features/catalog/tracker";
+import "../features/catalog/catalog.css";
+
+const loadTracker = createServerFn({ method: "GET" }).middleware([authenticated])
+  .inputValidator((input: Record<string, string>) => input)
+  .handler(async ({ context, data }) => (await import("../server/catalog/tracker")).trackerPage(context.library, data));
+export const Route = createFileRoute("/_app/wishlist")({
+  validateSearch: (search: Record<string, unknown>) => Object.fromEntries(Object.entries(search).map(([key, value]) => [key, String(value ?? "")])),
+  loaderDeps: ({ search }) => search,
+  loader: ({ deps }) => loadTracker({ data: deps }),
+  server: { handlers: { POST: authenticatedRoute(async context => (await import("../server/catalog/http")).writeTrackerHandler(context)) } },
+  head: () => ({ meta: [{ title: "阅读追踪 · Bindery" }] }),
+  component: Page,
+});
+function Page() { const data = Route.useLoaderData(); return <TrackerPage data={data()} />; }
+
