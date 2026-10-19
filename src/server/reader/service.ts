@@ -1,5 +1,5 @@
+import { readerArchives } from "./archive";
 import { readFileSync, statSync } from "node:fs";
-import { listEpubSections } from "../../core/epub";
 import { nowIso } from "../db";
 import { ensureTrackerConsistencyForMeta } from "../tracker";
 import { bookView } from "../book-view";
@@ -10,6 +10,12 @@ import { readerReturnTo, type ReaderData } from "../../features/reader/model";
 import { bigIntegerParameter } from "./parameters";
 
 export const readerNoStoreHeaders = () => ({ "Cache-Control": "no-store, max-age=0", "CDN-Cache-Control": "no-store", Pragma: "no-cache", Expires: "0" });
+export function readBookArchive(bookId: string, library: LibraryStorage) {
+  const archive = readerArchives.get(epubPath(library.base, bookId));
+  if (!archive) throw new HttpError(404, "EPUB 不存在");
+  return archive;
+}
+// Kept for consumers that need a complete EPUB (e.g. typesetting/export).
 export function readBookEpub(bookId: string, library: LibraryStorage): Uint8Array {
   const path = epubPath(library.base, bookId);
   if (!statSync(path, { throwIfNoEntry: false })?.isFile()) throw new HttpError(404, "EPUB 不存在");
@@ -17,7 +23,7 @@ export function readBookEpub(bookId: string, library: LibraryStorage): Uint8Arra
 }
 export function previewRedirect(request: Request, bookId: string, library: LibraryStorage): Response {
   requireBook(bookId, library);
-  if (!listEpubSections(readBookEpub(bookId, library)).length) throw new HttpError(404, "书籍没有章节");
+  if (!readBookArchive(bookId, library).metadata().sections.length) throw new HttpError(404, "书籍没有章节");
   const query = new URLSearchParams({ resume: "1" });
   const target = readerReturnTo(new URL(request.url).searchParams.get("return_to"), "");
   if (target) query.set("return_to", target);
@@ -26,8 +32,8 @@ export function previewRedirect(request: Request, bookId: string, library: Libra
 export function loadReader(bookId: string, rawSection: string, returnTo: unknown, library: LibraryStorage): ReaderData {
   const meta = requireBook(bookId, library);
   const tracker = ensureTrackerConsistencyForMeta(meta, library);
-  ensureBookEpubCss(meta, library);
-  const sections = listEpubSections(readBookEpub(bookId, library));
+  ensureBookEpubCss(meta, library, readBookArchive(bookId, library));
+  const sections = readBookArchive(bookId, library).metadata().sections;
   const rawIndex = bigIntegerParameter(rawSection);
   if (rawIndex === null) throw new HttpError(422, "请求参数无效");
   if (rawIndex < 0 || rawIndex >= sections.length) throw new HttpError(404, "章节不存在");

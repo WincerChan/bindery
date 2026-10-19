@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onCleanup, onSettled, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, Pagination, Select, Tag, TextField } from "../../ui";
 import { showToast } from "../../client/toast";
 import { withToast } from "../../shared/notifications";
@@ -63,8 +63,8 @@ export function LibraryPage(props: {
   onSearch?: (search: LibrarySearch) => unknown | Promise<unknown>;
   regenerate: (ids: string[]) => Promise<{ queued: number; failed: number; skipped: number }>;
 }) {
-  const [view, setView] = createSignal<View>(props.initialView || "grid"), [selecting, setSelecting] = createSignal(false), [selected, setSelected] = createSignal<string[]>([]);
-  const [query, setQuery] = createSignal(props.data.q), [busy, setBusy] = createSignal(false), [archiveForm, setArchiveForm] = createSignal<HTMLFormElement | null>(null);
+  const [view, setView] = createSignal<View>(untrack(() => props.initialView || "grid")), [selecting, setSelecting] = createSignal(false), [selected, setSelected] = createSignal<string[]>([]);
+  const [query, setQuery] = createSignal(untrack(() => props.data.q)), [busy, setBusy] = createSignal(false), [archiveForm, setArchiveForm] = createSignal<HTMLFormElement | null>(null);
   let page!: HTMLDivElement, timer: ReturnType<typeof setTimeout> | undefined;
   createEffect(() => props.data.q, q => { setQuery(q); });
   createEffect(() => props.data.books.map(book => book.book_id), ids => { setSelected(current => current.filter(id => ids.includes(id))); });

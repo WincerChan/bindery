@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show, untrack } from "solid-js";
 import {
   BookCover,
   Button,
@@ -16,10 +16,10 @@ export function BookEditor(props: {
   onCancel?: () => void;
   onSaved?: (page: BookPage) => void;
 }) {
-  const [page, setPage] = createSignal(props.page),
+  const [page, setPage] = createSignal(untrack(() => props.page)),
     [busy, setBusy] = createSignal(false),
-    [error, setError] = createSignal(props.page.error || ""),
-    [rating, setRating] = createSignal<number | null>(props.page.book.rating);
+    [error, setError] = createSignal(untrack(() => props.page.error || "")),
+    [rating, setRating] = createSignal<number | null>(untrack(() => props.page.book.rating));
   let form!: HTMLFormElement, css!: HTMLTextAreaElement;
   const book = () => page().book,
     id = () => book().book_id;

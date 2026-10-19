@@ -1,10 +1,10 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show, untrack } from "solid-js";
 import { BookCover, Button, ConfirmDialog, Select } from "../../ui";
 import type { BookPage } from "../../server/books/service";
 import { BookEditor } from "./book-editor";
 
 export function BookDetail(props: { page: BookPage }) {
-  const [page, setPage] = createSignal(props.page),
+  const [page, setPage] = createSignal(untrack(() => props.page)),
     [editing, setEditing] = createSignal(false),
     [deleting, setDeleting] = createSignal(false);
   let deleteForm!: HTMLFormElement;

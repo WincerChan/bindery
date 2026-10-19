@@ -24,7 +24,14 @@ async function listFiles(root: string, prefix = ""): Promise<string[]> {
 export function pwaBuild(): Plugin {
   return {
     name: "bindery:pwa",
-    apply: "build",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        if (request.url?.split("?")[0] !== "/manifest.json" || !["GET", "HEAD"].includes(request.method ?? "")) return next();
+        response.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+        response.setHeader("Cache-Control", "no-cache");
+        response.end(request.method === "HEAD" ? undefined : JSON.stringify(manifest));
+      });
+    },
     // Keep the prebuilt boko files available even before the Kindle route is loaded.
     // The Kindle Worker's own bundled glue and ?url WASM are picked up below too.
     async generateBundle() {

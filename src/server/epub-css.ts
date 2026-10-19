@@ -17,23 +17,36 @@ export function composeBookCss(meta: Metadata): string {
   return composeCss(theme ? getTheme(theme)?.css : "", meta.custom_css);
 }
 const normalizeCss = (text: string) => strip(text.replaceAll("\r\n", "\n"));
-export function bookEpubNeedsCssSync(data: Uint8Array, meta: Metadata, css = composeBookCss(meta)): boolean {
-  const entries = readArchive(data);
+interface IndexedCssSource {
+  members: ReadonlyMap<string, unknown>;
+  read(path: string): Uint8Array | undefined;
+  cssChecked(css: string): boolean;
+  markCssChecked(css: string): void;
+}
+export function bookEpubNeedsCssSync(data: Uint8Array | IndexedCssSource, meta: Metadata, css = composeBookCss(meta)): boolean {
+  const entries = data instanceof Uint8Array ? readArchive(data) : null;
+  const names = entries ? entries.map(entry => entry.name) : [...(data as IndexedCssSource).members.keys()];
+  const read = (name: string) => entries ? entries.find(entry => entry.name === name)?.data : (data as IndexedCssSource).read(name);
   if (meta.source_type !== "epub") {
-    const style = entries.find(e => e.name === "EPUB/style.css") ?? entries.find(e => e.name === "style.css" || e.name.endsWith("/style.css"));
-    return !style || normalizeCss(new TextDecoder().decode(style.data)) !== normalizeCss(css);
+    const style = names.find(name => name === "EPUB/style.css") ?? names.find(name => name === "style.css" || name.endsWith("/style.css"));
+    return !style || normalizeCss(new TextDecoder().decode(read(style))) !== normalizeCss(css);
   }
-  const overlays = entries.filter(e => ["/Styles/bindery.css", "/Styles/bindery-overlay.css", "/Text/bindery.css", "/bindery.css"].some(s => e.name.endsWith(s))).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+  const overlays = names.filter(name => ["/Styles/bindery.css", "/Styles/bindery-overlay.css", "/Text/bindery.css", "/bindery.css"].some(suffix => name.endsWith(suffix))).sort();
   if (!strip(css)) return overlays.length > 0;
-  return !overlays.length || normalizeCss(new TextDecoder().decode(overlays[0]!.data)) !== normalizeCss(css);
+  return !overlays.length || normalizeCss(new TextDecoder().decode(read(overlays[0]!))) !== normalizeCss(css);
 }
 
 /** Python _ensure_book_epub_css: lazy sync, preserving imported EPUB content. */
-export function ensureBookEpubCss(meta: Metadata, library = getLibrary()): void {
+export function ensureBookEpubCss(meta: Metadata, library = getLibrary(), indexed?: IndexedCssSource): void {
   const path = epubPath(library.base, meta.book_id);
   if (!existsSync(path)) return;
-  const original = readFileSync(path), css = composeBookCss(meta);
-  if (!bookEpubNeedsCssSync(original, meta, css)) return;
+  const css = composeBookCss(meta);
+  if (indexed?.cssChecked(css)) return;
+  if (!bookEpubNeedsCssSync(indexed ?? readFileSync(path), meta, css)) {
+    indexed?.markCssChecked(css);
+    return;
+  }
+  const original = readFileSync(path);
   let data: Uint8Array;
   let book: ReturnType<typeof parseBookFile> | undefined;
   if (meta.source_type === "epub") {

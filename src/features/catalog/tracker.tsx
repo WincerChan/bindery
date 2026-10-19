@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, Show } from "solid-js";
+import { createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import { Button, ConfirmDialog, Dialog, EmptyState, Pagination, Select, Tag, Textarea, TextField } from "../../ui";
 import type { DuplicateData, TrackerItem, TrackerPageData } from "../../server/catalog/tracker";
 import { catalogRequest } from "./client";
@@ -6,7 +6,7 @@ import { catalogRequest } from "./client";
 function ReadOptions() { return <><option value="unread">未读</option><option value="reading">在读</option><option value="read">已读</option></>; }
 function StatusOptions() { return <><option value="ongoing">更新中</option><option value="hiatus">已断更</option><option value="completed">已完结</option></>; }
 export function TrackerForm(props: { wish?: TrackerItem; next: string; onClose: () => void }) {
-  const [title, setTitle] = createSignal(props.wish?.title || ""), [author, setAuthor] = createSignal(props.wish?.author || "");
+  const [title, setTitle] = createSignal(untrack(() => props.wish?.title || "")), [author, setAuthor] = createSignal(untrack(() => props.wish?.author || ""));
   const [duplicates, setDuplicates] = createSignal<DuplicateData | null>(null), [checking, setChecking] = createSignal(false), [busy, setBusy] = createSignal(false), [error, setError] = createSignal("");
   let timeout: ReturnType<typeof setTimeout> | undefined, abort: AbortController | undefined, sequence = 0;
   onCleanup(() => { clearTimeout(timeout); abort?.abort(); sequence++; });
