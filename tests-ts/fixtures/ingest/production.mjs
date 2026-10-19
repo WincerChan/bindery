@@ -13,10 +13,12 @@ process.env.BINDERY_RULES_DIR = ""; process.env.BINDERY_THEMES_DIR = "";
 process.env.BINDERY_PASSWORD_HASH = "";
 const { createProductionHandler } = await import("../../../scripts/production-handler.mjs");
 const handler = await createProductionHandler();
+let db;
+try {
 const anonymous = await handler(new Request("http://localhost/ingest"));
 assert.equal(anonymous.status, 303);
 assert.equal(anonymous.headers.get("Location"), "/login?next=/ingest");
-const db = new DatabaseSync(process.env.BINDERY_DB_PATH);
+db = new DatabaseSync(process.env.BINDERY_DB_PATH);
 db.prepare("INSERT INTO sessions(session_id, created_at, last_seen) VALUES (?, ?, ?)").run("production-session", "2026", "2026");
 const cookie = "bindery_session=production-session";
 const get = (path, accept = "text/html") => handler(new Request("http://localhost" + path, { headers: { Cookie: cookie, Accept: accept } }));
@@ -59,3 +61,8 @@ db.close();
 await writeFile(join(dir, "result.json"), JSON.stringify({ passed: true }));
 console.log("ingest production SSR/HTTP/worker passed");
 
+
+} finally {
+  if (db?.isOpen) db.close();
+  await handler.shutdown();
+}

@@ -145,13 +145,15 @@ describe.runIf(built)("production PWA static headers (actual handler, no sockets
   it("serves a JSON manifest, root SW, offline page and every icon with correct public MIME types", async () => {
     const { createProductionHandler } = await import(pathToFileURL(resolve("scripts/production-handler.mjs")).href);
     const handler = await createProductionHandler();
-    for (const [path, type] of [["/manifest.json", "application/json"], ["/sw.js", "text/javascript"], ["/offline.html", "text/html"], ...manifest.icons.map(icon => [icon.src, icon.type])]) {
-      const response = await handler(new Request(scope + path.slice(1)));
-      expect(response.status, path).toBe(200);
-      expect(response.headers.get("content-type"), path).toContain(type);
-      expect(response.headers.has("service-worker-allowed")).toBe(false);
-      if (path === "/manifest.json") expect(await response.json()).toEqual(manifest);
-      else expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(0);
-    }
+    try {
+      for (const [path, type] of [["/manifest.json", "application/json"], ["/sw.js", "text/javascript"], ["/offline.html", "text/html"], ...manifest.icons.map(icon => [icon.src, icon.type])]) {
+        const response = await handler(new Request(scope + path.slice(1)));
+        expect(response.status, path).toBe(200);
+        expect(response.headers.get("content-type"), path).toContain(type);
+        expect(response.headers.has("service-worker-allowed")).toBe(false);
+        if (path === "/manifest.json") expect(await response.json()).toEqual(manifest);
+        else expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(0);
+      }
+    } finally { await handler.shutdown(); }
   });
 });

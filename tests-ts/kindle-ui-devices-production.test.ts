@@ -21,6 +21,7 @@ for (const key of ['BINDERY_LIBRARY_DIR', 'BINDERY_DB_PATH', 'BINDERY_PASSWORD_H
 }
 Object.assign(process.env, { BINDERY_LIBRARY_DIR: join(root, 'library'), BINDERY_DB_PATH: join(root, 'db.sqlite'), BINDERY_TEMPLATE_DIR: join(root, 'templates'), BINDERY_PASSWORD_HASH: await hash('kindle-ui-password', { memoryCost: 8192, timeCost: 1 }) });
 const handler = await createProductionHandler();
+try {
 let cookie = '';
 async function request(path, options = {}) {
   const res = await handler(new Request('http://localhost' + path, { ...options, headers: { Cookie: cookie, Origin: 'http://localhost', 'Sec-Fetch-Site': 'same-origin', ...options.headers } }));
@@ -56,6 +57,7 @@ assert.equal((await result('listKindleProfiles', 'device-a')).length, 2);
 await result('deleteKindleProfile', { deviceId: 'device-a', id: created.id }, 'POST');
 assert.equal((await result('listKindleProfiles', 'device-a')).length, 1);
 await writeFile(join(root, 'result.txt'), 'Kindle production checks passed');
+} finally { await handler.shutdown(); }
 `;
   try {
     const filename = join(directory, "check.mjs"); await writeFile(filename, code);

@@ -7,6 +7,8 @@ const [root, id, session] = process.argv.slice(2);
 for (const key of ["BINDERY_LIBRARY_DIR", "BINDERY_DB_PATH", "BINDERY_PASSWORD_HASH", "BINDERY_PUBLIC_ORIGIN", "BINDERY_RULES_DIR", "BINDERY_THEMES_DIR", "BINDERY_TEMPLATE_DIR"]) { process.env[key] = ""; process.env[`${key}_FILE`] = ""; }
 process.env.BINDERY_LIBRARY_DIR = join(root, "library"); process.env.BINDERY_DB_PATH = join(root, "db.sqlite"); process.env.BINDERY_TEMPLATE_DIR = join(root, "templates");
 const handler = await createProductionHandler();
+let db;
+try {
 const get = (path, auth = true, method = "GET", body) => handler(new Request(`http://localhost${path}`, { method, body, headers: { Cookie: auth ? `bindery_session=${session}` : "", "Content-Type": "application/json" } }));
 for (const suffix of ["preview", "preview/0", "search?q=needle", "epub/section_0001.xhtml"]) {
   const response = await get(`/book/${id}/${suffix}`, false); assert.equal(response.status, 303, suffix); assert.match(response.headers.get("location"), /^\/login\?next=/);
@@ -19,7 +21,7 @@ const encodePath = path => path.split("/").map(part => encodeURIComponent(part).
 const resourcePath = path => `/book/${id}/epub/${encodePath(path)}`;
 const save = await get(`/book/${id}/progress`, true, "POST", JSON.stringify({ section: 1, page: 3, page_count: 8 }));
 assert.equal(save.status, 200); assert.deepEqual(await save.json(), { ok: true, book_id: id, section: 1, page: 3, page_count: 8 });
-const db = new DatabaseSync(process.env.BINDERY_DB_PATH); assert.equal(db.prepare("SELECT page FROM reader_progress WHERE book_id=?").get(id).page, 3); db.close();
+db = new DatabaseSync(process.env.BINDERY_DB_PATH); assert.equal(db.prepare("SELECT page FROM reader_progress WHERE book_id=?").get(id).page, 3); db.close();
 const page = await get(`/book/${id}/preview/0?resume=1&return_to=%2Fjobs`);
 assert.equal(page.status, 200, JSON.stringify(Object.fromEntries(page.headers))); assert.match(page.headers.get("cache-control"), /no-store/); assert.equal(page.headers.get("cdn-cache-control"), "no-store");
 const html = await page.text();
@@ -64,3 +66,8 @@ const missingBook = await get(`/book/${"e".repeat(32)}/preview/0`);
 assert.equal(missingBook.status, 404); assert.match(await missingBook.text(), /书籍不存在/);
 assert.equal((await get(`/book/${id}/preview/bad`)).status, 422);
 writeFileSync(join(root, "production-result.json"), JSON.stringify({ ok: true }));
+
+} finally {
+  if (db?.isOpen) db.close();
+  await handler.shutdown();
+}

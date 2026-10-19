@@ -9,6 +9,7 @@ import { createProductionHandler } from "./production-handler.mjs";
 const dir = await mkdtemp(join(tmpdir(), "bindery-ssr-"));
 const names = ["BINDERY_DB_PATH", "BINDERY_LIBRARY_DIR", "BINDERY_PASSWORD_HASH", "BINDERY_PUBLIC_ORIGIN", "BINDERY_WEBAUTHN_RP_ID"];
 const previous = Object.fromEntries(names.flatMap(name => [name, `${name}_FILE`]).map(name => [name, process.env[name]]));
+let handler, db;
 try {
   for (const name of names) {
     process.env[name] = "";
@@ -20,7 +21,7 @@ try {
     memoryCost: 8192,
     timeCost: 1
   });
-  const handler = await createProductionHandler();
+  handler = await createProductionHandler();
   const get = (path, cookie = "") => handler(new Request("http://localhost" + path, {
     headers: {
       Cookie: cookie
@@ -61,7 +62,7 @@ try {
   assert.equal(signedIn.status, 303);
   const cookie = signedIn.headers.getSetCookie()[0].split(";", 1)[0];
   assert.match(cookie, /^bindery_session=/);
-  const db = new DatabaseSync(process.env.BINDERY_DB_PATH);
+  db = new DatabaseSync(process.env.BINDERY_DB_PATH);
   const bookId = "a".repeat(32);
   db.prepare("INSERT INTO books(book_id,title,author,source_type,theme_template,cover_file) VALUES (?, '乱世书', '姬叉', 'epub', '__book__', 'cover.png')").run(bookId);
   db.exec("INSERT INTO books(book_id,title) VALUES ('b','B'), ('c','C')");
@@ -152,13 +153,19 @@ try {
   }));
   assert.equal(logout.status, 303);
   assert.equal((await get("/security", cookie)).status, 303);
+  const stopped = handler.shutdown();
+  assert.equal(handler.shutdown(), stopped);
+  await stopped;
+  assert.equal((await get("/login")).status, 503);
+  assert.equal((await get(assets[0])).status, 503);
   console.log("Production auth/layout SSR, protected RPC, cover/download routes, Kindle placeholder and public assets: PASS (no sockets)");
 } finally {
-  for (const [name, value] of Object.entries(previous)) {
-    if (value === undefined) delete process.env[name];else process.env[name] = value;
+  if (db?.isOpen) db.close();
+  try { await handler?.shutdown(); }
+  finally {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[name];else process.env[name] = value;
+    }
+    await rm(dir, { recursive: true, force: true });
   }
-  await rm(dir, {
-    recursive: true,
-    force: true
-  });
 }

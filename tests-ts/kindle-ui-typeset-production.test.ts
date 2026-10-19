@@ -25,6 +25,7 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       for (const key of ["BINDERY_LIBRARY_DIR", "BINDERY_DB_PATH", "BINDERY_PASSWORD_HASH", "BINDERY_PUBLIC_ORIGIN", "BINDERY_RULES_DIR", "BINDERY_THEMES_DIR", "BINDERY_TEMPLATE_DIR"]) { process.env[key] = ""; process.env[key + "_FILE"] = ""; }
       process.env.BINDERY_LIBRARY_DIR = join(root, "library"); process.env.BINDERY_DB_PATH = join(root, "db.sqlite");
       const handler = await createProductionHandler();
+      try {
       const get = (path, auth = true, method = "GET") => handler(new Request("http://localhost" + path, { method, headers: { Cookie: auth ? "bindery_session=" + session : "" } }));
       const book = JSON.parse(readFileSync(join(root, "typeset-paths.json"), "utf8"));
       const encodePath = path => path.split("/").map(part => encodeURIComponent(part).replace(/[!'()*~]/g, ch => "%" + ch.charCodeAt(0).toString(16).toUpperCase())).join("/");
@@ -83,6 +84,7 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       await result(await rpc("deleteKindleProfile", "POST", { deviceId: "test-device", id: created.id }));
       assert.equal((await result(await rpc("listKindleProfiles", "GET", "test-device"))).length, 1);
       writeFileSync(join(root, "typeset-result.json"), JSON.stringify({ ok: true }));
+      } finally { await handler.shutdown(); }
     `);
     await promisify(execFile)(process.execPath, [script, fixture.root, fixture.id, signIn(fixture.library.db), resolve("dist/server")], { timeout: 20000 });
     expect(JSON.parse(readFileSync(join(fixture.root, "typeset-result.json"), "utf8"))).toEqual({ ok: true });

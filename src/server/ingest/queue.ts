@@ -33,9 +33,9 @@ export function recoverJobs(library: LibraryStorage): void {
 }
 export function memoryTrimEnabled(): boolean { const raw = readEnv("BINDERY_MEMORY_TRIM"); return raw === undefined || ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase()); }
 export function trimMemory(gc = (globalThis as typeof globalThis & { gc?: () => void }).gc): void { if (memoryTrimEnabled()) gc?.(); }
-export async function drainJobs(library: LibraryStorage, fetcher?: import("../books/metadata-lookup").Fetch): Promise<number> {
+export async function drainJobs(library: LibraryStorage, fetcher?: import("../books/metadata-lookup").Fetch, shouldStop = () => false): Promise<number> {
   let count = 0, job: Job | null;
-  while ((job = claimJob(library))) { try { await processJob(library, job, fetcher); } finally { trimMemory(); } count++; }
+  while (!shouldStop() && (job = claimJob(library))) { try { await processJob(library, job, fetcher); } finally { trimMemory(); } count++; }
   return count;
 }
 /** A process lock serializes dedupe and recovery; claims still use SQLite CAS. */

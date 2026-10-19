@@ -6,10 +6,11 @@ import { hash } from "@node-rs/argon2";
 import { createProductionHandler } from "../../../scripts/production-handler.mjs";
 
 const root = await mkdtemp(join(tmpdir(), "bindery-catalog-http-"));
+let handler;
 try {
   for (const key of ["BINDERY_LIBRARY_DIR", "BINDERY_DB_PATH", "BINDERY_PASSWORD_HASH", "BINDERY_RULES_DIR", "BINDERY_THEMES_DIR", "BINDERY_TEMPLATE_DIR"]) { delete process.env[key]; delete process.env[key + "_FILE"]; }
   Object.assign(process.env, { BINDERY_LIBRARY_DIR: join(root, "library"), BINDERY_DB_PATH: join(root, "data.db"), BINDERY_TEMPLATE_DIR: join(root, "templates"), BINDERY_PASSWORD_HASH: await hash("catalog-password", { memoryCost: 8192, timeCost: 1 }) });
-  const handler = await createProductionHandler();
+  handler = await createProductionHandler();
   let cookie = "";
   const request = async (path, fields, accept = "text/html") => {
     if (process.env.BINDERY_CATALOG_TRACE) console.error(fields ? "POST" : "GET", path);
@@ -55,4 +56,7 @@ try {
   assert.equal(missingWish.status, 404); assert.deepEqual(await missingWish.json(), { detail: "追踪条目不存在" });
   console.log("Catalog production fetch checks passed: pages, aliases, authentication, CRUD, HTML/JSON, CSV and errors");
   if (process.argv[2]) await writeFile(process.argv[2], "Catalog production fetch checks passed");
-} finally { await rm(root, { recursive: true, force: true }); }
+} finally {
+  try { await handler?.shutdown(); }
+  finally { await rm(root, { recursive: true, force: true }); }
+}

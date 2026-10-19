@@ -49,6 +49,14 @@ PY
 
 ## 容器部署
 
+TypeScript 服务使用 `pnpm build` 构建、`node scripts/start.mjs` 启动。收到
+`SIGTERM`（如容器重启、`docker stop`）或 `SIGINT` 后，停止接受新连接、新任务和
+后台任务领取，并等待已有 HTTP 响应及当前任务在关闭期限内完成。尚未领取的
+任务及其持久化文件留在队列中，下次启动继续处理。正常关闭释放数据库和阅读器缓存，
+退出码为 0。默认关闭期限为 5000 毫秒，可用 `BINDERY_SHUTDOWN_TIMEOUT_MS` 调整；
+超时退出码为 1。被强制中断的任务在下次启动时按现有恢复规则标为失败，并提示重试，
+不会静默丢弃任务。容器的停止宽限时间应大于该期限（例如 `docker stop --time 10`）。
+
 - `Containerfile`：生产镜像定义，默认监听 `5670`，并将数据目录设为 `/data/library`，模板目录设为 `/data/templates`。
 - GHCR 推送：`.github/workflows/publish-ghcr.yml` 会在 `main/master` 或 `v*` tag push 时自动构建并推送镜像到 `ghcr.io/<owner>/<repo>`。
 - Quadlet 示例：

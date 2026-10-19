@@ -8,13 +8,14 @@ import { zipSync, unzipSync, strToU8 } from "fflate";
 import { createProductionHandler } from "../../../scripts/production-handler.mjs";
 
 const root = await mkdtemp(join(tmpdir(), "bindery-library-production-"));
+let handler, db;
 try {
   for (const name of ["BINDERY_DB_PATH", "BINDERY_LIBRARY_DIR", "BINDERY_TEMPLATE_DIR", "BINDERY_RULES_DIR", "BINDERY_THEMES_DIR", "BINDERY_PASSWORD_HASH", "BINDERY_PUBLIC_ORIGIN"]) {
     process.env[name] = ""; process.env[`${name}_FILE`] = "";
   }
   process.env.BINDERY_LIBRARY_DIR = join(root, "library"); process.env.BINDERY_DB_PATH = join(root, "library", "bindery.db");
   process.env.BINDERY_TEMPLATE_DIR = join(root, "templates"); process.env.BINDERY_PASSWORD_HASH = await hash("library-password", { memoryCost: 8192, timeCost: 1 });
-  const handler = await createProductionHandler();
+  handler = await createProductionHandler();
   let cookie = "";
   const get = path => handler(new Request("http://localhost" + path, { headers: { Cookie: cookie } }));
   const post = (path, body) => handler(new Request("http://localhost" + path, { method: "POST", body, headers: { Cookie: cookie, Origin: "http://localhost", "Sec-Fetch-Site": "same-origin" } }));
@@ -22,7 +23,7 @@ try {
   for (const path of ["/books/archive", "/archive/delete-bulk", "/books/download"]) assert.equal((await post(path, new URLSearchParams())).status, 303, path);
   const login = await post("/login", new URLSearchParams({ password: "library-password", next: "/" }));
   cookie = login.headers.getSetCookie()[0].split(";", 1)[0];
-  const db = new DatabaseSync(process.env.BINDERY_DB_PATH);
+  db = new DatabaseSync(process.env.BINDERY_DB_PATH);
   const a = "a".repeat(32), b = "b".repeat(32);
   for (const id of [a, b]) {
     db.prepare("INSERT INTO books(book_id,title,author,source_type,theme_template,updated_at) VALUES (?, '长安的荔枝', '马伯庸', 'epub', '__book__', '2026-10-19')").run(id);
@@ -51,4 +52,8 @@ try {
   const rpc = await handler(new Request("http://localhost" + rpcPath, { headers: { Cookie: cookie, Origin: "http://localhost", "Sec-Fetch-Site": "same-origin" } }));
   assert.equal(rpc.status, 200); const payload = await rpc.json(); assert.equal(payload.result.total_books, 1); assert.equal(payload.result.books[0].book_id, b);
   db.close();
-} finally { await rm(root, { recursive: true, force: true }); }
+} finally {
+  if (db?.isOpen) db.close();
+  try { await handler?.shutdown(); }
+  finally { await rm(root, { recursive: true, force: true }); }
+}

@@ -8,5 +8,11 @@ export async function createProductionHandler() {
     dir: fileURLToPath(new URL("../dist/client/", import.meta.url)),
     dotfiles: false,
   });
-  return (request) => assets(request, () => app.fetch(request));
+  let closing = false;
+  return Object.assign(
+    (request) => closing
+      ? new Response("Service is shutting down", { status: 503, headers: { "Cache-Control": "no-store", Connection: "close" } })
+      : assets(request, () => app.fetch(request)),
+    { shutdown(options) { closing = true; return app.shutdownRuntime(options); } },
+  );
 }

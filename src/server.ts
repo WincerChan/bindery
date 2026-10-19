@@ -1,10 +1,11 @@
 import { createStartHandler, defaultStreamHandler, type RequestHandler } from "@tanstack/solid-start/server";
 import type { Register } from "@tanstack/solid-router";
 import { handleAuthRequest } from "./server/auth-http";
-import { getLibrary } from "./server/runtime";
+import { getLibrary, isRuntimeShuttingDown, shutdownRuntime } from "./server/runtime";
 import { startJobWorker } from "./server/ingest/lifecycle";
 const start = createStartHandler(defaultStreamHandler);
 const fetch: RequestHandler<Register> = async (request, options) => {
+  if (isRuntimeShuttingDown()) return new Response("Service is shutting down", { status: 503, headers: { "Cache-Control": "no-store", Connection: "close" } });
   const library = getLibrary();
   startJobWorker(library);
   const response = (await handleAuthRequest(request, library.db)) ?? (await start(request, options));
@@ -13,5 +14,6 @@ const fetch: RequestHandler<Register> = async (request, options) => {
   return response;
 };
 export default {
-  fetch
+  fetch,
+  shutdownRuntime
 };

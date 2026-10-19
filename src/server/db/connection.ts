@@ -29,8 +29,13 @@ export function transaction<T>(conn: DatabaseSync, fn: () => T): T {
   }
 }
 export class Connection {
+  private closed = false;
   constructor(readonly path = writableDatabasePath()) {}
+  // Handles are synchronous and scoped to withConnection's finally block.
+  // Closing the owner prevents stale references from reopening the database.
+  close(): void { this.closed = true; }
   withConnection<T>(fn: (conn: DatabaseSync) => T): T {
+    if (this.closed) throw new Error("Database is closed");
     const conn = connect(this.path);
     try {
       return fn(conn);

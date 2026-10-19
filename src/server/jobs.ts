@@ -1,5 +1,5 @@
 import { newBookId } from "./storage";
-import { getLibrary } from "./runtime";
+import { getLibrary, isRuntimeShuttingDown } from "./runtime";
 import { nowIso } from "./db";
 import { readEnv } from "./env";
 import { HttpError } from "./http";
@@ -34,6 +34,7 @@ export function queueCapacity(): number {
 
 /** Durable submission only. Slice C owns claiming, processing and recovery. */
 export function enqueueJob(input: EnqueueInput, library = getLibrary()): { queued: boolean; job: Job } {
+  if (isRuntimeShuttingDown()) throw new HttpError(503, "服务正在关闭，请稍后重试");
   const action = input.action || "regenerate";
   if (!["regenerate", "retry", "edit-writeback", "upload", "upload-epub", "ingest"].includes(action) ||
       input.book_id !== null && !/^[a-f0-9]{32}$/.test(input.book_id) ||

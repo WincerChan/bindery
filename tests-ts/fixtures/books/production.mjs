@@ -312,4 +312,5 @@ try {
   writeFileSync(join(root, "result.json"), JSON.stringify(out));
 } finally {
   db.close();
+  await handler.shutdown();
 }
