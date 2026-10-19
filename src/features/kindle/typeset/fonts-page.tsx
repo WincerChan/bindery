@@ -1,36 +1,45 @@
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { deleteFontFamily, installFonts, type FontFamily } from "../../../client/kindle/fonts";
 import { deviceInventory } from "../../../client/kindle/inventory";
 import { errorMessage } from "../../../client/kindle/fs";
 import type { KindleDeviceManager } from "../../../client/kindle/device";
 import { Button, ConfirmDialog } from "../../../ui";
+import { useOptionalKindle } from "../context";
 import { usePageDevice } from "./device";
 import { FontSample } from "./frames";
 import { fileSize, inspectFontBatch } from "./model";
 
 export function FontsPage(props: { manager: KindleDeviceManager | null; onPreview?: (family: string) => unknown }) {
-  const { state } = usePageDevice(props.manager);
-  const [families, setFamilies] = createSignal<FontFamily[]>([]), [busy, setBusy] = createSignal(false);
+  const manager = props.manager, context = useOptionalKindle();
+  const { state } = usePageDevice(manager);
+  const shared = context?.manager === manager ? context : null;
+  const [families, setFamilies] = createSignal<FontFamily[]>([]);
+  const [scanning, setScanning] = createSignal(false), [updating, setUpdating] = createSignal(false);
+  const busy = () => scanning() || updating();
   const [error, setError] = createSignal(""), [notice, setNotice] = createSignal("");
   const [pending, setPending] = createSignal<{ files: File[]; families: FontFamily[]; deviceId: string } | null>(null);
   const [deleting, setDeleting] = createSignal<FontFamily | null>(null), [dragging, setDragging] = createSignal(false);
   let input!: HTMLInputElement, generation = 0, selection = 0, disposed = false;
   const device = () => state()?.status === "granted" ? state()!.device : null;
-  const connectionKey = () => `${state()?.status}:${state()?.device?.identity.id ?? ""}`;
+  // Effect compute callbacks rerun on every probe, even for an unchanged key.
+  // Only an actual connection change may cancel a selection or restart a scan.
+  const connectionKey = createMemo(() => `${state()?.status}:${state()?.device?.identity.id ?? ""}`);
   const totalSize = () => families().reduce((sum, family) => sum + family.size, 0);
   async function scan() {
     const current = device(), request = ++generation;
     setFamilies([]); setError("");
+    setScanning(Boolean(current));
     if (!current) return;
-    setBusy(true);
     try { const inventory = await deviceInventory(current); if (!disposed && request === generation) setFamilies(inventory.fonts); }
     catch (error) { if (!disposed && request === generation) setError(errorMessage(error)); }
-    finally { if (!disposed && request === generation) setBusy(false); }
+    finally { if (!disposed && request === generation) setScanning(false); }
   }
-  createEffect(connectionKey, () => { selection++; setPending(null); setDeleting(null); setBusy(false); void scan(); });
+  createEffect(connectionKey, () => { selection++; setPending(null); setDeleting(null); setUpdating(false); void scan(); });
   onCleanup(() => { disposed = true; generation++; selection++; });
   async function choose(files: File[]) {
-    const current = device(); if (!current || busy()) return;
+    // A picker may return while an inventory read is still running. Inspect and
+    // retain that selection; confirmation stays disabled until the read settles.
+    const current = device(); if (!current || updating()) return;
     const request = ++selection; setError(""); setNotice(""); setPending(null);
     try {
       const grouped = await inspectFontBatch(files);
@@ -40,23 +49,27 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
   async function install() {
     const batch = pending(), current = device();
     if (!batch || !current || batch.deviceId !== current.identity.id || busy()) return;
-    setBusy(true); setError("");
+    setUpdating(true); setError("");
     const key = connectionKey();
     try {
       await installFonts(current, batch.files);
       if (disposed || key !== connectionKey()) return;
       setPending(null); setNotice(`已安装 ${batch.files.length} 个字体文件。请重启 Kindle 或重新插拔后查看。`);
       await scan();
+      if (!disposed && key === connectionKey()) await shared?.refreshInventory();
     } catch (error) { if (!disposed && key === connectionKey()) setError(errorMessage(error)); }
-    finally { if (!disposed && key === connectionKey()) setBusy(false); }
+    finally { if (!disposed && key === connectionKey()) setUpdating(false); }
   }
   async function remove() {
     const family = deleting(), current = device(); if (!family || !current) throw new Error("请先连接并授权 Kindle");
-    const key = connectionKey(); setBusy(true);
+    const key = connectionKey(); setUpdating(true);
     try {
       await deleteFontFamily(current, family.name);
-      if (!disposed && key === connectionKey()) { setNotice(`已删除 ${family.name}。使用它的排版方案需要重新选择字体。`); await scan(); }
-    } finally { if (!disposed && key === connectionKey()) setBusy(false); }
+      if (!disposed && key === connectionKey()) {
+        setNotice(`已删除 ${family.name}。使用它的排版方案需要重新选择字体。`); await scan();
+        if (!disposed && key === connectionKey()) await shared?.refreshInventory();
+      }
+    } finally { if (!disposed && key === connectionKey()) setUpdating(false); }
   }
   return <section class={`kt-page ${dragging() ? "kt-dragging" : ""}`} aria-label="字体管理"
     onDragOver={event => { event.preventDefault(); if (device() && !busy()) setDragging(true); }}

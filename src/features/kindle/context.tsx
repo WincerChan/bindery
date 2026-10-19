@@ -83,7 +83,7 @@ function createKindleContext(manager: KindleDeviceManager, queue: () => Transfer
   };
 }
 export type KindleContextValue = ReturnType<typeof createKindleContext>;
-const KindleContext = createContext<KindleContextValue>();
+const KindleContext = createContext<KindleContextValue | null>(null);
 /** Shared across Kindle tabs; navigating never cancels the SPA queue. */
 export function KindleProvider(props: { children: JSX.Element; manager?: KindleDeviceManager; queue?: TransferQueue }) {
   const value = createKindleContext(props.manager ?? kindleManager(), () => props.queue ?? getTransferQueue());
@@ -91,9 +91,10 @@ export function KindleProvider(props: { children: JSX.Element; manager?: KindleD
   return <KindleContext value={value}>{props.children}</KindleContext>;
 }
 export function useKindle() {
-  const context = useContext(KindleContext);
+  const context = useOptionalKindle();
   if (!context) throw new Error("Kindle 页面必须位于 KindleProvider 内");
   return context;
 }
+export function useOptionalKindle() { return useContext(KindleContext); }
 /** Inert manager is available during SSR. Render device state through useKindle().state/ready. */
-export function useKindleManager(): KindleDeviceManager | null { return useContext(KindleContext)?.manager ?? null; }
+export function useKindleManager(): KindleDeviceManager | null { return useOptionalKindle()?.manager ?? null; }

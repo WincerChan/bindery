@@ -7,6 +7,6 @@ export const Route = createFileRoute("/_app/kindle/fonts")({
   component: FontsRoute,
 });
 function FontsRoute() {
-  const navigate = Route.useNavigate();
-  return <FontsPage manager={useKindleManager()} onPreview={font => navigate({ to: "/kindle/preview", search: { font } })} />;
+  const navigate = Route.useNavigate(), manager = useKindleManager();
+  return <FontsPage manager={manager} onPreview={font => navigate({ to: "/kindle/preview", search: { font } })} />;
 }
