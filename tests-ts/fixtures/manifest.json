@@ -1,0 +1,132 @@
+[
+  {
+    "name": "utf8",
+    "file": "utf8.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "bom",
+    "file": "bom.txt",
+    "encoding": "utf-8-sig"
+  },
+  {
+    "name": "gbk",
+    "file": "gbk.txt",
+    "encoding": "gbk"
+  },
+  {
+    "name": "gb18030",
+    "file": "gb18030.txt",
+    "encoding": "gb18030"
+  },
+  {
+    "name": "crlf",
+    "file": "crlf.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "cr-only",
+    "file": "cr-only.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "volumes",
+    "file": "volumes.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "chapters",
+    "file": "chapters.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "no-headings",
+    "file": "no-headings.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "labels",
+    "file": "labels.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "label-quirks",
+    "file": "label-quirks.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "bracket-title",
+    "file": "bracket-title.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "blanks",
+    "file": "blanks.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "long-lines",
+    "file": "long-lines.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "heading-guards",
+    "file": "heading-guards.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "english",
+    "file": "english.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "whitespace",
+    "file": "whitespace.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "unicode-space",
+    "file": "unicode-space.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "empty",
+    "file": "empty.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "empty-volumes",
+    "file": "empty-volumes.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "candidate-skip",
+    "file": "candidate-skip.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "raw-template-values",
+    "file": "raw-template-values.txt",
+    "encoding": "utf-8"
+  },
+  {
+    "name": "invalid",
+    "file": "invalid.txt",
+    "encoding": "invalid"
+  },
+  {
+    "name": "gb18030-compat",
+    "file": "gb18030-compat.txt",
+    "encoding": "gb18030"
+  },
+  {
+    "name": "invalid-euro",
+    "file": "invalid-euro.txt",
+    "encoding": "invalid"
+  },
+  {
+    "name": "stream-boundaries",
+    "file": "stream-boundaries.txt",
+    "encoding": "gb18030"
+  }
+]

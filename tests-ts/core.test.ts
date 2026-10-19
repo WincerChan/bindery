@@ -1,0 +1,238 @@
+import { describe, expect, it } from "vitest";
+import { bookFromDict, bookToDict, metadataFromDict } from "../src/core/models";
+import {
+  parseBook,
+  parseBookEvents,
+  classifyHeading,
+  DEFAULT_RULES,
+} from "../src/core/parsing";
+import {
+  buildEpub,
+  buildEpubFromSectionStream,
+  epubBaseHref,
+  extractEpubMetadata,
+  listEpubSections,
+  loadEpubItem,
+  normalizeEpubArchivePaths,
+  stripWebpAssetsAndRefs,
+  updateEpubMetadata,
+} from "../src/core/epub";
+import { readArchive, writeArchive } from "../src/core/archive";
+import { validateRuleTemplateJson, RuleTemplateError } from "../src/core/rules";
+import { composeCss } from "../src/core/themes";
+const meta = metadataFromDict({
+  book_id: "test-id",
+  title: "测试书",
+  author: "作者",
+});
+const text =
+  "书名：测试书\n作者：张三\n内容简介：这是简介\n\n第一章 起始\n这是第一段。\n\n第二章 继续\n这是第二段。";
+const memberText = (data: Uint8Array, name: string) =>
+  new TextDecoder("utf-8", { ignoreBOM: true }).decode(
+    readArchive(data).find((e) => e.name === name)!.data,
+  );
+
+describe("ported assertions from tests/test_parsing.py", () => {
+  it("parses labels and root chapters", () => {
+    const book = parseBook(text, "source");
+    expect([book.title, book.author, book.intro]).toEqual([
+      "测试书",
+      "张三",
+      "这是简介",
+    ]);
+    expect(book.root_chapters).toHaveLength(2);
+    expect(book.root_chapters[0].title).toBe("第一章 起始");
+    expect(book.root_chapters[0].lines).toContain("这是第一段。");
+  });
+  it("keeps volume references and spine identity through serialization", () => {
+    const book = parseBook(
+      "第一卷 开端\n第一章 初见\n第二章 重逢\n第二卷 尾声\n第三章 落幕\n",
+      "source",
+    );
+    const restored = bookFromDict(bookToDict(book));
+    expect(restored.volumes).toHaveLength(2);
+    expect(restored.volumes[0].chapters[0].volume).toBe(restored.volumes[0]);
+    expect(restored.spine.map((i) => i.title)).toEqual(
+      book.spine.map((i) => i.title),
+    );
+  });
+  it("yields a header followed by chapter sections", () => {
+    const events = [
+      ...parseBookEvents(
+        "书名：流式书\n作者：张三\n\n第1章 开始\n第一段\n第2章 继续\n第二段\n",
+        "source",
+      ),
+    ];
+    expect(events[0]).toEqual({ title: "流式书", author: "张三", intro: null });
+    expect(events.slice(1)).toEqual([
+      {
+        kind: "chapter",
+        title: "第1章 开始",
+        lines: ["第一段"],
+        volume_title: null,
+      },
+      {
+        kind: "chapter",
+        title: "第2章 继续",
+        lines: ["第二段"],
+        volume_title: null,
+      },
+    ]);
+  });
+  it("restores a fallback spine for invalid or absent serialized entries", () => {
+    const data = bookToDict(parseBook(text, "source"));
+    data.spine = [{ type: "chapter", scope: "root", index: 99 }];
+    expect(bookFromDict(data).spine).toHaveLength(2);
+    expect(
+      classifyHeading("第２章 unicode", null, null, DEFAULT_RULES),
+    ).toBeNull();
+    expect(classifyHeading("Chapter ２ unicode")).toBe("chapter");
+  });
+});
+describe("ported assertions from tests/test_epub.py", () => {
+  it("writes empty CSS and splits stamps while retaining full TOC titles", () => {
+    const book = parseBook("第12章 风雪夜归人\n第一段文字。", "source"),
+      data = buildEpub(book, meta);
+    expect(memberText(data, "EPUB/Styles/style.css")).toBe("");
+    const text = memberText(data, "EPUB/Text/section_0001.xhtml");
+    expect(text).toContain('class="chapter-stamp">第12章</p>');
+    expect(text).toContain('class="chapter-title">风雪夜归人</h1>');
+    expect(listEpubSections(data)[0].title).toBe("第12章 风雪夜归人");
+  });
+  it("filters empty paragraph lines from an iterable stream", () => {
+    function* sections() {
+      yield {
+        kind: "chapter",
+        title: "第一章",
+        lines: ["第一段", "", "第二段", ""],
+      };
+      yield { kind: "chapter", title: "第二章", lines: ["第三段"] };
+    }
+    const data = buildEpubFromSectionStream({
+      meta,
+      stream_sections: sections(),
+      source_author: "作者",
+      source_intro: null,
+    });
+    const text = memberText(data, "EPUB/Text/section_0001.xhtml");
+    expect(text).toContain("第一段");
+    expect(text).toContain("第二段");
+    expect(text).not.toContain("<p></p>");
+    expect(memberText(data, "EPUB/Text/section_0002.xhtml")).toContain(
+      "第三段",
+    );
+  });
+  it("extracts all supplied optional metadata and ignores comment nodes", () => {
+    const data = buildEpub(
+      parseBook(text, "source"),
+      metadataFromDict({
+        ...meta,
+        description: "简介",
+        series: "系列",
+        identifier: "ID-123",
+        publisher: "出版社",
+        tags: ["标签1", "标签2"],
+        published: "2024-01-01",
+        isbn: "9781234567890",
+        rating: 4,
+      }),
+    );
+    const entries = readArchive(data).map((e) =>
+      e.name.endsWith("content.opf")
+        ? {
+            ...e,
+            data: new TextEncoder().encode(
+              new TextDecoder()
+                .decode(e.data)
+                .replace(
+                  "</metadata>",
+                  "<!-- generated by converter --></metadata>",
+                ),
+            ),
+          }
+        : e,
+    );
+    expect(extractEpubMetadata(writeArchive(entries), "fallback")).toEqual({
+      title: "测试书",
+      author: "作者",
+      language: "zh-CN",
+      description: "简介",
+      series: "系列",
+      identifier: "ID-123",
+      publisher: "出版社",
+      tags: ["标签1", "标签2"],
+      published: "2024-01-01",
+      isbn: "9781234567890",
+      rating: 4,
+    });
+  });
+  it("keeps chapter head/styles unchanged during metadata-only updates", () => {
+    const data = buildEpub(parseBook(text, "source"), meta),
+      updated = updateEpubMetadata(data, { ...meta, title: "新标题" });
+    expect(memberText(updated, "EPUB/Text/section_0001.xhtml")).toBe(
+      memberText(data, "EPUB/Text/section_0001.xhtml"),
+    );
+    const [content, media] = loadEpubItem(
+      updated,
+      "section_0001.xhtml",
+      "/book/test/epub/",
+    );
+    expect(media).toBe("text/html; charset=utf-8");
+    expect(new TextDecoder().decode(content)).toContain("<base ");
+    expect(new TextDecoder().decode(content)).toContain("style.css");
+  });
+  it.each([
+    ["/book/abc/epub/", "chapter.xhtml", "/book/abc/epub/"],
+    ["/book/abc/epub", "chapter.xhtml", "/book/abc/epub/"],
+    ["/book/abc/epub/", "OEBPS/Text/ch1.xhtml", "/book/abc/epub/OEBPS/Text/"],
+  ])("resolves base %s + %s", (prefix, item, expected) =>
+    expect(epubBaseHref(prefix, item)).toBe(expected),
+  );
+  it("does not rewrite a canonical archive without declared WebP assets", () => {
+    const data = buildEpub(parseBook(text, "source"), meta);
+    expect(normalizeEpubArchivePaths(data)).toEqual({ data, changed: false });
+    expect(stripWebpAssetsAndRefs(data)).toEqual({ data, changed: false });
+    expect(() => loadEpubItem(data, "missing.bin", "/")).toThrow(
+      "File not found",
+    );
+  });
+});
+describe("rule editor validation and CSS composition", () => {
+  it.each(["", "../bad", "_bad", "a".repeat(65)])(
+    "rejects invalid template id %s",
+    (id) =>
+      expect(() => validateRuleTemplateJson(id, "{}")).toThrow(
+        RuleTemplateError,
+      ),
+  );
+  it.each([
+    "[]",
+    "null",
+    "{",
+    '{"id":"another"}',
+    '{"chapter_patterns":[1]}',
+    '{"volume_patterns":"bad"}',
+    '{"special_headings":false}',
+    '{"heading_max_len":-1}',
+    '{"heading_max_commas":"1.5"}',
+    '{"chapter_patterns":["["]}',
+  ])("rejects invalid config %s", (raw) =>
+    expect(() => validateRuleTemplateJson("custom", raw)).toThrow(
+      RuleTemplateError,
+    ),
+  );
+  it("preserves explicit empty arrays and unknown extension fields", () => {
+    const data = validateRuleTemplateJson(
+      "custom",
+      '{"chapter_patterns":[],"special_headings":[],"extra":{"a":1}}',
+    );
+    expect(data.chapter_patterns).toEqual([]);
+    expect(data.special_headings).toEqual([]);
+    expect(data.extra).toEqual({ a: 1 });
+  });
+  it("composes only nonempty CSS values", () => {
+    expect(composeCss(null, undefined)).toBe("");
+    expect(composeCss("  \n", " p{} \n")).toBe("p{}");
+    expect(composeCss(" body{} ", " p{} ")).toBe("body{}\n\np{}");
+  });
+});

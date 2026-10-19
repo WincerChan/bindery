@@ -1,0 +1,10 @@
+@import "tailwindcss" source(none);
+@source "./routes";
+@layer base {
+  body {
+    margin: 0;
+    background: #faf9f6;
+    color: #292524;
+    font-family: system-ui, sans-serif;
+  }
+}
