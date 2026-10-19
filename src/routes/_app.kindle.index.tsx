@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { EmptyState } from "../ui";
+import { loadLibrary } from "../features/library/functions";
+import { loadKindleLibrary } from "../features/kindle/devices/library";
+import { KindleBooksPage } from "../features/kindle/devices/books";
 export const Route = createFileRoute("/_app/kindle/")({
-  component: () => <EmptyState title="设备书籍">此页面正在实现。</EmptyState>,
+  loader: () => loadKindleLibrary(page => loadLibrary({ data: { page, per_page: 96 } })),
+  component: Books,
 });
+function Books() { const books = Route.useLoaderData(); return <KindleBooksPage books={books()} />; }
