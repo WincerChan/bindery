@@ -1,0 +1,30 @@
+{
+  "name": "bindery",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.10.0",
+  "dependencies": {
+    "@node-rs/argon2": "2.2.2",
+    "@simplewebauthn/browser": "14.0.0",
+    "@simplewebauthn/server": "14.0.3",
+    "@solidjs/web": "2.0.0-rc.15",
+    "@tanstack/solid-router": "2.0.0-rc.8",
+    "@tanstack/solid-start": "2.0.0-rc.8",
+    "@xmldom/xmldom": "0.9.12",
+    "fflate": "0.8.3",
+    "solid-js": "2.0.0-rc.15",
+    "srvx": "1.0.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "^24.19.2",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vite-plugin-solid": "3.0.0-next.27",
+    "vitest": "5.0.5"
+  }
+}

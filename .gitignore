@@ -8,3 +8,11 @@ library/
 bindery.db
 bindery.egg-info/
 .DS_Store
+
+# Node / TanStack Start
+node_modules/
+.output/
+dist/
+.tanstack/
+.vinxi/
+*.tsbuildinfo
