@@ -118,9 +118,77 @@ function mount(page: Page, initial: Input, hydrating = true) {
   return { ...mounted, root: node };
 }
 async function settle(m: Mounted) { for (let i = 0; i < 6; i++) { await new Promise(resolve => setTimeout(resolve, 0)); m.flush(); } }
-function button(root: Element, text: string) { const node = elements(root, "button").find(b => b.textContent === text); if (!node) throw new Error(`Missing button: ${text}`); return node; }
+function button(root: Element, text: string) { const node = elements(root, "button").find(b => b.textContent === text || b.getAttribute("aria-label") === text); if (!node) throw new Error(`Missing button: ${text}`); return node; }
 function field(root: Element, label: string) { const node = elements(root, "input").find(el => el.getAttribute("aria-label") === label || elements(root, "label").some(l => l.getAttribute("for") === el.id && l.textContent === label)); if (!node) throw new Error(`Missing input: ${label}`); return node as HTMLInputElement; }
 const text = (m: { root: Element }) => m.root.textContent || "";
+const withClass = (root: Element, name: string) => elements(root, "*").find(node => node.className.split(/\s+/).includes(name))!;
+
+it("keeps the device identity hierarchy and the complete books toolbar/table in neutral SSR", async () => {
+  const c = await connected([record("a", "a.kfx")]); await c.manager.restore(saved(c.device));
+  const root = document.createElement("div"); root.innerHTML = server.markup("books", c.input);
+  const bar = elements(root, "section", "data-kindle-device-bar")[0]!;
+  expect(elements(bar, "h1").map(node => node.textContent)).toEqual(["Kindle"]);
+  const identity = withClass(bar, "kindle-device-identity");
+  expect(Array.from(identity.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["p", "h1", "p"]);
+  expect(withClass(bar, "kindle-status").getAttribute("role")).toBe("status");
+  expect(withClass(bar, "kindle-device-meta").className).toContain("kindle-mono");
+  expect(bar.textContent).not.toContain("我的 Paperwhite");
+
+  const toolbar = withClass(root, "kindle-books-toolbar");
+  expect(Array.from(toolbar.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).className))
+    .toEqual(["kindle-section-heading", "kindle-filters", "kindle-toolbar-actions"]);
+  const heading = withClass(toolbar, "kindle-section-heading");
+  expect(elements(heading, "h2").map(node => node.textContent)).toEqual(["书籍"]);
+  expect(withClass(heading, "kindle-count").className).toContain("kindle-mono");
+  expect(withClass(heading, "kindle-count").textContent).toBe("0 本 · 0 B");
+  const filters = withClass(toolbar, "kindle-filters");
+  expect(filters.getAttribute("role")).toBe("group"); expect(filters.getAttribute("aria-label")).toBe("按来源筛选");
+  expect(elements(filters, "button").map(node => [node.textContent, node.getAttribute("aria-pressed")]))
+    .toEqual([["全部", "true"], ["来自 Bindery 0", "false"], ["其他 0", "false"]]);
+  for (const filter of elements(filters, "button")) expect(filter.className).toContain("text-filter");
+  const actions = withClass(toolbar, "kindle-toolbar-actions");
+  expect(Array.from(actions.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["label", "button", "a"]);
+  expect(withClass(actions, "sr-only").textContent).toBe("搜索设备上的书");
+  expect(button(actions, "删除所选（0）").className.split(/\s+/)).toContain("btn-quiet-danger");
+  expect(button(actions, "删除所选（0）").hasAttribute("disabled")).toBe(true);
+  expect(elements(actions, "a")[0]!.className).toContain("btn-primary");
+  const table = withClass(root, "kindle-book-table");
+  expect(elements(table, "th").map(node => node.textContent)).toEqual(["", "书籍", "来源", "格式", "排版方案", "大小", "传入时间", "操作"]);
+  for (const cell of elements(table, "th")) expect(cell.getAttribute("scope")).toBe("col");
+  expect(elements(table, "tbody")).toHaveLength(1); expect(elements(table, "tr", "data-device-book")).toHaveLength(0);
+  const nodes = elements(root, "*"); expect(nodes.indexOf(table)).toBeLessThan(nodes.indexOf(withClass(root, "empty-state")));
+});
+
+it("renders the transfer heading, text filters, compact search, setting fields and ordered queue in SSR", () => {
+  const root = document.createElement("div"); root.innerHTML = server.markup("transfer", input());
+  expect(elements(root, "h2").slice(0, 3).map(node => node.textContent)).toEqual(["从书库选择", "设置", "队列"]);
+  const toolbar = withClass(root, "kindle-toolbar"), filters = withClass(toolbar, "kindle-filters");
+  expect(filters.getAttribute("role")).toBe("group"); expect(filters.getAttribute("aria-label")).toBe("筛选");
+  expect(elements(filters, "button").map(node => [node.textContent, node.getAttribute("aria-pressed")]))
+    .toEqual([["不在设备", "true"], ["未读", "false"], ["全部", "false"]]);
+  for (const filter of elements(filters, "button")) expect(filter.className).toContain("text-filter");
+  expect(withClass(toolbar, "kindle-search").getElementsByTagName("span")[0]!.className).toBe("sr-only");
+  expect(elements(withClass(root, "kindle-library-list"), "li", "data-transfer-book")).toHaveLength(2);
+  const aside = elements(root, "aside")[0]!, labels = elements(aside, "label");
+  expect(labels.find(node => node.firstChild?.textContent === "目标设备")!.getElementsByTagName("select")[0]!.hasAttribute("disabled")).toBe(true);
+  expect(labels.some(node => node.firstChild?.textContent === "排版方案")).toBe(true);
+  const queue = withClass(aside, "kindle-queue");
+  expect(withClass(queue, "kindle-queue-list").tagName).toBe("ol");
+  expect(button(queue, "开始传输（0）").className).toContain("btn-primary");
+  expect(aside.textContent).not.toContain("压缩超大图片");
+});
+
+it("renders the connection title, four numbered steps and remembered-device sidebar in SSR", () => {
+  const root = document.createElement("div"); root.innerHTML = server.markup("connect", input());
+  const connection = withClass(root, "kindle-connect"), steps = withClass(connection, "kindle-steps");
+  expect(elements(connection, "h1").map(node => node.textContent)).toEqual(["连接你的 Kindle"]);
+  expect(steps.tagName).toBe("ol"); expect(elements(steps, "li")).toHaveLength(4);
+  expect(elements(steps, "input").filter(node => node.getAttribute("type") === "radio").map(node => node.getAttribute("value"))).toEqual(["KPW3", "KO3", "other"]);
+  const picker = button(connection, "选择 Kindle 目录"); expect(picker.hasAttribute("disabled")).toBe(true);
+  const nodes = elements(connection, "*"); expect(nodes.indexOf(steps)).toBeLessThan(nodes.indexOf(picker));
+  expect(elements(connection, "aside")[0]!.getAttribute("aria-label")).toBe("记住的设备");
+  expect(elements(connection, "h2")[0]!.textContent).toBe("记住的设备");
+});
 
 it.each(["books", "connect", "transfer"] as const)("hydrates neutral SSR for %s, restores the device, then updates after unplug/replug", async page => {
   const c = await connected([record("a", "a.kfx")]);
@@ -147,8 +215,9 @@ it("shows unsupported-browser guidance only after hydration", async () => {
 
 it("pairs a selected root with the chosen model/name and forgets only the browser record", async () => {
   const fs = await fakeKindle(), manager = new KindleDeviceManager(repository(), async () => fs.root), m = mount("connect", input(manager));
-  await settle(m); fire(button(m.root, "选择 Kindle 目录"), "click"); await settle(m); expect(text(m)).toContain("完成首次配对");
+  await settle(m);
   const ko3 = elements(m.root, "input").find(el => el.getAttribute("value") === "KO3")!; fire(ko3, "change"); m.flush();
+  fire(button(m.root, "选择 Kindle 目录"), "click"); await settle(m); expect(text(m)).toContain("完成首次配对");
   const name = field(m.root, "显示名称"); name.value = "我的 Oasis"; fire(name, "input"); m.flush();
   fire(elements(m.root, "form")[0]!, "submit"); await settle(m);
   expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ model: "KO3", name: "我的 Oasis" }); expect(text(m)).toContain("1264×1680");
@@ -198,8 +267,14 @@ it("clears old inventory and selection when switching devices and prevents delet
 
 it("enqueues a retransmission with the recorded profile and overwrite enabled", async () => {
   const c = await connected([record("a", "a.kfx", "wide")]); const transfer = vi.fn(async () => { throw new Error("profile was removed"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
-  const m = mount("books", c.input); await settle(m); const href = elements(m.root, "a").find(a => a.textContent === "预览")?.getAttribute("href"); expect(href).toBe("/kindle/preview?book=a");
-  fire(button(m.root, "重新传入"), "click"); await settle(m); expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), "a", "wide", expect.objectContaining({ overwrite: true }));
+  const m = mount("books", c.input); await settle(m); const href = elements(m.root, "a").find(a => a.getAttribute("aria-label") === "预览 书库甲")?.getAttribute("href"); expect(href).toBe("/kindle/preview?book=a");
+  const row = elements(m.root, "tr", "data-device-book")[0]!, actions = withClass(row, "kindle-row-actions");
+  expect(Array.from(actions.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).getAttribute("aria-label")))
+    .toEqual(["预览 书库甲", "重新传入 书库甲", "从设备删除 书库甲"]);
+  expect(elements(actions, "svg")).toHaveLength(3);
+  for (const icon of elements(actions, "svg")) expect(icon.getAttribute("aria-hidden")).toBe("true");
+  for (const index of [3, 5, 6]) expect(elements(row, "td")[index]!.className).toContain("kindle-mono");
+  fire(button(m.root, "重新传入 书库甲"), "click"); await settle(m); expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), "a", "wide", expect.objectContaining({ overwrite: true }));
   expect(text(m)).toContain("已加入传输队列：书库甲");
 });
 
@@ -207,11 +282,11 @@ it("loads device profiles, applies library filters/search and preserves selectio
   const c = await connected([record("a", "a.kfx")]); c.input.books = [book("a", "书库甲"), book("b", "书库乙", true), ...Array.from({ length: 26 }, (_, i) => book(`x${i}`, `未读 ${i}`))];
   c.input.loadProfiles = vi.fn(async id => [defaultProfile(id), { ...defaultProfile(id), id: "wide", name: "宽边距", builtIn: false }]);
   const m = mount("transfer", c.input); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledWith(c.device.identity.id); expect(elements(m.root, "option").map(n => n.textContent)).toContain("宽边距");
-  expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(24); expect(text(m)).not.toContain("已在设备 ·");
+  expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(24); expect(text(m)).not.toContain("已在设备");
   await c.manager.probe(); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledOnce();
   const checkbox = field(m.root, "选择 书库乙"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "下一页"), "click"); m.flush(); expect(text(m)).toContain("已选 1 本");
   await c.manager.probe(); await settle(m); expect(text(m)).toContain("已选 1 本");
-  fire(button(m.root, "未读"), "click"); m.flush(); expect(elements(m.root, "li", "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).not.toContain("b"); expect(text(m)).toContain("已在设备 ·");
+  fire(button(m.root, "未读"), "click"); m.flush(); expect(elements(m.root, "li", "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).not.toContain("b"); expect(text(m)).toContain("已在设备");
   const search = field(m.root, "搜索书库"); search.value = "书库甲"; fire(search, "input"); m.flush(); expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(1); expect(text(m)).toContain("估计大小：待转换后确定");
 });
 
@@ -223,7 +298,7 @@ it("keeps the queue running while moving among Kindle pages, supports cancel and
   expect(text(m)).toContain("正在转换 KFX"); expect(transfer).toHaveBeenCalledOnce(); const context = m.context(); m.page("books"); await settle(m); m.page("connect"); await settle(m); m.page("transfer"); await settle(m);
   expect(m.context()).toBe(context); expect(transfer).toHaveBeenCalledOnce(); expect(text(m)).toContain("正在转换 KFX");
   fire(button(m.root, "取消"), "click"); await settle(m); expect(text(m)).toContain("失败"); expect(text(m)).toContain("操作已取消");
-  fire(button(m.root, "清除已结束"), "click"); m.flush(); expect(elements(m.root, "div", "data-queue-item")).toHaveLength(0);
+  fire(button(m.root, "清除已结束"), "click"); m.flush(); expect(elements(m.root, "li", "data-queue-item")).toHaveLength(0);
   expect(text(m)).toContain("GPL-3.0-or-later"); expect(text(m)).toContain("GNU GENERAL PUBLIC LICENSE"); expect(elements(m.root, "a").some(a => a.getAttribute("href") === "https://crates.io/api/v1/crates/boko/0.5.0/download")).toBe(true);
   reject(new Error("already cancelled"));
 });
@@ -232,7 +307,7 @@ it("uses the selected profile and overwrite setting, shows failure, and retries 
   const c = await connected([record("a", "a.kfx")]); const transfer = vi.fn(async () => { throw new Error("Kindle 空间不足"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
   let fail = true; c.input.loadProfiles = async id => { if (fail) throw new Error("配置服务暂时不可用"); return [{ ...defaultProfile(id), id: "wide", name: "宽边距", builtIn: false }]; };
   const m = mount("transfer", c.input); await settle(m); expect(text(m)).toContain("配置服务暂时不可用"); fail = false; fire(button(m.root, "重试"), "click"); await settle(m);
-  fire(button(m.root, "全部"), "click"); m.flush(); const select = elements(m.root, "select")[0] as HTMLSelectElement; select.value = "wide"; fire(select, "change"); m.flush(); const overwrite = elements(m.root, "input").find(el => el.getAttribute("type") === "checkbox" && el.parentNode?.textContent === "覆盖设备上的同名书") as HTMLInputElement; overwrite.checked = true; fire(overwrite, "change"); m.flush();
+  fire(button(m.root, "全部"), "click"); m.flush(); const select = elements(m.root, "label").find(label => label.firstChild?.textContent === "排版方案")!.getElementsByTagName("select")[0] as HTMLSelectElement; select.value = "wide"; fire(select, "change"); m.flush(); const overwrite = elements(m.root, "input").find(el => el.getAttribute("type") === "checkbox" && el.parentNode?.textContent === "覆盖设备上的同名书") as HTMLInputElement; overwrite.checked = true; fire(overwrite, "change"); m.flush();
   const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); expect(text(m)).toContain("约 4 B（按设备已有副本）"); fire(button(m.root, "开始传输（1）"), "click"); await settle(m);
   expect(transfer).toHaveBeenCalledWith(expect.anything(), "a", "wide", expect.objectContaining({ overwrite: true })); expect(text(m)).toContain("Kindle 空间不足");
 });

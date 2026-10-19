@@ -15,6 +15,13 @@ export function controls() {
     <Chip selected>未读</Chip><Chip>全部</Chip><Tag tone="failed">转换失败</Tag>
   </>);
 }
+export function kindleControls() {
+  return renderToString(() => <>
+    <Button variant="quiet-danger">删除所选</Button><Button variant="icon" aria-label="预览书籍"><svg aria-hidden="true" /></Button>
+    <Chip variant="filter" selected>全部</Chip><Chip variant="filter">其他</Chip>
+    <TextField label="搜索设备上的书" labelHidden type="search" />
+  </>);
+}
 export function covers() {
   return renderToString(() => <>
     <GeneratedCover book_id="ff" title="春日<&>" author="作者" />

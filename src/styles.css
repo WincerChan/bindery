@@ -10,6 +10,10 @@
   --color-ink-3: #61666D;
   --color-line: #D5D8D2;
   --color-line-soft: #E1E4DE;
+  --color-control-line: #CDD1CA;
+  --color-ink-4: #9AA0A6;
+  --color-track: #DCDFD8;
+  --color-warning: #8A5A00;
   --color-accent: #2449E8;
   --color-ok: #1F7A4D;
   --color-danger: #B42318;
@@ -71,6 +75,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled { opacity: .
 .btn-secondary { background: transparent; color: var(--color-ink); border-color: var(--color-line); }
 .btn-quiet { background: transparent; color: var(--color-ink-2); }
 .btn-danger { background: var(--color-danger); color: white; }
+.btn-quiet-danger { background: transparent; border-color: transparent; color: var(--color-danger); }
+.btn-icon { width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; background: transparent; color: var(--color-ink-2); flex-shrink: 0; }
 .btn-sm { min-height: 32px; padding-inline: 10px; font-size: 12px; }
 .btn:not(:disabled):hover { filter: brightness(.94); }
 .field { display: grid; gap: 6px; font-size: 14px; }
@@ -82,6 +88,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled { opacity: .
 .checkbox input { width: 16px; height: 16px; accent-color: var(--color-accent); }
 .chip { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 12px; border: 1px solid var(--color-line); background: transparent; color: var(--color-ink-2); border-radius: 6px; font-size: 13px; }
 .chip.is-selected { border-color: var(--color-ink); color: var(--color-ink); font-weight: 600; }
+.text-filter { display: inline-flex; align-items: center; height: 32px; min-height: 32px; padding: 0 2px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--color-ink-2); font: 400 13px var(--font-sans); white-space: nowrap; }
+.text-filter.is-selected { color: var(--color-ink); font-weight: 700; border-bottom-color: var(--color-ink); }
 .tag { display: inline-flex; padding: 2px 6px; font-size: 11px; line-height: 1.5; background: var(--color-line-soft); color: var(--color-ink-2); }
 .tag-ok { color: var(--color-ok); background: #e6eee7; }
 .tag-pending { color: #795900; background: #f1ecd9; }

@@ -44,6 +44,14 @@ describe("reusable UI SSR", () => {
     expect(html).toContain('role="img"'); expect(html).toContain('alt="有封面"');
     expect(html).toContain('loading="lazy"'); expect(html).toContain("cover-tone-2");
   });
+  it("provides opt-in underline filters, quiet danger and icon buttons, and a hidden search label", () => {
+    const html = ui.kindleControls();
+    expect(html).toContain("btn-quiet-danger"); expect(html).toContain("btn-icon");
+    expect(html).toContain('aria-label="预览书籍"'); expect(html).toContain('aria-hidden="true"');
+    expect(html).toMatch(/class="text-filter is-selected [^"]*" aria-pressed="true"/);
+    expect(html).toContain('aria-pressed="false"'); expect(html).toContain('class="sr-only">搜索设备上的书</span>');
+    expect(html).not.toMatch(/\s(?:variant|selected|labelHidden)=/);
+  });
   it("uses native dialogs with labelled titles and explicit confirm/cancel controls", () => {
     const html = ui.dialogs();
     expect(html.match(/<dialog/g)).toHaveLength(2);

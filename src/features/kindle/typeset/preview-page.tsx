@@ -133,23 +133,29 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
     return items;
   };
   return <section class="kt-page" aria-label="排版与预览">
-    <div class="kt-heading"><div><h2>排版与预览</h2><p class="muted">为每台 Kindle 保存排版方案，转换时应用到发送的书籍。</p></div>
+    <div class="kt-preview-layout"><section class="kt-editor" aria-label="排版方案编辑器">
+      <div class="kt-editor-heading"><h2>排版方案</h2><p class="muted">转换前追加到书籍 CSS 之后，只影响传到这台设备的副本，书库里的 EPUB 不变。</p></div>
       <Select label="方案所属设备" value={target()?.id ?? ""} disabled={busy()} onChange={event => { chooseTarget(event.currentTarget.value); event.currentTarget.value = target()?.id ?? ""; }}>
         <option value="">仅预览型号</option><For each={availableTargets()}>{device => <option value={device.id}>{device.name} · {device.model}</option>}</For>
-      </Select></div>
-    <Show when={!state()}><p role="status">检测中…</p></Show>
-    <Show when={!fontDevice()}><p class="notice">排版方案属于已配对的设备。可选择记住的设备离线编辑；连接并授权后才能加载设备字体。<a href="/kindle/connect">连接设备</a></p></Show>
-    <Show when={!target()}><Select label="预览型号" value={model()} onChange={event => setModel(event.currentTarget.value as KindleModel)}><option value="KPW3">Kindle Paperwhite 3 · 6 英寸</option><option value="KO3">Kindle Oasis 3 · 7 英寸</option><option value="other">其他（按 KPW3 预览）</option></Select></Show>
-    <Show when={connected() && target() && connected()!.identity.id !== target()!.id}><p class="notice">当前连接的设备与正在编辑的方案所属设备不同；保存仍属于 {target()!.name}。</p></Show>
-    <Show when={error() || memoryError()}><p role="alert" class="field-error">{error() || memoryError()}</p></Show>
-    <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
-    <Show when={notice()}><p role="status">{notice()}</p></Show>
-    <div class="kt-preview-layout"><section class="kt-editor" aria-label="排版方案编辑器">
-      <h3>排版方案</h3><ul class="kt-profile-list"><For each={profiles()}>{profile => <li><button type="button" class={profile.id === draft().id ? "is-selected" : ""} aria-pressed={profile.id === draft().id ? "true" : "false"} disabled={busy() || loading()} onClick={() => { if (confirmDiscard()) selectProfile(profile); }}>{profile.builtIn ? "默认" : profile.name}{profile.builtIn ? " · 书籍自带样式" : ""}</button></li>}</For></ul>
+      </Select>
+      <div class="kt-profile-controls"><Select label="方案" value={draft().id} disabled={busy() || loading() || !target()} onChange={event => {
+        const selected = profiles().find(profile => profile.id === event.currentTarget.value);
+        if (selected && confirmDiscard()) selectProfile(selected);
+        event.currentTarget.value = draft().id;
+      }}>
+        <Show when={!profiles().some(profile => profile.id === draft().id)}><option value={draft().id}>{draft().name}</option></Show>
+        <For each={profiles()}>{profile => <option value={profile.id}>{profile.builtIn ? "默认 · 书籍自带样式" : profile.name}</option>}</For>
+      </Select>
+      <Show when={!target()}><div class="kt-models" role="group" aria-label="预览型号"><For each={["KO3", "KPW3", "other"] as const}>{value => <button type="button" aria-pressed={model() === value ? "true" : "false"} onClick={() => setModel(value)}>{value === "other" ? "其他" : value}</button>}</For></div></Show></div>
+      <Show when={!state()}><p role="status">检测中…</p></Show>
+      <Show when={!fontDevice()}><p class="muted">排版方案属于已配对的设备。可选择记住的设备离线编辑；连接并授权后才能加载设备字体。<a href="/kindle/connect">连接设备</a></p></Show>
+      <Show when={connected() && target() && connected()!.identity.id !== target()!.id}><p class="notice">当前连接的设备与正在编辑的方案所属设备不同；保存仍属于 {target()!.name}。</p></Show>
+      <Show when={error() || memoryError()}><p role="alert" class="field-error">{error() || memoryError()}</p></Show>
+      <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
+      <Show when={notice()}><p role="status">{notice()}</p></Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={dirty()}><p role="status">有未保存的修改</p></Show>
       <Show when={draft().builtIn}><p class="muted">默认方案不可编辑或删除。点击「另存为」建立自己的方案。</p></Show>
-      <TextField label="方案名称" value={draft().name} disabled={immutable()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
       <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}><span>{range.label}</span><output>{draft().settings[range.key] === null ? "沿用书籍" : `${draft().settings[range.key]} ${range.unit}`}</output></label>
         <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.min} max={range.max} step={range.step} value={draft().settings[range.key] ?? range.fallback} disabled={immutable()} onInput={event => edit(range.key, Number(event.currentTarget.value))} />
         <button class="quiet" type="button" disabled={immutable() || draft().settings[range.key] === null} onClick={() => edit(range.key, null)}>沿用书籍</button></div>}</For>
@@ -160,14 +166,16 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       </Select>
       <Show when={draft().settings.fontFamily && !fonts().some(font => font.name === draft().settings.fontFamily)}><p class="muted">所选字体当前不可用，预览暂用替代字体；传书前请确认设备已安装此字体。</p></Show>
       <Checkbox label="两端对齐" checked={draft().settings.justify === true} disabled={immutable()} onChange={event => edit("justify", event.currentTarget.checked)} />
-      <Button variant="quiet" disabled={immutable() || draft().settings.justify === null} onClick={() => edit("justify", null)}>{draft().settings.justify === null ? "对齐方式沿用书籍" : "对齐方式恢复书籍设置"}</Button>
-      <Textarea label="额外自定义 CSS" rows={6} value={draft().settings.customCss} disabled={immutable()} error={cssError() ?? undefined} onInput={event => edit("customCss", event.currentTarget.value)} />
+      <details class="kt-advanced"><summary>更多设置</summary><div>
+        <TextField label="方案名称" value={draft().name} disabled={immutable()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
+        <Button variant="quiet" disabled={immutable() || draft().settings.justify === null} onClick={() => edit("justify", null)}>{draft().settings.justify === null ? "对齐方式沿用书籍" : "对齐方式恢复书籍设置"}</Button>
+        <Textarea label="额外自定义 CSS" rows={6} value={draft().settings.customCss} disabled={immutable()} error={cssError() ?? undefined} onInput={event => edit("customCss", event.currentTarget.value)} />
+      </div></details>
       <Textarea label="生成的 CSS（只读）" rows={8} class="kt-generated" readonly value={css() ?? "排版参数校验未通过，预览保留上次有效样式。"} />
-      <div class="kt-actions"><Button variant="quiet" disabled={busy() || loading() || !dirty()} onClick={reset}>重置</Button><Button variant="quiet" disabled={!target() || immutable() || draft().id === "draft"} onClick={() => setDeleting(true)}>删除</Button><Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为</Button><Button disabled={!canStore() || draft().builtIn || !dirty()} onClick={() => save()}>保存</Button></div>
+      <div class="kt-actions kt-profile-actions"><Button variant="quiet" disabled={busy() || loading() || !dirty()} onClick={reset}>重置</Button><Button variant="quiet" disabled={!target() || immutable() || draft().id === "draft"} onClick={() => setDeleting(true)}>删除</Button><Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为</Button><Button disabled={!canStore() || draft().builtIn || !dirty()} onClick={() => save()}>保存方案</Button></div>
     </section><section class="kt-preview" aria-label="设备预览">
-      <div class="kt-preview-selectors"><Select label="预览书籍" value={bookId()} disabled={!props.data.books.length} onChange={event => { void chooseBook(event.currentTarget.value); }}><For each={props.data.books}>{book => <option value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</option>}</For></Select>
-        <Select label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} onChange={event => setChapter(Number(event.currentTarget.value))}><For each={sections()}>{(section, index) => <option value={String(index())}>{section.title}</option>}</For></Select></div>
-      <p class="kt-spec">{KINDLE_MODELS[effectiveModel()].name} · {screenFor(effectiveModel()).width}×{screenFor(effectiveModel()).height} · 300 ppi · 按比例缩放</p>
+      <div class="kt-preview-toolbar"><div class="kt-preview-selectors"><Select label="预览书籍" value={bookId()} disabled={!props.data.books.length} onChange={event => { void chooseBook(event.currentTarget.value); }}><For each={props.data.books}>{book => <option value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</option>}</For></Select>
+        <Select label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} onChange={event => setChapter(Number(event.currentTarget.value))}><For each={sections()}>{(section, index) => <option value={String(index())}>{section.title}</option>}</For></Select></div><p class="kt-spec">{effectiveModel() === "other" ? "其他（按 KPW3 预览）" : `${effectiveModel()} · ${KINDLE_MODELS[effectiveModel()].inches} 英寸`} · {screenFor(effectiveModel()).width}×{screenFor(effectiveModel()).height} · 按比例缩放</p></div>
       <Show when={chapterLoading()}><p role="status">正在读取章节…</p></Show><Show when={chapterError()}><p role="alert" class="field-error">{chapterError()}</p></Show>
       <Show when={bookId() && chapterError()}><Button variant="secondary" disabled={chapterLoading()} onClick={() => chooseBook(bookId())}>重新读取章节</Button></Show>
       <Show when={!props.data.books.length}><p class="notice">书库中还没有可预览的 EPUB。</p></Show><Show when={bookId() && !sections().length && !chapterLoading() && !chapterError()}><p class="notice">这本书没有可预览的章节。</p></Show>

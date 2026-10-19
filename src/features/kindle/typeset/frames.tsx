@@ -38,7 +38,7 @@ export function ChapterFrame(props: { src: string; model: KindleModel; css: stri
   createEffect(() => dimensions().width, width => { if (screen?.clientWidth) setScale(screen.clientWidth / width); });
   onCleanup(() => { disposed = true; generation++; controller?.destroy(); controller = undefined; });
   return <div class="kt-frame-wrap">
-    <div class="kt-device-bezel"><div ref={screen} class="kt-screen" style={{ "aspect-ratio": `${dimensions().width} / ${dimensions().height}` }}>
+    <div class="kt-device-bezel" style={{ "max-width": `${Math.round(640 * dimensions().width / dimensions().height) + 44}px` }}><div ref={screen} class="kt-screen" style={{ "aspect-ratio": `${dimensions().width} / ${dimensions().height}` }}>
       <iframe ref={frame} title="Kindle 章节排版预览" sandbox="allow-same-origin" referrerpolicy="no-referrer" src={props.src || undefined}
         width={dimensions().width} height={dimensions().height} style={{ transform: `scale(${scale()})` }} onLoad={onLoad} />
     </div></div>
@@ -56,8 +56,8 @@ export function FontSample(props: { device: PairedDevice; family: FontFamily }) 
     registration?.clear();
     sampleDocument = doc;
     const text = doc.createElement("p");
-    text.textContent = "永和九年，岁在癸丑，暮春之初。";
-    text.style.cssText = 'margin:0; font:22px/1.6 "Bindery Device Sample";';
+    text.textContent = "永和九年，岁在癸丑，暮春之初，会于会稽山阴之兰亭。";
+    text.style.cssText = 'margin:0; font:22px/1.5 "Bindery Device Sample"; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
     doc.body.replaceChildren(text); doc.body.style.margin = "0";
     const fonts = new DocumentFonts(doc); registration = fonts;
     try { await fonts.load(props.device, props.family, "Bindery Device Sample"); }
