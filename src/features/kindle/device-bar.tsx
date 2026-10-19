@@ -1,4 +1,4 @@
-import { createSignal, onSettled, Show } from "solid-js";
+import { createSignal, For, onSettled, Show } from "solid-js";
 import { useKindle } from "./context";
 import { bytes, modelLabel } from "./devices/format";
 import { Button } from "../../ui";
@@ -34,6 +34,12 @@ export function KindleDeviceBar() {
       </Show>
       <a class="btn btn-secondary" href="/kindle/connect">{k.state().device ? "切换设备" : "连接 Kindle"}</a>
     </div>
+    <Show when={k.inventory()?.unreadableCount}>
+      <details class="kindle-small kindle-full kindle-entry-notice" data-unreadable-notice>
+        <summary>有 {k.inventory()!.unreadableCount} 个条目无法读取（路径超过 Windows 260 字符限制等），已跳过统计</summary>
+        <ul><For each={k.inventory()!.unreadable}>{entry => <li><span class="kindle-mono">{entry.path}</span>（{entry.reason}；{entry.likelyCause}；Windows 路径 {entry.windowsPathLength} 字符）</li>}</For></ul>
+      </details>
+    </Show>
     <Show when={k.error() || k.inventoryError()}><p class="field-error kindle-full" role="alert">{k.error() || k.inventoryError()}</p></Show>
   </section>;
 }

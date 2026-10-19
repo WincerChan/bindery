@@ -1,5 +1,6 @@
 import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
-import { deleteBook, type DeviceBook, type PairedDevice } from "../../../client/kindle";
+import { deleteBook, type DeviceBook, type PairedDevice, type UnreadableEntry } from "../../../client/kindle";
+import { EntryAccessError, entryOperation } from "../../../client/kindle/fs";
 import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, TextField } from "../../../ui";
 import { useKindle } from "../context";
 import { bytes, dateLabel } from "./format";
@@ -13,10 +14,12 @@ function DeviceCover(props: { book: DeviceBook; title: string; author: string | 
     const root = k.state().device?.root, thumbnail = props.book.record?.thumbnail;
     if (root && thumbnail) void (async () => {
       try {
-        const system = await root.getDirectoryHandle("system"), dir = await system.getDirectoryHandle("thumbnails");
-        const file = await (await dir.getFileHandle(thumbnail)).getFile();
+        const file = await entryOperation(root, `system/thumbnails/${thumbnail}`, async () => {
+          const system = await root.getDirectoryHandle("system"), dir = await system.getDirectoryHandle("thumbnails");
+          return (await dir.getFileHandle(thumbnail)).getFile();
+        });
         if (alive) { objectUrl = URL.createObjectURL(file); setUrl(objectUrl); }
-      } catch { /* Missing/unavailable cover uses the library or generated cover. */ }
+      } catch (error) { if (!(error instanceof EntryAccessError)) await k.manager.probe(); }
     })();
     return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   });
@@ -26,9 +29,10 @@ function DeviceCover(props: { book: DeviceBook; title: string; author: string | 
 export function KindleBooksPage(props: { books: KindleLibraryBook[] }) {
   const k = useKindle(), [source, setSource] = createSignal("全部"), [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<string[]>([]), [notice, setNotice] = createSignal("");
+  const [notRemoved, setNotRemoved] = createSignal<UnreadableEntry[]>([]);
   const [pending, setPending] = createSignal<{ device: PairedDevice; books: DeviceBook[] } | null>(null);
   const selectionDevice = createMemo(() => k.state().device?.identity.id || "");
-  createEffect(selectionDevice, () => { setSelected([]); setPending(null); setNotice(""); });
+  createEffect(selectionDevice, () => { setSelected([]); setPending(null); setNotice(""); setNotRemoved([]); });
   const library = createMemo(() => new Map(props.books.map(b => [b.book_id, b])));
   const metadata = (book: DeviceBook) => library().get(book.record?.book_id || "");
   const title = (book: DeviceBook) => metadata(book)?.title || book.filename.split("/").at(-1)!.replace(/\.[^.]+$/, "");
@@ -36,14 +40,15 @@ export function KindleBooksPage(props: { books: KindleLibraryBook[] }) {
   const visible = () => all().filter(b => (source() === "全部" || b.source === source()) && `${title(b)} ${metadata(b)?.author || ""} ${b.filename}`.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase()));
   const selectedBooks = () => all().filter(b => selected().includes(b.filename));
   const connected = () => k.ready() && k.state().status === "granted";
-  function confirm(books: DeviceBook[]) { const device = k.state().device; if (connected() && device && books.length) setPending({ device, books }); }
+  function confirm(books: DeviceBook[]) { const device = k.state().device; if (connected() && device && books.length) { setNotRemoved([]); setPending({ device, books }); } }
   async function remove() {
     const request = pending(); if (!request) return;
     const current = k.manager.snapshot();
     if (current.status !== "granted" || current.device?.identity.id !== request.device.identity.id) throw new Error("设备已切换或断开，请重新选择要删除的书籍");
     try {
       for (const book of request.books) {
-        await deleteBook(request.device, book.filename);
+        const report = await deleteBook(request.device, book.filename);
+        setNotRemoved(current => [...current, ...report.notRemoved]);
         setSelected(current => current.filter(n => n !== book.filename));
         // A failed batch can retry only its remaining books, including after re-plugging.
         setPending(current => current ? { ...current, books: current.books.filter(b => b.filename !== book.filename) } : null);
@@ -69,6 +74,13 @@ export function KindleBooksPage(props: { books: KindleLibraryBook[] }) {
       </div>
     </div>
     <Show when={notice()}><p role="status" class="notice">{notice()} <a href="/kindle/transfer">查看传输队列</a></p></Show>
+    <Show when={notRemoved().length}>
+      <details open class="kindle-small kindle-entry-notice" data-delete-report>
+        <summary>书籍文件已删除，以下 {notRemoved().length} 个条目未能删除</summary>
+        <p>可在 Kindle 本机上或使用支持长路径的工具删除这些残留文件。</p>
+        <ul><For each={notRemoved()}>{entry => <li><span class="kindle-mono">{entry.path}</span>（{entry.reason}；{entry.likelyCause}）</li>}</For></ul>
+      </details>
+    </Show>
     <div class="kindle-table-scroll"><table class="kindle-book-table"><thead><tr>
       <th scope="col"><Checkbox label="" aria-label="全选当前筛选书籍" disabled={!connected() || !visible().length || k.busy()} checked={visible().length > 0 && visible().every(b => selected().includes(b.filename))} indeterminate={visible().some(b => selected().includes(b.filename)) && !visible().every(b => selected().includes(b.filename))} onChange={e => setSelected(e.currentTarget.checked ? visible().map(b => b.filename) : [])} /></th>
       <th scope="col">书籍</th><th scope="col">来源</th><th scope="col">格式</th><th scope="col">排版方案</th><th scope="col">大小</th><th scope="col">传入时间</th><th scope="col">操作</th>

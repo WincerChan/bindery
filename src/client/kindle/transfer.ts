@@ -2,7 +2,7 @@ import { getBokoConverter, type EpubConverter } from "../boko/client";
 import { readKfxIdentity } from "../boko/kfx";
 import { extractCover } from "../../core/epub";
 import { appendProfileCss } from "./epub";
-import { entryName, type KindleDirectory } from "./fs";
+import { assertWindowsWritePath, directoryEntries, entryName, entryOperation, optionalDirectory, optionalEntry, type KindleDirectory } from "./fs";
 import { assertDevice } from "./identity";
 import type { PairedDevice } from "./identity";
 import { manifestBytes, readManifest, thumbnailName, type ManifestBook } from "./manifest";
@@ -19,19 +19,33 @@ export interface TransferDependencies {
   profile: (deviceId: string, profileId: string) => Promise<TypesettingProfile>;
   thumbnail: (bytes: Uint8Array) => Promise<Uint8Array<ArrayBuffer>>;
 }
+// X:\documents\<stem>.sdr\<stem><32 hex>.yjr.bad_file = 63 + 2*stem.length.
+// Keep that worst case <= 240 UTF-16 units (20 units below MAX_PATH), suffix included.
+export const BOOK_STEM_BUDGET = 88;
+function fitStem(name: string, budget: number): string {
+  while (name.length > budget || new TextEncoder().encode(name).length > 180) name = Array.from(name).slice(0, -1).join("");
+  return name.replace(/[. ]+$/g, "");
+}
 export function safeBookStem(title: string): string {
   let name = title.normalize("NFC").replace(/[<>:"/\\|?*\x00-\x1f\x7f]/g, "_").trim().replace(/[. ]+$/g, "");
-  // UTF-16 truncation without splitting a surrogate; leave room for suffixes and .kfx.
-  name = Array.from(name).slice(0, 90).join("");
-  while (new TextEncoder().encode(name).length > 180) name = Array.from(name).slice(0, -1).join("");
   if (!name || name === "." || name === "..") name = "book";
   if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)) name = `_${name}`;
-  return name;
+  return fitStem(name, BOOK_STEM_BUDGET);
 }
-export async function collisionSafeFilename(documents: KindleDirectory, title: string): Promise<string> {
-  const occupied = new Set<string>(); for await (const entry of documents.values()) occupied.add(entry.name.toLowerCase());
+export function assertBookFilename(filename: string) {
+  const stem = filename.replace(/\.kfx$/i, "");
+  assertWindowsWritePath(`documents/${filename}`);
+  assertWindowsWritePath(`documents/${stem}.sdr/${stem}${"0".repeat(32)}.yjr.bad_file`);
+}
+export async function collisionSafeFilename(documents: KindleDirectory, title: string, root: KindleDirectory): Promise<string> {
+  const occupied = new Set<string>();
+  const entries = await directoryEntries(root, documents, "documents");
+  for (const entry of entries) occupied.add(entry.name.toLowerCase());
   const stem = safeBookStem(title); let filename = `${stem}.kfx`, suffix = 2;
-  while (occupied.has(filename.toLowerCase()) || occupied.has(filename.replace(/\.kfx$/i, ".sdr").toLowerCase())) filename = `${stem} (${suffix++}).kfx`;
+  while (occupied.has(filename.toLowerCase()) || occupied.has(filename.replace(/\.kfx$/i, ".sdr").toLowerCase())) {
+    const ending = ` (${suffix++})`;
+    filename = `${fitStem(stem, BOOK_STEM_BUDGET - ending.length)}${ending}.kfx`;
+  }
   return filename;
 }
 async function loadProfile(deviceId: string, profileId: string) {
@@ -62,21 +76,25 @@ export class KindleTransferService {
     check();
     return withDeviceLock(device, async () => {
       check(); options.progress?.("写入", "正在写入 Kindle");
-      const manifest = await readManifest(device.root), documents = await device.root.getDirectoryHandle("documents");
+      const manifest = await readManifest(device.root), documents = await entryOperation(device.root, "documents", () => device.root.getDirectoryHandle("documents"));
       const existing = options.overwrite ? manifest.books.find(b => b.book_id === bookId) : undefined;
       let filename = existing?.filename;
       // A recorded filename occupied by a directory is never overwritten.
-      if (filename) { entryName(filename); try { await documents.getFileHandle(filename); } catch (error) { if (!(error instanceof Error && error.name === "NotFoundError")) throw error; } }
-      filename ??= await collisionSafeFilename(documents, result.bookInfo.title || bookId);
+      if (filename) {
+        entryName(filename); assertBookFilename(filename);
+        const occupied = await optionalEntry(device.root, documents, filename, "documents");
+        if (occupied?.kind === "directory") throw new Error("目标文件名已被文件夹占用");
+      }
+      filename ??= await collisionSafeFilename(documents, result.bookInfo.title || bookId, device.root);
+      assertBookFilename(filename);
       const thumb = thumbnail ? thumbnailName(identity.contentId, identity.cdeContentType) : null;
       const record: ManifestBook = { book_id: bookId, filename, content_id: identity.contentId, cde_content_type: identity.cdeContentType, profile_id: profile.id, profile_name: profile.name, transferred_at: new Date().toISOString(), size: result.data.length, thumbnail: thumb };
       const nextBooks = manifest.books.filter(b => b.filename.toLowerCase() !== filename!.toLowerCase());
       // Same EPUB ID may belong to several copies. Never overwrite a thumbnail we did not write.
       if (thumb) {
-        const system = await device.root.getDirectoryHandle("system");
-        let occupied = false;
-        try { const dir = await system.getDirectoryHandle("thumbnails"); await dir.getFileHandle(thumb); occupied = true; }
-        catch (error) { if (!(error instanceof Error && error.name === "NotFoundError")) throw error; await device.root.getDirectoryHandle("documents"); }
+        const system = await entryOperation(device.root, "system", () => device.root.getDirectoryHandle("system"));
+        const dir = await optionalDirectory(system, "thumbnails", device.root, "system");
+        const occupied = dir && await optionalEntry(device.root, dir, thumb, "system/thumbnails");
         if (occupied && !manifest.books.some(b => b.thumbnail === thumb)) throw new Error("设备已有同名封面缩略图，无法安全覆盖");
       }
       nextBooks.push(record);

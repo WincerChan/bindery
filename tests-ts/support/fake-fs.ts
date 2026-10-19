@@ -14,6 +14,11 @@ export class FakeFileSystem {
   requestResult: PermissionState = "granted";
   operations: FakeOperation[] = [];
   beforeOperation?: (operation: FakeOperation) => void;
+  readonly failures = new Map<string, string>();
+  windowsPathLimit: number | null = null;
+  injectFailure(operation: "getFile" | "remove" | "values" | "createWritable" | "write" | "close", path: string, error = "NotFoundError") {
+    this.failures.set(`${operation}:${path.replace(/^\/?/, "/").toLowerCase()}`, error);
+  }
   constructor() { this.root = new FakeDirectory(this, node("Kindle", "directory"), ""); }
   unplug() { this.connected = false; }
   plug() { this.connected = true; }
@@ -21,6 +26,9 @@ export class FakeFileSystem {
     const record = { operation, path }; this.operations.push(record); this.beforeOperation?.(record);
     if (!this.connected || entry.removed) fail("NotFoundError");
     if (this.permission !== "granted") fail("NotAllowedError");
+    const injected = this.failures.get(`${operation}:${path.toLowerCase()}`); if (injected) fail(injected);
+    // Chrome can enumerate Linux-created long names even when getFile/remove fail on Windows.
+    if (this.windowsPathLimit !== null && ["getFile", "remove", "get:file:create", "get:directory:create", "createWritable", "write", "close"].includes(operation) && `X:${path.replaceAll("/", "\\")}`.length >= this.windowsPathLimit) fail("NotFoundError", "Windows MAX_PATH");
   }
   async mkdir(path: string) { let dir: KindleDirectory = this.root; for (const part of path.split("/").filter(Boolean)) dir = await dir.getDirectoryHandle(part, { create: true }); return dir; }
   async write(path: string, data: string | Uint8Array = "") {
@@ -49,7 +57,13 @@ export class FakeDirectory implements KindleDirectory {
     validName(name); this.fs.check("remove", `${this.path}/${name}`, this.entry);
     const entry = this.entry.children.get(name.toLowerCase()); if (!entry) fail("NotFoundError");
     if (entry.kind === "directory" && entry.children.size && !options?.recursive) fail("InvalidModificationError");
-    const remove = (n: Node) => { n.removed = true; for (const child of n.children.values()) remove(child); }; remove(entry);
+    const remove = (n: Node, path: string) => {
+      for (const [key, child] of [...n.children]) {
+        const full = `${path}/${child.name}`; this.fs.check("remove", full, child); remove(child, full); n.children.delete(key);
+      }
+      n.removed = true;
+    };
+    remove(entry, `${this.path}/${name}`);
     this.entry.children.delete(name.toLowerCase());
   }
   async *values(): AsyncIterableIterator<KindleDirectory | KindleFile> {

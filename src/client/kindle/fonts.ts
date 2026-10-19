@@ -1,4 +1,4 @@
-import { entryName, optionalDirectory, readBytes, type KindleDirectory } from "./fs";
+import { directoryEntries, EntryReader, entryName, entryOperation, optionalDirectory, readBytes, type KindleDirectory } from "./fs";
 import type { PairedDevice } from "./identity";
 import { applyDevicePatches, withDeviceLock } from "./transaction";
 
@@ -36,14 +36,15 @@ export async function inspectFont(file: File): Promise<DeviceFont> {
   const coverage = weight === 400 ? italic ? "I" : "R" : weight === 700 ? italic ? "BI" : "B" : `${style}`;
   return { filename: file.name, family, style, weight, italic, coverage, size: file.size };
 }
-export async function listFonts(root: KindleDirectory): Promise<FontFamily[]> {
-  const dir = await optionalDirectory(root, "fonts");
+export async function listFonts(root: KindleDirectory, reader = new EntryReader(root)): Promise<FontFamily[]> {
+  const dir = await reader.read("fonts", () => optionalDirectory(root, "fonts"));
   if (!dir) { await root.getDirectoryHandle("documents"); return []; }
   const families = new Map<string, FontFamily>();
-  for await (const entry of dir.values()) {
+  for (const entry of await reader.read("fonts", () => directoryEntries(root, dir, "fonts")) ?? []) {
     if (entry.kind !== "file" || !isFontFile(entry.name)) continue;
-    const file = await entry.getFile(); let font: DeviceFont;
-    try { font = await inspectFont(file); }
+    const file = await reader.read(`fonts/${entry.name}`, () => entry.getFile()); if (!file) continue;
+    let font: DeviceFont;
+    try { const inspected = await reader.read(`fonts/${entry.name}`, () => inspectFont(file)); if (!inspected) continue; font = inspected; }
     catch (error) { if (error instanceof Error && /字体/.test(error.message)) { font = { filename: file.name, family: file.name.replace(/\.(ttf|otf)$/i, ""), style: "无法解析", weight: 400, italic: false, coverage: "未知", size: file.size }; } else throw error; }
     const family = families.get(font.family) ?? { name: font.family, fonts: [], coverage: [], size: 0 };
     family.fonts.push(font); family.size += font.size; if (!family.coverage.includes(font.coverage)) family.coverage.push(font.coverage); families.set(family.name, family);
@@ -55,7 +56,7 @@ export async function installFonts(device: PairedDevice, files: File[]) {
   const fonts = await Promise.all(files.map(async file => { entryName(file.name); if (!isFontFile(file.name)) throw new Error("只支持 TTF 和 OTF 字体文件"); return inspectFont(file); }));
   return withDeviceLock(device, async () => {
     const dir = await optionalDirectory(device.root, "fonts"), existing = new Set<string>();
-    if (dir) for await (const entry of dir.values()) existing.add(entry.name.toLowerCase());
+    if (dir) for (const entry of await directoryEntries(device.root, dir, "fonts")) existing.add(entry.name.toLowerCase());
     for (const font of fonts) { const key = font.filename.toLowerCase(); if (existing.has(key)) throw new Error(`字体文件已存在：${font.filename}`); existing.add(key); }
     await applyDevicePatches(device.root, await Promise.all(files.map(async file => ({ path: ["fonts", file.name], data: new Uint8Array(await file.arrayBuffer()) }))));
     return fonts;
@@ -70,7 +71,7 @@ export async function deleteFontFamily(device: PairedDevice, familyName: string)
 }
 export async function readFont(root: KindleDirectory, filename: string) {
   entryName(filename); if (!isFontFile(filename)) throw new Error("只支持 TTF 和 OTF 字体文件");
-  return readBytes(await root.getDirectoryHandle("fonts"), filename);
+  return entryOperation(root, `fonts/${filename}`, async () => readBytes(await root.getDirectoryHandle("fonts"), filename));
 }
 /** Caller adds to document.fonts and removes it when the preview is disposed. */
 export async function loadPreviewFont(device: PairedDevice, font: DeviceFont, alias = font.family): Promise<FontFace> {

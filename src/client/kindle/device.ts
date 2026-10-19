@@ -1,5 +1,5 @@
 import { createSignal, onCleanup } from "solid-js";
-import { errorMessage, type KindleDirectory } from "./fs";
+import { assertReachable, errorMessage, type KindleDirectory } from "./fs";
 import { pairDevice, readFirmware, readIdentity, validateKindle, type KindleModel, type PairedDevice } from "./identity";
 import { IndexedDbHandles, type HandleRepository, type RememberedDevice } from "./remembered";
 import { withDeviceLock } from "./transaction";
@@ -75,21 +75,29 @@ export class KindleDeviceManager {
     this.probeGeneration = generation;
     this.probing = (async () => {
       const update = (patch: Partial<DeviceState>) => { if (generation === this.generation) this.update({ now: Date.now(), ...patch }); };
+      let identified = this.state.device?.root === root ? this.state.device : null;
       try {
         const status = await root.queryPermission({ mode: "readwrite" });
         if (status !== "granted") { update({ status, message: "请点击授权以访问 Kindle" }); return; }
-        await root.getDirectoryHandle("documents");
+        await assertReachable(root);
         const identity = await readIdentity(root);
         if (!identity) { update({ status: "unpaired", device: null, checkedAt: Date.now(), message: "请设置 Kindle 型号和名称以完成配对" }); return; }
-        if (this.expectedId && this.expectedId !== identity.id) throw new Error("Kindle 身份已改变，请重新选择设备");
+        if (this.expectedId && this.expectedId !== identity.id) { const error = new Error("Kindle 身份已改变，请重新选择设备"); error.name = "DeviceIdentityError"; throw error; }
         const device = { root, identity, firmware: await readFirmware(root) };
+        identified = device;
         // Recovery shares the mutation lock; a probe must never roll back a live transfer.
         await withDeviceLock(device, async () => {});
         if (generation !== this.generation) return;
         await this.handles.put({ id: identity.id, root, identity });
         update({ status: "granted", device, checkedAt: Date.now(), message: "" });
       } catch (error) {
-        update({ status: error instanceof Error && error.name === "NotAllowedError" ? "denied" : "disconnected", message: errorMessage(error) });
+        try {
+          await assertReachable(root);
+          const changed = error instanceof Error && error.name === "DeviceIdentityError";
+          update({ status: changed ? "unpaired" : identified ? "granted" : "unpaired", device: changed ? null : identified, checkedAt: Date.now(), message: errorMessage(error) });
+        } catch (rootError) {
+          update({ status: rootError instanceof Error && ["NotAllowedError", "SecurityError"].includes(rootError.name) ? "denied" : "disconnected", message: errorMessage(rootError) });
+        }
       }
     })();
     try { await this.probing; } finally { this.probing = null; }

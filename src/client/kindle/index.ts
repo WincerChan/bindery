@@ -11,3 +11,4 @@ export * from "./queue";
 export { recoverDevice } from "./transaction";
 export { errorMessage } from "./fs";
 export type { KindleDirectory, KindleFile } from "./fs";
+export type { UnreadableEntry } from "./fs";

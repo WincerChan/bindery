@@ -1,4 +1,4 @@
-import { isMissing, readBytes, readJson, writeBytes, type KindleDirectory } from "./fs";
+import { EntryAccessError, entryOperation, isMissing, optionalEntry, readBytes, readInternalJson, writeBytes, type KindleDirectory } from "./fs";
 
 export const KINDLE_MODELS = {
   KPW3: { name: "Kindle Paperwhite 3", width: 1072, height: 1448, ppi: 300, inches: 6 },
@@ -18,22 +18,22 @@ export async function validateKindle(root: KindleDirectory) {
   catch (error) { if (isMissing(error) || error instanceof Error && error.name === "TypeMismatchError") throw new Error("请选择 Kindle 磁盘根目录（必须包含 documents 和 system 文件夹）"); throw error; }
 }
 export async function readIdentity(root: KindleDirectory): Promise<DeviceIdentity | null> {
-  // Probe a known directory first: missing .bindery must not mask an unplugged drive.
-  await root.getDirectoryHandle("documents");
-  try { return parseIdentity(await readJson(await root.getDirectoryHandle(".bindery"), "device.json")); }
-  catch (error) { if (isMissing(error)) { await root.getDirectoryHandle("documents"); return null; } throw error; }
+  const value = await readInternalJson(root, "device.json");
+  return value === undefined ? null : parseIdentity(value);
 }
 export async function readFirmware(root: KindleDirectory): Promise<string | null> {
-  const system = await root.getDirectoryHandle("system");
-  try { return new TextDecoder().decode(await readBytes(system, "version.txt")).replace(/\0/g, "").trim() || null; }
-  catch (error) { if (isMissing(error)) { await root.getDirectoryHandle("documents"); return null; } throw error; }
+  try {
+    const system = await entryOperation(root, "system", () => root.getDirectoryHandle("system"));
+    if (!await optionalEntry(root, system, "version.txt", "system")) return null;
+    return await entryOperation(root, "system/version.txt", async () => new TextDecoder().decode(await readBytes(system, "version.txt")).replace(/\0/g, "").trim() || null);
+  } catch (error) { if (error instanceof EntryAccessError) return null; throw error; }
 }
 export async function pairDevice(root: KindleDirectory, model: KindleModel, name: string): Promise<PairedDevice> {
   await validateKindle(root);
   let identity = await readIdentity(root);
   if (!identity) {
     identity = parseIdentity({ id: crypto.randomUUID(), model, name: name.trim(), created_at: new Date().toISOString() });
-    await writeBytes(await root.getDirectoryHandle(".bindery", { create: true }), "device.json", JSON.stringify(identity, null, 2));
+    await entryOperation(root, ".bindery/device.json", async () => writeBytes(await root.getDirectoryHandle(".bindery", { create: true }), "device.json", JSON.stringify(identity, null, 2)));
   }
   return { root, identity, firmware: await readFirmware(root) };
 }

@@ -323,6 +323,32 @@ it("surfaces inventory failures and can recover through an explicit recheck", as
   const m = mount("books", c.input); await settle(m); expect(text(m)).toContain("设备目录无法读取"); fail = false; fire(button(m.root, "重新检测"), "click"); await settle(m); expect(text(m)).toContain("设备上还没有书籍"); expect(m.context().inventoryError()).toBe("");
 });
 
+it("keeps the device connected and shows a quiet expandable unreadable-path notice", async () => {
+  const c = await connected([record("a", "a.kfx")]), stem = "x".repeat(120);
+  const path = `documents/a.sdr/${stem}${stem}.yjr`;
+  await c.fs.write(path, "unreadable"); c.fs.windowsPathLimit = 260;
+  const m = mount("books", c.input); await settle(m);
+  expect(m.context().state().status).toBe("granted"); expect(text(m)).toContain("已连接"); expect(text(m)).not.toContain("Kindle 已断开");
+  const details = elements(m.root, "details", "data-unreadable-notice")[0]!;
+  expect(details.textContent).toContain("有 1 个条目无法读取"); expect(details.textContent).toContain("已跳过统计"); expect(details.textContent).toContain(path); expect(details.textContent).toContain("260");
+  expect(details.hasAttribute("open")).toBe(false); expect(details.getAttribute("role")).not.toBe("alert");
+  expect(m.context().inventory()!.books.map(b => b.filename)).toEqual(["a.kfx"]); expect(m.context().inventoryError()).toBe("");
+});
+
+it("reports precisely which sidecar paths could not be removed after successful book deletion", async () => {
+  const r = record("a", "a.kfx"); r.thumbnail = "thumbnail_id_a_EBOK_portrait.jpg";
+  const c = await connected([r]); await c.fs.write("documents/a.sdr/blocked", "keep"); await c.fs.write("documents/a.sdr/after", "remove"); await c.fs.write(`system/thumbnails/${r.thumbnail}`, "jpeg");
+  c.fs.injectFailure("getFile", "documents/a.sdr/blocked"); c.fs.injectFailure("remove", "documents/a.sdr/blocked");
+  const m = mount("books", c.input); await settle(m);
+  fire(button(m.root, "从设备删除 书库甲"), "click"); m.flush(); fire(button(m.root, "确认删除"), "click"); await settle(m);
+  const report = elements(m.root, "details", "data-delete-report")[0]!;
+  expect(report.textContent).toContain("书籍文件已删除"); expect(report.textContent).toContain("documents/a.sdr/blocked"); expect(report.textContent).not.toContain("documents/a.sdr/after");
+  expect(report.textContent).toContain("Kindle 本机"); expect(report.textContent).toContain("支持长路径的工具"); expect(report.textContent).toContain("NotFoundError");
+  expect(m.context().state().status).toBe("granted"); expect(text(m)).toContain("已删除 1 本设备书籍"); expect((elements(m.root, "dialog")[0] as HTMLDialogElement).open).toBe(false);
+  expect(JSON.parse(await c.fs.text(".bindery/manifest.json")).books).toEqual([]);
+  for (const path of ["documents/a.kfx", "documents/a.sdr/after", `system/thumbnails/${r.thumbnail}`]) await expect(c.fs.bytes(path)).rejects.toMatchObject({ name: "NotFoundError" });
+});
+
 it("retries only remaining books after a partially successful bulk deletion", async () => {
   const c = await connected([record("a", "a.kfx"), record("b", "b.kfx")]);
   const m = mount("books", c.input); await settle(m);

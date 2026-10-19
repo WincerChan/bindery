@@ -49,7 +49,7 @@ describe("transfer pipeline and device-side recovery", () => {
   });
   it("uses collision-safe Windows filenames and never overwrites an unrelated file, folder or sidecar", async () => {
     const fs = await fakeKindle(); await fs.write("documents/Transfer Book.KFX", "outside"); await fs.mkdir("documents/Transfer Book (2).kfx"); await fs.mkdir("documents/Transfer Book (3).sdr");
-    expect(await collisionSafeFilename(await fs.root.getDirectoryHandle("documents"), "Transfer Book")).toBe("Transfer Book (4).kfx");
+    expect(await collisionSafeFilename(await fs.root.getDirectoryHandle("documents"), "Transfer Book", fs.root)).toBe("Transfer Book (4).kfx");
     expect(safeBookStem("CON.txt")).toBe("_CON.txt"); expect(safeBookStem("../bad:name?*")).not.toMatch(/[/:?*]/); expect(safeBookStem("... ")).toBe("book"); expect(new TextEncoder().encode(safeBookStem("中".repeat(200))).length).toBeLessThanOrEqual(180);
     const device = await pairDevice(fs.root, "KPW3", "Kindle"), { transfer } = service();
     const first = await transfer.transferBook(device, bookId); const second = await transfer.transferBook(device, bookId); expect([first.filename, second.filename]).toEqual(["Transfer Book (4).kfx", "Transfer Book (5).kfx"]); expect(await fs.text("documents/Transfer Book.KFX")).toBe("outside");
@@ -95,6 +95,15 @@ describe("transfer pipeline and device-side recovery", () => {
     fs.beforeOperation = o => { if (o.operation === "close" && o.path === "/.bindery/manifest.json") fs.permission = "prompt"; };
     await expect(transfer.transferBook(device, bookId)).rejects.toMatchObject({ name: "NotAllowedError" });
     fs.beforeOperation = undefined; fs.permission = "granted"; await recoverDevice(fs.root); expect((await readManifest(fs.root)).books).toEqual([]); expect((await inventory(fs.root)).books).toEqual([]);
+  });
+  it.each(["documents/Transfer Book.kfx", ".bindery/manifest.json", `system/thumbnails/thumbnail_${"PLACEHOLDER"}_EBOK_portrait.jpg`])("reports a reachable-device write failure at %s and restores book/manifest consistency", async input => {
+    const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"), { transfer } = service();
+    const path = input.replace("PLACEHOLDER", converted.identity.contentId);
+    fs.injectFailure("close", path, "NotFoundError");
+    await expect(transfer.transferBook(device, bookId)).rejects.toMatchObject({ name: "EntryAccessError", issue: { path, reason: "NotFoundError" } });
+    expect((await readManifest(fs.root)).books).toEqual([]); expect((await inventory(fs.root)).books).toEqual([]);
+    fs.failures.clear(); await recoverDevice(fs.root);
+    expect((await transfer.transferBook(device, bookId)).filename).toBe("Transfer Book.kfx");
   });
 });
 describe("SPA transfer queue", () => {

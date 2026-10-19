@@ -30,6 +30,8 @@
 .kindle-usage-bar .fonts { background: var(--color-accent); }
 .kindle-usage-bar .other { background: var(--color-ink-4); }
 .kindle-full { flex-basis: 100%; margin: 0; }
+.kindle-entry-notice { overflow-wrap: anywhere; }
+.kindle-entry-notice summary { cursor: pointer; }
 .kindle-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .kindle-device-actions { gap: 4px; margin-left: auto; }
 .kindle-tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--color-line); margin-bottom: 28px; }

@@ -1,5 +1,7 @@
 # 阶段 4：Kindle core 交付报告
 
+后续修正：KPW3 / Windows Edge 的超长 `.sdr` 条目错误隔离、统计提示、部分删除报告及新文件路径预算见 [Kindle Windows 路径说明](kindle-windows-paths.md)。其中删除顺序与恢复清理顺序以该说明和当前代码为准。
+
 工作目录 `/workspaces/bindery-wt-k`，分支 `feat/p4-kindle-core`。仅实现非视觉引擎，没有改 Kindle 占位页、设计、UI、PWA、Python 参考或 vendored boko；没有安装依赖、联网、开监听端口、启动浏览器、commit 或 push。
 
 ## 文件及用途

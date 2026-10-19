@@ -16,6 +16,63 @@ export interface KindleDirectory {
   requestPermission(options: { mode: "readwrite" }): Promise<PermissionState>;
 }
 export const isMissing = (error: unknown) => error instanceof Error && error.name === "NotFoundError";
+export const isEntryFailure = (error: unknown) => error instanceof Error && ["NotFoundError", "NotReadableError", "InvalidStateError", "NotAllowedError", "SecurityError"].includes(error.name);
+export interface UnreadableEntry { path: string; reason: string; likelyCause: string; windowsPathLength: number }
+export const windowsPath = (path: string) => `X:\\${path.replaceAll("/", "\\")}`;
+export function entryIssue(path: string, error: unknown): UnreadableEntry {
+  const windowsPathLength = windowsPath(path).length;
+  const invalid = path.split("/").some(p => /[<>:"\\|?*\x00-\x1f]/.test(p) || /[. ]$/.test(p) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p));
+  return { path, reason: error instanceof Error ? error.name : "Error", windowsPathLength, likelyCause: windowsPathLength >= 260 ? "路径达到或超过 Windows 260 字符限制" : invalid ? "Windows 不支持的文件名" : "文件不可读或访问受限" };
+}
+export class EntryAccessError extends Error {
+  readonly issue: UnreadableEntry;
+  constructor(path: string, cause: unknown) {
+    const issue = entryIssue(path, cause);
+    super(`无法访问 ${path}（${issue.reason}；${issue.likelyCause}）`, { cause });
+    this.name = "EntryAccessError"; this.issue = issue;
+  }
+}
+class DeviceDisconnectedError extends Error {
+  constructor(cause: unknown) { super("Kindle 已断开，请重新插入后重试", { cause }); this.name = "NotFoundError"; }
+}
+/** Only a failed root sentinel establishes device loss. Preserve permission errors. */
+export async function assertReachable(root: KindleDirectory) {
+  try { await root.getDirectoryHandle("documents"); }
+  catch (error) {
+    if (error instanceof Error && ["NotAllowedError", "SecurityError"].includes(error.name)) throw error;
+    throw new DeviceDisconnectedError(error);
+  }
+}
+export async function entryOperation<T>(root: KindleDirectory, path: string, action: () => Promise<T>): Promise<T> {
+  try { return await action(); }
+  catch (error) {
+    if (!isEntryFailure(error)) throw error;
+    await assertReachable(root);
+    throw new EntryAccessError(path, error);
+  }
+}
+export const directoryEntries = (root: KindleDirectory, dir: KindleDirectory, path: string) => entryOperation(root, path, async () => {
+  const entries: (KindleDirectory | KindleFile)[] = [];
+  for await (const entry of dir.values()) entries.push(entry);
+  return entries;
+});
+/** Enumerate first: a listed entry's NotFoundError is not evidence of absence. */
+export async function optionalEntry(root: KindleDirectory, dir: KindleDirectory, name: string, path: string) {
+  return (await directoryEntries(root, dir, path)).find(e => e.name.toLowerCase() === name.toLowerCase()) ?? null;
+}
+export function assertWindowsWritePath(path: string) {
+  if (windowsPath(path).length >= 260 || entryIssue(path, null).likelyCause === "Windows 不支持的文件名") throw new Error(`文件路径不适用于 Windows：${path}`);
+}
+export class EntryReader {
+  private issues = new Map<string, UnreadableEntry>();
+  constructor(readonly root: KindleDirectory, issues: UnreadableEntry[] = []) { for (const issue of issues) this.issues.set(issue.path, issue); }
+  get unreadable() { return [...this.issues.values()]; }
+  async read<T>(path: string, action: () => Promise<T>): Promise<T | null> {
+    if (this.issues.has(path)) return null;
+    try { return await entryOperation(this.root, path, action); }
+    catch (error) { if (!(error instanceof EntryAccessError)) throw error; this.issues.set(error.issue.path, error.issue); return null; }
+  }
+}
 export const protectedEntry = (name: string) => name.startsWith("._") || [".Trashes", ".Spotlight-V100", "System Volume Information", ".Trash-1000", ".active_content_sandbox", "metadata.calibre", "driveinfo.calibre"].some(v => v.toLowerCase() === name.toLowerCase());
 /** Relative documents path only: no Windows separators, traversal or OS/calibre entries. */
 export function documentPath(path: string): string[] {
@@ -27,8 +84,11 @@ export function entryName(name: string): string {
   if (!name || name === "." || name === ".." || /[/\\\0]/.test(name)) throw new Error("非法文件名");
   return name;
 }
-export async function optionalDirectory(root: KindleDirectory, name: string) {
-  try { return await root.getDirectoryHandle(entryName(name)); } catch (error) { if (isMissing(error)) return null; throw error; }
+export async function optionalDirectory(dir: KindleDirectory, name: string, root = dir, prefix = "") {
+  const entry = await optionalEntry(root, dir, entryName(name), prefix);
+  if (!entry) return null;
+  if (entry.kind !== "directory") throw new Error(`预期文件夹：${prefix}/${name}`);
+  return entry;
 }
 export async function readBytes(root: KindleDirectory, name: string): Promise<Uint8Array<ArrayBuffer>> {
   return new Uint8Array(await (await (await root.getFileHandle(entryName(name))).getFile()).arrayBuffer());
@@ -36,17 +96,21 @@ export async function readBytes(root: KindleDirectory, name: string): Promise<Ui
 export async function readJson(root: KindleDirectory, name: string): Promise<unknown> {
   return JSON.parse(new TextDecoder().decode(await readBytes(root, name)));
 }
+export async function readInternalJson(root: KindleDirectory, name: string): Promise<unknown> {
+  await assertReachable(root);
+  const internal = await optionalDirectory(root, ".bindery");
+  if (!internal || !await optionalEntry(root, internal, name, ".bindery")) return undefined;
+  return entryOperation(root, `.bindery/${name}`, () => readJson(internal, name));
+}
 export async function writeBytes(root: KindleDirectory, name: string, data: Uint8Array<ArrayBuffer> | string | Blob) {
   const writable = await (await root.getFileHandle(entryName(name), { create: true })).createWritable();
   try { await writable.write(data); await writable.close(); }
   catch (error) { try { await writable.abort(); } catch { /* Original error carries disconnect/permission information. */ } throw error; }
 }
-export async function removeIfPresent(root: KindleDirectory, name: string, recursive = false) {
-  try { await root.removeEntry(entryName(name), { recursive }); } catch (error) { if (!isMissing(error)) throw error; }
-}
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) {
-    if (error.name === "NotFoundError") return "Kindle 已断开，请重新插入后重试";
+    if (error instanceof DeviceDisconnectedError) return error.message;
+    if (error.name === "NotFoundError") return "文件或目录无法访问，请重新检测设备";
     if (error.name === "NotAllowedError" || error.name === "SecurityError") return "没有 Kindle 读写权限，请点击授权后重试";
     if (error.name === "AbortError") return "操作已取消";
     if (error.name === "QuotaExceededError") return "Kindle 空间不足";

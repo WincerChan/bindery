@@ -33,7 +33,7 @@ function createKindleContext(manager: KindleDeviceManager, queue: () => Transfer
     if (!device) { setInventory(null); setInventoryBusy(false); return; }
     setInventoryBusy(true); setInventoryError("");
     try { const result = await deviceInventory(device); if (alive && token === revision) setInventory(result); }
-    catch (e) { if (alive && token === revision) { setInventory(null); setInventoryError(errorMessage(e)); } }
+    catch (e) { if (alive && token === revision) { setInventory(null); setInventoryError(errorMessage(e)); await manager.probe(); } }
     finally { if (alive && token === revision) setInventoryBusy(false); }
   }
   async function run(action: () => Promise<unknown>) {

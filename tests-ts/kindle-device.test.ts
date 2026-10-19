@@ -15,7 +15,7 @@ class MemoryHandles implements HandleRepository {
   async put(value: RememberedDevice) { this.devices.set(value.id, value); }
   async remove(id: string) { this.devices.delete(id); }
 }
-const tick = async () => { for (let i = 0; i < 50; i++) await Promise.resolve(); };
+const tick = async () => { for (let i = 0; i < 200; i++) await Promise.resolve(); };
 export function fontFile(filename: string, family?: string, style = "Regular") {
   if (!family) return new File([new Uint8Array([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])], filename);
   const encode = (text: string) => { const bytes = new Uint8Array(text.length * 2), view = new DataView(bytes.buffer); for (let i = 0; i < text.length; i++) view.setUint16(i * 2, text.charCodeAt(i)); return bytes; };
@@ -26,6 +26,16 @@ export function fontFile(filename: string, family?: string, style = "Regular") {
   return new File([bytes], filename);
 }
 describe("Chrome-like fake file system", () => {
+  it("retries the surviving subtree after a per-path recursive removal failure", async () => {
+    const fs = await fakeKindle(); await fs.write("documents/book.sdr/first", "remove"); await fs.write("documents/book.sdr/blocked", "keep");
+    fs.injectFailure("remove", "documents/book.sdr/blocked", "NotAllowedError");
+    const docs = await fs.root.getDirectoryHandle("documents");
+    await expect(docs.removeEntry("book.sdr", { recursive: true })).rejects.toMatchObject({ name: "NotAllowedError" });
+    const remaining = []; for await (const entry of (await docs.getDirectoryHandle("book.sdr")).values()) remaining.push(entry.name);
+    expect(remaining).toEqual(["blocked"]);
+    fs.failures.clear(); await docs.removeEntry("book.sdr", { recursive: true });
+    await expect(docs.getDirectoryHandle("book.sdr")).rejects.toMatchObject({ name: "NotFoundError" });
+  });
   it("keeps writes invisible until close, aborts, removes recursively, rejects stale handles", async () => {
     const fs = await fakeKindle(); await fs.write("documents/book.txt", "old");
     const docs = await fs.root.getDirectoryHandle("documents"), file = await docs.getFileHandle("BOOK.TXT"), snapshot = await file.getFile(), writable = await file.createWritable();
@@ -58,7 +68,7 @@ describe("pairing and persistent identity", () => {
     await manager.restore(paired.identity.id); expect(manager.snapshot().status).toBe("prompt"); expect(fs.operations).toEqual([]);
     fs.requestResult = "denied"; expect(await manager.requestPermission()).toBe("denied");
     fs.requestResult = "granted"; expect(await manager.requestPermission()).toBe("granted");
-    await fs.write(".bindery/device.json", JSON.stringify({ ...paired.identity, id: "another-device" })); await manager.probe(); expect(manager.snapshot().status).toBe("disconnected"); expect(manager.snapshot().message).toContain("身份已改变");
+    await fs.write(".bindery/device.json", JSON.stringify({ ...paired.identity, id: "another-device" })); await manager.probe(); expect(manager.snapshot().status).toBe("unpaired"); expect(manager.snapshot().message).toContain("身份已改变");
     await manager.forget(paired.identity.id); await manager.probe(); expect(manager.snapshot().status).toBe("unpaired"); expect(await manager.remembered()).toEqual([]);
   });
   it("probes while visible, pauses while hidden, resumes on focus/visibility and exposes elapsed time", async () => {
@@ -103,13 +113,14 @@ describe("inventory, fonts and safe device operations", () => {
     await deleteFontFamily(device, "Book Serif"); expect(await listFonts(fs.root)).toEqual([]); expect(await fs.text("fonts/Readme.txt")).toBe("keep"); expect(await fs.text("fonts/._random.ttf")).toBe("ignored");
     await expect(deleteBook(device, "../system/version.txt")).rejects.toThrow(); await expect(readFont(fs.root, "Readme.txt")).rejects.toThrow();
   });
-  it("serializes manifest mutations, rejects protected paths and rolls back interrupted deletion including .sdr", async () => {
+  it("serializes mutations, rejects protected paths and keeps committed book deletion if unplugged during sidecar cleanup", async () => {
     const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"); await fs.write("documents/book.kfx", "original"); await fs.write("documents/book.sdr/reading", "position");
     const calls: number[] = []; await Promise.all([withDeviceLock(device, async () => { calls.push(1); await tick(); calls.push(2); }), withDeviceLock(device, async () => { calls.push(3); })]); expect(calls).toEqual([1, 2, 3]);
     await expect(applyDevicePatches(fs.root, [{ path: ["system", "version.txt"], data: null }])).rejects.toThrow("受保护");
     fs.beforeOperation = o => { if (o.operation === "remove" && o.path === "/documents/book.sdr") fs.unplug(); };
     await expect(deleteBook(device, "book.kfx")).rejects.toMatchObject({ name: "NotFoundError" });
-    fs.beforeOperation = undefined; fs.plug(); await recoverDevice(fs.root); expect(await fs.text("documents/book.kfx")).toBe("original"); expect(await fs.text("documents/book.sdr/reading")).toBe("position");
+    fs.beforeOperation = undefined; fs.plug(); await recoverDevice(fs.root); await expect(fs.text("documents/book.kfx")).rejects.toMatchObject({ name: "NotFoundError" });
+    expect((await readManifest(fs.root)).books).toEqual([]);
   });
   it("refuses a tampered recovery path before touching any protected file", async () => {
     const fs = await fakeKindle(); await fs.write(".bindery/pending.json", JSON.stringify({ version: 1, committed: false, backups: [{ path: ["system", "version.txt"], kind: null }] })); fs.operations = [];

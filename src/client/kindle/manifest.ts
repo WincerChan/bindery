@@ -1,4 +1,4 @@
-import { entryName, isMissing, readJson, writeBytes, type KindleDirectory } from "./fs";
+import { entryName, entryOperation, readInternalJson, writeBytes, type KindleDirectory } from "./fs";
 
 export interface ManifestBook {
   book_id: string; filename: string; content_id: string; cde_content_type: "EBOK" | "PDOC";
@@ -21,12 +21,11 @@ export function parseManifest(value: unknown): DeviceManifest {
   return structuredClone(v);
 }
 export async function readManifest(root: KindleDirectory): Promise<DeviceManifest> {
-  await root.getDirectoryHandle("documents");
-  try { return parseManifest(await readJson(await root.getDirectoryHandle(".bindery"), "manifest.json")); }
-  catch (error) { if (isMissing(error)) { await root.getDirectoryHandle("documents"); return { version: 1, books: [] }; } throw error; }
+  const value = await readInternalJson(root, "manifest.json");
+  return value === undefined ? { version: 1, books: [] } : parseManifest(value);
 }
 export const manifestBytes = (manifest: DeviceManifest) => JSON.stringify(parseManifest(manifest), null, 2);
 /** For pairing/import tools. Device mutations use transaction.ts instead. */
 export async function writeManifest(root: KindleDirectory, manifest: DeviceManifest) {
-  await writeBytes(await root.getDirectoryHandle(".bindery", { create: true }), "manifest.json", manifestBytes(manifest));
+  await entryOperation(root, ".bindery/manifest.json", async () => writeBytes(await root.getDirectoryHandle(".bindery", { create: true }), "manifest.json", manifestBytes(manifest)));
 }
