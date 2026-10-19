@@ -1,0 +1,94 @@
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { deleteFontFamily, installFonts, type FontFamily } from "../../../client/kindle/fonts";
+import { deviceInventory } from "../../../client/kindle/inventory";
+import { errorMessage } from "../../../client/kindle/fs";
+import type { KindleDeviceManager } from "../../../client/kindle/device";
+import { Button, ConfirmDialog } from "../../../ui";
+import { usePageDevice } from "./device";
+import { FontSample } from "./frames";
+import { fileSize, inspectFontBatch } from "./model";
+
+export function FontsPage(props: { manager: KindleDeviceManager | null; onPreview?: (family: string) => unknown }) {
+  const { state } = usePageDevice(props.manager);
+  const [families, setFamilies] = createSignal<FontFamily[]>([]), [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal(""), [notice, setNotice] = createSignal("");
+  const [pending, setPending] = createSignal<{ files: File[]; families: FontFamily[]; deviceId: string } | null>(null);
+  const [deleting, setDeleting] = createSignal<FontFamily | null>(null), [dragging, setDragging] = createSignal(false);
+  let input!: HTMLInputElement, generation = 0, selection = 0, disposed = false;
+  const device = () => state()?.status === "granted" ? state()!.device : null;
+  const connectionKey = () => `${state()?.status}:${state()?.device?.identity.id ?? ""}`;
+  const totalSize = () => families().reduce((sum, family) => sum + family.size, 0);
+  async function scan() {
+    const current = device(), request = ++generation;
+    setFamilies([]); setError("");
+    if (!current) return;
+    setBusy(true);
+    try { const inventory = await deviceInventory(current); if (!disposed && request === generation) setFamilies(inventory.fonts); }
+    catch (error) { if (!disposed && request === generation) setError(errorMessage(error)); }
+    finally { if (!disposed && request === generation) setBusy(false); }
+  }
+  createEffect(connectionKey, () => { selection++; setPending(null); setDeleting(null); setBusy(false); void scan(); });
+  onCleanup(() => { disposed = true; generation++; selection++; });
+  async function choose(files: File[]) {
+    const current = device(); if (!current || busy()) return;
+    const request = ++selection; setError(""); setNotice(""); setPending(null);
+    try {
+      const grouped = await inspectFontBatch(files);
+      if (!disposed && request === selection && device()?.identity.id === current.identity.id) setPending({ files, families: grouped, deviceId: current.identity.id });
+    } catch (error) { if (!disposed && request === selection) setError(errorMessage(error)); }
+  }
+  async function install() {
+    const batch = pending(), current = device();
+    if (!batch || !current || batch.deviceId !== current.identity.id || busy()) return;
+    setBusy(true); setError("");
+    const key = connectionKey();
+    try {
+      await installFonts(current, batch.files);
+      if (disposed || key !== connectionKey()) return;
+      setPending(null); setNotice(`已安装 ${batch.files.length} 个字体文件。请重启 Kindle 或重新插拔后查看。`);
+      await scan();
+    } catch (error) { if (!disposed && key === connectionKey()) setError(errorMessage(error)); }
+    finally { if (!disposed && key === connectionKey()) setBusy(false); }
+  }
+  async function remove() {
+    const family = deleting(), current = device(); if (!family || !current) throw new Error("请先连接并授权 Kindle");
+    const key = connectionKey(); setBusy(true);
+    try {
+      await deleteFontFamily(current, family.name);
+      if (!disposed && key === connectionKey()) { setNotice(`已删除 ${family.name}。使用它的排版方案需要重新选择字体。`); await scan(); }
+    } finally { if (!disposed && key === connectionKey()) setBusy(false); }
+  }
+  return <section class={`kt-page ${dragging() ? "kt-dragging" : ""}`} aria-label="字体管理"
+    onDragOver={event => { event.preventDefault(); if (device() && !busy()) setDragging(true); }}
+    onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
+    onDrop={event => { event.preventDefault(); setDragging(false); if (event.dataTransfer) void choose(Array.from(event.dataTransfer.files)); }}>
+    <div class="kt-heading"><div><h2>字体</h2><p class="muted">Kindle 根目录下的 <code>fonts/</code> · {families().length} 个家族 · {families().reduce((sum, family) => sum + family.fonts.length, 0)} 个字体文件 · {fileSize(totalSize())}<br />已忽略 macOS 的 ._* 文件和 Readme.txt</p></div>
+      <div class="kt-actions"><Button variant="secondary" disabled={!device() || busy()} onClick={scan}>重新扫描</Button><Button disabled={!device() || busy()} onClick={() => input.click()}>添加字体</Button></div>
+    </div>
+    <input ref={input} type="file" multiple accept=".ttf,.otf" hidden aria-label="选择 TTF 或 OTF 字体文件" onChange={event => { void choose(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
+    <Show when={!state()}><p role="status">检测中…</p></Show>
+    <Show when={state() && !device()}><p class="notice">请连接并授权 Kindle 后查看或管理字体。<a href="/kindle/connect">连接设备</a></p></Show>
+    <Show when={busy()}><p role="status">正在读取或更新设备字体…</p></Show>
+    <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
+    <Show when={notice()}><p role="status" class="notice">{notice()}</p></Show>
+    <Show when={pending()}>{batch => <section class="kt-install" aria-label="待安装字体"><h3>将安装到 {device()?.identity.name}</h3>
+      <For each={batch().families}>{family => <p><strong>{family.name}</strong> · {family.fonts.map(font => font.filename).join("、")} · {fileSize(family.size)}</p>}</For>
+      <p class="muted">同名文件不会被覆盖；确认后写入设备。</p><div class="kt-actions"><Button disabled={busy() || !device()} onClick={install}>确认安装</Button><Button variant="quiet" disabled={busy()} onClick={() => setPending(null)}>取消</Button></div>
+    </section>}</Show>
+    <div class="kt-table-scroll"><table class="kt-font-table"><caption class="sr-only">设备已安装字体</caption><thead><tr><th>家族 / 文件</th><th>样张</th><th>字重 / 样式</th><th>大小</th><th>操作</th></tr></thead><tbody>
+      <For each={families()}>{family => <tr data-font-family={family.name}><td><strong>{family.name}</strong><small>{family.fonts.map(font => font.filename).join(" · ")}</small><small>手动安装</small></td>
+        <td><Show when={device()}>{current => <FontSample device={current()} family={family} />}</Show></td>
+        <td><div class="kt-coverage"><For each={["R", "B", "I", "BI"]}>{code => <span class={family.coverage.includes(code) ? "" : "is-missing"} title={`${({ R: "常规", B: "粗体", I: "斜体", BI: "粗斜体" } as Record<string, string>)[code]}${family.coverage.includes(code) ? "" : "（缺失）"}`}>{code}</span>}</For></div>
+          <small>{family.coverage.filter(code => !["R", "B", "I", "BI"].includes(code)).join("、")}</small>
+          <small>{["R", "B", "I", "BI"].every(code => family.coverage.includes(code)) ? "四种样式齐全" : "缺少的粗体 / 斜体可能由 Kindle 模拟"}</small></td>
+        <td>{fileSize(family.size)}</td><td><div class="kt-row-actions"><a href={`/kindle/preview?font=${encodeURIComponent(family.name)}`} onClick={event => {
+          if (props.onPreview && !event.defaultPrevented && !event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); props.onPreview(family.name); }
+        }}>用它预览</a><Button variant="quiet" disabled={busy() || !device()} onClick={() => setDeleting(family)}>从设备删除</Button></div></td></tr>}</For>
+    </tbody></table></div>
+    <Show when={device() && !busy() && families().length === 0 && !error()}><p class="muted">设备 fonts/ 目录中还没有可用字体。</p></Show>
+    <div class="kt-font-help"><div><h3>添加字体</h3><p>把 TTF / OTF 文件拖到这个页面上，或点击「添加字体」。请一起添加同一家族的常规、粗体、斜体与粗斜体文件。</p><p>R 常规 · B 粗体 · I 斜体 · BI 粗斜体。缺少的粗体和斜体可能由 Kindle 模拟，效果会与真实字形不同。</p></div><p>增删字体后，需要在 Kindle 上重启或重新插拔，字体列表才会更新。</p></div>
+    <ConfirmDialog open={Boolean(deleting())} title="从设备删除字体？" danger confirmLabel="删除整个家族" onClose={() => { if (!busy()) setDeleting(null); }} onConfirm={remove}>
+      <p>将删除 {deleting()?.name} 的全部 {deleting()?.fonts.length} 个文件。使用此字体的排版方案不会自动改写。</p>
+    </ConfirmDialog>
+  </section>;
+}
