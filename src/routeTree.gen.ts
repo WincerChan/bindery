@@ -16,6 +16,11 @@ import { Route as AppKindleRouteImport } from './routes/_app.kindle'
 import { Route as AppSecurityRouteImport } from './routes/_app.security'
 import { Route as BookBook_idCoverRouteImport } from './routes/book.$book_id.cover'
 import { Route as BookBook_idDownloadRouteImport } from './routes/book.$book_id.download'
+import { Route as BookBook_idProgressRouteImport } from './routes/book.$book_id.progress'
+import { Route as BookBook_idSearchRouteImport } from './routes/book.$book_id.search'
+import { Route as AppBookBook_idPreviewRouteImport } from './routes/_app.book.$book_id_.preview'
+import { Route as BookBook_idEpubSplatRouteImport } from './routes/book.$book_id.epub.$'
+import { Route as AppBookBook_idPreviewSectionRouteImport } from './routes/_app.book.$book_id_.preview_.$section'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -51,6 +56,32 @@ const BookBook_idDownloadRoute = BookBook_idDownloadRouteImport.update({
   path: '/book/$book_id/download',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookBook_idProgressRoute = BookBook_idProgressRouteImport.update({
+  id: '/book/$book_id/progress',
+  path: '/book/$book_id/progress',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookBook_idSearchRoute = BookBook_idSearchRouteImport.update({
+  id: '/book/$book_id/search',
+  path: '/book/$book_id/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppBookBook_idPreviewRoute = AppBookBook_idPreviewRouteImport.update({
+  id: '/book/$book_id_/preview',
+  path: '/book/$book_id/preview',
+  getParentRoute: () => AppRoute,
+} as any)
+const BookBook_idEpubSplatRoute = BookBook_idEpubSplatRouteImport.update({
+  id: '/book/$book_id/epub/$',
+  path: '/book/$book_id/epub/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppBookBook_idPreviewSectionRoute =
+  AppBookBook_idPreviewSectionRouteImport.update({
+    id: '/book/$book_id_/preview_/$section',
+    path: '/book/$book_id/preview/$section',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -59,6 +90,11 @@ export interface FileRoutesByFullPath {
   '/security': typeof AppSecurityRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/progress': typeof BookBook_idProgressRoute
+  '/book/$book_id/search': typeof BookBook_idSearchRoute
+  '/book/$book_id/preview': typeof AppBookBook_idPreviewRoute
+  '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
+  '/book/$book_id/preview/$section': typeof AppBookBook_idPreviewSectionRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -67,6 +103,11 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/progress': typeof BookBook_idProgressRoute
+  '/book/$book_id/search': typeof BookBook_idSearchRoute
+  '/book/$book_id/preview': typeof AppBookBook_idPreviewRoute
+  '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
+  '/book/$book_id/preview/$section': typeof AppBookBook_idPreviewSectionRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -77,6 +118,11 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/progress': typeof BookBook_idProgressRoute
+  '/book/$book_id/search': typeof BookBook_idSearchRoute
+  '/_app/book/$book_id_/preview': typeof AppBookBook_idPreviewRoute
+  '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
+  '/_app/book/$book_id_/preview_/$section': typeof AppBookBook_idPreviewSectionRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -87,6 +133,11 @@ export interface FileRouteTypes {
     | '/security'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/progress'
+    | '/book/$book_id/search'
+    | '/book/$book_id/preview'
+    | '/book/$book_id/epub/$'
+    | '/book/$book_id/preview/$section'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -95,6 +146,11 @@ export interface FileRouteTypes {
     | '/'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/progress'
+    | '/book/$book_id/search'
+    | '/book/$book_id/preview'
+    | '/book/$book_id/epub/$'
+    | '/book/$book_id/preview/$section'
   id:
     | '__root__'
     | '/_app'
@@ -104,6 +160,11 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/progress'
+    | '/book/$book_id/search'
+    | '/_app/book/$book_id_/preview'
+    | '/book/$book_id/epub/$'
+    | '/_app/book/$book_id_/preview_/$section'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -111,6 +172,9 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   BookBook_idCoverRoute: typeof BookBook_idCoverRoute
   BookBook_idDownloadRoute: typeof BookBook_idDownloadRoute
+  BookBook_idProgressRoute: typeof BookBook_idProgressRoute
+  BookBook_idSearchRoute: typeof BookBook_idSearchRoute
+  BookBook_idEpubSplatRoute: typeof BookBook_idEpubSplatRoute
 }
 
 declare module '@tanstack/solid-router' {
@@ -164,6 +228,41 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof BookBook_idDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/book/$book_id/progress': {
+      id: '/book/$book_id/progress'
+      path: '/book/$book_id/progress'
+      fullPath: '/book/$book_id/progress'
+      preLoaderRoute: typeof BookBook_idProgressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book/$book_id/search': {
+      id: '/book/$book_id/search'
+      path: '/book/$book_id/search'
+      fullPath: '/book/$book_id/search'
+      preLoaderRoute: typeof BookBook_idSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/book/$book_id_/preview': {
+      id: '/_app/book/$book_id_/preview'
+      path: '/book/$book_id/preview'
+      fullPath: '/book/$book_id/preview'
+      preLoaderRoute: typeof AppBookBook_idPreviewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/book/$book_id/epub/$': {
+      id: '/book/$book_id/epub/$'
+      path: '/book/$book_id/epub/$'
+      fullPath: '/book/$book_id/epub/$'
+      preLoaderRoute: typeof BookBook_idEpubSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/book/$book_id_/preview_/$section': {
+      id: '/_app/book/$book_id_/preview_/$section'
+      path: '/book/$book_id/preview/$section'
+      fullPath: '/book/$book_id/preview/$section'
+      preLoaderRoute: typeof AppBookBook_idPreviewSectionRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -171,12 +270,16 @@ interface AppRouteChildren {
   AppKindleRoute: typeof AppKindleRoute
   AppSecurityRoute: typeof AppSecurityRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppBookBook_idPreviewRoute: typeof AppBookBook_idPreviewRoute
+  AppBookBook_idPreviewSectionRoute: typeof AppBookBook_idPreviewSectionRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppKindleRoute: AppKindleRoute,
   AppSecurityRoute: AppSecurityRoute,
   AppIndexRoute: AppIndexRoute,
+  AppBookBook_idPreviewRoute: AppBookBook_idPreviewRoute,
+  AppBookBook_idPreviewSectionRoute: AppBookBook_idPreviewSectionRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -186,6 +289,9 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   BookBook_idCoverRoute: BookBook_idCoverRoute,
   BookBook_idDownloadRoute: BookBook_idDownloadRoute,
+  BookBook_idProgressRoute: BookBook_idProgressRoute,
+  BookBook_idSearchRoute: BookBook_idSearchRoute,
+  BookBook_idEpubSplatRoute: BookBook_idEpubSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
