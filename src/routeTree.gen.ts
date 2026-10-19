@@ -67,6 +67,7 @@ import { Route as BookBook_idCoverUrlRouteImport } from './routes/book.$book_id.
 import { Route as BookBook_idEpubSplatRouteImport } from './routes/book.$book_id.epub.$'
 import { Route as BookBook_idMetadataFetchRouteImport } from './routes/book.$book_id.metadata.fetch'
 import { Route as AppBookBook_idPreviewSectionRouteImport } from './routes/_app.book.$book_id_.preview_.$section'
+import { Route as KindleContentBook_idModeEpubSplatRouteImport } from './routes/kindle.content.$book_id.$mode.epub.$'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -359,6 +360,12 @@ const AppBookBook_idPreviewSectionRoute =
     path: '/book/$book_id/preview/$section',
     getParentRoute: () => AppRoute,
   } as any)
+const KindleContentBook_idModeEpubSplatRoute =
+  KindleContentBook_idModeEpubSplatRouteImport.update({
+    id: '/kindle/content/$book_id/$mode/epub/$',
+    path: '/kindle/content/$book_id/$mode/epub/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -418,6 +425,7 @@ export interface FileRoutesByFullPath {
   '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
   '/book/$book_id/metadata/fetch': typeof BookBook_idMetadataFetchRoute
   '/book/$book_id/preview/$section': typeof AppBookBook_idPreviewSectionRoute
+  '/kindle/content/$book_id/$mode/epub/$': typeof KindleContentBook_idModeEpubSplatRoute
 }
 export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
@@ -476,6 +484,7 @@ export interface FileRoutesByTo {
   '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
   '/book/$book_id/metadata/fetch': typeof BookBook_idMetadataFetchRoute
   '/book/$book_id/preview/$section': typeof AppBookBook_idPreviewSectionRoute
+  '/kindle/content/$book_id/$mode/epub/$': typeof KindleContentBook_idModeEpubSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -537,6 +546,7 @@ export interface FileRoutesById {
   '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
   '/book/$book_id/metadata/fetch': typeof BookBook_idMetadataFetchRoute
   '/_app/book/$book_id_/preview_/$section': typeof AppBookBook_idPreviewSectionRoute
+  '/kindle/content/$book_id/$mode/epub/$': typeof KindleContentBook_idModeEpubSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -598,6 +608,7 @@ export interface FileRouteTypes {
     | '/book/$book_id/epub/$'
     | '/book/$book_id/metadata/fetch'
     | '/book/$book_id/preview/$section'
+    | '/kindle/content/$book_id/$mode/epub/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/library'
@@ -656,6 +667,7 @@ export interface FileRouteTypes {
     | '/book/$book_id/epub/$'
     | '/book/$book_id/metadata/fetch'
     | '/book/$book_id/preview/$section'
+    | '/kindle/content/$book_id/$mode/epub/$'
   id:
     | '__root__'
     | '/_app'
@@ -716,6 +728,7 @@ export interface FileRouteTypes {
     | '/book/$book_id/epub/$'
     | '/book/$book_id/metadata/fetch'
     | '/_app/book/$book_id_/preview_/$section'
+    | '/kindle/content/$book_id/$mode/epub/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -754,6 +767,7 @@ export interface RootRouteChildren {
   WishlistWish_idUpdateRoute: typeof WishlistWish_idUpdateRoute
   BookBook_idEpubSplatRoute: typeof BookBook_idEpubSplatRoute
   BookBook_idMetadataFetchRoute: typeof BookBook_idMetadataFetchRoute
+  KindleContentBook_idModeEpubSplatRoute: typeof KindleContentBook_idModeEpubSplatRoute
 }
 
 declare module '@tanstack/solid-router' {
@@ -1164,6 +1178,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AppBookBook_idPreviewSectionRouteImport
       parentRoute: typeof AppRoute
     }
+    '/kindle/content/$book_id/$mode/epub/$': {
+      id: '/kindle/content/$book_id/$mode/epub/$'
+      path: '/kindle/content/$book_id/$mode/epub/$'
+      fullPath: '/kindle/content/$book_id/$mode/epub/$'
+      preLoaderRoute: typeof KindleContentBook_idModeEpubSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1276,6 +1297,8 @@ const rootRouteChildren: RootRouteChildren = {
   WishlistWish_idUpdateRoute: WishlistWish_idUpdateRoute,
   BookBook_idEpubSplatRoute: BookBook_idEpubSplatRoute,
   BookBook_idMetadataFetchRoute: BookBook_idMetadataFetchRoute,
+  KindleContentBook_idModeEpubSplatRoute:
+    KindleContentBook_idModeEpubSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

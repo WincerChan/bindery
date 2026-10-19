@@ -63,6 +63,10 @@ export function KindleTransferPage(props: { books: KindleLibraryBook[]; loadProf
   const [selected, setSelected] = createSignal<string[]>([]), [page, setPage] = createSignal(1);
   const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profile, setProfile] = createSignal("default"), [profileError, setProfileError] = createSignal("");
   const [profilesBusy, setProfilesBusy] = createSignal(false), [overwrite, setOverwrite] = createSignal(false), [notice, setNotice] = createSignal("");
+  const profileSummary = () => {
+    const settings = profiles().find(item => item.id === profile())?.settings;
+    return [settings?.stripFonts ? "去掉书籍自带字体" : "", settings?.stripImages ? "去掉所有图片（保留封面）" : ""].filter(Boolean).join(" · ");
+  };
   // Probe notifications replace DeviceState every 1.5 s; only an actual target change resets choices.
   const deviceId = createMemo(() => k.ready() && k.state().status === "granted" ? k.state().device?.identity.id || "" : "");
   let profileRevision = 0;
@@ -112,6 +116,7 @@ export function KindleTransferPage(props: { books: KindleLibraryBook[]; loadProf
         <h2>设置</h2>
         <div class="form-stack"><Select label="目标设备" disabled><option>{deviceId() ? `${k.state().device!.identity.name}（当前连接）` : "尚未连接设备"}</option></Select>
           <Select label="排版方案" value={profile()} disabled={!deviceId() || profilesBusy()} onChange={e => setProfile(e.currentTarget.value)}><For each={profiles()}>{p => <option value={p.id}>{p.name}</option>}</For></Select>
+          <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
           <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId())}>重试</Button></p></Show>
           <a class="kindle-preview-link" href="/kindle/preview">预览并调整排版方案</a>
           <Checkbox label="写入封面缩略图（有封面时自动写入）" checked disabled />

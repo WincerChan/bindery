@@ -6,7 +6,7 @@ import { BinderyDatabase } from "../src/server/db";
 import { LibraryStorage } from "../src/server/storage";
 import { signIn } from "../src/server/auth";
 import { KindleProfiles } from "../src/server/kindle/profiles";
-import { defaultProfile, EMPTY_SETTINGS, generateProfileCss, profileInput } from "../src/client/kindle/profiles";
+import { defaultProfile, EMPTY_SETTINGS, generateProfileCss, profileInput, profileSettings } from "../src/client/kindle/profiles";
 
 const scope = vi.hoisted(() => ({ request: null as Request | null, library: null as LibraryStorage | null }));
 vi.mock("../src/server/runtime", () => ({ getLibrary: () => scope.library }));
@@ -31,6 +31,22 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 const input = (deviceId = "device-a") => ({ deviceId, name: "正文", settings: { ...EMPTY_SETTINGS, marginX: 0.5, marginY: 0.75, paragraphSpacing: 0.25, lineHeight: 1.5, textIndent: 2, justify: true, fontFamily: "Book Serif", customCss: "h1 { text-align: center; }" } });
 
 describe("Kindle typesetting profiles", () => {
+  it("loads legacy settings with both toggles off and round-trips validated toggles through settings_json", () => {
+    const profiles = new KindleProfiles(scope.library!.db), value = input();
+    const { stripFonts: _fonts, stripImages: _images, ...legacy } = value.settings;
+    expect(profileSettings(legacy)).toEqual(value.settings);
+    const created = profiles.create({ ...value, settings: { ...legacy, stripFonts: true, stripImages: true } });
+    expect(new KindleProfiles(scope.library!.db).list(value.deviceId)[1]).toEqual(created);
+    const changed = profiles.update({ ...created, settings: { ...created.settings, stripFonts: false } });
+    expect(new KindleProfiles(scope.library!.db).list(value.deviceId)[1]).toEqual(changed);
+    scope.library!.db.run("UPDATE kindle_profiles SET settings_json = ? WHERE id = ?", JSON.stringify(legacy), created.id);
+    expect(profiles.list(value.deviceId)[1].settings).toEqual(value.settings);
+    for (const key of ["stripFonts", "stripImages"]) for (const invalid of [null, 1, "true", [], {}]) {
+      expect(() => profiles.update({ ...created, settings: { ...value.settings, [key]: invalid } })).toThrow(key);
+    }
+    expect(generateProfileCss({ ...created, settings: profileSettings(legacy) })).toBe(generateProfileCss({ ...created, settings: value.settings }));
+    profiles.delete({ deviceId: value.deviceId, id: created.id }); expect(profiles.list(value.deviceId)).toHaveLength(1);
+  });
   it("adds only its optional table, preserves every legacy DDL/row and remains idempotent", () => {
     const db = scope.library!.db; db.run("INSERT INTO app_settings(key, value) VALUES (?, ?)", "kindle-test", "preserve");
     const legacy = db.all("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name"), rows = db.all("SELECT * FROM app_settings");

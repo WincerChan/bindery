@@ -5,11 +5,10 @@ import { errorMessage } from "../../../client/kindle/fs";
 import { KINDLE_MODELS, type KindleModel } from "../../../client/kindle/identity";
 import type { FontFamily, KindleDeviceManager } from "../../../client/kindle";
 import { validateCss } from "../../../core/css";
-import { contentUrl } from "../../reader/model";
 import { Button, Checkbox, ConfirmDialog, Dialog, Select, Textarea, TextField } from "../../../ui";
 import { usePageDevice } from "./device";
 import { ChapterFrame } from "./frames";
-import { screenFor, type PreviewChapter, type PreviewData } from "./model";
+import { previewContentUrl, screenFor, type PreviewChapter, type PreviewData } from "./model";
 
 export interface ProfileApi {
   list(deviceId: string): Promise<TypesettingProfile[]>;
@@ -160,12 +159,14 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
         <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.min} max={range.max} step={range.step} value={draft().settings[range.key] ?? range.fallback} disabled={immutable()} onInput={event => edit(range.key, Number(event.currentTarget.value))} />
         <button class="quiet" type="button" disabled={immutable() || draft().settings[range.key] === null} onClick={() => edit(range.key, null)}>沿用书籍</button></div>}</For>
       <Select label="字体（设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={immutable()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
-        <option value="">设备默认字体（保留书籍字体样式）</option>
+        <option value="">{draft().settings.stripFonts ? "设备默认字体" : "设备默认字体（保留书籍字体样式）"}</option>
         <Show when={draft().settings.fontFamily && !fonts().some(font => font.name === draft().settings.fontFamily)}><option value={draft().settings.fontFamily!}>{draft().settings.fontFamily}（尚未在当前设备读取到）</option></Show>
         <For each={fonts()}>{family => <option value={family.name}>{family.name}</option>}</For>
       </Select>
       <Show when={draft().settings.fontFamily && !fonts().some(font => font.name === draft().settings.fontFamily)}><p class="muted">所选字体当前不可用，预览暂用替代字体；传书前请确认设备已安装此字体。</p></Show>
       <Checkbox label="两端对齐" checked={draft().settings.justify === true} disabled={immutable()} onChange={event => edit("justify", event.currentTarget.checked)} />
+      <div class="field"><Checkbox label="去掉书籍自带字体" aria-describedby="kt-strip-fonts-help" checked={draft().settings.stripFonts} disabled={immutable()} onChange={event => edit("stripFonts", event.currentTarget.checked)} /><span id="kt-strip-fonts-help" class="field-hint">Kindle 上使用你选的字体；书里嵌入的字体文件会被移除</span></div>
+      <div class="field"><Checkbox label="去掉所有图片" aria-describedby="kt-strip-images-help" checked={draft().settings.stripImages} disabled={immutable()} onChange={event => edit("stripImages", event.currentTarget.checked)} /><span id="kt-strip-images-help" class="field-hint">保留封面；正文插图会被移除，文件更小</span></div>
       <details class="kt-advanced"><summary>更多设置</summary><div>
         <TextField label="方案名称" value={draft().name} disabled={immutable()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
         <Button variant="quiet" disabled={immutable() || draft().settings.justify === null} onClick={() => edit("justify", null)}>{draft().settings.justify === null ? "对齐方式沿用书籍" : "对齐方式恢复书籍设置"}</Button>
@@ -179,8 +180,8 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       <Show when={chapterLoading()}><p role="status">正在读取章节…</p></Show><Show when={chapterError()}><p role="alert" class="field-error">{chapterError()}</p></Show>
       <Show when={bookId() && chapterError()}><Button variant="secondary" disabled={chapterLoading()} onClick={() => chooseBook(bookId())}>重新读取章节</Button></Show>
       <Show when={!props.data.books.length}><p class="notice">书库中还没有可预览的 EPUB。</p></Show><Show when={bookId() && !sections().length && !chapterLoading() && !chapterError()}><p class="notice">这本书没有可预览的章节。</p></Show>
-      <ChapterFrame src={sections()[chapter()] ? contentUrl(bookId(), sections()[chapter()].item_path) : ""} model={effectiveModel()} css={css()} device={fontDevice()} family={fonts().find(font => font.name === draft().settings.fontFamily)} />
-      <p class="muted">预览保留书籍本身的样式。实际效果还会叠加 Kindle 自身的字号与页边距设置；浏览器与 Kindle 的排版引擎也有差异。</p>
+      <ChapterFrame src={sections()[chapter()] ? previewContentUrl(bookId(), sections()[chapter()].item_path, draft().settings) : ""} model={effectiveModel()} css={css()} device={fontDevice()} family={fonts().find(font => font.name === draft().settings.fontFamily)} />
+      <p class="muted">预览应用当前方案的字体和图片处理。实际效果还会叠加 Kindle 自身的字号与页边距设置；浏览器与 Kindle 的排版引擎也有差异。</p>
     </section></div>
     <Dialog open={saveAs()} title="另存为排版方案" onClose={() => { if (!busy()) setSaveAs(false); }}><form onSubmit={event => { event.preventDefault(); void save(true); }}>
       <TextField label="新方案名称" value={saveName()} maxlength={100} required disabled={busy()} onInput={event => setSaveName(event.currentTarget.value)} /><p class="muted">保存到 {target()?.name}。默认方案始终保留。</p>

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onSettled, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onSettled, Show } from "solid-js";
 import { errorMessage } from "../../../client/kindle/fs";
 import type { FontFamily, KindleModel, PairedDevice } from "../../../client/kindle";
 import { DocumentFonts, PreviewDocument } from "./frame";
@@ -11,7 +11,9 @@ export function ChapterFrame(props: { src: string; model: KindleModel; css: stri
   const dimensions = () => screenFor(props.model);
   const [loaded, setLoaded] = createSignal(0);
   const clear = () => { generation++; controller?.destroy(); controller = undefined; setError(""); };
-  createEffect(() => props.src, clear);
+  // Settings edits may recompute the prop without changing the chapter / asset mode.
+  const source = createMemo(() => props.src);
+  createEffect(source, clear);
   function onLoad() {
     clear();
     if (!props.src || disposed) return;

@@ -94,8 +94,8 @@ export function parseKfxEntities(data: Uint8Array, types?: readonly number[]): K
     const encoding = new IonReader(range(offset + 10, entityHeader - 10)).read();
     if (ionField(encoding, 410) !== 0 || ionField(encoding, 411) !== 0) throw new Error("不支持压缩或加密的 KFX 实体");
     // Raw resource entities have image/font bytes rather than Ion payloads.
-    if (type === 417) continue;
-    result.push({ id, type, value: new IonReader(range(offset + entityHeader, size - entityHeader)).read() });
+    const payload = range(offset + entityHeader, size - entityHeader);
+    result.push({ id, type, value: type === 417 || type === 418 ? payload : new IonReader(payload).read() });
   }
   return result;
 }

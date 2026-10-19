@@ -16,6 +16,8 @@ import { recoverDevice } from "../src/client/kindle/transaction";
 import { TransferQueue } from "../src/client/kindle/queue";
 import { WRITE_CHUNK_SIZE, writeBytes } from "../src/client/kindle/fs";
 import { TransferProgressReporter, type TransferProgress } from "../src/client/kindle/progress";
+import { assetEpub } from "./support/kindle-assets";
+import { EpubArchive } from "../src/core/epub";
 
 const bookId = "a".repeat(32), wasm = readFileSync(new URL("../vendor/boko/boko_bg.wasm", import.meta.url)), cover = readFileSync(new URL("./fixtures/cover 中文.png", import.meta.url));
 const epub = new Uint8Array(buildEpub(parseBook("书名：Transfer Book\n第一章\n正文 paragraph", "source"), metadataFromDict({ book_id: bookId, title: "Transfer Book", identifier: "urn:uuid:transfer-tests" }), { cover: { name: "cover.png", data: cover } }));
@@ -38,6 +40,14 @@ const settleQueue = async (queue: TransferQueue) => {
   throw new Error("queue did not settle");
 };
 describe("transfer pipeline and device-side recovery", () => {
+  it("passes both asset toggles to conversion while retaining the original cover for the Kindle thumbnail", async () => {
+    const original = assetEpub(), before = original.slice(), fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle");
+    const { transfer, inputs } = service({ fetch: async () => new Response(original), profile: async deviceId => ({ ...defaultProfile(deviceId), id: "stripped", builtIn: false, settings: { ...EMPTY_SETTINGS, stripFonts: true, stripImages: true } }) });
+    const record = await transfer.transferBook(device, bookId, "stripped"), archive = new EpubArchive(inputs[0]);
+    expect(archive.entries.some(entry => entry.name.includes("/Fonts/"))).toBe(false);
+    expect(archive.entries.filter(entry => entry.name.includes("/Images/")).map(entry => entry.name)).toEqual(["EPUB/Images/cover.png"]);
+    expect(await fs.bytes(`system/thumbnails/${record.thumbnail}`)).toEqual(thumbnail); expect(original).toEqual(before);
+  });
   it("patches only a copy, converts, writes actual KFX identity thumbnail, commits manifest and deletes sidecars", async () => {
     const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Paperwhite"), { transfer, fetched, inputs } = service(), original = epub.slice(), progress: string[] = [];
     const record = await transfer.transferBook(device, bookId, "custom", { progress: value => { if (progress.at(-1) !== value.state) progress.push(value.state); } });

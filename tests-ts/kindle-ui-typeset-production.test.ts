@@ -35,17 +35,22 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
         const url = "http://localhost/_serverFn/data/" + id + (method === "GET" ? "?args=" + encodeURIComponent(args) : "");
         return handler(new Request(url, { method, ...(method === "POST" ? { body: args } : {}), headers: { Cookie: auth ? "bindery_session=" + session : "", Origin: "http://localhost", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json", "X-Server-Function-Format": "8" } }));
       }
-      const settings = { marginX: 1, marginY: null, lineHeight: 1.6, paragraphSpacing: null, textIndent: 2, justify: true, fontFamily: null, customCss: "" };
+      const settings = { marginX: 1, marginY: null, lineHeight: 1.6, paragraphSpacing: null, textIndent: 2, justify: true, fontFamily: null, customCss: "", stripFonts: true, stripImages: true };
       const input = { deviceId: "test-device", name: "正文", settings };
       for (const [name, method, data] of [["getPreview", "GET", bookId], ["getChapters", "GET", bookId], ["listKindleProfiles", "GET", "test-device"], ["createKindleProfile", "POST", input], ["updateKindleProfile", "POST", { ...input, id: "missing" }], ["deleteKindleProfile", "POST", { deviceId: "test-device", id: "missing" }]]) {
         const response = await rpc(name, method, data, false); assert.equal(response.status, 303, name); await response.text();
       }
       const result = async response => { assert.equal(response.status, 200); const payload = await response.json(); assert.ok(!payload.error, JSON.stringify(payload)); return payload.result; };
       const preview = await result(await rpc("getPreview", "GET", bookId)); assert.equal(preview.bookId, bookId); assert.ok(preview.sections.length > 0);
+      const assetPath = "/kindle/content/" + bookId + "/11/epub/" + preview.sections[0].item_path;
+      assert.equal((await get(assetPath, false)).status, 303);
+      const asset = await get(assetPath); assert.equal(asset.status, 200); assert.ok((await asset.text()).includes('<base href="http://localhost/kindle/content/'));
       assert.deepEqual(await result(await rpc("getChapters", "GET", bookId)), preview.sections);
       const initial = await result(await rpc("listKindleProfiles", "GET", "test-device")); assert.equal(initial.length, 1); assert.equal(initial[0].builtIn, true);
       const created = await result(await rpc("createKindleProfile", "POST", input)); assert.equal(created.deviceId, "test-device");
+      assert.equal(created.settings.stripFonts, true); assert.equal(created.settings.stripImages, true);
       const updated = await result(await rpc("updateKindleProfile", "POST", { ...input, id: created.id, name: "已更新" })); assert.equal(updated.name, "已更新");
+      const stored = (await result(await rpc("listKindleProfiles", "GET", "test-device")))[1]; assert.deepEqual(stored.settings, settings);
       assert.equal((await result(await rpc("listKindleProfiles", "GET", "another-device"))).length, 1);
       await result(await rpc("deleteKindleProfile", "POST", { deviceId: "test-device", id: created.id }));
       assert.equal((await result(await rpc("listKindleProfiles", "GET", "test-device"))).length, 1);

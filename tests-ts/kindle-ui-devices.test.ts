@@ -393,9 +393,10 @@ it("keeps the queue running while moving among Kindle pages, supports cancel and
 
 it("uses the selected profile and overwrite setting, shows failure, and retries profile loading", async () => {
   const c = await connected([record("a", "a.kfx")]); const transfer = vi.fn(async () => { throw new Error("Kindle 空间不足"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
-  let fail = true; c.input.loadProfiles = async id => { if (fail) throw new Error("配置服务暂时不可用"); return [{ ...defaultProfile(id), id: "wide", name: "宽边距", builtIn: false }]; };
+  let fail = true; c.input.loadProfiles = async id => { if (fail) throw new Error("配置服务暂时不可用"); const profile = defaultProfile(id); return [{ ...profile, id: "wide", name: "宽边距", builtIn: false, settings: { ...profile.settings, stripFonts: true, stripImages: true } }]; };
   const m = mount("transfer", c.input); await settle(m); expect(text(m)).toContain("配置服务暂时不可用"); fail = false; fire(button(m.root, "重试"), "click"); await settle(m);
   fire(button(m.root, "全部"), "click"); m.flush(); const select = elements(m.root, "label").find(label => label.firstChild?.textContent === "排版方案")!.getElementsByTagName("select")[0] as HTMLSelectElement; select.value = "wide"; fire(select, "change"); m.flush(); const overwrite = elements(m.root, "input").find(el => el.getAttribute("type") === "checkbox" && el.parentNode?.textContent === "覆盖设备上的同名书") as HTMLInputElement; overwrite.checked = true; fire(overwrite, "change"); m.flush();
+  expect(elements(m.root, "p", "data-profile-summary")[0]!.textContent).toBe("去掉书籍自带字体 · 去掉所有图片（保留封面）");
   const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); expect(text(m)).toContain("约 4 B（按设备已有副本）"); fire(button(m.root, "开始传输（1）"), "click"); await settle(m);
   expect(transfer).toHaveBeenCalledWith(expect.anything(), "a", "wide", expect.objectContaining({ overwrite: true })); expect(text(m)).toContain("Kindle 空间不足");
 });

@@ -337,6 +337,31 @@ it("hydrates preview with real chapter URLs and updates device fonts, profile CS
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("2.5");
 });
 
+it("updates preview asset modes live and includes both toggles in dirty, reset, save and save-as", async () => {
+  const { manager, id } = await paired(), profiles = api(), onDirty = vi.fn();
+  const mounted = mount("preview", manager, { profiles, onDirty }); await settle();
+  const toggle = (label: string) => elements(mounted.root, "label").find(node => node.textContent === label)!.getElementsByTagName("input")[0] as HTMLInputElement;
+  const change = (label: string, checked: boolean) => { const node = toggle(label); node.checked = checked; fire(node, "change"); ui.flush(); };
+  expect(toggle("去掉书籍自带字体").disabled).toBe(true);
+  expect(toggle("去掉所有图片").disabled).toBe(true);
+  expect(mounted.root.textContent).toContain("Kindle 上使用你选的字体；书里嵌入的字体文件会被移除");
+  expect(mounted.root.textContent).toContain("保留封面；正文插图会被移除，文件更小");
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  const frame = elements(mounted.root, "iframe")[0]!;
+  change("去掉书籍自带字体", true); expect(frame.getAttribute("src")).toContain(`/kindle/content/a/10/epub/`); expect(onDirty).toHaveBeenLastCalledWith(true);
+  change("去掉所有图片", true); expect(frame.getAttribute("src")).toContain(`/kindle/content/a/11/epub/`);
+  fire(button(mounted.root, "重置"), "click"); ui.flush(); expect(onDirty).toHaveBeenLastCalledWith(false); expect(frame.getAttribute("src")).toContain("/book/a/epub/");
+  change("去掉所有图片", true); expect(frame.getAttribute("src")).toContain(`/kindle/content/a/01/epub/`);
+  change("去掉书籍自带字体", true);
+  fire(button(mounted.root, "保存方案"), "click"); await settle();
+  expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "custom", deviceId: id, settings: expect.objectContaining({ stripFonts: true, stripImages: true }) }));
+  expect(onDirty).toHaveBeenLastCalledWith(false);
+  fire(button(mounted.root, "另存为"), "click"); ui.flush(); setValue(labels(mounted.root, "input", "新方案名称"), "精简正文");
+  fire(elements(mounted.root, "form")[0]!, "submit"); await settle();
+  expect(profiles.create).toHaveBeenCalledWith(expect.objectContaining({ name: "精简正文", settings: expect.objectContaining({ stripFonts: true, stripImages: true }) }));
+  expect(toggle("去掉书籍自带字体").checked).toBe(true); expect(toggle("去掉所有图片").checked).toBe(true);
+});
+
 it("takes over a chapter already loaded before hydration and applies CSS and device fonts only inside its frame", async () => {
   const { manager, fs } = await paired(["Book-Regular.ttf"]), doc = clientDocument();
   const head = doc.createElement("head"), body = doc.createElement("body"), fonts = new Set<FontFace>(), appFonts = new Set<FontFace>();

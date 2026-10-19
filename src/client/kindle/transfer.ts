@@ -2,12 +2,12 @@ import { getBokoConverter, type EpubConverter } from "../boko/client";
 import { ConversionEstimate } from "../boko/estimate";
 import { readKfxIdentity } from "../boko/kfx";
 import { extractCover } from "../../core/epub";
-import { appendProfileCss } from "./epub";
+import { applyTypesettingProfile } from "./epub";
 import { assertWindowsWritePath, directoryEntries, entryName, entryOperation, optionalDirectory, optionalEntry, type KindleDirectory } from "./fs";
 import { assertDevice } from "./identity";
 import type { PairedDevice } from "./identity";
 import { manifestBytes, readManifest, thumbnailName, type ManifestBook } from "./manifest";
-import { defaultProfile, DEFAULT_PROFILE_ID, generateProfileCss, type TypesettingProfile } from "./profiles";
+import { defaultProfile, DEFAULT_PROFILE_ID, profileSettings, type TypesettingProfile } from "./profiles";
 import { applyDevicePatches, withDeviceLock, type DevicePatch } from "./transaction";
 import { makeThumbnail } from "./thumbnail";
 import { listFonts } from "./fonts";
@@ -66,7 +66,7 @@ export class KindleTransferService {
     check(); await assertDevice(device); progress.report({ state: "转换", phase: "download", message: "正在读取书库 EPUB" });
     const profile = await this.dependencies.profile(device.identity.id, profileId);
     if (profile.deviceId !== device.identity.id || profile.id !== profileId) throw new Error("排版配置不属于此 Kindle");
-    const css = generateProfileCss(profile);
+    if (profile.id !== DEFAULT_PROFILE_ID) profileSettings(profile.settings);
     if (profile.id !== DEFAULT_PROFILE_ID && profile.settings.fontFamily && !(await listFonts(device.root)).some(f => f.name === profile.settings.fontFamily)) throw new Error(`Kindle 上未安装字体：${profile.settings.fontFamily}`);
     const response = await this.dependencies.fetch(`/book/${bookId}/download`, { credentials: "same-origin", redirect: "error", signal: options.signal });
     if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "登录已过期，请重新登录" : `书库 EPUB 下载失败（${response.status}）`);
@@ -95,7 +95,7 @@ export class KindleTransferService {
     let offset = 0; for (const chunk of chunks) { epub.set(chunk, offset); offset += chunk.byteLength; }
     chunks.length = 0;
     check();
-    const copy = appendProfileCss(epub, css);
+    const copy = applyTypesettingProfile(epub, profile);
     const conversionStartedAt = Date.now(), estimateMs = this.conversionEstimate.durationMs(copy.byteLength);
     let conversionMessage = "正在转换 KFX", measuredStart = conversionStartedAt, measuredEnd: number | undefined;
     const reportConversion = () => {

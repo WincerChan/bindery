@@ -3,6 +3,15 @@ import { EpubArchive, resolveOpfHref } from "../../core/epub";
 import { appendStylesheetLink } from "../../core/epub-html";
 import { appendElement, attr, child, children, OPF_NS, serializeElementTree } from "../../core/xml";
 import { validateCss } from "../../core/css";
+import { stripEpubAssets } from "../../core/epub-strip";
+import { DEFAULT_PROFILE_ID, generateProfileCss, profileSettings, type TypesettingProfile } from "./profiles";
+
+export function applyTypesettingProfile(data: Uint8Array, profile: TypesettingProfile): Uint8Array<ArrayBuffer> {
+  if (profile.id === DEFAULT_PROFILE_ID) return new Uint8Array(data);
+  const settings = profileSettings(profile.settings);
+  // Publisher styles are stripped before appending the selected device font / custom CSS.
+  return appendProfileCss(stripEpubAssets(data, settings), generateProfileCss(profile));
+}
 
 /** Append a separate stylesheet to a COPY. Keep library metadata, assets and all existing CSS. */
 export function appendProfileCss(data: Uint8Array, css: string): Uint8Array<ArrayBuffer> {

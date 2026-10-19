@@ -3,10 +3,10 @@ import { validateCss } from "../../core/css";
 export interface ProfileSettings {
   marginX: number | null; marginY: number | null; lineHeight: number | null;
   paragraphSpacing: number | null; textIndent: number | null; justify: boolean | null;
-  fontFamily: string | null; customCss: string;
+  fontFamily: string | null; customCss: string; stripFonts: boolean; stripImages: boolean;
 }
 export interface TypesettingProfile { id: string; deviceId: string; name: string; settings: ProfileSettings; builtIn: boolean }
-export const EMPTY_SETTINGS: ProfileSettings = Object.freeze({ marginX: null, marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: "" });
+export const EMPTY_SETTINGS: ProfileSettings = Object.freeze({ marginX: null, marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: "", stripFonts: false, stripImages: false });
 export const DEFAULT_PROFILE_ID = "default";
 export const defaultProfile = (deviceId: string): TypesettingProfile => ({ id: DEFAULT_PROFILE_ID, deviceId, name: "默认（只用书籍自带样式）", settings: { ...EMPTY_SETTINGS }, builtIn: true });
 export function deviceIdInput(value: unknown): string {
@@ -16,6 +16,10 @@ export function deviceIdInput(value: unknown): string {
 export function profileSettings(value: unknown): ProfileSettings {
   if (!value || typeof value !== "object") throw new Error("无效的排版参数");
   const v = value as Record<string, unknown>, output = { ...EMPTY_SETTINGS };
+  for (const key of ["stripFonts", "stripImages"] as const) {
+    if (v[key] !== undefined && typeof v[key] !== "boolean") throw new Error(`无效的排版参数：${key}`);
+    output[key] = v[key] === true;
+  }
   for (const key of ["marginX", "marginY", "lineHeight", "paragraphSpacing", "textIndent"] as const) {
     const n = v[key];
     if (n !== null && (typeof n !== "number" || !Number.isFinite(n) || n < (key === "lineHeight" ? 0.5 : 0) || n > 20)) throw new Error(`无效的排版参数：${key}`);
