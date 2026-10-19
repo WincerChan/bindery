@@ -1,0 +1,1025 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Kindle 浏览器 USB 访问验证</title>
+  <style>
+    :root { font-family: system-ui, "Microsoft YaHei", sans-serif; line-height: 1.65; color-scheme: light dark; }
+    body { max-width: 1080px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.8rem; line-height: 1.3; }
+    h2 { margin-top: 32px; padding-top: 24px; border-top: 1px solid #8886; font-size: 1.4rem; }
+    h3 { margin-top: 28px; font-size: 1.13rem; }
+    p, ol { margin: 12px 0; }
+    li { margin: 6px 0; }
+    code, pre, textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.9rem; }
+    code { overflow-wrap: anywhere; }
+    pre { padding: 12px; border: 1px solid #8886; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 440px; overflow: auto; }
+    button, input, select, textarea { font: inherit; }
+    button { padding: 7px 13px; cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #1688da; outline-offset: 3px; }
+    input[type="text"] { min-width: 260px; max-width: 100%; padding: 5px; box-sizing: border-box; }
+    select { padding: 5px; max-width: 100%; }
+    textarea { width: 100%; min-height: 260px; box-sizing: border-box; }
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+    .warning { border-left: 4px solid #c18100; padding-left: 12px; font-weight: 600; }
+    .muted { opacity: 0.8; }
+    .status { min-height: 1.6em; }
+    .candidate { border-top: 1px solid #8886; padding-top: 10px; margin-top: 12px; }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) { body { padding: 16px; } h1 { font-size: 1.5rem; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Kindle 浏览器 USB 访问验证</h1>
+    <p>用于 Windows 桌面 Chrome / Edge + USB 大容量存储模式的 KO3、KPW3。所有步骤的结果都显示在页面上，并汇入 D 节同一个 JSON 报告。此页面无网络请求、外部依赖或构建步骤。</p>
+    <ol>
+      <li>在仓库根目录的 WSL 终端运行 <code>python3 -m http.server 8765 --directory spikes/kindle-access</code>，然后在 Windows Chrome / Edge 打开 <a href="http://localhost:8765">http://localhost:8765</a>。</li>
+      <li>插入 KO3，选择下面的设备标签，依次运行 B1–B6 和 C。目录选择器中先尝试 Kindle 盘符的根目录，例如 <code>E:\</code>。</li>
+      <li>让 B6 持续运行，拔出 Kindle，等待几次检测，再插回并观察同一句柄能否恢复；期间不要重新选择目录。</li>
+      <li>先复制或下载本次报告，再关闭标签页／重启浏览器，重新打开相同地址，检查 B4 的「加载时权限」。如浏览器提供「Allow on every visit / 每次访问都允许」，第一次选择目录时选它。</li>
+      <li>换成 KPW3，重复上述流程。每次切换设备都重新选择目录；报告用会话编号区分句柄。</li>
+      <li>复制报告反馈。重启后的报告需再导出一次；页面仅持久化目录句柄，不保存报告历史。</li>
+    </ol>
+    <div class="controls">
+      <label for="model">设备标签</label>
+      <select id="model"><option value="unknown">未指定</option><option value="KO3">KO3 / Kindle Oasis 3</option><option value="KPW3">KPW3 / Kindle Paperwhite 3</option></select>
+      <label for="notes">测试备注</label><input id="notes" type="text" placeholder="如：Chrome、盘符 E:、拔插时间">
+    </div>
+    <p id="main-status" class="status" role="status" aria-live="polite">正在初始化……</p>
+    <noscript><p class="warning">请启用 JavaScript 后重新打开页面。</p></noscript>
+
+    <section aria-labelledby="environment-heading">
+      <h2 id="environment-heading">A. 环境</h2>
+      <p id="secure-warning" class="warning" hidden>当前不是安全上下文，相关 API 可能缺失或拒绝调用。请通过 <code>http://localhost:8765</code> 提供页面；<code>file://</code> 下的行为可能不同。</p>
+      <p><code>file://</code> 的行为可能不同；建议始终使用同一个 localhost 地址、端口及浏览器配置文件，以便比较持久权限。</p>
+      <pre id="environment-output" aria-label="环境检查结果">等待初始化</pre>
+      <div class="controls"><button id="persist" type="button" disabled>请求浏览器持久存储</button></div>
+      <p class="muted">持久存储影响 IndexedDB 被清理的机会，不等同于 Kindle 目录访问权限；此按钮是可选测试。</p>
+      <pre id="storage-output" aria-label="浏览器存储持久性结果">等待初始化</pre>
+    </section>
+
+    <section aria-labelledby="fsa-heading">
+      <h2 id="fsa-heading">B. File System Access（主路径）</h2>
+      <p id="handle-status" class="status">当前没有目录句柄。</p>
+
+      <h3>B1. 选择目录</h3>
+      <div class="controls">
+        <label for="selection-target">这次准备选择</label>
+        <select id="selection-target"><option value="drive-root">Kindle 驱动器根目录</option><option value="documents">documents/（根目录被阻止后的备选）</option><option value="other">其他目录</option></select>
+        <button id="pick" type="button" disabled>选择 Kindle 根目录</button>
+      </div>
+      <p>调用参数为 <code>{ id: 'kindle', mode: 'readwrite' }</code>。若盘符根目录被拒绝，请保留错误，修改「这次准备选择」后再次选择，例如尝试 <code>documents/</code>。浏览器只提供句柄名称，不提供盘符／完整路径；所选位置由你确认并记录。</p>
+      <p class="muted">选中 documents/ 也会保留为独立结果，但 B2 的根目录结构、B3 的根目录身份文件和 B6 的 documents/ 探测都要求选中驱动器根目录。B5 始终要求你先确认选中根目录。</p>
+      <pre id="picker-output" aria-label="目录选择记录">尚未选择</pre>
+
+      <h3>B2. 检查目录结构与文件统计</h3>
+      <button id="inspect" type="button" disabled>检查目录结构与文件统计</button>
+      <p>列出顶层条目，检查 <code>documents</code>、<code>system</code>、<code>fonts</code>、<code>system/thumbnails</code>。documents/ 统计本层及下一层子目录中的文件扩展名、字节数；最多访问 5000 个条目（含目录），更深目录会跳过。其他目录枚举也最多 5000 项，达到上限会明确标记，缩略图仅展示前 10 个名称。计数以实际成功读取的元数据为准，失败会单独列出。</p>
+      <pre id="inspection-output" aria-label="目录检查结果">尚未检查</pre>
+
+      <h3>B3. 身份信息发现（只读）</h3>
+      <button id="identity" type="button" disabled>列出身份候选文件（只读）</button>
+      <p>仅列出根目录、system/ 直属文件的名称和大小，不递归、不读取内容。根目录中小于 8 KB（8192 字节）的 .txt / .json / .xml / .ini 文件可逐个点击读取；内容可能包含序列号。候选按钮只在本次身份扫描对应的句柄仍被选中时可用。</p>
+      <pre id="identity-output" aria-label="身份文件元数据">尚未检查</pre>
+      <div id="identity-candidates"></div>
+      <p><label><input id="include-contents" type="checkbox"> 报告中包含这些文件内容</label></p>
+      <p class="muted">默认报告不含上述文本内容；勾选后仅包含你已点击读取的内容。文件名、USB 序列号及其他元数据始终会进入报告，请在分享前检查。</p>
+
+      <h3>B4. 句柄持久化与权限</h3>
+      <p>每次选择后将句柄写入本机 IndexedDB：数据库 <code>kindle-spike</code>，对象仓库 <code>handles</code>，键 <code>kindle</code>。重新打开页面时先恢复句柄，立即调用 <code>queryPermission({ mode: 'readwrite' })</code>，不自动请求授权。</p>
+      <p>流程：选择一次 → 如果 Chrome 提供选项，选择「Allow on every visit / 每次访问都允许」→ 关闭标签页／重启浏览器 → 从相同地址重新打开 → 在点击任何授权按钮前查看「加载时权限」。<code>granted</code> 表示此次查询时已有权限；<code>prompt</code> 表示还需用户手势。切勿在重启测试中清除站点数据。</p>
+      <div class="controls"><button id="query-permission" type="button" disabled>查询当前权限</button><button id="request-permission" type="button" disabled>请求授权</button></div>
+      <pre id="persistence-output" aria-label="IndexedDB 与加载时权限">正在读取 IndexedDB</pre>
+      <pre id="permission-output" aria-label="权限调用记录">尚无记录</pre>
+
+      <h3>B5. 写入与删除测试</h3>
+      <p class="warning">此页面对 Kindle 的唯一写入是所选根目录下的 <code>.bindery/probe.json</code>，内容为 <code>{ createdAt, userAgent }</code>。不向 documents/、system/ 或 fonts/ 写入。删除按钮只删除这个测试文件，并且仅在 .bindery/ 为空时删除该目录。</p>
+      <p><label><input id="confirm-root" type="checkbox" disabled> 我确认当前选中的是 Kindle 驱动器根目录（不是 documents/），允许测试 .bindery/probe.json</label></p>
+      <div class="controls"><button id="write" type="button" disabled>写入测试</button><button id="delete" type="button" disabled>删除测试文件</button></div>
+      <p class="muted">已有同名文件时写入会停止，避免覆盖。可先检查，再用删除按钮清理旧探针。写入失败也可能留下测试文件，可用删除按钮清理。</p>
+      <pre id="write-output" aria-label="写入与清理结果">尚未测试</pre>
+
+      <h3>B6. 连接与拔插检测</h3>
+      <button id="probe-toggle" type="button" aria-pressed="false" disabled>开始检测</button>
+      <p>每 3 秒、窗口获得焦点和页面可见性变化时，使用同一目录句柄打开 <code>documents/</code> 并读取其第一个条目（空目录也算可达），同时查询读写权限。只保留最近 50 次探测，记录时间、错误名称与消息、耗时、权限状态。后台标签页计时可能被浏览器降频；可达失败本身不能证明设备已拔出，也可能是目录选择或权限问题。</p>
+      <p class="muted">若 I/O 或权限查询超过 2.5 秒，记录页面生成的 <code>ProbeTimeoutError</code>（synthetic: true），以免拔盘后一直卡住；这不是浏览器原生错误，底层调用也无法被取消。其他错误名称和消息原样保留。</p>
+      <p id="probe-status" class="status">未开始</p>
+      <pre id="probe-output" aria-label="连接探测时间线">尚无记录</pre>
+    </section>
+
+    <section aria-labelledby="usb-heading">
+      <h2 id="usb-heading">C. WebUSB（次路径）</h2>
+      <p>页面加载时注册 connect / disconnect 监听。亚马逊过滤器使用假定的 Amazon / Lab126 vendor ID <code>0x1949</code>，需由实际结果验证；可用「任意 USB 设备」对照。系统正在使用的大容量存储接口可能无法由 WebUSB 打开；选择器为空／取消可能产生 <code>NotFoundError</code>，策略限制可能产生 <code>SecurityError</code>，以实测为准。</p>
+      <div class="controls"><button id="usb-list" type="button" disabled>列出已授权的 USB 设备</button><button id="usb-amazon" type="button" disabled>选择 Kindle（亚马逊设备）</button><button id="usb-any" type="button" disabled>选择任意 USB 设备</button></div>
+      <p>先展示未 open() 时可获得的描述符，包括 configurations → interfaces → alternates 的 interfaceClass（大容量存储为 <code>0x08</code>）。每个设备有单独的 open() 按钮，若打开成功随即 close()。绝不调用 claimInterface 或数据传输方法。</p>
+      <pre id="usb-output" aria-label="WebUSB 调用及监听结果">等待初始化</pre>
+      <h3>设备描述符与 open() 结果</h3>
+      <div id="usb-devices"><p id="usb-empty">尚未发现设备。</p></div>
+      <h3>USB 连接事件</h3>
+      <pre id="usb-events" aria-label="WebUSB 连接时间线">尚无事件；没有事件并不证明没有 USB 设备。</pre>
+    </section>
+
+    <section aria-labelledby="report-heading">
+      <h2 id="report-heading">D. 汇总报告</h2>
+      <p>报告为一个带 pageVersion 的 JSON 对象；下方预览与导出遵循 B3 的内容选项。操作历史保留至本页关闭，连接探测保留最近 50 条。模型标签只作人工标记，不代表设备已被自动识别。</p>
+      <div class="controls"><button id="copy" type="button">复制报告</button><button id="download" type="button">下载报告</button></div>
+      <p id="report-status" class="status" role="status" aria-live="polite"></p>
+      <div id="manual-copy" hidden><label for="report-text">剪贴板不可用，请选中以下完整 JSON 手动复制</label><textarea id="report-text" readonly spellcheck="false"></textarea></div>
+      <pre id="report-output" aria-label="完整 JSON 报告">正在初始化</pre>
+      <h3>页面异常</h3>
+      <pre id="error-output" aria-label="未归入具体步骤的错误">尚无异常</pre>
+    </section>
+  </main>
+  <script>
+    'use strict';
+    (() => {
+      const pageVersion = '1.0.0';
+      const ENTRY_LIMIT = 5000;
+      const TEXT_LIMIT = 8192;
+      const PROBE_LIMIT = 50;
+      const PROBE_INTERVAL = 3000;
+      const PROBE_TIMEOUT = 2500;
+      const $ = (id) => document.getElementById(id);
+      const now = () => new Date().toISOString();
+      const clock = () => {
+        try { return typeof performance?.now === 'function' ? performance.now() : Date.now(); }
+        catch { return Date.now(); }
+      };
+      const elapsed = (start) => Math.round((clock() - start) * 100) / 100;
+      const asError = (error) => ({
+        name: typeof error?.name === 'string' ? error.name : 'Error',
+        message: typeof error?.message === 'string' ? error.message : String(error)
+      });
+      const fail = (name, message) => { const error = new Error(message); error.name = name; return error; };
+      const requireMethod = (object, method) => {
+        if (!object || typeof object[method] !== 'function') throw fail('NotSupportedError', `${method}() 不可用`);
+      };
+      const format = (value) => JSON.stringify(value, null, 2);
+      const context = () => ({ model: $('model').value, notes: $('notes').value });
+      const report = {
+        pageVersion, startedAt: now(), environment: {},
+        storage: { checks: [], requests: [] },
+        fsa: {
+          limits: { directoryEntries: ENTRY_LIMIT, documentsSubfolderDepth: 1, identityTextBytesExclusive: TEXT_LIMIT },
+          pickerAttempts: [], sessions: [],
+          persistence: { database: 'kindle-spike', store: 'handles', key: 'kindle', load: { status: 'pending' }, saves: [] },
+          permissions: [], inspections: [], identityInventories: [], identityReads: [], writes: [], deletions: [],
+          probe: { intervalMs: PROBE_INTERVAL, operationTimeoutMs: PROBE_TIMEOUT, retainedEvents: PROBE_LIMIT, running: false, totalSamples: 0, skippedTriggers: 0, controls: [], timeline: [] }
+        },
+        webusb: { available: false, listeners: [], enumerations: [], selections: [], devices: [], events: [], openAttempts: [] },
+        exports: [], errors: []
+      };
+      let activeHandle = null;
+      let activeSession = null;
+      let sessionSequence = 0;
+      let initialized = false;
+      let fsaBusy = false;
+      let usbBusy = false;
+      let usb = null;
+      let probeTimer = null;
+      let probeInFlight = false;
+      let probeGeneration = 0;
+      let candidateSequence = 0;
+      const candidates = new Map();
+      const textContents = new Map();
+      const usbObjects = new Map();
+      const usbIds = new WeakMap();
+      const usbViews = new Map();
+
+      function recordError(source, error) {
+        const entry = { at: now(), source, error: asError(error) };
+        report.errors.push(entry);
+        $('main-status').textContent = `${source}：${entry.error.name}: ${entry.error.message}`;
+      }
+
+      function buildReport() {
+        return {
+          ...report, generatedAt: now(), context: context(),
+          activeDirectorySession: activeSession?.id ?? null,
+          contentPolicy: {
+            includeOptedInFileContents: $('include-contents').checked,
+            note: '默认排除身份候选文件内容；文件名与 USB 序列号等元数据仍包含在报告内。'
+          },
+          identityFileContents: $('include-contents').checked ? Array.from(textContents.values()) : []
+        };
+      }
+
+      function renderControls() {
+        const locked = !initialized || fsaBusy;
+        $('pick').disabled = locked || !report.environment.showDirectoryPicker;
+        for (const id of ['inspect', 'identity', 'query-permission']) $(id).disabled = locked || !activeHandle;
+        $('request-permission').disabled = locked || !activeHandle || typeof activeHandle.requestPermission !== 'function';
+        const selectedDocuments = activeSession?.selectionTarget === 'documents' || activeHandle?.name?.toLowerCase() === 'documents';
+        $('confirm-root').disabled = locked || !activeHandle || selectedDocuments;
+        const canWrite = !locked && activeHandle && $('confirm-root').checked && !selectedDocuments;
+        $('write').disabled = !canWrite;
+        $('delete').disabled = !canWrite;
+        $('probe-toggle').disabled = !activeHandle || !initialized;
+        $('probe-toggle').textContent = report.fsa.probe.running ? '停止检测' : '开始检测';
+        $('probe-toggle').setAttribute('aria-pressed', String(report.fsa.probe.running));
+        $('persist').disabled = !report.environment.storagePersist;
+        for (const id of ['usb-list', 'usb-amazon', 'usb-any']) $(id).disabled = !usb || usbBusy;
+        for (const candidate of candidates.values()) {
+          candidate.button.disabled = locked || candidate.busy || candidate.sessionId !== activeSession?.id;
+        }
+      }
+
+      function render() {
+        $('environment-output').textContent = format(report.environment);
+        $('storage-output').textContent = format(report.storage);
+        $('picker-output').textContent = format(report.fsa.pickerAttempts);
+        $('inspection-output').textContent = format(report.fsa.inspections);
+        $('identity-output').textContent = format({ inventories: report.fsa.identityInventories, textReads: report.fsa.identityReads });
+        $('persistence-output').textContent = format(report.fsa.persistence);
+        $('permission-output').textContent = format(report.fsa.permissions);
+        $('write-output').textContent = format({ writes: report.fsa.writes, deletions: report.fsa.deletions });
+        $('probe-output').textContent = format(report.fsa.probe);
+        $('probe-status').textContent = report.fsa.probe.running ? '检测中：请拔出，再插回，观察下方同一会话的结果。' : '未运行（已有记录保留）';
+        $('handle-status').textContent = activeSession
+          ? `当前句柄：${activeSession.handleName}；会话 ${activeSession.id}；来源 ${activeSession.source}；选择位置 ${activeSession.selectionTarget}。`
+          : '当前没有目录句柄。';
+        const { devices, events, ...usbCalls } = report.webusb;
+        $('usb-output').textContent = format(usbCalls);
+        $('usb-events').textContent = events.length ? format(events) : '尚无事件；没有事件并不证明没有 USB 设备。';
+        for (const device of devices) {
+          const view = usbViews.get(device.id);
+          if (view) {
+            view.output.textContent = format({ ...device, openAttempts: report.webusb.openAttempts.filter((attempt) => attempt.deviceId === device.id) });
+            view.button.disabled = view.busy;
+          }
+        }
+        $('error-output').textContent = report.errors.length ? format(report.errors) : '尚无异常';
+        $('report-output').textContent = format(buildReport());
+        renderControls();
+      }
+
+      function listen(target, type, callback) {
+        try {
+          requireMethod(target, 'addEventListener');
+          target.addEventListener(type, (event) => {
+            try {
+              const result = callback(event);
+              if (result && typeof result.catch === 'function') result.catch((error) => { recordError(type, error); render(); });
+            } catch (error) { recordError(type, error); render(); }
+          });
+        } catch (error) { recordError(`注册 ${type} 监听`, error); }
+      }
+
+      function captureEnvironment() {
+        const errors = [];
+        const read = (name, getter) => {
+          try { return getter(); }
+          catch (error) { errors.push({ field: name, error: asError(error) }); return null; }
+        };
+        report.environment = {
+          capturedAt: now(),
+          userAgent: read('userAgent', () => navigator.userAgent),
+          userAgentData: read('userAgentData', () => navigator.userAgentData ? {
+            brands: Array.from(navigator.userAgentData.brands || [], (brand) => ({ brand: brand.brand, version: brand.version })),
+            platform: navigator.userAgentData.platform, mobile: navigator.userAgentData.mobile
+          } : null),
+          isSecureContext: read('isSecureContext', () => window.isSecureContext === true),
+          origin: read('origin', () => location.origin), protocol: read('protocol', () => location.protocol),
+          showDirectoryPicker: read('showDirectoryPicker', () => typeof window.showDirectoryPicker === 'function'),
+          handlePrototypeQueryPermission: read('queryPermission', () => typeof window.FileSystemHandle?.prototype?.queryPermission === 'function'),
+          handlePrototypeRequestPermission: read('requestPermission', () => typeof window.FileSystemHandle?.prototype?.requestPermission === 'function'),
+          webusb: read('navigator.usb', () => Boolean(navigator.usb)),
+          storagePersist: read('storage.persist', () => typeof navigator.storage?.persist === 'function'),
+          storagePersisted: read('storage.persisted', () => typeof navigator.storage?.persisted === 'function'),
+          indexedDB: read('indexedDB', () => Boolean(window.indexedDB)),
+          clipboardWriteText: read('clipboard.writeText', () => typeof navigator.clipboard?.writeText === 'function'),
+          errors
+        };
+        $('secure-warning').hidden = report.environment.isSecureContext === true;
+      }
+
+      async function storageCheck(trigger) {
+        const entry = { at: now(), trigger };
+        const start = clock();
+        try {
+          requireMethod(navigator.storage, 'persisted');
+          entry.persisted = await navigator.storage.persisted(); entry.status = 'success';
+        } catch (error) { entry.status = 'error'; entry.error = asError(error); }
+        entry.elapsedMs = elapsed(start); report.storage.checks.push(entry); render();
+      }
+
+      // Handles are stored using IndexedDB's structured clone; no file contents are persisted.
+      function withDatabase(operation) {
+        return new Promise((resolve, reject) => {
+          let db = null;
+          let transaction = null;
+          let settled = false;
+          let openRequest = null;
+          let timer = null;
+          const finish = (error, value) => {
+            if (settled) return;
+            settled = true;
+            try { if (timer !== null) clearTimeout(timer); } catch (cleanupError) { recordError('IndexedDB 计时器清理', cleanupError); }
+            try { if (db) db.close(); } catch (cleanupError) { recordError('IndexedDB close', cleanupError); }
+            if (error) reject(error); else resolve(value);
+          };
+          try {
+            requireMethod(window.indexedDB, 'open');
+            timer = setTimeout(() => {
+              try { if (transaction) transaction.abort(); } catch (error) { recordError('IndexedDB abort', error); }
+              finish(fail('TimeoutError', 'IndexedDB 操作超过 8 秒；请关闭其他同源页面后重试。'));
+            }, 8000);
+            openRequest = window.indexedDB.open('kindle-spike', 1);
+            openRequest.onupgradeneeded = () => {
+              try {
+                if (settled) { openRequest.transaction.abort(); return; }
+                if (!openRequest.result.objectStoreNames.contains('handles')) openRequest.result.createObjectStore('handles');
+              } catch (error) { finish(error); }
+            };
+            openRequest.onerror = () => finish(openRequest.error || fail('UnknownError', 'IndexedDB 打开失败'));
+            openRequest.onblocked = () => finish(fail('BlockedError', 'IndexedDB 被其他标签页阻塞，请关闭其他同源页面后重试。'));
+            openRequest.onsuccess = () => {
+              try {
+                db = openRequest.result;
+                if (settled) { db.close(); return; }
+                db.onversionchange = () => { try { db.close(); } catch (error) { recordError('IndexedDB versionchange', error); } };
+                transaction = db.transaction('handles', operation.mode);
+                const request = operation.run(transaction.objectStore('handles'));
+                let value;
+                request.onsuccess = () => { value = request.result; };
+                request.onerror = () => finish(request.error || fail('UnknownError', 'IndexedDB 请求失败'));
+                transaction.oncomplete = () => finish(null, value);
+                transaction.onabort = () => finish(transaction.error || fail('AbortError', 'IndexedDB 事务被中止'));
+                transaction.onerror = () => finish(transaction.error || fail('UnknownError', 'IndexedDB 事务失败'));
+              } catch (error) { finish(error); }
+            };
+          } catch (error) { finish(error); }
+        });
+      }
+
+      function setActiveHandle(handle, source, selectionTarget, testContext) {
+        stopProbe('handle-changed');
+        activeHandle = handle;
+        activeSession = {
+          id: `directory-${++sessionSequence}`, at: now(), source, selectionTarget,
+          handleName: handle.name, kind: handle.kind, context: testContext,
+          queryPermissionAvailable: typeof handle.queryPermission === 'function',
+          requestPermissionAvailable: typeof handle.requestPermission === 'function'
+        };
+        report.fsa.sessions.push(activeSession);
+        $('confirm-root').checked = false;
+        return activeSession;
+      }
+
+      async function permission(handle, sessionId, method, trigger) {
+        const entry = { at: now(), sessionId, method, trigger, mode: 'readwrite' };
+        const start = clock();
+        report.fsa.permissions.push(entry);
+        try {
+          requireMethod(handle, method);
+          entry.state = await handle[method]({ mode: 'readwrite' });
+          entry.status = 'success';
+        } catch (error) { entry.status = 'error'; entry.error = asError(error); }
+        entry.elapsedMs = elapsed(start);
+        return entry;
+      }
+
+      async function restoreHandle() {
+        const load = report.fsa.persistence.load;
+        const start = clock(); load.at = now();
+        try {
+          const handle = await withDatabase({ mode: 'readonly', run: (store) => store.get('kindle') });
+          load.handleFound = Boolean(handle);
+          if (handle) {
+            if (handle.kind !== 'directory') throw fail('TypeMismatchError', '已存储的句柄不是目录');
+            const session = setActiveHandle(handle, 'IndexedDB-load', 'unknown-restored', context());
+            load.sessionId = session.id; load.handleName = handle.name;
+            // This is intentionally the first permission call for a restored handle, without a gesture.
+            load.permissionAtLoad = await permission(handle, session.id, 'queryPermission', 'page-load-no-gesture');
+          } else { load.permissionAtLoad = { status: 'not-applicable', reason: '没有已存储的句柄' }; }
+          load.status = 'success';
+        } catch (error) { load.status = 'error'; load.error = asError(error); }
+        load.elapsedMs = elapsed(start);
+      }
+
+      async function saveHandle(handle, sessionId) {
+        const entry = { at: now(), sessionId, handleName: handle.name };
+        const start = clock(); report.fsa.persistence.saves.push(entry);
+        try {
+          await withDatabase({ mode: 'readwrite', run: (store) => store.put(handle, 'kindle') });
+          entry.status = 'success';
+        } catch (error) { entry.status = 'error'; entry.error = asError(error); }
+        entry.elapsedMs = elapsed(start);
+      }
+
+      async function pickDirectory() {
+        const start = clock();
+        const attempt = { at: now(), context: context(), selectionTarget: $('selection-target').value, options: { id: 'kindle', mode: 'readwrite' } };
+        report.fsa.pickerAttempts.push(attempt);
+        try {
+          requireMethod(window, 'showDirectoryPicker');
+          const handle = await window.showDirectoryPicker({ id: 'kindle', mode: 'readwrite' });
+          attempt.elapsedMs = elapsed(start);
+          if (!handle || handle.kind !== 'directory') throw fail('TypeMismatchError', '选择器没有返回目录句柄');
+          const session = setActiveHandle(handle, 'picker', attempt.selectionTarget, attempt.context);
+          attempt.status = 'success'; attempt.handleName = handle.name; attempt.sessionId = session.id;
+          render();
+          await permission(handle, session.id, 'queryPermission', 'after-pick');
+          await saveHandle(handle, session.id);
+          $('main-status').textContent = '已选择目录。请查看 B4 保存结果，然后执行目录检查。';
+        } catch (error) {
+          attempt.status = 'error'; attempt.error = asError(error); attempt.elapsedMs = elapsed(start);
+          attempt.suggestion = '可以再次尝试根目录，或将选择位置改为 documents/ 后重试；取消和限制错误均保留。';
+          $('main-status').textContent = `${attempt.error.name}: ${attempt.error.message}。可更改选择位置后重试。`;
+        }
+      }
+
+      async function directoryAt(root, path) {
+        const start = clock();
+        const result = { path, at: now() };
+        try {
+          let handle = root;
+          for (const part of path.split('/')) {
+            requireMethod(handle, 'getDirectoryHandle');
+            handle = await handle.getDirectoryHandle(part);
+          }
+          result.present = true; result.status = 'success'; result.elapsedMs = elapsed(start);
+          return { result, handle };
+        } catch (error) {
+          result.present = error?.name === 'NotFoundError' ? false : null;
+          result.status = 'error'; result.error = asError(error); result.elapsedMs = elapsed(start);
+          return { result, handle: null };
+        }
+      }
+
+      async function listDirectory(handle, onEntry) {
+        const start = clock();
+        const result = { visitedEntries: 0, entryLimit: ENTRY_LIMIT, limitReached: false, status: 'success', errors: [] };
+        try {
+          requireMethod(handle, 'entries');
+          for await (const [name, child] of handle.entries()) {
+            result.visitedEntries++;
+            try { await onEntry(name, child); }
+            catch (error) { result.errors.push({ name, error: asError(error) }); }
+            if (result.visitedEntries >= ENTRY_LIMIT) { result.limitReached = true; break; }
+          }
+        } catch (error) { result.status = 'error'; result.error = asError(error); }
+        if (result.errors.length && result.status === 'success') result.status = 'partial';
+        result.elapsedMs = elapsed(start);
+        return result;
+      }
+
+      async function getMetadata(handle) {
+        requireMethod(handle, 'getFile');
+        const file = await handle.getFile();
+        return { name: handle.name, size: file.size, lastModified: file.lastModified };
+      }
+
+      async function scanDocuments(handle) {
+        const start = clock();
+        const result = {
+          maxEntries: ENTRY_LIMIT, maxSubfolderDepth: 1, visitedEntries: 0,
+          fileCount: 0, metadataFailures: 0, totalBytes: 0, byExtension: {},
+          skippedDeeperDirectories: 0, limitReached: false, errors: [], status: 'success'
+        };
+        const queue = [{ handle, path: 'documents', depth: 0 }];
+        try {
+          for (let index = 0; index < queue.length; index++) {
+            const current = queue[index];
+            try {
+              requireMethod(current.handle, 'entries');
+              for await (const [name, child] of current.handle.entries()) {
+                result.visitedEntries++;
+                const path = `${current.path}/${name}`;
+                if (child.kind === 'directory') {
+                  if (current.depth < 1) queue.push({ handle: child, path, depth: current.depth + 1 });
+                  else result.skippedDeeperDirectories++;
+                } else if (child.kind === 'file') {
+                  try {
+                    const metadata = await getMetadata(child);
+                    const dot = name.lastIndexOf('.');
+                    const extension = dot > 0 && dot < name.length - 1 ? name.slice(dot).toLowerCase() : '(无扩展名)';
+                    if (!Object.hasOwn(result.byExtension, extension)) result.byExtension[extension] = { count: 0, bytes: 0 };
+                    result.byExtension[extension].count++;
+                    result.byExtension[extension].bytes += metadata.size;
+                    result.fileCount++; result.totalBytes += metadata.size;
+                  } catch (error) { result.metadataFailures++; result.errors.push({ path, error: asError(error) }); }
+                }
+                if (result.visitedEntries >= ENTRY_LIMIT) { result.limitReached = true; break; }
+              }
+            } catch (error) { result.errors.push({ path: current.path, error: asError(error) }); }
+            if (result.limitReached) break;
+          }
+          if (result.errors.length) result.status = 'partial';
+        } catch (error) { result.status = 'error'; result.error = asError(error); }
+        result.elapsedMs = elapsed(start);
+        return result;
+      }
+
+      async function inspectDirectory() {
+        const handle = activeHandle;
+        const start = clock();
+        const entry = { at: now(), sessionId: activeSession.id, context: context(), status: 'running', topLevel: [] };
+        report.fsa.inspections.push(entry); render();
+        try {
+          entry.topLevelEnumeration = await listDirectory(handle, (name, child) => { entry.topLevel.push({ name, kind: child.kind }); });
+          const found = {};
+          entry.presence = {};
+          for (const path of ['documents', 'system', 'fonts', 'system/thumbnails']) {
+            found[path] = await directoryAt(handle, path);
+            entry.presence[path] = found[path].result;
+          }
+          if (found.documents.handle) entry.documents = await scanDocuments(found.documents.handle);
+          if (found['system/thumbnails'].handle) {
+            const names = []; let fileCount = 0; let directoryCount = 0;
+            const enumeration = await listDirectory(found['system/thumbnails'].handle, (name, child) => {
+              if (names.length < 10) names.push({ name, kind: child.kind });
+              if (child.kind === 'file') fileCount++; else if (child.kind === 'directory') directoryCount++;
+            });
+            entry.thumbnails = { ...enumeration, fileCount, directoryCount, sample: names };
+          }
+          if (found.fonts.handle) {
+            const files = [];
+            const enumeration = await listDirectory(found.fonts.handle, async (name, child) => {
+              if (child.kind === 'file') files.push(await getMetadata(child));
+            });
+            entry.fonts = { ...enumeration, files };
+          }
+          const scans = [entry.topLevelEnumeration, entry.documents, entry.thumbnails, entry.fonts].filter(Boolean);
+          entry.status = scans.some((scan) => scan.status !== 'success' || scan.limitReached)
+            || Object.values(entry.presence).some((item) => item.status === 'error') ? 'partial' : 'success';
+        } catch (error) { entry.status = 'error'; entry.error = asError(error); }
+        entry.elapsedMs = elapsed(start);
+      }
+
+      function addIdentityCandidate(handle, metadata, sessionId) {
+        const id = `identity-${++candidateSequence}`;
+        const wrapper = document.createElement('div'); wrapper.className = 'candidate';
+        const label = document.createElement('p'); label.textContent = `${sessionId} / ${metadata.name}（${metadata.size} 字节）`;
+        const button = document.createElement('button'); button.type = 'button'; button.textContent = `读取文本：${metadata.name}`;
+        const output = document.createElement('pre'); output.textContent = '未读取内容';
+        output.setAttribute('aria-label', `${metadata.name} 的文本内容`);
+        wrapper.append(label, button, output); $('identity-candidates').append(wrapper);
+        const candidate = { id, handle, metadata, sessionId, button, output, busy: false };
+        candidates.set(id, candidate);
+        listen(button, 'click', async () => {
+          if (candidate.sessionId !== activeSession?.id) throw fail('InvalidStateError', '该候选文件属于另一个目录会话，请重新扫描。');
+          candidate.busy = true; renderControls();
+          const start = clock();
+          const entry = { at: now(), sessionId, path: metadata.name, candidateId: id };
+          report.fsa.identityReads.push(entry);
+          try {
+            requireMethod(handle, 'getFile');
+            const file = await handle.getFile();
+            if (file.size >= TEXT_LIMIT || !/\.(txt|json|xml|ini)$/i.test(handle.name)) throw fail('NotAllowedError', '只读取根目录中小于 8192 字节的 .txt/.json/.xml/.ini 文件。');
+            requireMethod(file, 'text');
+            const text = await file.text();
+            textContents.set(id, { candidateId: id, sessionId, path: metadata.name, size: file.size, readAt: entry.at, text });
+            entry.status = 'success'; entry.size = file.size; entry.characters = text.length;
+            output.textContent = text || '（空文件）';
+          } catch (error) { entry.status = 'error'; entry.error = asError(error); output.textContent = format(entry.error); }
+          finally { entry.elapsedMs = elapsed(start); candidate.busy = false; render(); }
+        });
+        return id;
+      }
+
+      async function inspectIdentity() {
+        const handle = activeHandle;
+        const sessionId = activeSession.id;
+        const start = clock();
+        const entry = { at: now(), sessionId, context: context(), rootFiles: [], systemFiles: [], candidates: [], status: 'running' };
+        report.fsa.identityInventories.push(entry); render();
+        try {
+          entry.rootEnumeration = await listDirectory(handle, async (name, child) => {
+            if (child.kind !== 'file') return;
+            const metadata = await getMetadata(child); entry.rootFiles.push(metadata);
+            if (/\.(txt|json|xml|ini)$/i.test(name) && metadata.size < TEXT_LIMIT) {
+              entry.candidates.push({ ...metadata, candidateId: addIdentityCandidate(child, metadata, sessionId) });
+            }
+          });
+          const system = await directoryAt(handle, 'system'); entry.systemPresence = system.result;
+          if (system.handle) entry.systemEnumeration = await listDirectory(system.handle, async (name, child) => {
+            if (child.kind === 'file') entry.systemFiles.push(await getMetadata(child));
+          });
+          entry.status = [entry.rootEnumeration, entry.systemEnumeration].filter(Boolean).some((scan) => scan.status !== 'success' || scan.limitReached)
+            || !system.handle ? 'partial' : 'success';
+        } catch (error) { entry.status = 'error'; entry.error = asError(error); }
+        entry.elapsedMs = elapsed(start);
+      }
+
+      async function assertWriteLocation() {
+        if (!activeHandle || !$('confirm-root').checked || activeSession.selectionTarget === 'documents' || activeHandle.name?.toLowerCase() === 'documents') {
+          throw fail('NotAllowedError', '请先选择并确认 Kindle 根目录，不能在 documents/ 中运行写入或删除测试。');
+        }
+        // Check the expected root structure before any mutation, even if the checkbox was ticked.
+        requireMethod(activeHandle, 'getDirectoryHandle');
+        await activeHandle.getDirectoryHandle('documents');
+        return { handleName: activeHandle.name, documentsDirectoryPresent: true };
+      }
+
+      async function writeTest() {
+        const start = clock();
+        const entry = { at: now(), sessionId: activeSession?.id, path: '.bindery/probe.json' };
+        report.fsa.writes.push(entry);
+        let writer = null;
+        try {
+          entry.rootValidation = await assertWriteLocation();
+          const handle = activeHandle;
+          requireMethod(handle, 'getDirectoryHandle');
+          const folder = await handle.getDirectoryHandle('.bindery', { create: true });
+          entry.folderAvailable = true;
+          requireMethod(folder, 'getFileHandle');
+          try {
+            await folder.getFileHandle('probe.json');
+            throw fail('InvalidModificationError', '.bindery/probe.json 已存在，停止写入以避免覆盖。请检查后使用删除测试文件按钮。');
+          } catch (error) { if (error?.name !== 'NotFoundError') throw error; }
+          const payload = { createdAt: now(), userAgent: report.environment.userAgent };
+          const text = JSON.stringify(payload, null, 2);
+          const fileHandle = await folder.getFileHandle('probe.json', { create: true });
+          entry.fileCreated = true;
+          requireMethod(fileHandle, 'createWritable');
+          writer = await fileHandle.createWritable();
+          requireMethod(writer, 'write'); await writer.write(text);
+          requireMethod(writer, 'close'); await writer.close(); writer = null;
+          requireMethod(fileHandle, 'getFile');
+          const file = await fileHandle.getFile();
+          requireMethod(file, 'text');
+          const readBack = await file.text();
+          entry.bytes = file.size; entry.matches = readBack === text;
+          if (!entry.matches) throw fail('DataError', '写入内容与回读内容不一致');
+          entry.status = 'success'; entry.payload = payload;
+        } catch (error) {
+          entry.status = 'error'; entry.error = asError(error);
+          if (writer) {
+            try { requireMethod(writer, 'abort'); await writer.abort(); entry.writerAborted = true; }
+            catch (abortError) { entry.abortError = asError(abortError); }
+          }
+        }
+        entry.elapsedMs = elapsed(start);
+      }
+
+      async function deleteTest() {
+        const start = clock();
+        const entry = { at: now(), sessionId: activeSession?.id, path: '.bindery/probe.json', recursive: false };
+        report.fsa.deletions.push(entry);
+        try {
+          entry.rootValidation = await assertWriteLocation();
+          const handle = activeHandle;
+          requireMethod(handle, 'getDirectoryHandle');
+          let folder;
+          try { folder = await handle.getDirectoryHandle('.bindery'); }
+          catch (error) {
+            if (error?.name !== 'NotFoundError') throw error;
+            entry.folderAbsent = true; entry.folderLookupError = asError(error);
+          }
+          if (folder) {
+            requireMethod(folder, 'removeEntry');
+            try { await folder.removeEntry('probe.json'); entry.fileDeleted = true; }
+            catch (error) {
+              if (error?.name !== 'NotFoundError') throw error;
+              entry.fileAbsent = true; entry.fileLookupError = asError(error);
+            }
+            requireMethod(folder, 'entries');
+            let empty = true;
+            for await (const ignored of folder.entries()) { empty = false; break; }
+            entry.folderEmpty = empty;
+            if (empty) {
+              requireMethod(handle, 'removeEntry');
+              await handle.removeEntry('.bindery'); entry.folderDeleted = true;
+            } else { entry.folderDeleted = false; entry.reason = '.bindery/ 还有其他条目，保留目录。'; }
+          }
+          entry.status = 'success';
+        } catch (error) { entry.status = 'error'; entry.error = asError(error); }
+        entry.elapsedMs = elapsed(start);
+      }
+
+      function stopProbe(reason) {
+        if (!report.fsa.probe.running) return;
+        try { if (probeTimer !== null) clearInterval(probeTimer); }
+        catch (error) { recordError('停止连接检测', error); }
+        probeTimer = null; report.fsa.probe.running = false; probeGeneration++;
+        report.fsa.probe.controls.push({ at: now(), action: 'stop', reason, sessionId: activeSession?.id });
+      }
+
+      async function probeDeadline(operation) {
+        let timer = null;
+        try {
+          return await Promise.race([
+            operation,
+            new Promise((resolve, reject) => {
+              timer = setTimeout(() => reject(fail('ProbeTimeoutError', '页面等待操作超过 2500 ms；底层调用无法取消，这不是浏览器原生错误。')), PROBE_TIMEOUT);
+            })
+          ]);
+        } finally { if (timer !== null) clearTimeout(timer); }
+      }
+
+      async function connectionProbe(trigger) {
+        if (!report.fsa.probe.running || !activeHandle) return;
+        if (probeInFlight) { report.fsa.probe.skippedTriggers++; return; }
+        probeInFlight = true;
+        const generation = probeGeneration;
+        const handle = activeHandle;
+        const start = clock();
+        const entry = { at: now(), trigger, sessionId: activeSession.id, context: context(), visibility: document.visibilityState, reachable: false };
+        try {
+          const readFirst = async () => {
+            requireMethod(handle, 'getDirectoryHandle');
+            const documents = await handle.getDirectoryHandle('documents');
+            requireMethod(documents, 'entries');
+            for await (const [name, child] of documents.entries()) return { name, kind: child.kind };
+            return null;
+          };
+          const query = async () => {
+            requireMethod(handle, 'queryPermission');
+            return await handle.queryPermission({ mode: 'readwrite' });
+          };
+          await Promise.all([
+            (async () => {
+              try { entry.firstEntry = await probeDeadline(readFirst()); entry.reachable = true; }
+              catch (error) { entry.error = { ...asError(error), synthetic: error?.name === 'ProbeTimeoutError' }; }
+              finally { entry.ioLatencyMs = elapsed(start); }
+            })(),
+            (async () => {
+              try { entry.permissionState = await probeDeadline(query()); }
+              catch (error) { entry.permissionState = null; entry.permissionError = { ...asError(error), synthetic: error?.name === 'ProbeTimeoutError' }; }
+              finally { entry.permissionLatencyMs = elapsed(start); }
+            })()
+          ]);
+        } catch (error) { entry.internalError = asError(error); }
+        finally {
+          entry.latencyMs = elapsed(start); entry.completedAt = now();
+          entry.completedAfterStopOrHandleChange = generation !== probeGeneration;
+          report.fsa.probe.timeline.push(entry);
+          if (report.fsa.probe.timeline.length > PROBE_LIMIT) report.fsa.probe.timeline.shift();
+          report.fsa.probe.totalSamples++;
+          probeInFlight = false; render();
+        }
+      }
+
+      function toggleProbe() {
+        if (report.fsa.probe.running) { stopProbe('user'); render(); return; }
+        if (!activeHandle) throw fail('InvalidStateError', '请先选择或恢复目录句柄。');
+        report.fsa.probe.running = true; probeGeneration++;
+        report.fsa.probe.controls.push({ at: now(), action: 'start', sessionId: activeSession.id });
+        try {
+          probeTimer = setInterval(() => { connectionProbe('interval').catch((error) => { recordError('连接检测', error); render(); }); }, PROBE_INTERVAL);
+          connectionProbe('start').catch((error) => { recordError('连接检测', error); render(); });
+        } catch (error) { stopProbe('timer-error'); throw error; }
+        render();
+      }
+
+      const hex = (value, digits = 4) => typeof value === 'number' ? `0x${value.toString(16).padStart(digits, '0')}` : null;
+
+      function usbDescriptor(device) {
+        const errors = [];
+        const read = (field, getter) => {
+          try { const value = getter(); return value === undefined ? null : value; }
+          catch (error) { errors.push({ field, error: asError(error) }); return null; }
+        };
+        const vendorId = read('vendorId', () => device.vendorId);
+        const productId = read('productId', () => device.productId);
+        const deviceClass = read('deviceClass', () => device.deviceClass);
+        return {
+          capturedAt: now(), capturedWithoutOpening: true,
+          vendorId, vendorIdHex: hex(vendorId), productId, productIdHex: hex(productId),
+          productName: read('productName', () => device.productName),
+          manufacturerName: read('manufacturerName', () => device.manufacturerName),
+          serialNumber: read('serialNumber', () => device.serialNumber),
+          opened: read('opened', () => device.opened),
+          usbVersion: {
+            major: read('usbVersionMajor', () => device.usbVersionMajor), minor: read('usbVersionMinor', () => device.usbVersionMinor),
+            subminor: read('usbVersionSubminor', () => device.usbVersionSubminor)
+          },
+          deviceVersion: {
+            major: read('deviceVersionMajor', () => device.deviceVersionMajor), minor: read('deviceVersionMinor', () => device.deviceVersionMinor),
+            subminor: read('deviceVersionSubminor', () => device.deviceVersionSubminor)
+          },
+          deviceClass, deviceClassHex: hex(deviceClass, 2),
+          deviceSubclass: read('deviceSubclass', () => device.deviceSubclass), deviceProtocol: read('deviceProtocol', () => device.deviceProtocol),
+          configurations: read('configurations', () => Array.from(device.configurations || [], (configuration) => ({
+            configurationValue: configuration.configurationValue, configurationName: configuration.configurationName,
+            interfaces: Array.from(configuration.interfaces || [], (usbInterface) => ({
+              interfaceNumber: usbInterface.interfaceNumber,
+              alternates: Array.from(usbInterface.alternates || [], (alternate) => ({
+                alternateSetting: alternate.alternateSetting, interfaceName: alternate.interfaceName,
+                interfaceClass: alternate.interfaceClass, interfaceClassHex: hex(alternate.interfaceClass, 2),
+                isMassStorage: alternate.interfaceClass === 0x08,
+                interfaceSubclass: alternate.interfaceSubclass, interfaceProtocol: alternate.interfaceProtocol
+              }))
+            }))
+          }))),
+          errors
+        };
+      }
+
+      function observeUsb(device, source) {
+        if (!device || typeof device !== 'object') throw fail('TypeError', '浏览器没有返回 USBDevice 对象');
+        const descriptor = usbDescriptor(device);
+        let id = usbIds.get(device);
+        if (!id) { id = `usb-${report.webusb.devices.length + 1}`; usbIds.set(device, id); }
+        usbObjects.set(id, device);
+        let entry = report.webusb.devices.find((item) => item.id === id);
+        if (!entry) {
+          entry = { id, firstSeenAt: now(), observations: [] }; report.webusb.devices.push(entry);
+          const heading = document.createElement('h3'); heading.textContent = `${id}：${descriptor.productName || '未提供产品名'} (${descriptor.vendorIdHex}:${descriptor.productIdHex})`;
+          const output = document.createElement('pre'); output.setAttribute('aria-label', `${id} 描述符与打开结果`);
+          const button = document.createElement('button'); button.type = 'button'; button.textContent = `尝试 open()（${id}）`;
+          $('usb-devices').append(heading, button, output); $('usb-empty').hidden = true;
+          usbViews.set(id, { button, output, busy: false });
+          listen(button, 'click', () => openUsb(id));
+        }
+        entry.observations.push({ at: now(), source, context: context(), descriptor });
+        return { id, descriptor };
+      }
+
+      async function openUsb(id) {
+        const view = usbViews.get(id); const device = usbObjects.get(id);
+        if (!view || view.busy || !device) return;
+        view.busy = true; render();
+        const start = clock();
+        const entry = { at: now(), deviceId: id, context: context() };
+        report.webusb.openAttempts.push(entry);
+        let didOpen = false;
+        try {
+          requireMethod(device, 'open');
+          await device.open(); didOpen = true;
+          entry.open = { status: 'success', elapsedMs: elapsed(start) };
+        } catch (error) { entry.open = { status: 'error', error: asError(error), elapsedMs: elapsed(start) }; }
+        finally {
+          try {
+            if (didOpen || device.opened) {
+              const closeStart = clock();
+              try {
+                requireMethod(device, 'close'); await device.close();
+                entry.close = { status: 'success', elapsedMs: elapsed(closeStart) };
+              } catch (error) { entry.close = { status: 'error', error: asError(error), elapsedMs: elapsed(closeStart) }; }
+            } else { entry.close = { status: 'not-needed', reason: 'open() 未成功，设备未打开' }; }
+          } catch (error) { entry.close = { status: 'error', error: asError(error) }; }
+          entry.elapsedMs = elapsed(start); view.busy = false; render();
+        }
+      }
+
+      function registerUsb() {
+        try { usb = navigator.usb || null; }
+        catch (error) { recordError('读取 navigator.usb', error); }
+        report.webusb.available = Boolean(usb);
+        if (!usb) return;
+        for (const type of ['connect', 'disconnect']) {
+          const registration = { at: now(), type };
+          report.webusb.listeners.push(registration);
+          try {
+            requireMethod(usb, 'addEventListener');
+            usb.addEventListener(type, (event) => {
+              const entry = { at: now(), type, context: context() };
+              try {
+                const { id, descriptor } = observeUsb(event.device, `event:${type}`);
+                Object.assign(entry, { deviceId: id, vendorId: descriptor.vendorIdHex, productId: descriptor.productIdHex,
+                  productName: descriptor.productName, serialNumber: descriptor.serialNumber });
+              } catch (error) { entry.error = asError(error); }
+              report.webusb.events.push(entry); render();
+            });
+            registration.status = 'success';
+          } catch (error) { registration.status = 'error'; registration.error = asError(error); }
+        }
+      }
+
+      async function listUsb() {
+        const start = clock(); const entry = { at: now(), context: context(), devices: [] };
+        report.webusb.enumerations.push(entry);
+        try {
+          requireMethod(usb, 'getDevices');
+          const devices = await usb.getDevices();
+          for (const device of devices) entry.devices.push(observeUsb(device, 'getDevices').id);
+          entry.status = 'success'; entry.count = devices.length;
+        } catch (error) { entry.status = 'error'; entry.error = asError(error); }
+        entry.elapsedMs = elapsed(start);
+      }
+
+      async function selectUsb(amazonOnly) {
+        const start = clock();
+        const options = { filters: amazonOnly ? [{ vendorId: 0x1949 }] : [] };
+        const entry = { at: now(), context: context(), options, assumedAmazonVendorId: '0x1949' };
+        report.webusb.selections.push(entry);
+        try {
+          requireMethod(usb, 'requestDevice');
+          const device = await usb.requestDevice(options);
+          entry.deviceId = observeUsb(device, amazonOnly ? 'requestDevice:amazon' : 'requestDevice:any').id;
+          entry.status = 'success';
+        } catch (error) { entry.status = 'error'; entry.error = asError(error); }
+        entry.elapsedMs = elapsed(start);
+      }
+
+      function bindFsa(id, action) {
+        listen($(id), 'click', async () => {
+          if (fsaBusy) return;
+          fsaBusy = true; renderControls();
+          try { await action(); }
+          catch (error) { recordError(id, error); }
+          finally { fsaBusy = false; render(); }
+        });
+      }
+
+      function bindUsb(id, action) {
+        listen($(id), 'click', async () => {
+          if (usbBusy) return;
+          usbBusy = true; renderControls();
+          try { await action(); }
+          catch (error) { recordError(id, error); }
+          finally { usbBusy = false; render(); }
+        });
+      }
+
+      async function copyReport() {
+        const entry = { at: now(), action: 'copy', status: 'started', includeFileContents: $('include-contents').checked };
+        report.exports.push(entry);
+        const text = format(buildReport());
+        try {
+          requireMethod(navigator.clipboard, 'writeText');
+          await navigator.clipboard.writeText(text);
+          entry.status = 'success'; $('manual-copy').hidden = true;
+          $('report-status').textContent = '已复制完整 JSON 报告（以点击时的结果为准）。';
+        } catch (error) {
+          entry.status = 'manual-copy'; entry.error = asError(error);
+          $('manual-copy').hidden = false;
+          $('report-text').value = format(buildReport());
+          try { $('report-text').focus(); $('report-text').select(); }
+          catch (selectionError) { entry.selectionError = asError(selectionError); }
+          $('report-status').textContent = `${entry.error.name}: ${entry.error.message}。请在文本框内手动复制。`;
+        }
+        render();
+      }
+
+      function downloadReport() {
+        const entry = { at: now(), action: 'download', filename: 'kindle-spike-report.json', status: 'started', includeFileContents: $('include-contents').checked };
+        report.exports.push(entry);
+        let url = null; let anchor = null;
+        try {
+          if (typeof Blob !== 'function') throw fail('NotSupportedError', 'Blob 不可用');
+          requireMethod(URL, 'createObjectURL');
+          url = URL.createObjectURL(new Blob([format(buildReport())], { type: 'application/json;charset=utf-8' }));
+          anchor = document.createElement('a'); anchor.href = url; anchor.download = entry.filename;
+          document.body.append(anchor); anchor.click();
+          entry.status = 'download-requested';
+          $('report-status').textContent = '已请求下载 kindle-spike-report.json，请检查浏览器下载记录。';
+        } catch (error) {
+          entry.status = 'error'; entry.error = asError(error);
+          $('manual-copy').hidden = false; $('report-text').value = format(buildReport());
+          $('report-status').textContent = `${entry.error.name}: ${entry.error.message}。可从文本框手动复制。`;
+        } finally {
+          try { if (anchor) anchor.remove(); } catch (error) { entry.cleanupError = asError(error); }
+          if (url) {
+            try { setTimeout(() => { try { requireMethod(URL, 'revokeObjectURL'); URL.revokeObjectURL(url); } catch (error) { recordError('释放报告下载 URL', error); render(); } }, 1000); }
+            catch (error) { entry.urlCleanupError = asError(error); }
+          }
+          render();
+        }
+      }
+
+      async function initialize() {
+        captureEnvironment(); registerUsb();
+        listen(window, 'error', (event) => { recordError('window.error', event.error || fail('Error', event.message)); render(); });
+        listen(window, 'unhandledrejection', (event) => { recordError('unhandledrejection', event.reason); render(); });
+        bindFsa('pick', pickDirectory);
+        bindFsa('inspect', inspectDirectory);
+        bindFsa('identity', inspectIdentity);
+        bindFsa('query-permission', () => permission(activeHandle, activeSession.id, 'queryPermission', 'user-button'));
+        bindFsa('request-permission', () => permission(activeHandle, activeSession.id, 'requestPermission', 'user-button'));
+        bindFsa('write', writeTest); bindFsa('delete', deleteTest);
+        listen($('confirm-root'), 'change', renderControls);
+        listen($('probe-toggle'), 'click', toggleProbe);
+        listen(document, 'visibilitychange', () => connectionProbe('visibilitychange'));
+        listen(window, 'focus', () => connectionProbe('focus'));
+        listen(window, 'pagehide', () => { stopProbe('pagehide'); render(); });
+        bindUsb('usb-list', listUsb);
+        bindUsb('usb-amazon', () => selectUsb(true));
+        bindUsb('usb-any', () => selectUsb(false));
+        listen($('persist'), 'click', async () => {
+          const start = clock(); const entry = { at: now() }; report.storage.requests.push(entry);
+          try {
+            requireMethod(navigator.storage, 'persist');
+            entry.persisted = await navigator.storage.persist(); entry.status = 'success';
+          } catch (error) { entry.status = 'error'; entry.error = asError(error); }
+          entry.elapsedMs = elapsed(start); await storageCheck('after-persist-request'); render();
+        });
+        listen($('model'), 'change', render); listen($('notes'), 'input', render);
+        listen($('include-contents'), 'change', () => {
+          // Clear the fallback export too, so opting out cannot leave old contents in a copy field.
+          if (!$('manual-copy').hidden) $('report-text').value = format(buildReport());
+          render();
+        });
+        listen($('copy'), 'click', copyReport); listen($('download'), 'click', downloadReport);
+        render();
+        // The load-time permission query must not depend on another button being clicked.
+        await restoreHandle();
+        initialized = true;
+        $('main-status').textContent = '初始化完成；加载权限见 B4。请按顺序测试，所有错误都会保留。';
+        render();
+        await storageCheck('page-load');
+      }
+
+      initialize().catch((error) => {
+        recordError('页面初始化', error); initialized = true; render();
+      });
+    })();
+  </script>
+</body>
+</html>
