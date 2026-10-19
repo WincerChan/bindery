@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { defaultProfile, EMPTY_SETTINGS, generateProfileCss, profileSettings, type ProfileSettings, type TypesettingProfile } from "../../../client/kindle/profiles";
 import { deviceInventory } from "../../../client/kindle/inventory";
 import { errorMessage } from "../../../client/kindle/fs";
@@ -19,7 +19,6 @@ export interface ProfileApi {
 }
 const ranges = [
   { key: "marginX", label: "左右边距", unit: "em", min: 0, fallback: 1, step: 0.1 },
-  { key: "marginY", label: "上下边距", unit: "em", min: 0, fallback: 1, step: 0.1 },
   { key: "lineHeight", label: "行高", unit: "", min: 0.5, fallback: 1.6, step: 0.05 },
   { key: "paragraphSpacing", label: "段间距", unit: "em", min: 0, fallback: 0, step: 0.1 },
   { key: "textIndent", label: "首行缩进", unit: "em", min: 0, fallback: 2, step: 0.1 },
@@ -56,14 +55,17 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
     if (immutable()) return;
     setDraft(old => ({ ...old, settings: { ...old.settings, [key]: value } }));
   }
-  createEffect(dirty, value => props.onDirty?.(value));
+  // Callbacks such as a signal setter may return a value; only functions are effect cleanups.
+  createEffect(dirty, value => { props.onDirty?.(value); });
   onCleanup(() => { disposed = true; profileRequest++; fontRequest++; chapterRequest++; });
   // An external device switch must not silently discard a draft or retarget its save operation.
-  createEffect(() => state()?.device?.identity.id, () => {
+  const deviceId = createMemo(() => state()?.device?.identity.id);
+  createEffect(deviceId, () => {
     const identity = state()?.device?.identity;
     if (identity && !dirty() && !busy()) setTarget({ id: identity.id, model: identity.model, name: identity.name });
   });
-  createEffect(() => target()?.id ?? "", id => { void loadProfiles(id); });
+  const targetId = createMemo(() => target()?.id ?? "");
+  createEffect(targetId, id => { void loadProfiles(id); });
   async function loadProfiles(id: string) {
     const request = ++profileRequest;
     setProfiles([]); setError(""); setLoading(Boolean(id));
@@ -79,7 +81,8 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
     } catch (error) { if (!disposed && request === profileRequest) { selectProfile(defaultProfile(id)); setError(errorMessage(error)); } }
     finally { if (!disposed && request === profileRequest) setLoading(false); }
   }
-  createEffect(() => `${state()?.status}:${state()?.device?.identity.id ?? ""}:${target()?.id ?? ""}`, () => { void scanFonts(); });
+  const fontSource = createMemo(() => `${state()?.status}:${deviceId() ?? ""}:${targetId()}`);
+  createEffect(fontSource, () => { void scanFonts(); });
   async function scanFonts() {
     const request = ++fontRequest, device = fontDevice(); setFonts([]);
     if (!device) return;

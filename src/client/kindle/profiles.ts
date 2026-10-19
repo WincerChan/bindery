@@ -28,19 +28,24 @@ export function profileSettings(value: unknown): ProfileSettings {
   output.justify = v.justify as boolean | null; output.fontFamily = v.fontFamily as string | null; output.customCss = v.customCss;
   return output;
 }
-/** Fixed selector/property order; null means preserve the book. Custom CSS is last. Units are em except unitless line-height. */
+/**
+ * Fixed selector/property order; null means preserve the book. Custom CSS is last. Units are em except unitless line-height.
+ * boko drops margins declared on `body` when building KFX (inherited properties such as line-height and font-family
+ * still propagate), so horizontal margins target the top-level blocks instead. KFX has no CSS hook for per-page
+ * top/bottom margins — those come from the Kindle's own margin setting — so `marginY` is kept for stored profiles
+ * but not emitted.
+ */
 export function generateProfileCss(profile: TypesettingProfile): string {
   if (profile.id === DEFAULT_PROFILE_ID) return "";
   const s = profileSettings(profile.settings), body: string[] = [], paragraph: string[] = [];
   const em = (n: number) => `${n}em`;
   if (s.marginX !== null) body.push(`margin-left: ${em(s.marginX)} !important;`, `margin-right: ${em(s.marginX)} !important;`);
-  if (s.marginY !== null) body.push(`margin-top: ${em(s.marginY)} !important;`, `margin-bottom: ${em(s.marginY)} !important;`);
   if (s.lineHeight !== null) paragraph.push(`line-height: ${s.lineHeight} !important;`);
   if (s.paragraphSpacing !== null) paragraph.push(`margin-top: 0 !important;`, `margin-bottom: ${em(s.paragraphSpacing)} !important;`);
   if (s.textIndent !== null) paragraph.push(`text-indent: ${em(s.textIndent)} !important;`);
   if (s.justify !== null) paragraph.push(`text-align: ${s.justify ? "justify" : "left"} !important;`);
   const font = s.fontFamily ? `body, body * {\n  font-family: "${s.fontFamily.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}" !important;\n}` : "";
-  return [body.length ? `body {\n  ${body.join("\n  ")}\n}` : "", paragraph.length ? `p {\n  ${paragraph.join("\n  ")}\n}` : "", font, s.customCss.trim()].filter(Boolean).join("\n\n");
+  return [body.length ? `body > * {\n  ${body.join("\n  ")}\n}` : "", paragraph.length ? `p {\n  ${paragraph.join("\n  ")}\n}` : "", font, s.customCss.trim()].filter(Boolean).join("\n\n");
 }
 export function profileInput(value: unknown) {
   const v = value as Record<string, unknown> | null;

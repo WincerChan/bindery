@@ -37,6 +37,19 @@ describe("vendored boko WASM and KFX metadata", () => {
     expect(result.identity).toEqual(output.identity);
     expect(appendProfileCss(epub, generateProfileCss(defaultProfile("device")))).toEqual(epub);
   });
+  it("horizontal profile margins reach KFX styles (boko drops margins declared on body)", async () => {
+    const marginsOf = async (css: string) => {
+      const result = await convertEpub(appendProfileCss(epub, css), wasm), values: IonValue[] = [];
+      for (const entity of parseKfxEntities(result.data, [157])) walkIon(entity.value, value => { values.push(value); });
+      // $48 / $50 are margin-left / margin-right in KFX style fragments.
+      return JSON.stringify([...values.map(v => ionField(v, 48)), ...values.map(v => ionField(v, 50))]);
+    };
+    const profile = { ...defaultProfile("device"), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, marginX: 2.75, marginY: 1.5 } };
+    const css = generateProfileCss(profile);
+    expect(css).not.toMatch(/margin-(top|bottom)/);
+    expect(await marginsOf(css)).toContain("2.75");
+    expect(await marginsOf("body { margin-left: 2.75em !important; margin-right: 2.75em !important; }")).not.toContain("2.75");
+  });
   it("rejects invalid EPUB and corrupt/truncated KFX without native tools", async () => {
     await expect(convertEpub(new Uint8Array([1, 2, 3]), wasm)).rejects.toBeDefined();
     for (const length of [0, 4, 17, 35, output.data.length - 1]) expect(() => readKfxIdentity(output.data.subarray(0, length))).toThrow();
