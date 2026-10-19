@@ -2,10 +2,12 @@ import type { DatabaseSync } from "node:sqlite";
 import { BASE_TABLES, TABLES, INDEXES } from "./schema";
 import { transaction, type Row } from "./connection";
 import { wishIdentity } from "./encoding";
+import { initKindleSchema } from "../kindle/migration";
 function columns(conn: DatabaseSync, table: string): Set<string> {
   return new Set(conn.prepare(`PRAGMA table_info(${table})`).all().map(row => String(row.name)));
 }
 export function initSchema(conn: DatabaseSync): void {
+  initKindleSchema(conn);
   // Python executes CREATE TABLE IF NOT EXISTS (never rebuilds existing tables).
   for (const sql of BASE_TABLES) conn.exec(sql);
   const sessionColumns = columns(conn, "sessions");
