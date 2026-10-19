@@ -37,7 +37,9 @@ import { Route as WishlistDuplicateCheckRouteImport } from './routes/wishlist.du
 import { Route as WishlistExportRouteImport } from './routes/wishlist.export'
 import { Route as BookBook_idCoverRouteImport } from './routes/book.$book_id.cover'
 import { Route as BookBook_idDownloadRouteImport } from './routes/book.$book_id.download'
+import { Route as BookBook_idProgressRouteImport } from './routes/book.$book_id.progress'
 import { Route as BookBook_idRegenerateRouteImport } from './routes/book.$book_id.regenerate'
+import { Route as BookBook_idSearchRouteImport } from './routes/book.$book_id.search'
 import { Route as JobsJob_idRetryRouteImport } from './routes/jobs.$job_id.retry'
 import { Route as RulesRule_idDeleteRouteImport } from './routes/rules.$rule_id.delete'
 import { Route as ThemesTheme_idDeleteRouteImport } from './routes/themes.$theme_id.delete'
@@ -45,8 +47,11 @@ import { Route as TrackerWish_idDeleteRouteImport } from './routes/tracker.$wish
 import { Route as TrackerWish_idUpdateRouteImport } from './routes/tracker.$wish_id.update'
 import { Route as WishlistWish_idDeleteRouteImport } from './routes/wishlist.$wish_id.delete'
 import { Route as WishlistWish_idUpdateRouteImport } from './routes/wishlist.$wish_id.update'
+import { Route as AppBookBook_idPreviewRouteImport } from './routes/_app.book.$book_id_.preview'
 import { Route as AppRulesRule_idEditorRouteImport } from './routes/_app.rules_.$rule_id.editor'
 import { Route as AppThemesTheme_idEditorRouteImport } from './routes/_app.themes.$theme_id.editor'
+import { Route as BookBook_idEpubSplatRouteImport } from './routes/book.$book_id.epub.$'
+import { Route as AppBookBook_idPreviewSectionRouteImport } from './routes/_app.book.$book_id_.preview_.$section'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -187,9 +192,19 @@ const BookBook_idDownloadRoute = BookBook_idDownloadRouteImport.update({
   path: '/book/$book_id/download',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookBook_idProgressRoute = BookBook_idProgressRouteImport.update({
+  id: '/book/$book_id/progress',
+  path: '/book/$book_id/progress',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BookBook_idRegenerateRoute = BookBook_idRegenerateRouteImport.update({
   id: '/book/$book_id/regenerate',
   path: '/book/$book_id/regenerate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookBook_idSearchRoute = BookBook_idSearchRouteImport.update({
+  id: '/book/$book_id/search',
+  path: '/book/$book_id/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsJob_idRetryRoute = JobsJob_idRetryRouteImport.update({
@@ -227,6 +242,11 @@ const WishlistWish_idUpdateRoute = WishlistWish_idUpdateRouteImport.update({
   path: '/wishlist/$wish_id/update',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppBookBook_idPreviewRoute = AppBookBook_idPreviewRouteImport.update({
+  id: '/book/$book_id_/preview',
+  path: '/book/$book_id/preview',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppRulesRule_idEditorRoute = AppRulesRule_idEditorRouteImport.update({
   id: '/rules_/$rule_id/editor',
   path: '/rules/$rule_id/editor',
@@ -237,6 +257,17 @@ const AppThemesTheme_idEditorRoute = AppThemesTheme_idEditorRouteImport.update({
   path: '/themes/$theme_id/editor',
   getParentRoute: () => AppRoute,
 } as any)
+const BookBook_idEpubSplatRoute = BookBook_idEpubSplatRouteImport.update({
+  id: '/book/$book_id/epub/$',
+  path: '/book/$book_id/epub/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppBookBook_idPreviewSectionRoute =
+  AppBookBook_idPreviewSectionRouteImport.update({
+    id: '/book/$book_id_/preview_/$section',
+    path: '/book/$book_id/preview/$section',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -266,7 +297,9 @@ export interface FileRoutesByFullPath {
   '/wishlist/export': typeof WishlistExportRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/progress': typeof BookBook_idProgressRoute
   '/book/$book_id/regenerate': typeof BookBook_idRegenerateRoute
+  '/book/$book_id/search': typeof BookBook_idSearchRoute
   '/jobs/$job_id/retry': typeof JobsJob_idRetryRoute
   '/rules/$rule_id/delete': typeof RulesRule_idDeleteRoute
   '/themes/$theme_id/delete': typeof ThemesTheme_idDeleteRoute
@@ -274,8 +307,11 @@ export interface FileRoutesByFullPath {
   '/tracker/$wish_id/update': typeof TrackerWish_idUpdateRoute
   '/wishlist/$wish_id/delete': typeof WishlistWish_idDeleteRoute
   '/wishlist/$wish_id/update': typeof WishlistWish_idUpdateRoute
+  '/book/$book_id/preview': typeof AppBookBook_idPreviewRoute
   '/rules/$rule_id/editor': typeof AppRulesRule_idEditorRoute
   '/themes/$theme_id/editor': typeof AppThemesTheme_idEditorRoute
+  '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
+  '/book/$book_id/preview/$section': typeof AppBookBook_idPreviewSectionRoute
 }
 export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
@@ -305,7 +341,9 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/progress': typeof BookBook_idProgressRoute
   '/book/$book_id/regenerate': typeof BookBook_idRegenerateRoute
+  '/book/$book_id/search': typeof BookBook_idSearchRoute
   '/jobs/$job_id/retry': typeof JobsJob_idRetryRoute
   '/rules/$rule_id/delete': typeof RulesRule_idDeleteRoute
   '/themes/$theme_id/delete': typeof ThemesTheme_idDeleteRoute
@@ -313,8 +351,11 @@ export interface FileRoutesByTo {
   '/tracker/$wish_id/update': typeof TrackerWish_idUpdateRoute
   '/wishlist/$wish_id/delete': typeof WishlistWish_idDeleteRoute
   '/wishlist/$wish_id/update': typeof WishlistWish_idUpdateRoute
+  '/book/$book_id/preview': typeof AppBookBook_idPreviewRoute
   '/rules/$rule_id/editor': typeof AppRulesRule_idEditorRoute
   '/themes/$theme_id/editor': typeof AppThemesTheme_idEditorRoute
+  '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
+  '/book/$book_id/preview/$section': typeof AppBookBook_idPreviewSectionRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -346,7 +387,9 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/book/$book_id/cover': typeof BookBook_idCoverRoute
   '/book/$book_id/download': typeof BookBook_idDownloadRoute
+  '/book/$book_id/progress': typeof BookBook_idProgressRoute
   '/book/$book_id/regenerate': typeof BookBook_idRegenerateRoute
+  '/book/$book_id/search': typeof BookBook_idSearchRoute
   '/jobs/$job_id/retry': typeof JobsJob_idRetryRoute
   '/rules/$rule_id/delete': typeof RulesRule_idDeleteRoute
   '/themes/$theme_id/delete': typeof ThemesTheme_idDeleteRoute
@@ -354,8 +397,11 @@ export interface FileRoutesById {
   '/tracker/$wish_id/update': typeof TrackerWish_idUpdateRoute
   '/wishlist/$wish_id/delete': typeof WishlistWish_idDeleteRoute
   '/wishlist/$wish_id/update': typeof WishlistWish_idUpdateRoute
+  '/_app/book/$book_id_/preview': typeof AppBookBook_idPreviewRoute
   '/_app/rules_/$rule_id/editor': typeof AppRulesRule_idEditorRoute
   '/_app/themes/$theme_id/editor': typeof AppThemesTheme_idEditorRoute
+  '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
+  '/_app/book/$book_id_/preview_/$section': typeof AppBookBook_idPreviewSectionRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -387,7 +433,9 @@ export interface FileRouteTypes {
     | '/wishlist/export'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/progress'
     | '/book/$book_id/regenerate'
+    | '/book/$book_id/search'
     | '/jobs/$job_id/retry'
     | '/rules/$rule_id/delete'
     | '/themes/$theme_id/delete'
@@ -395,8 +443,11 @@ export interface FileRouteTypes {
     | '/tracker/$wish_id/update'
     | '/wishlist/$wish_id/delete'
     | '/wishlist/$wish_id/update'
+    | '/book/$book_id/preview'
     | '/rules/$rule_id/editor'
     | '/themes/$theme_id/editor'
+    | '/book/$book_id/epub/$'
+    | '/book/$book_id/preview/$section'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/library'
@@ -426,7 +477,9 @@ export interface FileRouteTypes {
     | '/'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/progress'
     | '/book/$book_id/regenerate'
+    | '/book/$book_id/search'
     | '/jobs/$job_id/retry'
     | '/rules/$rule_id/delete'
     | '/themes/$theme_id/delete'
@@ -434,8 +487,11 @@ export interface FileRouteTypes {
     | '/tracker/$wish_id/update'
     | '/wishlist/$wish_id/delete'
     | '/wishlist/$wish_id/update'
+    | '/book/$book_id/preview'
     | '/rules/$rule_id/editor'
     | '/themes/$theme_id/editor'
+    | '/book/$book_id/epub/$'
+    | '/book/$book_id/preview/$section'
   id:
     | '__root__'
     | '/_app'
@@ -466,7 +522,9 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/book/$book_id/cover'
     | '/book/$book_id/download'
+    | '/book/$book_id/progress'
     | '/book/$book_id/regenerate'
+    | '/book/$book_id/search'
     | '/jobs/$job_id/retry'
     | '/rules/$rule_id/delete'
     | '/themes/$theme_id/delete'
@@ -474,8 +532,11 @@ export interface FileRouteTypes {
     | '/tracker/$wish_id/update'
     | '/wishlist/$wish_id/delete'
     | '/wishlist/$wish_id/update'
+    | '/_app/book/$book_id_/preview'
     | '/_app/rules_/$rule_id/editor'
     | '/_app/themes/$theme_id/editor'
+    | '/book/$book_id/epub/$'
+    | '/_app/book/$book_id_/preview_/$section'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -498,7 +559,9 @@ export interface RootRouteChildren {
   WishlistExportRoute: typeof WishlistExportRoute
   BookBook_idCoverRoute: typeof BookBook_idCoverRoute
   BookBook_idDownloadRoute: typeof BookBook_idDownloadRoute
+  BookBook_idProgressRoute: typeof BookBook_idProgressRoute
   BookBook_idRegenerateRoute: typeof BookBook_idRegenerateRoute
+  BookBook_idSearchRoute: typeof BookBook_idSearchRoute
   JobsJob_idRetryRoute: typeof JobsJob_idRetryRoute
   RulesRule_idDeleteRoute: typeof RulesRule_idDeleteRoute
   ThemesTheme_idDeleteRoute: typeof ThemesTheme_idDeleteRoute
@@ -506,6 +569,7 @@ export interface RootRouteChildren {
   TrackerWish_idUpdateRoute: typeof TrackerWish_idUpdateRoute
   WishlistWish_idDeleteRoute: typeof WishlistWish_idDeleteRoute
   WishlistWish_idUpdateRoute: typeof WishlistWish_idUpdateRoute
+  BookBook_idEpubSplatRoute: typeof BookBook_idEpubSplatRoute
 }
 
 declare module '@tanstack/solid-router' {
@@ -706,11 +770,25 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof BookBook_idDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/book/$book_id/progress': {
+      id: '/book/$book_id/progress'
+      path: '/book/$book_id/progress'
+      fullPath: '/book/$book_id/progress'
+      preLoaderRoute: typeof BookBook_idProgressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/book/$book_id/regenerate': {
       id: '/book/$book_id/regenerate'
       path: '/book/$book_id/regenerate'
       fullPath: '/book/$book_id/regenerate'
       preLoaderRoute: typeof BookBook_idRegenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book/$book_id/search': {
+      id: '/book/$book_id/search'
+      path: '/book/$book_id/search'
+      fullPath: '/book/$book_id/search'
+      preLoaderRoute: typeof BookBook_idSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs/$job_id/retry': {
@@ -762,6 +840,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof WishlistWish_idUpdateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/book/$book_id_/preview': {
+      id: '/_app/book/$book_id_/preview'
+      path: '/book/$book_id/preview'
+      fullPath: '/book/$book_id/preview'
+      preLoaderRoute: typeof AppBookBook_idPreviewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/rules_/$rule_id/editor': {
       id: '/_app/rules_/$rule_id/editor'
       path: '/rules/$rule_id/editor'
@@ -774,6 +859,20 @@ declare module '@tanstack/solid-router' {
       path: '/themes/$theme_id/editor'
       fullPath: '/themes/$theme_id/editor'
       preLoaderRoute: typeof AppThemesTheme_idEditorRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/book/$book_id/epub/$': {
+      id: '/book/$book_id/epub/$'
+      path: '/book/$book_id/epub/$'
+      fullPath: '/book/$book_id/epub/$'
+      preLoaderRoute: typeof BookBook_idEpubSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/book/$book_id_/preview_/$section': {
+      id: '/_app/book/$book_id_/preview_/$section'
+      path: '/book/$book_id/preview/$section'
+      fullPath: '/book/$book_id/preview/$section'
+      preLoaderRoute: typeof AppBookBook_idPreviewSectionRouteImport
       parentRoute: typeof AppRoute
     }
   }
@@ -789,8 +888,10 @@ interface AppRouteChildren {
   AppTrackerRoute: typeof AppTrackerRoute
   AppWishlistRoute: typeof AppWishlistRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppBookBook_idPreviewRoute: typeof AppBookBook_idPreviewRoute
   AppRulesRule_idEditorRoute: typeof AppRulesRule_idEditorRoute
   AppThemesTheme_idEditorRoute: typeof AppThemesTheme_idEditorRoute
+  AppBookBook_idPreviewSectionRoute: typeof AppBookBook_idPreviewSectionRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -803,8 +904,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppTrackerRoute: AppTrackerRoute,
   AppWishlistRoute: AppWishlistRoute,
   AppIndexRoute: AppIndexRoute,
+  AppBookBook_idPreviewRoute: AppBookBook_idPreviewRoute,
   AppRulesRule_idEditorRoute: AppRulesRule_idEditorRoute,
   AppThemesTheme_idEditorRoute: AppThemesTheme_idEditorRoute,
+  AppBookBook_idPreviewSectionRoute: AppBookBook_idPreviewSectionRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -829,7 +932,9 @@ const rootRouteChildren: RootRouteChildren = {
   WishlistExportRoute: WishlistExportRoute,
   BookBook_idCoverRoute: BookBook_idCoverRoute,
   BookBook_idDownloadRoute: BookBook_idDownloadRoute,
+  BookBook_idProgressRoute: BookBook_idProgressRoute,
   BookBook_idRegenerateRoute: BookBook_idRegenerateRoute,
+  BookBook_idSearchRoute: BookBook_idSearchRoute,
   JobsJob_idRetryRoute: JobsJob_idRetryRoute,
   RulesRule_idDeleteRoute: RulesRule_idDeleteRoute,
   ThemesTheme_idDeleteRoute: ThemesTheme_idDeleteRoute,
@@ -837,6 +942,7 @@ const rootRouteChildren: RootRouteChildren = {
   TrackerWish_idUpdateRoute: TrackerWish_idUpdateRoute,
   WishlistWish_idDeleteRoute: WishlistWish_idDeleteRoute,
   WishlistWish_idUpdateRoute: WishlistWish_idUpdateRoute,
+  BookBook_idEpubSplatRoute: BookBook_idEpubSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
