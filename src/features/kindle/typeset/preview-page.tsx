@@ -35,6 +35,8 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
   const [error, setError] = createSignal(""), [notice, setNotice] = createSignal("");
   const [saveAs, setSaveAs] = createSignal(false), [saveName, setSaveName] = createSignal(""), [deleting, setDeleting] = createSignal(false);
   const [bookId, setBookId] = createSignal(props.data.bookId), [sections, setSections] = createSignal(props.data.sections), [chapter, setChapter] = createSignal(0);
+  const [chapterStart, setChapterStart] = createSignal({ page: 1 });
+  function openChapter(index: number, page = 1) { setChapter(index); setChapterStart({ page }); }
   const [chapterLoading, setChapterLoading] = createSignal(false), [chapterError, setChapterError] = createSignal(props.data.error);
   let disposed = false, profileRequest = 0, fontRequest = 0, chapterRequest = 0, initialFontApplied = false;
   const dirty = () => JSON.stringify(draft()) !== baseline();
@@ -64,7 +66,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
   const canStore = () => Boolean(target()) && !busy() && !loading() && !settingsError();
   const confirmDiscard = () => !dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？");
   createEffect(() => props.data, data => {
-    chapterRequest++; setBookId(data.bookId); setSections(data.sections); setChapter(0); setChapterLoading(false); setChapterError(data.error);
+    chapterRequest++; setBookId(data.bookId); setSections(data.sections); openChapter(0); setChapterLoading(false); setChapterError(data.error);
   });
   function selectProfile(profile: TypesettingProfile) {
     const selected = copy(profile);
@@ -144,7 +146,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
     } finally { if (!disposed) setBusy(false); }
   }
   async function chooseBook(id: string) {
-    const request = ++chapterRequest; setBookId(id); setSections([]); setChapter(0); setChapterLoading(true); setChapterError("");
+    const request = ++chapterRequest; setBookId(id); setSections([]); openChapter(0); setChapterLoading(true); setChapterError("");
     try { const result = await props.chapters(id); if (!disposed && request === chapterRequest) setSections(result); }
     catch (error) { if (!disposed && request === chapterRequest) setChapterError(errorMessage(error)); }
     finally { if (!disposed && request === chapterRequest) setChapterLoading(false); }
@@ -203,7 +205,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       <div class="kt-actions kt-profile-actions"><Button variant="quiet" disabled={busy() || loading() || !dirty()} onClick={reset}>重置</Button><Button variant="quiet" disabled={!target() || immutable() || draft().id === "draft"} onClick={() => setDeleting(true)}>删除</Button><Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为</Button><Button disabled={!canStore() || draft().builtIn || !dirty()} onClick={() => save()}>保存方案</Button></div>
     </section><section class="kt-preview" aria-label="设备预览">
       <div class="kt-preview-toolbar"><div class="kt-preview-selectors"><Select label="预览书籍" value={bookId()} disabled={!props.data.books.length} onChange={event => { void chooseBook(event.currentTarget.value); }}><For each={props.data.books}>{book => <option value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</option>}</For></Select>
-        <Select label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} onChange={event => setChapter(Number(event.currentTarget.value))}><For each={sections()}>{(section, index) => <option value={String(index())}>{section.title}</option>}</For></Select>
+        <Select label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} onChange={event => openChapter(Number(event.currentTarget.value))}><For each={sections()}>{(section, index) => <option value={String(index())}>{section.title}</option>}</For></Select>
         <Select label="Kindle 页边距设置" value={draft().settings.kindleMargin} disabled={busy() || loading()} onChange={event => {
           const kindleMargin = event.currentTarget.value as KindleMarginPreset;
           setDraft(old => ({ ...old, settings: { ...old.settings, kindleMargin } }));
@@ -213,9 +215,9 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       <Show when={chapterLoading()}><p role="status">正在读取章节…</p></Show><Show when={chapterError()}><p role="alert" class="field-error">{chapterError()}</p></Show>
       <Show when={bookId() && chapterError()}><Button variant="secondary" disabled={chapterLoading()} onClick={() => chooseBook(bookId())}>重新读取章节</Button></Show>
       <Show when={!props.data.books.length}><p class="notice">书库中还没有可预览的 EPUB。</p></Show><Show when={bookId() && !sections().length && !chapterLoading() && !chapterError()}><p class="notice">这本书没有可预览的章节。</p></Show>
-      <ChapterFrame src={sections()[chapter()] ? previewContentUrl(bookId(), sections()[chapter()].item_path, draft().settings) : ""} model={effectiveModel()} marginPreset={draft().settings.kindleMargin} css={css()} device={fontDevice()} family={fonts().find(font => font.name === draft().settings.fontFamily)} />
+      <ChapterFrame src={sections()[chapter()] ? previewContentUrl(bookId(), sections()[chapter()].item_path, draft().settings) : ""} model={effectiveModel()} marginPreset={draft().settings.kindleMargin} css={css()} device={fontDevice()} family={fonts().find(font => font.name === draft().settings.fontFamily)} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
       <p class="muted" data-kindle-line-estimate>{settingsError() ? "排版参数无效，预览保留上次有效样式。" : `预计每行约 ${metrics().charsPerLine} 字（${metrics().measured ? "按 KPW3" : effectiveModel() === "other" ? "其他型号按 KPW3 比例估算" : "KO3 按 KPW3 比例估算"} · 字号 7 · ${KINDLE_MARGIN_PRESETS[draft().settings.kindleMargin]}${metrics().measured ? " 实测校准" : ""}）`}</p>
-      <p class="muted">按霞鹜文楷 轻便版 Medium 的全宽汉字估计，书籍字号、缩进及自定义 CSS 会影响字数。上下页边距沿用原预览行为，未经实机测量。Kindle 自身字号仍生效，浏览器与 Kindle 排版引擎也有差异。</p>
+      <p class="muted">按霞鹜文楷 轻便版 Medium 的全宽汉字估计，书籍字号、缩进及自定义 CSS 会影响字数。上下页边距为估算，未经实机测量。不模拟 Kindle 页眉页脚文字。Kindle 自身字号仍生效，浏览器与 Kindle 排版引擎也有差异。</p>
     </section></div>
     <Dialog open={saveAs()} title="另存为排版方案" onClose={() => { if (!busy()) setSaveAs(false); }}><form onSubmit={event => { event.preventDefault(); void save(true); }}>
       <TextField label="新方案名称" value={saveName()} maxlength={100} required disabled={busy()} onInput={event => setSaveName(event.currentTarget.value)} /><p class="muted">保存到 {target()?.name}。默认方案始终保留。</p>

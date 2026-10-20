@@ -3,11 +3,12 @@ import { EntryAccessError, entryOperation, isMissing, optionalEntry, readBytes, 
 // KPW3, firmware 5.16.2.1.1, 霞鹜文楷 轻便版 Medium, Kindle size 7.
 // Fits 16/14/11 CJK glyphs at narrow/medium/wide, and 18 at narrow with -0.8em or -4.8%.
 // KO3 and unknown models use the same ratios as explicitly unmeasured estimates.
-const calibration = (width: number, measured: boolean) => ({
-  emPx: 55 * width / 1072,
-  sideMargins: { narrow: 80 * width / 1072, medium: 137 * width / 1072, wide: 220 * width / 1072 },
-  measured,
-});
+const calibration = (width: number, measured: boolean) => {
+  const sideMargins = { narrow: Math.round(80 * width / 1072), medium: Math.round(137 * width / 1072), wide: Math.round(220 * width / 1072) };
+  // Vertical margins have not been measured. Start with the same device pixels as each side.
+  const verticalMargins = Object.fromEntries(Object.entries(sideMargins).map(([preset, px]) => [preset, { top: px, bottom: px, measured: false as const }])) as Record<keyof typeof sideMargins, { top: number; bottom: number; measured: false }>;
+  return { emPx: 55 * width / 1072, sideMargins, measured, verticalMargins };
+};
 export const KINDLE_MODELS = {
   KPW3: { name: "Kindle Paperwhite 3", width: 1072, height: 1448, ppi: 300, inches: 6, typesetting: calibration(1072, true) },
   KO3: { name: "Kindle Oasis 3", width: 1264, height: 1680, ppi: 300, inches: 7, typesetting: calibration(1264, false) },

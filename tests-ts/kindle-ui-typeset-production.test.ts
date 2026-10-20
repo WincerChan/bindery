@@ -34,7 +34,12 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
         const response = await get(page); assert.equal(response.status, 200); const html = await response.text();
         assert.match(html, /检测中/); assert.doesNotMatch(html, /allow-scripts|srcdoc=/); assert.ok(!html.includes(root));
         assert.match(html, page.includes("preview") ? /Kindle 章节排版预览/ : /字体管理/);
-        if (page.includes("preview")) assert.ok(html.includes("/book/" + bookId + "/epub/" + encodePath(book.paths[0])), "iframe member path must round-trip");
+        if (page.includes("preview")) {
+          assert.ok(html.includes("/book/" + bookId + "/epub/" + encodePath(book.paths[0])), "iframe member path must round-trip");
+          assert.match(html, /aria-label="预览翻页"/); assert.match(html, /aria-live="polite"/);
+          assert.match(html, /上一页/); assert.match(html, /下一页/); assert.match(html, /正在分页/);
+          assert.match(html, /上下页边距为估算，未经实机测量/);
+        }
       }
       const manifest = readdirSync(serverDir).filter(name => name.includes("server-fn-resolver")).map(name => readFileSync(join(serverDir, name), "utf8")).join("\\n");
       function rpc(name, method, data, auth = true) {

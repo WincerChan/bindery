@@ -14,6 +14,7 @@ import type { PreviewData } from "../src/features/kindle/typeset/model";
 import type { KindleContextValue } from "../src/features/kindle/context";
 import { clientDocument, elements, fire } from "./support/client-dom";
 import { FakeDirectory, fakeKindle } from "./support/fake-fs";
+import { previewDocumentFixture } from "./support/kindle-preview-dom";
 
 type Props = { manager: KindleDeviceManager | null; data: PreviewData; profiles: ProfileApi; chapters: (book: string) => Promise<{ title: string; item_path: string }[]>; initialFont?: string; onDirty?: (dirty: boolean) => void; onPreview?: (font: string) => unknown };
 type Mounted = { dispose: () => void; flush: () => void };
@@ -359,7 +360,7 @@ it("applies and resets the negative-margin preset, previews calibrated counts, a
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change"); expect(estimate()).toContain("约 14 字");
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "wide", "change"); expect(estimate()).toContain("约 11 字");
   expect(margin.getAttribute("min")).toBe("-34.8");
-  expect(mounted.root.textContent).toContain("上下页边距沿用原预览行为，未经实机测量");
+  expect(mounted.root.textContent).toContain("上下页边距为估算，未经实机测量");
   fire(button(mounted.root, "保存方案"), "click"); await settle();
   expect(stored.settings).toMatchObject({ deviceModel: "KPW3", kindleMargin: "wide", marginX: null });
   mounted.dispose();
@@ -431,12 +432,7 @@ it("updates preview asset modes live and includes both toggles in dirty, reset, 
 });
 
 it("takes over a chapter already loaded before hydration and applies CSS and device fonts only inside its frame", async () => {
-  const { manager, fs } = await paired(["Book-Regular.ttf"]), doc = clientDocument();
-  const head = doc.createElement("head"), body = doc.createElement("body"), fonts = new Set<FontFace>(), appFonts = new Set<FontFace>();
-  doc.documentElement.appendChild(head); doc.documentElement.appendChild(body);
-  Object.assign(head, { append: (...nodes: Node[]) => nodes.forEach(node => head.appendChild(node)) });
-  Object.defineProperties(doc, { head: { value: head }, body: { value: body }, fonts: { value: fonts }, readyState: { value: "complete" }, contentType: { value: "text/html" }, URL: { value: "http://bindery.local/book/a/epub/Text/%E7%AC%AC%E4%B8%80%20%E7%AB%A0.xhtml" } });
-  Object.assign(doc, { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  const { manager, fs } = await paired(["Book-Regular.ttf"]), { document: doc, head, fonts } = previewDocumentFixture(), appFonts = new Set<FontFace>();
   Object.defineProperty(document, "fonts", { value: appFonts });
   const bookStyle = doc.createElement("style"); bookStyle.textContent = "p { color: black; }"; head.appendChild(bookStyle);
   vi.stubGlobal("FontFace", class { load() { return Promise.resolve(this); } });
@@ -446,7 +442,7 @@ it("takes over a chapter already loaded before hydration and applies CSS and dev
     expect.stringContaining("font-size: 55px"), bookStyle.textContent, "",
   ]);
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change");
-  expect(head.firstChild!.textContent).toContain("padding-left: 137px");
+  expect(head.firstChild!.textContent).toContain("margin: 137px 137px 137px !important");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   setValue(labels(mounted.root, "select", "字体（设备上已安装）"), "Book", "change"); await settle();
   expect(elements(head, "style", "data-bindery-profile")[0]!.textContent).toContain('font-family: "Book"');
@@ -454,6 +450,44 @@ it("takes over a chapter already loaded before hydration and applies CSS and dev
   // Invalid CSS retains the last stylesheet; loss of device access still removes its FontFaces.
   setValue(labels(mounted.root, "textarea", "额外自定义 CSS"), "p {"); fs.unplug(); await manager.probe(); await settle(); expect(fonts.size).toBe(0);
   mounted.dispose(); expect(elements(head, "style", "data-bindery-profile")).toHaveLength(0); expect(bookStyle.parentNode).toBe(head);
+});
+
+it("hydrates neutral page controls in place and turns pages, chapter boundaries and selector resets", async () => {
+  const bookData = { ...data, sections: [...data.sections, { title: "第二章", item_path: "Text/b.xhtml" }] };
+  let current = previewDocumentFixture();
+  let originalControls!: Element, originalScreen!: Element, originalButtons!: Element[];
+  const mounted = mount("preview", null, { data: bookData }, root => {
+    originalControls = withClass(root, "kt-page-controls"); originalScreen = withClass(root, "kt-screen");
+    originalButtons = elements(originalControls, "button");
+    expect(originalControls.textContent).toBe("上一页正在分页…下一页");
+    expect(originalButtons.every(button => button.hasAttribute("disabled"))).toBe(true);
+    expect(elements(originalControls, "span")[0]!.getAttribute("aria-live")).toBe("polite");
+    expect(originalScreen.getAttribute("tabindex")).toBe("0");
+    Object.defineProperty(elements(root, "iframe")[0]!, "contentDocument", { configurable: true, get: () => current.document });
+  });
+  await settle();
+  const { root } = mounted, status = () => elements(root, "span", "data-kindle-page-status")[0]!.textContent;
+  const previous = () => button(root, "上一页") as HTMLButtonElement, next = () => button(root, "下一页") as HTMLButtonElement;
+  const iframe = elements(root, "iframe")[0]!;
+  expect(withClass(root, "kt-page-controls")).toBe(originalControls); expect(withClass(root, "kt-screen")).toBe(originalScreen);
+  expect(elements(originalControls, "button")).toEqual(originalButtons);
+  expect(status()).toBe("第 1 / 3 页"); expect(previous().disabled).toBe(true); expect(next().disabled).toBe(false);
+  fire(next(), "click"); ui.flush(); expect(status()).toBe("第 2 / 3 页");
+  fire(originalScreen, "keydown", { key: "PageDown" }); ui.flush(); expect(status()).toBe("第 3 / 3 页");
+  fire(next(), "click"); ui.flush();
+  expect(iframe.getAttribute("src")).toBe("/book/a/epub/Text/b.xhtml"); expect(next().disabled).toBe(true);
+  current = previewDocumentFixture("/book/a/epub/Text/b.xhtml"); current.setExtent(2 * 1072 - 80);
+  fire(iframe, "load"); await settle(); expect(status()).toBe("第 1 / 2 页"); expect(previous().disabled).toBe(false);
+  current.dispatch("keydown", { key: "ArrowRight" }); ui.flush(); expect(status()).toBe("第 2 / 2 页"); expect(next().disabled).toBe(true);
+  current.dispatch("keydown", { key: "PageUp" }); ui.flush(); expect(status()).toBe("第 1 / 2 页");
+  fire(previous(), "click"); ui.flush();
+  current = previewDocumentFixture(); fire(iframe, "load"); await settle();
+  expect(status()).toBe("第 3 / 3 页"); expect((labels(root, "select", "章节") as HTMLSelectElement).value).toBe("0");
+  setValue(labels(root, "select", "章节"), "0", "change"); expect(status()).toBe("第 1 / 3 页");
+  fire(originalScreen, "keydown", { key: "ArrowLeft" }); ui.flush(); expect(status()).toBe("第 1 / 3 页"); expect(previous().disabled).toBe(true);
+  setValue(labels(root, "select", "章节"), "1", "change");
+  current = previewDocumentFixture("/book/a/epub/Text/b.xhtml"); fire(iframe, "load"); await settle(); expect(status()).toBe("第 1 / 3 页");
+  mounted.dispose(); expect(current.document.removeEventListener).toHaveBeenCalledWith("keydown", expect.any(Function));
 });
 
 it("keeps the built-in profile immutable, saves a copy, then updates and deletes only that device's custom profile", async () => {

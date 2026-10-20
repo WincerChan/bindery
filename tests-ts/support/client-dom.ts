@@ -86,8 +86,8 @@ export function elements(root: Element, tag: string, attribute?: string): Elemen
 }
 
 // Exercise handlers without pretending to implement browser event propagation.
-export function fire(node: Element, type: string) {
-  const event = { target: node, currentTarget: node, preventDefault() {} } as unknown as Event;
+export function fire(node: Element, type: string, properties: object = {}) {
+  const event = { target: node, currentTarget: node, preventDefault() {}, ...properties } as unknown as Event;
   for (const listener of listeners.get(node)?.get(type) || []) listener.call(node, event);
   const delegated = (node as unknown as Record<string, EventListener>)[`_$$${type}`];
   delegated?.call(node, event);

@@ -41,5 +41,15 @@ export function kindlePreviewMetrics(model: KindleModel, preset: KindleMarginPre
   const { emPx, measured, width, deviceMarginPx } = calibration(model, preset);
   const sideMarginPx = deviceMarginPx + marginXPx(model, preset, marginX, unit);
   const contentWidthPx = Math.max(0, width - 2 * sideMarginPx);
-  return { emPx, deviceMarginPx, sideMarginPx, contentWidthPx, charsPerLine: Math.floor(contentWidthPx / emPx), measured };
+  const vertical = KINDLE_MODELS[model].typesetting.verticalMargins[preset];
+  return { emPx, deviceMarginPx, sideMarginPx, contentWidthPx, charsPerLine: Math.floor(contentWidthPx / emPx), measured,
+    topMarginPx: vertical.top, bottomMarginPx: vertical.bottom, verticalMeasured: vertical.measured };
+}
+
+/** Integer device pixels keep every column pitch equal to exactly one screen. */
+export function kindlePageGeometry(model: KindleModel, preset: KindleMarginPreset) {
+  const screen = KINDLE_MODELS[model === "other" ? "KPW3" : model];
+  const { emPx, deviceMarginPx: side, topMarginPx: top, bottomMarginPx: bottom } = kindlePreviewMetrics(model, preset, null, "percent");
+  return { width: screen.width, height: screen.height, emPx, side, top, bottom,
+    column: screen.width - 2 * side, gap: 2 * side, contentHeight: screen.height - top - bottom };
 }

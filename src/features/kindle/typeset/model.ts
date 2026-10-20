@@ -13,6 +13,18 @@ export function previewContentUrl(bookId: string, path: string, options: EpubStr
     : `/book/${bookId}/epub/${member}`;
 }
 export function screenFor(model: KindleModel) { return KINDLE_MODELS[model === "other" ? "KPW3" : model]; }
+
+/** Measure without the end spacer. Ceil the extent, never add a page to an exact multiple. */
+export function previewPagination(width: number, extent: number, desiredPage = 1) {
+  const step = Math.max(1, Math.round(width));
+  const count = Math.max(1, Math.ceil(Math.round(extent) / step));
+  const page = Math.max(1, Math.min(count, Math.trunc(desiredPage)));
+  return { step, count, page, left: (page - 1) * step, end: count * step };
+}
+export function previewAnchorPage(left: number, scrollLeft: number, step: number) {
+  // Range coordinates are viewport-relative; negative profile margins still belong to this page.
+  return Math.max(1, Math.floor((left + scrollLeft + 0.5) / step) + 1);
+}
 export function fileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   const unit = bytes >= 1024 ** 3 ? 3 : bytes >= 1024 ** 2 ? 2 : 1;

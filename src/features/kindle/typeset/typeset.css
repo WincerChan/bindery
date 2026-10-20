@@ -38,6 +38,9 @@
 .kt-device-bezel { width: 100%; padding: 26px 22px 54px; background: #1E2024; border-radius: 26px; box-shadow: 0 30px 60px -30px rgb(21 23 26 / 55%); }
 .kt-screen { width: 100%; position: relative; overflow: hidden; background: #F4F3EE; }
 .kt-screen iframe { position: absolute; left: 0; top: 0; border: 0; background: #F4F3EE; transform-origin: top left; }
+.kt-screen:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
+.kt-page-controls { justify-content: center; gap: 16px; }
+.kt-page-controls [role=status] { min-width: 110px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
 .kt-font-table { width: 100%; min-width: 1000px; table-layout: fixed; border-collapse: collapse; text-align: left; font-size: 14px; }
 .kt-table-scroll { max-width: 100%; overflow-x: auto; }
 .kt-font-table th { font-weight: 400; color: var(--color-ink-3); font-size: 12px; padding: 10px 24px 10px 0; border-top: 1px solid var(--color-ink); border-bottom: 1px solid var(--color-line); }
