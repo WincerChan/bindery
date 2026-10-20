@@ -91,11 +91,12 @@ export class PreviewDocument {
     if (this.initialized && !this.layoutPending) this.anchor = this.capture() ?? this.anchor;
     this.layoutPending = true;
     this.geometry = kindlePageGeometry(model, preset);
-    const { width, height, emPx, side, top, bottom, column, gap, contentHeight } = this.geometry;
+    const { width, height, emPx, lineHeight, side, top, bottom, column, gap, contentHeight } = this.geometry;
     const root = { width: `${width}px`, "min-width": "0", "max-width": "none", height: `${height}px`, "min-height": "0", "max-height": "none", margin: "0", padding: "0", border: "0", "box-sizing": "content-box", overflow: "hidden", position: "relative", "scroll-behavior": "auto", "scroll-snap-type": "none", "overflow-anchor": "none", "scrollbar-width": "none", direction: "ltr", "writing-mode": "horizontal-tb" };
     const body = { display: "block", position: "static", float: "none", width: `${column}px`, "min-width": "0", "max-width": "none", height: `${contentHeight}px`, "min-height": "0", "max-height": "none", margin: `${top}px ${side}px ${bottom}px`, padding: "0", border: "0", "box-sizing": "content-box", overflow: "visible", "column-width": `${column}px`, "column-gap": `${gap}px`, "column-count": "auto", "column-fill": "auto", direction: "ltr", "writing-mode": "horizontal-tb" };
     const declarations = (values: Record<string, string>) => Object.entries(values).map(([key, value]) => `${key}: ${value} !important;`).join(" ");
     this.base.textContent = `html { font-size: ${emPx}px; ${declarations(root)} } body { ${declarations(body)} overflow-wrap: anywhere; }
+      body { line-height: ${lineHeight}; }
       html[data-bindery-kindle]::after { content: "" !important; display: block !important; position: absolute !important; left: var(--bindery-page-end, 0px) !important; top: 0 !important; width: 1px !important; height: 1px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; pointer-events: none !important; }
       ::-webkit-scrollbar { display: none !important; } img, svg { max-width: 100%; max-height: ${contentHeight}px; }`;
     this.force(this.document.documentElement, root);

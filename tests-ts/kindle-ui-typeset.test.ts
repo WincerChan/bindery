@@ -360,7 +360,7 @@ it("applies and resets the negative-margin preset, previews calibrated counts, a
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change"); expect(estimate()).toContain("约 14 字");
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "wide", "change"); expect(estimate()).toContain("约 11 字");
   expect(margin.getAttribute("min")).toBe("-34.8");
-  expect(mounted.root.textContent).toContain("上下页边距为估算，未经实机测量");
+  expect(mounted.root.textContent).toContain("上下页边距按 KPW3 窄边距实测，其他档位与型号为估算");
   fire(button(mounted.root, "保存方案"), "click"); await settle();
   expect(stored.settings).toMatchObject({ deviceModel: "KPW3", kindleMargin: "wide", marginX: null });
   mounted.dispose();
@@ -442,7 +442,7 @@ it("takes over a chapter already loaded before hydration and applies CSS and dev
     expect.stringContaining("font-size: 55px"), bookStyle.textContent, "",
   ]);
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change");
-  expect(head.firstChild!.textContent).toContain("margin: 137px 137px 137px !important");
+  expect(head.firstChild!.textContent).toContain("margin: 52px 137px 70px !important");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   setValue(labels(mounted.root, "select", "字体（设备上已安装）"), "Book", "change"); await settle();
   expect(elements(head, "style", "data-bindery-profile")[0]!.textContent).toContain('font-family: "Book"');

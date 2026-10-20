@@ -85,9 +85,9 @@ it("updates the profile stylesheet without altering book styles and clears docum
   const preview = new PreviewDocument(target.document);
   const base = target.head.firstChild!, profile = target.head.lastChild!;
   expect(base.textContent).toContain("font-size: 55px");
-  expect(base.textContent).toContain("margin: 80px 80px 80px !important");
+  expect(base.textContent).toContain("margin: 52px 80px 70px !important"); expect(base.textContent).toContain("body { line-height: 1.75; }");
   expect(base.textContent).toContain("scrollbar-width: none !important");
-  preview.setDevice("KPW3", "medium"); expect(base.textContent).toContain("margin: 137px 137px 137px !important");
+  preview.setDevice("KPW3", "medium"); expect(base.textContent).toContain("margin: 52px 137px 70px !important");
   preview.setDevice("KO3", "wide"); expect(base.textContent).toContain(`font-size: ${55 * 1264 / 1072}px`);
   await preview.update("p { line-height: 1.6; }", device, family); expect(target.fonts.size).toBe(5);
   await preview.update("p { line-height: 1.8; }", device, family); expect(profile.textContent).toContain("1.8"); expect(target.fonts.size).toBe(5);
@@ -124,7 +124,9 @@ it("pins device body geometry over author margins while keeping direct children,
     expect(body.style.getPropertyValue("margin")).toBe(`${geometry.top}px ${geometry.side}px ${geometry.bottom}px`);
     expect(body.style.getPropertyPriority("margin")).toBe("important");
     expect(body.style.getPropertyValue("font-family")).toBe("Book");
-    expect(metrics).toMatchObject({ topMarginPx: geometry.side, bottomMarginPx: geometry.side, verticalMeasured: false });
+    const scale = geometry.width / 1072;
+    expect(metrics).toMatchObject({ topMarginPx: Math.round(52 * scale), bottomMarginPx: Math.round(70 * scale), verticalMeasured: model === "KPW3" && preset === "narrow" });
+    expect(geometry.lineHeight).toBe(1.75);
     for (const [value, unit, suffix] of [[-4.8, "percent", "%"], [-0.8, "em", "em"], [5, "percent", "%"]] as const) {
       await preview.update(`body > * { margin-left: ${value}${suffix} !important; margin-right: ${value}${suffix} !important; }`, null);
       const actual = kindlePreviewMetrics(model, preset, value, unit);

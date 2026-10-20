@@ -1,6 +1,6 @@
 # Kindle 设备边距校准
 
-校准来源：用户的 KPW3，固件 5.16.2.1.1，霞鹜文楷 轻便版 Medium，Kindle 字号 7。实测只覆盖横向边距；分页预览的上下边距采用明确标记的估算。
+校准来源：用户的 KPW3，固件 5.16.2.1.1，霞鹜文楷 轻便版 Medium，Kindle 字号 7。横向边距三档均实测；纵向（行距、上下边距）只实测了窄档与 Kindle「最宽」行距。
 
 | Kindle 页边距 | 无书籍 CSS 每行汉字 | 每侧设备留白校准值 |
 | --- | --- | --- |
@@ -16,7 +16,9 @@ KPW3 屏幕为 1072×1448 px、300 ppi。按全宽汉字 1em，字号 7 校准�
 
 KO3 使用 1264px 宽度与 KPW3 的比例缩放 em 和留白，留白四舍五入到整数设备像素（窄／中／宽为 94／162／259px），其他型号暂用 KPW3 尺寸。两者均明确标为估算。其他字体、字号、书籍字体大小和缩进、自定义 CSS 不属于这组实测条件，可能改变实际字数；Kindle 自身字号设置仍然生效。
 
-每个型号／档位在 `identity.ts` 的 `typesetting.verticalMargins` 中单独保存 `top`、`bottom` 与 `measured: false`；初始上下各采用该档位的单侧横向留白。KPW3 窄／中／宽的上下各为 80／137／220px；KO3 为 94／162／259px。`margins.ts` 的预览指标另返回 `verticalMeasured: false`，不复用横向的实测标记。页面注明「上下页边距为估算，未经实机测量」，不模拟 Kindle 页眉页脚文字，也不把这些估计写进书籍 CSS。
+纵向实测（窄档、Kindle 行距「最宽」、一整段无 CSS 的 1000 字测试书，照片按屏幕 1072×1448 换算）：每页 13 行，行距 96px = 1.75em。从段落中间接续的第 2 页，首行行框距屏幕顶 52px；章首第 1 页低 1em（boko 为段落写入 1em 上下段距，即浏览器默认 `p` 边距）。底部只能由两页的行数推出区间：第 1 页 13 行止于 1355px，第 2 页放不下第 14 行（需止于约 1400px），故底部留白在 48–92px 之间；取 70px（区间中点，并与页眉 52px／页脚条带对称）。
+
+`identity.ts` 的 `typesetting` 记录 `lineHeight: 1.75` 与每档 `verticalMargins`（上 52px、下 70px，按型号宽度比例缩放）；只有 KPW3 窄档 `measured: true`，中／宽档与 KO3、其他型号沿用同值并标为估算。预览在书籍 CSS 之前给 `body` 设 `line-height: 1.75`（不加 `!important`），书籍或方案指定的行高优先。浏览器里用同一测试文本复核：每行 16 字、每页 13 行、共 5 页。Kindle「小／中」行距、书籍自带行高在 Kindle 上是否被行距设置改写，均未测量。页面注明这些范围，不模拟 Kindle 页眉页脚文字，也不把这些值写进书籍 CSS。
 
 `ProfileSettings.deviceModel` 和 `kindleMargin` 随方案存入现有 `settings_json`，用于服务端边界校验与预览，不生成书籍 CSS。用户需在 Kindle 上选择同一档位。旧 JSON 缺少这些字段时补为 KPW3／窄，正边距值及既有 CSS 行为保留，无需数据库迁移。默认方案仍不生成 CSS；选择预览档位后可另存为自己的方案。
 
@@ -24,7 +26,7 @@ KO3 使用 1264px 宽度与 KPW3 的比例缩放 em 和留白，留白四舍五�
 
 服务端不允许负边距超过校准留白：百分比 `marginX >= -设备留白 / 正文栏宽度 × 100`，em `marginX >= -设备留白 / emPx`，没有额外越屏余量。KPW3 窄／中／宽分别约为 −8.77%／−17.17%／−34.81%（em 为 −1.4545／−2.4909／−4em）；KO3 采用取整后的留白计算同一边界。上限为 40%（两侧合计仍留出正文栏）或 20em。编辑器提供 0.1% 步长，下限取当前档位的安全刻度，上限 +20%（超出的合法旧值仍显示并保留）。快捷按钮「收窄到约 1 字边距（-4.8%）」。
 
-预览 iframe 保持设备像素尺寸并整体缩放，设备基线样式位于书籍 CSS 之前，方案 CSS 位于其后。设屏幕为 W×H，单侧设备留白为 m，上下估算为 t、b：根元素固定 W×H、无 padding、隐藏溢出；`body` 自身采用宽 `W−2m`、高 `H−t−b`、`column-width: W−2m`、`column-gap: 2m`、`column-fill: auto`，四侧 margin 为 `t m b m`。栏宽加栏间距严格等于整数屏幕宽 W，每页通过文档 scrolling element 的 `scrollLeft = (page−1) × W` 定位。
+预览 iframe 保持设备像素尺寸并整体缩放，设备基线样式位于书籍 CSS 之前，方案 CSS 位于其后。设屏幕为 W×H，单侧设备留白为 m，上下留白为 t、b：根元素固定 W×H、无 padding、隐藏溢出；`body` 自身采用宽 `W−2m`、高 `H−t−b`、`column-width: W−2m`、`column-gap: 2m`、`column-fill: auto`，四侧 margin 为 `t m b m`。栏宽加栏间距严格等于整数屏幕宽 W，每页通过文档 scrolling element 的 `scrollLeft = (page−1) × W` 定位。
 
 不包裹或搬动正文子节点，`body > *` 仍然直接匹配原来的块；百分比仍相对正文栏宽 `W−2m`，负百分比和旧 em 均能伸入设备留白。boko 在构建 KFX 时丢弃 html/body margin，因此基线的 margin 使用 `!important`，同时把几何属性设为 inline `!important`，防止书籍后置样式及 inline margin 覆盖设备边距；书籍的字体、行高、颜色继续参与正常级联。
 

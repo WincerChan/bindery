@@ -50,6 +50,7 @@ export function kindlePreviewMetrics(model: KindleModel, preset: KindleMarginPre
 export function kindlePageGeometry(model: KindleModel, preset: KindleMarginPreset) {
   const screen = KINDLE_MODELS[model === "other" ? "KPW3" : model];
   const { emPx, deviceMarginPx: side, topMarginPx: top, bottomMarginPx: bottom } = kindlePreviewMetrics(model, preset, null, "percent");
-  return { width: screen.width, height: screen.height, emPx, side, top, bottom,
+  const { lineHeight } = KINDLE_MODELS[model].typesetting;
+  return { width: screen.width, height: screen.height, emPx, lineHeight, side, top, bottom,
     column: screen.width - 2 * side, gap: 2 * side, contentHeight: screen.height - top - bottom };
 }

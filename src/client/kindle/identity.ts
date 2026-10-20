@@ -2,12 +2,17 @@ import { EntryAccessError, entryOperation, isMissing, optionalEntry, readBytes, 
 
 // KPW3, firmware 5.16.2.1.1, 霞鹜文楷 轻便版 Medium, Kindle size 7.
 // Fits 16/14/11 CJK glyphs at narrow/medium/wide, and 18 at narrow with -0.8em or -4.8%.
+// Vertical (narrow, widest Kindle line spacing, CSS-free paragraph): 13 lines per page, line pitch
+// 96px = 1.75em; a mid-paragraph page starts its first line box 52px below the screen top (a chapter
+// page 1em lower, from the paragraph's margin). The bottom is only bounded by those pages (48–92px);
+// 70px sits mid-range and mirrors the header/footer bands. Medium/wide vertical margins are unmeasured.
 // KO3 and unknown models use the same ratios as explicitly unmeasured estimates.
 const calibration = (width: number, measured: boolean) => {
-  const sideMargins = { narrow: Math.round(80 * width / 1072), medium: Math.round(137 * width / 1072), wide: Math.round(220 * width / 1072) };
-  // Vertical margins have not been measured. Start with the same device pixels as each side.
-  const verticalMargins = Object.fromEntries(Object.entries(sideMargins).map(([preset, px]) => [preset, { top: px, bottom: px, measured: false as const }])) as Record<keyof typeof sideMargins, { top: number; bottom: number; measured: false }>;
-  return { emPx: 55 * width / 1072, sideMargins, measured, verticalMargins };
+  const scale = (px: number) => Math.round(px * width / 1072);
+  const sideMargins = { narrow: scale(80), medium: scale(137), wide: scale(220) };
+  const vertical = (preset: keyof typeof sideMargins) => ({ top: scale(52), bottom: scale(70), measured: measured && preset === "narrow" });
+  const verticalMargins = { narrow: vertical("narrow"), medium: vertical("medium"), wide: vertical("wide") };
+  return { emPx: 55 * width / 1072, lineHeight: 1.75, sideMargins, measured, verticalMargins };
 };
 export const KINDLE_MODELS = {
   KPW3: { name: "Kindle Paperwhite 3", width: 1072, height: 1448, ppi: 300, inches: 6, typesetting: calibration(1072, true) },
