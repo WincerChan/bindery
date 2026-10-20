@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -51,16 +51,19 @@ function globals() {
   for (const key of ["width", "height"]) Object.defineProperty(prototype, key, { configurable: true,
     get(this: Element) { return Number(this.getAttribute(key)); }, set(this: Element, value: number) { this.setAttribute(key, String(value)); },
   });
-  Object.defineProperty(prototype, "disabled", { configurable: true,
-    get(this: Element) { return this.hasAttribute("disabled"); }, set(this: Element, value: boolean) { if (value) this.setAttribute("disabled", ""); else this.removeAttribute("disabled"); },
+  for (const key of ["disabled", "hidden"]) Object.defineProperty(prototype, key, { configurable: true,
+    get(this: Element) { return this.hasAttribute(key); }, set(this: Element, value: boolean) { if (value) this.setAttribute(key, ""); else this.removeAttribute(key); },
   });
   const styles = new WeakMap<Element, object>();
   Object.defineProperty(prototype, "style", { configurable: true, get(this: Element) {
-    if (!styles.has(this)) styles.set(this, { setProperty: () => {}, removeProperty: () => {}, getPropertyValue: () => "" });
+    if (!styles.has(this)) {
+      const values = new Map<string, string>();
+      styles.set(this, { setProperty: (key: string, value: string) => { values.set(key, value); }, removeProperty: (key: string) => { values.delete(key); }, getPropertyValue: (key: string) => values.get(key) ?? "" });
+    }
     return styles.get(this);
   } });
   vi.stubGlobal("document", page); vi.stubGlobal("self", globalThis);
-  vi.stubGlobal("window", Object.assign(new EventTarget(), { confirm: vi.fn(() => true), location: new URL("http://bindery.local/kindle/preview") }));
+  vi.stubGlobal("window", Object.assign(new EventTarget(), { confirm: vi.fn(() => true), location: new URL("http://bindery.local/kindle/preview"), matchMedia: vi.fn(() => Object.assign(new EventTarget(), { matches: false })) }));
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
 }
 beforeEach(globals);
@@ -168,12 +171,110 @@ it("renders the two preview sections, profile selector, model states and generat
     .toEqual([["KO3", "false"], ["KPW3", "true"], ["其他", "false"]]);
   expect(elements(editor, "input").filter(node => node.getAttribute("type") === "range").map(node => node.id))
     .toEqual(["kt-marginX", "kt-lineHeight", "kt-paragraphSpacing", "kt-textIndent"]);
-  expect(labels(editor, "textarea", "生成的 CSS（只读）").hasAttribute("readonly")).toBe(true);
+  for (const [key, label, min, max, step, fallback] of [
+    ["marginX", "左右边距调整（%）", "-8.7", "20", "0.1", "0"],
+    ["lineHeight", "行高", "1.2", "2.4", "0.05", "1.6"],
+    ["paragraphSpacing", "段间距（em）", "0", "1.5", "0.1", "0"],
+    ["textIndent", "首行缩进（em）", "0", "3", "0.5", "2"],
+  ]) {
+    const slider = input(editor, `kt-${key}`), row = slider.parentElement!, output = elements(row, "output")[0]!;
+    expect(Array.from(row.childNodes).filter(node => node.nodeType === 1).map(node => node.nodeName)).toEqual(["LABEL", "INPUT", "OUTPUT", "BUTTON"]);
+    expect(["aria-label", "min", "max", "step", "value"].map(attr => slider.getAttribute(attr))).toEqual([label, min, max, step, fallback]);
+    expect(elements(row, "label")[0]!.getAttribute("for")).toBe(slider.id);
+    expect(output.getAttribute("for")).toBe(slider.id);
+    expect(output.textContent).toBe(key === "marginX" ? "默认" : "书籍");
+    expect(output.className).toBe("is-inherited");
+    const reset = elements(row, "button")[0]!;
+    expect(reset.textContent).toBe("↺");
+    expect(reset.getAttribute("aria-label")).toBe(key === "marginX" ? "恢复 Kindle 默认" : "恢复沿用书籍");
+    expect(reset.getAttribute("title")).toBe(reset.getAttribute("aria-label"));
+    expect(reset.hasAttribute("hidden")).toBe(true); expect(reset.hasAttribute("disabled")).toBe(true);
+  }
+  const advanced = withClass(editor, "kt-advanced"), checkboxes = withClass(editor, "kt-checkboxes");
+  expect(advanced.hasAttribute("open")).toBe(false);
+  expect(labels(advanced, "textarea", "生成的 CSS（只读）").hasAttribute("readonly")).toBe(true);
+  expect(checkboxes.getAttribute("role")).toBe("group"); expect(checkboxes.getAttribute("aria-label")).toBe("正文样式");
+  expect(elements(checkboxes, "label").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片"]);
+  expect(elements(checkboxes, "input").every(node => node.getAttribute("type") === "checkbox")).toBe(true);
+  expect(editor.textContent).toContain("默认方案只读，另存为后可编辑");
+  expect(editor.textContent).not.toMatch(/负值收窄|收窄到约 1 字边距|保留书籍字体样式|正文插图会被移除/);
+  expect(elements(labels(editor, "select", "字体（设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
   expect(withClass(editor, "kt-profile-actions").textContent).toBe("重置删除另存为保存方案");
   const toolbar = withClass(preview, "kt-preview-toolbar");
   expect(labels(toolbar, "select", "预览书籍")).toBeDefined(); expect(labels(toolbar, "select", "章节")).toBeDefined();
-  expect(withClass(toolbar, "kt-spec").textContent).toContain("1072×1448");
+  expect(labels(toolbar, "select", "Kindle 页边距设置")).toBeDefined();
+  expect(preview.className).toContain("kt-preview-sticky");
+  expect(withClass(preview, "kt-device-space").parentElement).toBe(withClass(preview, "kt-frame-wrap"));
+  const calibration = withClass(preview, "kt-calibration");
+  expect(calibration.nodeName).toBe("DETAILS"); expect(calibration.hasAttribute("open")).toBe(false);
+  expect(elements(calibration, "summary")[0]!.textContent).toBe("校准说明");
+  expect(withClass(calibration, "kt-spec").textContent).toContain("1072×1448");
+  expect(calibration.textContent).toContain("按霞鹜文楷"); expect(calibration.textContent).toContain("请选择与 Kindle 一致的页边距档位");
+  expect(withClass(preview, "kt-preview-header").textContent).not.toMatch(/按霞鹜文楷|请选择与 Kindle/);
+  expect(Array.from(preview.childNodes).filter(node => node.nodeType === 1)).toEqual([
+    withClass(preview, "kt-preview-header"), withClass(preview, "kt-frame-wrap"), elements(preview, "p", "data-kindle-line-estimate")[0]!, calibration,
+  ]);
   expect(elements(preview, "iframe")[0]!.getAttribute("sandbox")).toBe("allow-same-origin");
+});
+
+it("keeps the wide preview sticky with a bounded frame slot and disables sticky at the existing mobile breakpoint", () => {
+  const css = readFileSync("src/features/kindle/typeset/typeset.css", "utf8");
+  expect(css).toMatch(/\.kt-preview-sticky\s*\{[^}]*position: sticky;[^}]*top: 16px;[^}]*height: calc\(100dvh - 32px\);/);
+  expect(css).toMatch(/\.kt-device-space\s*\{[^}]*min-height: 0;[^}]*contain: size;/);
+  expect(css).toMatch(/@media \(max-width: 943px\)\s*\{[^@]*\.kt-preview-sticky\s*\{ position: static; height: auto; \}/);
+  expect(css).toMatch(/\.kt-range-reset\[hidden\]\s*\{[^}]*visibility: hidden;[^}]*pointer-events: none;/);
+  expect(css).toMatch(/\.kt-checkboxes\s*\{[^}]*grid-template-columns: repeat\(2,/);
+});
+
+it("fits the frame to the smaller width/height constraint after mount, resize and model changes, and releases layout listeners", async () => {
+  const observers: LayoutObserver[] = [];
+  class LayoutObserver {
+    targets = new Set<Element>();
+    disconnect = vi.fn(() => { this.targets.clear(); });
+    constructor(readonly callback: () => void) { observers.push(this); }
+    observe(target: Element) { this.targets.add(target); }
+  }
+  const notify = (target: Element) => { for (const observer of observers) if (observer.targets.has(target)) observer.callback(); ui.flush(); };
+  vi.stubGlobal("ResizeObserver", LayoutObserver);
+  const media = Object.assign(new EventTarget(), { matches: true });
+  vi.mocked(window.matchMedia).mockReturnValue(media as unknown as MediaQueryList);
+  let width = 720, height = 500, top = 240;
+  Object.assign(window, { innerHeight: 900, getComputedStyle: vi.fn(() => ({ top: "128px", paddingLeft: "22px", paddingRight: "22px", paddingTop: "26px", paddingBottom: "54px" })) });
+  const mounted = mount("preview", null, {}, root => {
+    const viewport = withClass(root, "kt-device-space"), preview = withClass(root, "kt-preview");
+    Object.defineProperties(viewport, { clientWidth: { get: () => width }, clientHeight: { get: () => height } });
+    Object.defineProperty(preview, "clientWidth", { value: 720 });
+    Object.assign(preview, { getBoundingClientRect: () => ({ top }) });
+    expect(elements(root, "iframe")[0]!.getAttribute("style")).toContain("scale(0.4)");
+  });
+  await settle();
+  const viewport = withClass(mounted.root, "kt-device-space"), preview = withClass(mounted.root, "kt-preview");
+  const frame = elements(mounted.root, "iframe")[0] as HTMLIFrameElement;
+  const scale = () => Number(/scale\(([^)]+)\)/.exec(frame.style.getPropertyValue("transform"))![1]);
+  expect(window.matchMedia).toHaveBeenCalledWith("(min-width: 944px)");
+  expect(scale()).toBeCloseTo((height - 80) / 1448); // Height wins, including the bezel.
+  // The stuck size is CSS-only: page position must never feed back into the frame size.
+  expect((preview as HTMLElement).getAttribute("style")).toBeNull();
+  width = 260; height = 900; notify(viewport);
+  expect(scale()).toBeCloseTo((width - 44) / 1072); // Width wins.
+  width = 720; height = 300; notify(viewport);
+  expect(scale()).toBeCloseTo((height - 80) / 1448); // Only the available height changed.
+  fire(button(mounted.root, "KO3"), "click"); ui.flush();
+  expect(scale()).toBeCloseTo((height - 80) / 1680); // No ResizeObserver event for a model change.
+  expect(frame.getAttribute("height")).toBe("1680");
+  width = 400; height = 120; media.matches = false; media.dispatchEvent(new Event("change")); ui.flush();
+  expect(scale()).toBeCloseTo((width - 44) / 1264); // Stacked mobile layout has no height limit.
+  width = 1200; notify(viewport);
+  expect(scale()).toBeCloseTo(640 / 1680); // Retain the original maximum screen height.
+  const settled = scale();
+  top = 20; window.dispatchEvent(new Event("scroll")); ui.flush();
+  expect(scale()).toBe(settled); // Scrolling the settings column does not rescale the preview.
+  mounted.dispose();
+  // Only the frame observes layout now; the page no longer measures its own position.
+  expect(observers).toHaveLength(1); expect(observers.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true);
+  const lastScale = scale(); media.matches = true; media.dispatchEvent(new Event("change"));
+  top = 400; window.dispatchEvent(new Event("scroll")); window.dispatchEvent(new Event("resize")); ui.flush();
+  expect(scale()).toBe(lastScale);
 });
 
 it("renders the fonts title, summary, actions, five scoped columns and installation help in SSR", () => {
@@ -341,7 +442,7 @@ it("hydrates preview with real chapter URLs and updates device fonts, profile CS
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("2.5");
 });
 
-it("applies and resets the negative-margin preset, previews calibrated counts, and persists the Kindle margin with its profile", async () => {
+it("edits and resets signed margins with compact values, previews calibrated counts, and persists the Kindle margin", async () => {
   const { manager, id } = await paired(), profiles = api();
   let stored = custom(id);
   vi.mocked(profiles.list).mockImplementation(async deviceId => [defaultProfile(deviceId), stored]);
@@ -351,13 +452,16 @@ it("applies and resets the negative-margin preset, previews calibrated counts, a
   expect(estimate()).toBe("预计每行约 16 字（按 KPW3 · 字号 7 · 窄 实测校准）");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   const margin = input(mounted.root, "kt-marginX");
+  const output = elements(margin.parentElement!, "output")[0]!, reset = button(margin.parentElement!, "恢复 Kindle 默认");
+  expect(output.textContent).toBe("1%"); expect(reset.hasAttribute("hidden")).toBe(false);
   expect(margin.getAttribute("aria-label")).toBe("左右边距调整（%）");
   expect(margin.getAttribute("min")).toBe("-8.7"); expect(margin.getAttribute("step")).toBe("0.1");
   fire(button(mounted.root, "恢复 Kindle 默认"), "click"); ui.flush();
   expect(estimate()).toContain("约 16 字");
-  fire(button(mounted.root, "收窄到约 1 字边距（-4.8%）"), "click"); ui.flush();
+  expect(output.textContent).toBe("默认"); expect(reset.hasAttribute("hidden")).toBe(true); expect(reset.hasAttribute("disabled")).toBe(true);
+  setValue(margin, "-4.8");
   expect((margin as HTMLInputElement).value).toBe("-4.8"); expect(estimate()).toContain("约 18 字");
-  expect(mounted.root.textContent).toContain("-4.8 %（字号 7 约 -0.80 em）");
+  expect(output.textContent).toBe("-4.8%"); expect(reset.hasAttribute("hidden")).toBe(false); expect(reset.hasAttribute("disabled")).toBe(false);
   expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: -4.8% !important");
   fire(button(mounted.root, "恢复 Kindle 默认"), "click"); ui.flush();
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change"); expect(estimate()).toContain("约 14 字");
@@ -373,6 +477,22 @@ it("applies and resets the negative-margin preset, previews calibrated counts, a
   expect(reloaded.root.textContent).toContain("预计每行约 11 字");
 });
 
+it("shows one book-following value per compact range and hides each reset again after restoring null", async () => {
+  const { manager } = await paired(), mounted = mount("preview", manager); await settle();
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  for (const [key, value, text] of [["lineHeight", "1.85", "1.85"], ["paragraphSpacing", "0", "0em"], ["textIndent", "2", "2em"]]) {
+    const slider = input(mounted.root, `kt-${key}`), row = slider.parentElement!, output = elements(row, "output")[0]!, reset = button(row, "恢复沿用书籍");
+    setValue(slider, value!);
+    expect(output.textContent).toBe(text); expect(output.className).not.toContain("is-inherited");
+    expect(reset.getAttribute("title")).toBe("恢复沿用书籍"); expect(reset.textContent).toBe("↺");
+    expect(reset.hasAttribute("hidden")).toBe(false); expect(reset.hasAttribute("disabled")).toBe(false);
+    fire(reset, "click"); ui.flush();
+    expect(output.textContent).toBe("书籍"); expect(output.className).toBe("is-inherited");
+    expect(row.textContent).not.toContain("沿用书籍");
+    expect(reset.hasAttribute("hidden")).toBe(true); expect(reset.hasAttribute("disabled")).toBe(true);
+  }
+});
+
 it("keeps a legacy em margin until edited, then switches the adjustment to percent", async () => {
   const { manager, id } = await paired(), profiles = api();
   let stored: TypesettingProfile = { ...custom(id), settings: { ...custom(id).settings, marginX: 1, marginXUnit: "em" } };
@@ -381,12 +501,14 @@ it("keeps a legacy em margin until edited, then switches the adjustment to perce
   const mounted = mount("preview", manager, { profiles }); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   const css = () => (labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value;
-  expect(mounted.root.textContent).toContain("1 em（旧方案单位");
+  const output = elements(input(mounted.root, "kt-marginX").parentElement!, "output")[0]!;
+  expect(output.textContent).toBe("1em"); expect(output.getAttribute("title")).toContain("随 Kindle 字号缩放");
   expect(css()).toContain("margin-left: 1em !important");
   // 55px of the 912px narrow column at size 7.
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("6");
   expect(mounted.root.textContent).not.toContain("有未保存的修改");
   setValue(input(mounted.root, "kt-marginX"), "-4.8");
+  expect(output.textContent).toBe("-4.8%"); expect(output.hasAttribute("title")).toBe(false);
   expect(css()).toContain("margin-left: -4.8% !important");
   fire(button(mounted.root, "保存方案"), "click"); await settle();
   expect(stored.settings).toMatchObject({ marginX: -4.8, marginXUnit: "percent" });
@@ -416,8 +538,11 @@ it("updates preview asset modes live and includes both toggles in dirty, reset, 
   const change = (label: string, checked: boolean) => { const node = toggle(label); node.checked = checked; fire(node, "change"); ui.flush(); };
   expect(toggle("去掉书籍自带字体").disabled).toBe(true);
   expect(toggle("去掉所有图片").disabled).toBe(true);
-  expect(mounted.root.textContent).toContain("Kindle 上使用你选的字体；书里嵌入的字体文件会被移除");
-  expect(mounted.root.textContent).toContain("保留封面；正文插图会被移除，文件更小");
+  const group = withClass(mounted.root, "kt-checkboxes");
+  expect(elements(group, "label").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片"]);
+  expect(elements(group, "span").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片"]);
+  expect(toggle("去掉书籍自带字体").hasAttribute("aria-describedby")).toBe(false);
+  expect(toggle("去掉所有图片").hasAttribute("aria-describedby")).toBe(false);
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   const frame = elements(mounted.root, "iframe")[0]!;
   change("去掉书籍自带字体", true); expect(frame.getAttribute("src")).toContain(`/kindle/content/a/10/epub/`); expect(onDirty).toHaveBeenLastCalledWith(true);

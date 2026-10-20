@@ -56,10 +56,8 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
     return marginX === null ? null : Math.round(convertMarginX(effectiveModel(), kindleMargin, marginX, marginXUnit, "percent") * 10) / 10;
   };
   const marginText = () => {
-    const { marginX, marginXUnit, kindleMargin } = draft().settings;
-    if (marginX === null) return "Kindle 默认（保留书籍样式）";
-    if (marginXUnit === "em") return `${marginX} em（旧方案单位，随 Kindle 字号缩放；拖动后改用 %）`;
-    return `${marginX} %（字号 7 约 ${convertMarginX(effectiveModel(), kindleMargin, marginX, "percent", "em").toFixed(2)} em）`;
+    const { marginX, marginXUnit } = draft().settings;
+    return marginX === null ? "默认" : `${marginX}${marginXUnit === "em" ? "em" : "%"}`;
   };
   const rangeValue = (key: (typeof ranges)[number]["key"]) => key === "marginX" ? marginPercent() : draft().settings[key];
   const immutable = () => draft().builtIn || busy() || loading();
@@ -181,43 +179,50 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       <Show when={notice()}><p role="status">{notice()}</p></Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={dirty()}><p role="status">有未保存的修改</p></Show>
-      <Show when={draft().builtIn}><p class="muted">默认方案不可编辑或删除。点击「另存为」建立自己的方案。</p></Show>
-      <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}><span>{range.label}</span><output>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "沿用书籍" : `${draft().settings[range.key]} ${range.unit}`}</output></label>
+      <Show when={draft().builtIn}><p class="muted">默认方案只读，另存为后可编辑</p></Show>
+      <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}>{range.label}</label>
         <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? Math.max(range.max, marginPercent() ?? 0) : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={immutable()} onInput={event => { const value = Number(event.currentTarget.value); if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />
-        <button class="quiet" type="button" disabled={immutable() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>{range.key === "marginX" ? "恢复 Kindle 默认" : "沿用书籍"}</button>
-        <Show when={range.key === "marginX"}><div class="kt-margin-help"><Button variant="quiet" disabled={immutable()} onClick={() => editMargin(-4.8)}>收窄到约 1 字边距（-4.8%）</Button><p class="muted">负值收窄 Kindle 自身页边距，正值增加留白。百分比按 Kindle 正文栏宽度计算，不随 Kindle 字号变化；预览与字数估计按字号 7 校准。</p></div></Show>
+        <output for={`kt-${range.key}`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随 Kindle 字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output>
+        <button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复 Kindle 默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复 Kindle 默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={immutable() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button>
       </div>}</For>
       <Select label="字体（设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={immutable()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
-        <option value="">{draft().settings.stripFonts ? "设备默认字体" : "设备默认字体（保留书籍字体样式）"}</option>
+        <option value="">设备默认字体</option>
         <Show when={draft().settings.fontFamily && !fonts().some(font => font.name === draft().settings.fontFamily)}><option value={draft().settings.fontFamily!}>{draft().settings.fontFamily}（尚未在当前设备读取到）</option></Show>
         <For each={fonts()}>{family => <option value={family.name}>{family.name}</option>}</For>
       </Select>
       <Show when={draft().settings.fontFamily && !fonts().some(font => font.name === draft().settings.fontFamily)}><p class="muted">所选字体当前不可用，预览暂用替代字体；传书前请确认设备已安装此字体。</p></Show>
-      <Checkbox label="两端对齐" checked={draft().settings.justify === true} disabled={immutable()} onChange={event => edit("justify", event.currentTarget.checked)} />
-      <div class="field"><Checkbox label="去掉书籍自带字体" aria-describedby="kt-strip-fonts-help" checked={draft().settings.stripFonts} disabled={immutable()} onChange={event => edit("stripFonts", event.currentTarget.checked)} /><span id="kt-strip-fonts-help" class="field-hint">Kindle 上使用你选的字体；书里嵌入的字体文件会被移除</span></div>
-      <div class="field"><Checkbox label="去掉所有图片" aria-describedby="kt-strip-images-help" checked={draft().settings.stripImages} disabled={immutable()} onChange={event => edit("stripImages", event.currentTarget.checked)} /><span id="kt-strip-images-help" class="field-hint">保留封面；正文插图会被移除，文件更小</span></div>
+      <div class="kt-checkboxes" role="group" aria-label="正文样式">
+        <Checkbox label="两端对齐" checked={draft().settings.justify === true} disabled={immutable()} onChange={event => edit("justify", event.currentTarget.checked)} />
+        <Checkbox label="去掉书籍自带字体" checked={draft().settings.stripFonts} disabled={immutable()} onChange={event => edit("stripFonts", event.currentTarget.checked)} />
+        <Checkbox label="去掉所有图片" checked={draft().settings.stripImages} disabled={immutable()} onChange={event => edit("stripImages", event.currentTarget.checked)} />
+      </div>
       <details class="kt-advanced"><summary>更多设置</summary><div>
         <TextField label="方案名称" value={draft().name} disabled={immutable()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
         <Button variant="quiet" disabled={immutable() || draft().settings.justify === null} onClick={() => edit("justify", null)}>{draft().settings.justify === null ? "对齐方式沿用书籍" : "对齐方式恢复书籍设置"}</Button>
         <Textarea label="额外自定义 CSS" rows={6} value={draft().settings.customCss} disabled={immutable()} error={cssError() ?? undefined} onInput={event => edit("customCss", event.currentTarget.value)} />
+        <Textarea label="生成的 CSS（只读）" rows={8} class="kt-generated" readonly value={css() ?? "排版参数校验未通过，预览保留上次有效样式。"} />
       </div></details>
-      <Textarea label="生成的 CSS（只读）" rows={8} class="kt-generated" readonly value={css() ?? "排版参数校验未通过，预览保留上次有效样式。"} />
       <div class="kt-actions kt-profile-actions"><Button variant="quiet" disabled={busy() || loading() || !dirty()} onClick={reset}>重置</Button><Button variant="quiet" disabled={!target() || immutable() || draft().id === "draft"} onClick={() => setDeleting(true)}>删除</Button><Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为</Button><Button disabled={!canStore() || draft().builtIn || !dirty()} onClick={() => save()}>保存方案</Button></div>
-    </section><section class="kt-preview" aria-label="设备预览">
+    </section><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
+      <div class="kt-preview-header">
       <div class="kt-preview-toolbar"><div class="kt-preview-selectors"><Select label="预览书籍" value={bookId()} disabled={!props.data.books.length} onChange={event => { void chooseBook(event.currentTarget.value); }}><For each={props.data.books}>{book => <option value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</option>}</For></Select>
         <Select label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} onChange={event => openChapter(Number(event.currentTarget.value))}><For each={sections()}>{(section, index) => <option value={String(index())}>{section.title}</option>}</For></Select>
         <Select label="Kindle 页边距设置" value={draft().settings.kindleMargin} disabled={busy() || loading()} onChange={event => {
           const kindleMargin = event.currentTarget.value as KindleMarginPreset;
           setDraft(old => ({ ...old, settings: { ...old.settings, kindleMargin } }));
         }}><For each={Object.entries(KINDLE_MARGIN_PRESETS)}>{([value, label]) => <option value={value}>{label}</option>}</For></Select>
-      </div><p class="kt-spec">{effectiveModel() === "other" ? "其他（按 KPW3 预览）" : `${effectiveModel()} · ${KINDLE_MODELS[effectiveModel()].inches} 英寸`} · {screenFor(effectiveModel()).width}×{screenFor(effectiveModel()).height} · 按比例缩放</p></div>
-      <p class="muted">请选择与 Kindle 一致的页边距档位；随方案保存，仅用于预览和边界校验，不写入书籍 CSS。</p>
+      </div></div>
       <Show when={chapterLoading()}><p role="status">正在读取章节…</p></Show><Show when={chapterError()}><p role="alert" class="field-error">{chapterError()}</p></Show>
       <Show when={bookId() && chapterError()}><Button variant="secondary" disabled={chapterLoading()} onClick={() => chooseBook(bookId())}>重新读取章节</Button></Show>
       <Show when={!props.data.books.length}><p class="notice">书库中还没有可预览的 EPUB。</p></Show><Show when={bookId() && !sections().length && !chapterLoading() && !chapterError()}><p class="notice">这本书没有可预览的章节。</p></Show>
+      </div>
       <ChapterFrame src={sections()[chapter()] ? previewContentUrl(bookId(), sections()[chapter()].item_path, draft().settings) : ""} model={effectiveModel()} marginPreset={draft().settings.kindleMargin} css={css()} device={fontDevice()} family={fonts().find(font => font.name === draft().settings.fontFamily)} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
       <p class="muted" data-kindle-line-estimate>{settingsError() ? "排版参数无效，预览保留上次有效样式。" : `预计每行约 ${metrics().charsPerLine} 字（${metrics().measured ? "按 KPW3" : effectiveModel() === "other" ? "其他型号按 KPW3 比例估算" : "KO3 按 KPW3 比例估算"} · 字号 7 · ${KINDLE_MARGIN_PRESETS[draft().settings.kindleMargin]}${metrics().measured ? " 实测校准" : ""}）`}</p>
-      <p class="muted">按霞鹜文楷 轻便版 Medium 的全宽汉字估计，书籍字号、缩进及自定义 CSS 会影响字数。行距按 Kindle「最宽」行距实测（书籍或方案指定的行高优先）；上下页边距按 KPW3 窄边距实测，其他档位与型号为估算。不模拟 Kindle 页眉页脚文字。Kindle 自身字号仍生效，浏览器与 Kindle 排版引擎也有差异。</p>
+      <details class="kt-calibration"><summary>校准说明</summary>
+        <p class="kt-spec">{effectiveModel() === "other" ? "其他（按 KPW3 预览）" : `${effectiveModel()} · ${KINDLE_MODELS[effectiveModel()].inches} 英寸`} · {screenFor(effectiveModel()).width}×{screenFor(effectiveModel()).height} · 按比例缩放</p>
+        <p class="muted">请选择与 Kindle 一致的页边距档位；随方案保存，仅用于预览和边界校验，不写入书籍 CSS。</p>
+        <p class="muted">按霞鹜文楷 轻便版 Medium 的全宽汉字估计，书籍字号、缩进及自定义 CSS 会影响字数。行距按 Kindle「最宽」行距实测（书籍或方案指定的行高优先）；上下页边距按 KPW3 窄边距实测，其他档位与型号为估算。不模拟 Kindle 页眉页脚文字。Kindle 自身字号仍生效，浏览器与 Kindle 排版引擎也有差异。</p>
+      </details>
     </section></div>
     <Dialog open={saveAs()} title="另存为排版方案" onClose={() => { if (!busy()) setSaveAs(false); }}><form onSubmit={event => { event.preventDefault(); void save(true); }}>
       <TextField label="新方案名称" value={saveName()} maxlength={100} required disabled={busy()} onInput={event => setSaveName(event.currentTarget.value)} /><p class="muted">保存到 {target()?.name}。默认方案始终保留。</p>

@@ -39,6 +39,11 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
           assert.match(html, /aria-label="预览翻页"/); assert.match(html, /aria-live="polite"/);
           assert.match(html, /上一页/); assert.match(html, /下一页/); assert.match(html, /正在分页/);
           assert.match(html, /上下页边距按 KPW3 窄边距实测，其他档位与型号为估算/);
+          assert.match(html, /class="kt-preview kt-preview-sticky"/);
+          assert.ok(html.includes('<details class="kt-calibration"><summary>校准说明</summary>'));
+          assert.match(html, /aria-label="恢复 Kindle 默认"[^>]*title="恢复 Kindle 默认"[^>]*hidden[^>]*disabled/);
+          assert.match(html, /aria-label="正文样式"/);
+          assert.doesNotMatch(html, /收窄到约 1 字边距|负值收窄 Kindle 自身页边距|设备默认字体（保留书籍字体样式）/);
         }
       }
       const manifest = readdirSync(serverDir).filter(name => name.includes("server-fn-resolver")).map(name => readFileSync(join(serverDir, name), "utf8")).join("\\n");
