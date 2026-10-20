@@ -1,6 +1,7 @@
-import { directoryEntries, EntryReader, entryName, entryOperation, optionalDirectory, readBytes, type KindleDirectory } from "./fs";
+import { directoryEntries, EntryReader, entryName, entryOperation, errorMessage, optionalDirectory, readBytes, type KindleDirectory } from "./fs";
 import type { PairedDevice } from "./identity";
-import { applyDevicePatches, withDeviceLock } from "./transaction";
+import { TransferProgressReporter, type TransferProgress } from "./progress";
+import { applyDevicePatches, withDeviceLock, type DevicePatch } from "./transaction";
 
 export interface DeviceFont { filename: string; family: string; style: string; weight: number; italic: boolean; coverage: "R" | "B" | "I" | "BI" | string; size: number }
 export interface FontFamily { name: string; fonts: DeviceFont[]; coverage: string[]; size: number }
@@ -51,16 +52,68 @@ export async function listFonts(root: KindleDirectory, reader = new EntryReader(
   }
   return [...families.values()].sort((a, b) => a.name.localeCompare(b.name)).map(f => ({ ...f, fonts: f.fonts.sort((a, b) => a.weight - b.weight || Number(a.italic) - Number(b.italic)) }));
 }
-export async function installFonts(device: PairedDevice, files: File[]) {
+export interface FontInstallFileProgress extends Pick<TransferProgress, "state" | "message" | "bytesPerSecond" | "etaSeconds"> {
+  filename: string; loaded: number; total: number; committing: boolean;
+}
+export interface FontInstallProgress extends TransferProgress {
+  files: readonly FontInstallFileProgress[];
+  loaded: number; total: number; currentFile?: string; committing: boolean;
+}
+export interface FontInstallOptions { signal?: AbortSignal; onProgress?: (progress: FontInstallProgress) => void }
+export async function installFonts(device: PairedDevice, files: File[], options: FontInstallOptions = {}) {
   if (!files.length) throw new Error("请选择 TTF 或 OTF 字体文件");
-  const fonts = await Promise.all(files.map(async file => { entryName(file.name); if (!isFontFile(file.name)) throw new Error("只支持 TTF 和 OTF 字体文件"); return inspectFont(file); }));
-  return withDeviceLock(device, async () => {
-    const dir = await optionalDirectory(device.root, "fonts"), existing = new Set<string>();
-    if (dir) for (const entry of await directoryEntries(device.root, dir, "fonts")) existing.add(entry.name.toLowerCase());
-    for (const font of fonts) { const key = font.filename.toLowerCase(); if (existing.has(key)) throw new Error(`字体文件已存在：${font.filename}`); existing.add(key); }
-    await applyDevicePatches(device.root, await Promise.all(files.map(async file => ({ path: ["fonts", file.name], data: new Uint8Array(await file.arrayBuffer()) }))));
-    return fonts;
-  });
+  const check = () => { if (options.signal?.aborted) throw new DOMException("操作已取消", "AbortError"); };
+  check();
+  const rows: FontInstallFileProgress[] = files.map(file => ({ filename: file.name, state: "等待", message: "等待安装", loaded: 0, total: file.size, committing: false }));
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  let current = -1, loaded = 0, committing = false;
+  const reporter = () => new TransferProgressReporter(value => options.onProgress?.({ ...value, files: rows.slice(), loaded, total, currentFile: files[current]?.name, committing,
+    ...(value.state === "失败" ? { bytesPerSecond: undefined, etaSeconds: undefined } : {}),
+  }));
+  let progress = reporter();
+  const report = (state: TransferProgress["state"], message: string, flush = false) => progress.report({ state, phase: "write", message, loaded, total }, flush);
+  report("等待", "正在检查字体并等待设备");
+  try {
+    const fonts = await Promise.all(files.map(async file => { entryName(file.name); if (!isFontFile(file.name)) throw new Error("只支持 TTF 和 OTF 字体文件"); return inspectFont(file); }));
+    check();
+    return await withDeviceLock(device, async () => {
+      check();
+      const dir = await optionalDirectory(device.root, "fonts"), existing = new Set<string>();
+      if (dir) for (const entry of await directoryEntries(device.root, dir, "fonts")) existing.add(entry.name.toLowerCase());
+      for (const font of fonts) { const key = font.filename.toLowerCase(); if (existing.has(key)) throw new Error(`字体文件已存在：${font.filename}`); existing.add(key); }
+      check();
+      // Start throughput measurement after validation / waiting for the device lock.
+      progress = reporter();
+      const reporters = files.map((file, index) => new TransferProgressReporter(value => { rows[index] = { ...value, filename: file.name, loaded: value.loaded!, total: file.size, committing }; }));
+      const patches = files.map(file => ({ path: ["fonts", file.name], data: file }));
+      const indices = new Map<DevicePatch, number>(patches.map((patch, index) => [patch, index]));
+      let preceding = 0;
+      report("写入", "正在准备字体写入与恢复备份");
+      // File snapshots are sliced by writeBytes; rollback backups and journal ordering are unchanged.
+      await applyDevicePatches(device.root, patches, options.signal, (patch, value) => {
+        const index = indices.get(patch)!, changed = index !== current;
+        if (changed && current >= 0) {
+          rows[current] = { ...rows[current], committing: false, message: "文件已写入，等待批次提交" };
+          preceding += files[current].size;
+        }
+        current = index; committing = value.committing; loaded = preceding + value.loaded;
+        const message = committing ? "正在提交字体文件" : "正在写入字体文件", flush = changed || committing || value.loaded === value.total;
+        reporters[index].report({ state: "写入", phase: "write", message, loaded: value.loaded, total: value.total }, flush);
+        report("写入", message, flush);
+      });
+      // A closed file can still be rolled back by a later patch: only the whole transaction is success.
+      committing = false;
+      for (let i = 0; i < rows.length; i++) rows[i] = { ...rows[i], state: "完成", message: "字体文件安装完成", committing: false, etaSeconds: 0 };
+      report("完成", "字体安装完成", true);
+      return fonts;
+    });
+  } catch (error) {
+    committing = false;
+    const message = errorMessage(error);
+    for (let i = 0; i < rows.length; i++) rows[i] = { ...rows[i], state: "失败", message, committing: false, bytesPerSecond: undefined, etaSeconds: undefined };
+    report("失败", message, true);
+    throw error;
+  }
 }
 export async function deleteFontFamily(device: PairedDevice, familyName: string) {
   return withDeviceLock(device, async () => {

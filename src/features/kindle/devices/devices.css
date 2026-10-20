@@ -87,6 +87,7 @@
 .kindle-queue-item .kindle-section-heading { font-size: 13.5px; }
 .kindle-queue-item strong { font-weight: 400; }
 .kindle-queue-summary { margin: 0; }
+.kindle-queue button[aria-disabled="true"] { opacity: .5; cursor: not-allowed; filter: none; }
 .kindle-progress-detail { font-variant-numeric: tabular-nums; }
 .kindle-queue-state { color: var(--color-ink-2); font-size: 12.5px; }
 .kindle-queue-state.is-failed { color: var(--color-danger); }

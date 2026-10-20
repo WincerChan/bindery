@@ -13,7 +13,7 @@ import type { ProfileApi } from "../src/features/kindle/typeset/preview-page";
 import type { PreviewData } from "../src/features/kindle/typeset/model";
 import type { KindleContextValue } from "../src/features/kindle/context";
 import { clientDocument, elements, fire } from "./support/client-dom";
-import { FakeDirectory, fakeKindle } from "./support/fake-fs";
+import { FakeDirectory, FakeFile, fakeKindle } from "./support/fake-fs";
 import { previewDocumentFixture } from "./support/kindle-preview-dom";
 
 type Props = { manager: KindleDeviceManager | null; data: PreviewData; profiles: ProfileApi; chapters: (book: string) => Promise<{ title: string; item_path: string }[]>; initialFont?: string; onDirty?: (dirty: boolean) => void; onPreview?: (font: string) => unknown };
@@ -42,6 +42,9 @@ function globals() {
   const page = clientDocument(), prototype = Object.getPrototypeOf(page.createElement("div"));
   page.addEventListener = vi.fn(); page.removeEventListener = vi.fn();
   const body = page.createElement("body"); body.dispatchEvent = vi.fn(() => true); Object.defineProperty(page, "body", { value: body, configurable: true });
+  let focused: Element = body;
+  Object.defineProperty(page, "activeElement", { configurable: true, get: () => focused });
+  prototype.focus = function (this: Element) { focused = this; };
   vi.stubGlobal("showDirectoryPicker", vi.fn());
   vi.stubGlobal("scrollTo", vi.fn());
   // Only browser property reflection / style mutation needed by this slice; no layout emulation.
@@ -578,6 +581,133 @@ function chooseFiles(root: Element, files: File[]) {
   const element = elements(root, "input").find(input => input.getAttribute("type") === "file") as HTMLInputElement;
   Object.defineProperty(element, "files", { value: files, configurable: true }); fire(element, "change"); ui.flush();
 }
+
+function pauseFontWrites(names: string[]) {
+  const original = FakeFile.prototype.createWritable;
+  const pending: { filename: string; operation: "write" | "close"; release: () => void }[] = [];
+  let stopped = false;
+  vi.spyOn(FakeFile.prototype, "createWritable").mockImplementation(async function (this: FakeFile) {
+    const stream = await original.call(this);
+    if (!names.includes(this.name)) return stream;
+    const wait = (operation: "write" | "close") => stopped ? Promise.resolve() : new Promise<void>(release => pending.push({ filename: this.name, operation, release }));
+    return {
+      write: async bytes => { await wait("write"); await stream.write(bytes); },
+      close: async () => { await wait("close"); await stream.close(); },
+      abort: () => stream.abort(),
+    };
+  });
+  const stop = () => { stopped = true; pending.splice(0).forEach(item => item.release()); };
+  disposers.push(stop);
+  return { pending, stop, async release(filename: string, operation: "write" | "close" = "write") {
+    await waitUi(() => expect(pending.map(item => [item.filename, item.operation])).toEqual([[filename, operation]]));
+    pending.shift()!.release(); await settle();
+  } };
+}
+const largeFont = async (name: string, megabytes: number) => new File([await font(name).arrayBuffer(), new Uint8Array(megabytes * 1024 * 1024 - 12)], name);
+
+it.each([false, true])("hydrates the fonts route in place and shows stable, accessible file writes through batch commit (already connected=%s)", async alreadyConnected => {
+  const { fs, repo } = await paired(), manager = ui.manager(repo);
+  if (alreadyConnected) await manager.restore((await repo.list())[0]!);
+  const mounted = await mountRouted("fonts", manager); await settle();
+  const files = [await largeFont("CJK-Regular.ttf", 3), await largeFont("CJK-Bold.otf", 2)], gate = pauseFontWrites(files.map(file => file.name));
+  let now = Date.now(); vi.spyOn(Date, "now").mockImplementation(() => now);
+  chooseFiles(mounted.root, files); await settle(); fire(button(mounted.root, "确认安装"), "click"); await settle();
+  const rows = elements(mounted.root, "li", "data-font-install-file"), bars = elements(mounted.root, "progress");
+  const queue = elements(mounted.root, "section").find(node => node.getAttribute("aria-label") === "字体安装进度")!;
+  const cancel = button(queue, "取消字体安装"), live = elements(queue, "span", "aria-live");
+  const announcements = live.map(node => node.textContent), children = live.map(node => Array.from(node.childNodes));
+  const summary = () => elements(queue, "p", "data-font-install-summary")[0]!.textContent;
+  expect(rows.map(row => row.getAttribute("data-font-install-file"))).toEqual(files.map(file => file.name));
+  expect(rows.map(row => withClass(row, "kindle-queue-state").textContent)).toEqual(["写入", "等待"]);
+  expect(rows[0]!.textContent).toContain("3.0 MB"); expect(rows[1]!.textContent).toContain("2.0 MB");
+  expect(bars.map(bar => bar.getAttribute("max"))).toEqual(files.map(file => String(file.size)));
+  expect(bars.map(bar => bar.getAttribute("value"))).toEqual(["0", "0"]);
+  expect(bars.map(bar => bar.getAttribute("aria-label"))).toEqual(files.map(file => `${file.name} 安装进度`));
+  expect(live).toHaveLength(3); expect(live.every(node => node.getAttribute("aria-live") === "polite" && node.getAttribute("aria-atomic") === "true")).toBe(true);
+  expect(summary()).toContain("共 2 个文件 · 已完成 0 · 已写入 0.0 / 5.0 MB");
+  expect(document.activeElement).toBe(cancel);
+  const otherControl = elements(mounted.root, "a")[0]! as HTMLElement;
+  for (let chunk = 1; chunk <= 2; chunk++) {
+    if (chunk === 2) otherControl.focus();
+    now += 120; await gate.release(files[0]!.name);
+    expect(bars[0]!.getAttribute("value")).toBe(String(chunk * 1024 * 1024));
+    expect(bars[0]!.getAttribute("aria-valuetext")).toContain("MB/s · 剩余约");
+    expect(summary()).toContain(`已写入 ${chunk}.0 / 5.0 MB`); expect(summary()).toContain("MB/s · 剩余约");
+    expect(live.map(node => node.textContent)).toEqual(announcements);
+    expect(live.map(node => Array.from(node.childNodes))).toEqual(children);
+    expect(elements(queue, "li", "data-font-install-file")).toEqual(rows); expect(elements(queue, "progress")).toEqual(bars);
+    expect(document.activeElement).toBe(chunk === 1 ? cancel : otherControl);
+    mounted.heartbeat(Date.now()); ui.flush(); expect(button(mounted.root, "确认安装")).toBeDefined();
+  }
+  (cancel as HTMLButtonElement).focus();
+  now += 120; await gate.release(files[0]!.name);
+  expect(bars[0]!.getAttribute("value")).toBe(String(files[0]!.size));
+  expect(live[1]!.textContent).toContain("正在提交字体文件"); expect(summary()).toContain("已完成 0");
+  expect(mounted.root.textContent).not.toContain("已安装 2 个字体文件");
+  await gate.release(files[0]!.name, "close");
+  expect(rows.map(row => withClass(row, "kindle-queue-state").textContent)).toEqual(["写入", "写入"]);
+  expect(live[1]!.textContent).toContain("等待批次提交");
+  for (let chunk = 1; chunk <= 2; chunk++) { now += 120; await gate.release(files[1]!.name); }
+  expect(summary()).toContain("已完成 0 · 已写入 5.0 / 5.0 MB");
+  expect(mounted.root.textContent).not.toContain("已安装 2 个字体文件");
+  await gate.release(files[1]!.name, "close");
+  await waitUi(() => expect(mounted.root.textContent).toContain("已安装 2 个字体文件"));
+  expect(summary()).toContain("共 2 个文件 · 已完成 2 · 已写入 5.0 / 5.0 MB");
+  expect(bars.every(bar => bar.className === "is-complete")).toBe(true);
+  expect(live.slice(1).every(node => node.textContent!.includes("字体文件安装完成"))).toBe(true);
+  expect(cancel.getAttribute("aria-disabled")).toBe("true"); expect(document.activeElement).toBe(cancel);
+  expect(elements(queue, "li", "data-font-install-file")).toEqual(rows); expect(elements(queue, "progress")).toEqual(bars);
+  expect(mounted.bar.textContent).toContain("字体 5 MB");
+  for (const file of files) expect(Buffer.from(await fs.bytes(`fonts/${file.name}`)).equals(new Uint8Array(await file.arrayBuffer()))).toBe(true);
+});
+
+it("cancels a font batch from the progress controls, announces rollback and preserves focus and existing files", async () => {
+  const { fs, manager } = await paired(["Keep-Regular.ttf"]), mounted = mount("fonts", manager); await settle();
+  const files = [font("First.ttf"), await largeFont("Second.otf", 2)], gate = pauseFontWrites(files.map(file => file.name));
+  chooseFiles(mounted.root, files); await settle(); fire(button(mounted.root, "确认安装"), "click"); await settle();
+  await gate.release("First.ttf"); await gate.release("First.ttf", "close");
+  expect(await fs.bytes("fonts/First.ttf")).toHaveLength(12);
+  const cancel = button(mounted.root, "取消字体安装"), rows = elements(mounted.root, "li", "data-font-install-file");
+  fire(cancel, "click"); ui.flush();
+  expect(mounted.root.textContent).toContain("正在取消字体安装，等待回滚"); expect(cancel.getAttribute("aria-disabled")).toBe("true");
+  await gate.release("Second.otf");
+  await waitUi(() => expect(elements(mounted.root, "p").find(node => node.getAttribute("role") === "alert")?.textContent).toBe("操作已取消"));
+  expect(rows.map(row => withClass(row, "kindle-queue-state").textContent)).toEqual(["失败", "失败"]);
+  expect(elements(mounted.root, "p", "data-font-install-summary")[0]!.textContent).toContain("已完成 0");
+  expect(mounted.root.textContent).not.toContain("已安装 2 个字体文件"); expect(document.activeElement).toBe(cancel);
+  expect(elements(mounted.root, "tr", "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Keep"]);
+  for (const file of files) await expect(fs.bytes(`fonts/${file.name}`)).rejects.toMatchObject({ name: "NotFoundError" });
+  await expect(fs.bytes(".bindery/pending.json")).rejects.toMatchObject({ name: "NotFoundError" });
+  expect(await fs.bytes("fonts/Keep-Regular.ttf")).toHaveLength(12);
+  expect((button(mounted.root, "确认安装") as HTMLButtonElement).disabled).toBe(false);
+});
+
+it("shows disconnect errors during a font write without success and recovers before rescanning after reconnect", async () => {
+  const { fs, manager } = await paired(["Keep-Regular.ttf"]), mounted = mount("fonts", manager); await settle();
+  const files = [font("First.ttf"), await largeFont("Second.otf", 2)], gate = pauseFontWrites(files.map(file => file.name));
+  chooseFiles(mounted.root, files); await settle(); fire(button(mounted.root, "确认安装"), "click"); await settle();
+  await gate.release("First.ttf"); await gate.release("First.ttf", "close");
+  fs.unplug(); await manager.probe(); await settle();
+  await gate.release("Second.otf");
+  await waitUi(() => expect(elements(mounted.root, "p").find(node => node.getAttribute("role") === "alert")?.textContent).toContain("Kindle 已断开"));
+  expect(mounted.root.textContent).not.toContain("已安装 2 个字体文件");
+  expect(elements(mounted.root, "li", "data-font-install-file").every(row => withClass(row, "kindle-queue-state").textContent === "失败")).toBe(true);
+  fs.plug(); await manager.probe(); await settle();
+  expect(elements(mounted.root, "tr", "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Keep"]);
+  for (const file of files) await expect(fs.bytes(`fonts/${file.name}`)).rejects.toMatchObject({ name: "NotFoundError" });
+  await expect(fs.bytes(".bindery/pending.json")).rejects.toMatchObject({ name: "NotFoundError" });
+});
+
+it("shows a Windows long-path error with failed file rows and no installed notice", async () => {
+  const { fs, manager } = await paired(), mounted = mount("fonts", manager); await settle();
+  chooseFiles(mounted.root, [font("Short.ttf"), font(`${"字".repeat(250)}.ttf`)]); await settle();
+  fire(button(mounted.root, "确认安装"), "click"); await settle();
+  expect(elements(mounted.root, "p").find(node => node.getAttribute("role") === "alert")?.textContent).toContain("文件路径不适用于 Windows");
+  expect(elements(mounted.root, "li", "data-font-install-file").every(row => withClass(row, "kindle-queue-state").textContent === "失败")).toBe(true);
+  expect(mounted.root.textContent).not.toContain("已安装 2 个字体文件");
+  await expect(fs.bytes("fonts/Short.ttf")).rejects.toMatchObject({ name: "NotFoundError" });
+});
+
 it("shows an inspected family batch before installation, writes only after confirmation, and rescans", async () => {
   const { fs, manager } = await paired(), mounted = mount("fonts", manager); await settle();
   chooseFiles(mounted.root, [font("Sample-Regular.ttf"), font("Sample-Medium.otf")]); await settle();

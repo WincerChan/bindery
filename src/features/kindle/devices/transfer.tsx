@@ -2,18 +2,14 @@ import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { defaultProfile, type TransferItem, type TypesettingProfile } from "../../../client/kindle";
 import { BookCover, Button, Checkbox, Chip, EmptyState, Select, TextField } from "../../../ui";
 import { useKindle } from "../context";
-import { bytes } from "./format";
+import { byteProgressDetail, bytes, megabytes } from "./format";
 import type { KindleLibraryBook } from "./library";
 import { BokoLicense } from "./boko-license";
 
-const megabytes = (value: number) => (value / (1024 * 1024)).toLocaleString("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 function progressDetail(item: TransferItem) {
   if ((item.phase !== "download" && item.phase !== "write") || item.loaded === undefined || item.state === "失败" || item.state === "等待" || item.state === "完成") return item.message;
   const label = item.phase === "write" ? "已写入" : "已下载";
-  const amount = item.total === undefined ? `${megabytes(item.loaded ?? 0)} MB（总大小未知）` : `${megabytes(item.loaded ?? 0)} / ${megabytes(item.total)} MB`;
-  const rate = item.bytesPerSecond === undefined ? "" : ` · ${megabytes(item.bytesPerSecond)} MB/s`;
-  const eta = item.etaSeconds === undefined ? "" : ` · 剩余约 ${Math.ceil(item.etaSeconds)} 秒`;
-  return `${label} ${amount}${rate}${eta}`;
+  return byteProgressDetail(label, item);
 }
 function stageAnnouncement(item: TransferItem) {
   if (item.state === "等待" || item.state === "完成" || item.state === "失败") return `${item.state}：${item.message}`;

@@ -36,6 +36,16 @@ SSR 不执行这个 effect。客户端初始化时，方案加载会更新 draft
 
 字体增删原来还只刷新本页列表，未刷新共享 Provider 的 inventory，设备栏用量会过期。现在安装、删除成功后刷新共享 inventory，测试核对字体用量从 0 B → 12 B → 0 B 及实际文件字节。上下文和 manager 在组件初始化作用域捕获，避免异步回调重新读取含 `useContext` 的 prop getter；可选上下文提供明确的 null 默认值，页面也能独立挂载。
 
+### 字体安装：真实写入进度与整批取消
+
+`installFonts(device, files, { signal, onProgress })` 直接把 File 交给设备事务，由 `writeBytes` 按 1 MB 分块写入，不再先把全部字体转换为内存字节数组。`DevicePatch.data` 仅增加 Blob 类型；备份、恢复日志、提交顺序及回滚执行逻辑保持不变。
+
+逐文件和整体进度复用 `TransferProgressReporter` 的 100 ms 节流、速率及 ETA。字节累计跨文件保持单调，文件切换、末尾字节、`committing` 和最终结果立即上报。100% 字节仅表示数据已交给写入流；关闭文件时显示「正在提交字体文件」，此前的文件显示「等待批次提交」。整个事务完成后才把全部文件标为完成、显示已安装通知并刷新共享 inventory。
+
+取消通过 AbortSignal 进入原有回滚路径：当前 writable 会尝试 abort，已关闭的本批次文件也会删除。断开设备时可能无法立即回滚，原有未提交日志会保留，重连后的设备操作先恢复再扫描。取消和失败保留已写入字节计数，全部行标为失败，不把回滚掉的字体计入已完成。页面卸载或连接身份变化也会中止尚未结束的安装。
+
+字体队列复用传书队列 CSS 和字节详情格式。文件行、原生 determinate progress、阶段 live region 以及取消按钮保持 DOM 身份。active 状态经 memo 后再触发 focus effect，字节更新不会把焦点从用户刚移到的其他控件抢走；取消结束后按钮使用 `aria-disabled`，保持焦点并显示禁用样式。
+
 ## 其他 Kindle 页面审计
 
 | 范围 | 结论 / 修改 |
@@ -50,12 +60,14 @@ SSR 不执行这个 effect。客户端初始化时，方案加载会更新 draft
 
 `tests-ts/kindle-ui-typeset.test.ts` 复用 `tests-ts/support/client-dom.ts`、fake FS 和生产 Solid options，分别构建 SSR 与 production browser bundle。新增四项回归：两个真实 preview 路由 hydration 用例、完整 OTF 选择/确认/安装/删除流程、共享设备锁下的慢扫描与 heartbeat。实际使用生产 route 组件、`useBlocker`、Provider、设备栏及 tabs，仅注入 loader/RPC 和设备存储边界；没有浏览器、端口或网络。
 
+字体进度增加六项客户端逻辑测试（`tests-ts/kindle-font-install.test.ts`），覆盖 File 分块、逐文件/整体单调字节、节流及最终 flush、第二个文件写入/关闭时整批取消、等待设备锁时取消、拔线恢复与 Windows 长路径。生产 UI 测试暂停真实 fake FS 的 write/close，覆盖实际字体路由的冷启动/已连接 hydration、字节与 summary、仅阶段变化的 ARIA 播报、100% 后仍未提交、取消和拔线错误、稳定节点与焦点，以及成功后的共享用量刷新。fake FS 的 abort 记录与日志清理不等于真实 Chrome `.crswap` 已验证。
+
 最终执行结果：
 
 - `pnpm build`：通过；保留已有 `inputValidator` 弃用与 ingest 混合 import 提示。
 - `pnpm typecheck`：通过。
-- `pnpm test`：50 个文件、979 项通过，无跳过。
-- `git diff --check`：通过；最终 diff 仅包含本次 Kindle UI、回归测试和本文档。
+- `UV_PROJECT_ENVIRONMENT=/workspaces/bindery/.venv UV_OFFLINE=1 UV_NO_SYNC=1 PYTHONDONTWRITEBYTECODE=1 pnpm test`：64 个文件、1195 项通过，无跳过。
+- `git diff --check`：通过。
 
 真实 Chrome / OPFS、Start bootstrap 和实机字体显示留给下面的编排方检查，Node DOM 测试不代表这些已通过。
 
@@ -74,3 +86,6 @@ node scripts/start.mjs
 4. 删除测试家族：先取消一次，确认文件不变；再确认删除，核对文件和表格行消失、设备栏字体用量减少。其他家族、Readme 和 `._*` 文件不受影响。另用原先含 TTF 的目录检查字体表及样张仍能显示；应用 document.fonts 不应新增设备字体。
 5. 在含较多书籍/目录的 OPFS 测试设备上重复步骤 2–3：初次扫描期间按钮可禁用，扫描结束后必须恢复；选择文件后跨多个监测周期不能再次清空确认区或持续排队。预览选择自定义方案、改一个参数，等待至少 6 秒，方案、字段和脏草稿提示必须保持，不能被周期探测重置。
 6. 分别完整导航 `/kindle`、`/kindle/fonts`、`/kindle/transfer`、`/kindle/preview`，每页检查恢复连接和 inventory；再通过 tabs 做客户端导航。授权提示、断开/重连和未保存离开保护保持原行为。OPFS 无法替代真实 USB 拔插与 Kindle 重启后字体菜单验收。
+7. 选择多个 10–30 MB 的 CJK 字体，核对每行文件名、大小、等待/写入/完成状态、determinate progress 与整体字节、速率和 ETA。文件写满后仍应显示正在提交，全部成功后才显示已安装通知、重启提示和已完成数；设备栏字体用量同步刷新。用键盘移走焦点，后续字节更新不能抢回；读屏仅播报阶段变化，不应每秒重复播报字节数。
+8. 第一个文件关闭、第二个仍在写入时取消；等待取消结束，确认本批次文件全部消失、其他字体及 Readme 内容不变，`.bindery/pending.json`、rollback 和真实 Chrome `.crswap` 临时文件清理。所有行失败且没有已安装通知；取消按钮节点与焦点保留。再开始一个批次后离开页面，验证卸载取消也能恢复设备。
+9. 写入中真实拔掉 Kindle，核对明确断开错误和无已安装通知；重新插入后触发检测，恢复日志应先回滚整个批次，字体列表只保留安装前的文件。长路径应在写入任何字体前报错。最后验证成功安装的字体在 Kindle 重启或重新插拔后出现在字体菜单中。

@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
-import { deleteFontFamily, installFonts, type FontFamily } from "../../../client/kindle/fonts";
+import { deleteFontFamily, installFonts, type FontFamily, type FontInstallProgress } from "../../../client/kindle/fonts";
 import { deviceInventory } from "../../../client/kindle/inventory";
 import { errorMessage } from "../../../client/kindle/fs";
 import type { KindleDeviceManager } from "../../../client/kindle/device";
@@ -9,6 +9,38 @@ import { usePageDevice } from "./device";
 import { FontSample } from "./frames";
 import { fileSize, inspectFontBatch } from "./model";
 import { KindleIcon } from "../icons";
+import { byteProgressDetail } from "../devices/format";
+
+function FontInstallQueueProgress(props: { progress: FontInstallProgress; active: boolean; cancelling: boolean; cancel: () => void }) {
+  const indices = createMemo(() => props.progress.files.map((_, index) => index));
+  const active = createMemo(() => props.active);
+  let cancel!: HTMLButtonElement;
+  // A stable memo prevents byte updates from repeatedly taking keyboard focus.
+  createEffect(active, value => { if (value) cancel.focus(); });
+  const summary = () => {
+    const progress = props.progress;
+    return `共 ${progress.files.length} 个文件 · 已完成 ${progress.files.filter(file => file.state === "完成").length} · ${byteProgressDetail("已写入", progress)}`;
+  };
+  const stage = () => props.cancelling ? "正在取消字体安装，等待回滚" : props.progress.message;
+  // Retain the cancel button after completion so its focus is not lost on removal / native disabling.
+  return <section class="kindle-queue" aria-label="字体安装进度">
+    <div class="kindle-section-heading"><h3>安装进度</h3><Button ref={cancel} variant="quiet" size="sm" aria-label="取消字体安装" aria-disabled={!props.active || props.cancelling ? "true" : "false"} onClick={() => { if (props.active && !props.cancelling) props.cancel(); }}>取消</Button></div>
+    <p class="kindle-small kindle-mono kindle-queue-summary" data-font-install-summary>{summary()}</p>
+    <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{stage()}</span>
+    <ol class="kindle-queue-list"><For each={indices()}>{index => {
+      // Keep the same rows, progress elements and live regions for every immutable snapshot.
+      const file = () => props.progress.files[index]!;
+      const detail = () => `${byteProgressDetail("已写入", file())} · ${file().message}`;
+      return <li class="kindle-queue-item" data-font-install-file={file().filename}>
+        <div class="kindle-section-heading"><strong>{file().filename}</strong><span class={`kindle-queue-state ${file().state === "失败" ? "is-failed" : file().state === "完成" ? "is-complete" : ""}`}>{file().state}</span></div>
+        <p class="kindle-small">{fileSize(file().total)}</p>
+        <progress class={file().state === "完成" ? "is-complete" : ""} aria-label={`${file().filename} 安装进度`} aria-valuetext={detail()} max={file().total} value={file().loaded} />
+        <p class="kindle-small kindle-progress-detail">{detail()}</p>
+        <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{file().filename}：{file().message}</span>
+      </li>;
+    }}</For></ol>
+  </section>;
+}
 
 export function FontsPage(props: { manager: KindleDeviceManager | null; onPreview?: (family: string) => unknown }) {
   const manager = props.manager, context = useOptionalKindle();
@@ -20,6 +52,9 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
   const [error, setError] = createSignal(""), [notice, setNotice] = createSignal("");
   const [pending, setPending] = createSignal<{ files: File[]; families: FontFamily[]; deviceId: string } | null>(null);
   const [deleting, setDeleting] = createSignal<FontFamily | null>(null), [dragging, setDragging] = createSignal(false);
+  const [installProgress, setInstallProgress] = createSignal<FontInstallProgress | null>(null);
+  const [installing, setInstalling] = createSignal(false), [cancelling, setCancelling] = createSignal(false);
+  let installation: { controller: AbortController; interruption: string } | null = null;
   let input!: HTMLInputElement, generation = 0, selection = 0, disposed = false;
   const device = () => state()?.status === "granted" ? state()!.device : null;
   // Effect compute callbacks rerun on every probe, even for an unchanged key.
@@ -35,13 +70,20 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     catch (error) { if (!disposed && request === generation) setError(errorMessage(error)); }
     finally { if (!disposed && request === generation) setScanning(false); }
   }
-  createEffect(connectionKey, () => { selection++; setPending(null); setDeleting(null); setUpdating(false); void scan(); });
-  onCleanup(() => { disposed = true; generation++; selection++; });
+  createEffect(connectionKey, () => {
+    selection++; setPending(null); setDeleting(null);
+    if (installation) {
+      installation.interruption = state()?.message || "设备已切换，字体安装已取消";
+      installation.controller.abort(); setCancelling(true);
+    } else setUpdating(false);
+    void scan();
+  });
+  onCleanup(() => { disposed = true; generation++; selection++; installation?.controller.abort(); });
   async function choose(files: File[]) {
     // A picker may return while an inventory read is still running. Inspect and
     // retain that selection; confirmation stays disabled until the read settles.
     const current = device(); if (!current || updating()) return;
-    const request = ++selection; setError(""); setNotice(""); setPending(null);
+    const request = ++selection; setError(""); setNotice(""); setPending(null); setInstallProgress(null);
     try {
       const grouped = await inspectFontBatch(files);
       if (!disposed && request === selection && device()?.identity.id === current.identity.id) setPending({ files, families: grouped, deviceId: current.identity.id });
@@ -49,17 +91,24 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
   }
   async function install() {
     const batch = pending(), current = device();
-    if (!batch || !current || batch.deviceId !== current.identity.id || busy()) return;
-    setUpdating(true); setError("");
+    if (!batch || !current || batch.deviceId !== current.identity.id || busy() || installation) return;
+    const operation = { controller: new AbortController(), interruption: "" };
+    installation = operation;
+    setUpdating(true); setInstalling(true); setCancelling(false); setError(""); setNotice("");
     const key = connectionKey();
     try {
-      await installFonts(current, batch.files);
+      await installFonts(current, batch.files, { signal: operation.controller.signal, onProgress: progress => {
+        if (!disposed && installation === operation) setInstallProgress(progress);
+      } });
       if (disposed || key !== connectionKey()) return;
       setPending(null); setNotice(`已安装 ${batch.files.length} 个字体文件。请重启 Kindle 或重新插拔后查看。`);
       await scan();
       if (!disposed && key === connectionKey()) await shared?.refreshInventory();
-    } catch (error) { if (!disposed && key === connectionKey()) setError(errorMessage(error)); }
-    finally { if (!disposed && key === connectionKey()) setUpdating(false); }
+    } catch (error) { if (!disposed) setError(operation.interruption || errorMessage(error)); }
+    finally {
+      if (installation === operation) installation = null;
+      if (!disposed) { setUpdating(false); setInstalling(false); setCancelling(false); }
+    }
   }
   async function remove() {
     const family = deleting(), current = device(); if (!family || !current) throw new Error("请先连接并授权 Kindle");
@@ -87,8 +136,9 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     <Show when={notice()}><p role="status" class="notice">{notice()}</p></Show>
     <Show when={pending()}>{batch => <section class="kt-install" aria-label="待安装字体"><h3>将安装到 {device()?.identity.name}</h3>
       <For each={batch().families}>{family => <p><strong>{family.name}</strong> · {family.fonts.map(font => font.filename).join("、")} · {fileSize(family.size)}</p>}</For>
-      <p class="muted">同名文件不会被覆盖；确认后写入设备。</p><div class="kt-actions"><Button disabled={busy() || !device()} onClick={install}>确认安装</Button><Button variant="quiet" disabled={busy()} onClick={() => setPending(null)}>取消</Button></div>
+      <p class="muted">同名文件不会被覆盖；确认后写入设备。</p><div class="kt-actions"><Button disabled={busy() || !device()} onClick={install}>确认安装</Button><Button variant="quiet" disabled={busy()} onClick={() => setPending(null)}>取消选择</Button></div>
     </section>}</Show>
+    <Show when={installProgress()}>{progress => <FontInstallQueueProgress progress={progress()} active={installing() && progress().state !== "完成" && progress().state !== "失败"} cancelling={cancelling()} cancel={() => { setCancelling(true); installation?.controller.abort(); }} />}</Show>
     <section class="kt-table-scroll" aria-label="字体列表"><table class="kt-font-table"><caption class="sr-only">设备已安装字体</caption><thead><tr><th scope="col">家族</th><th scope="col">样张</th><th scope="col">字重 / 样式</th><th scope="col">大小</th><th scope="col">操作</th></tr></thead><tbody>
       <For each={families()}>{family => <tr data-font-family={family.name}><td><strong>{family.name}</strong><small class="kt-font-files kindle-mono" title={family.fonts.map(font => font.filename).join(" · ")}>{family.fonts.map(font => font.filename).join(" · ")}</small><small>手动安装</small></td>
         <td><Show when={device()}>{current => <FontSample device={current()} family={family} />}</Show></td>

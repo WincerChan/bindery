@@ -17,7 +17,7 @@ export async function withDeviceLock<T>(device: PairedDevice, action: () => Prom
   locks.set(id, run);
   try { return await run; } finally { if (locks.get(id) === run) locks.delete(id); }
 }
-export interface DevicePatch { path: string[]; data: Uint8Array<ArrayBuffer> | string | null }
+export interface DevicePatch { path: string[]; data: Uint8Array<ArrayBuffer> | string | Blob | null }
 interface Backup { path: string[]; kind: "file" | "directory" | null }
 interface Journal { version: 1; committed: boolean; backups: Backup[] }
 function validatePath(path: unknown): asserts path is string[] {
