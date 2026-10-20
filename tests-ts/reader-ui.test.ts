@@ -59,6 +59,22 @@ describe("reader pagination, resume and settings", () => {
   });
 });
 describe("serialized progress persistence", () => {
+  it("calls the default global fetch without a ProgressWriter receiver", async () => {
+    const transport = vi.fn(function (this: unknown, _url: RequestInfo | URL, _init?: RequestInit) {
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(Response.json({ ok: true }));
+    });
+    vi.stubGlobal("fetch", transport);
+    const report = vi.fn(), writer = new ProgressWriter("id", report);
+    try {
+      writer.queue(1, 3, 8); await writer.flush();
+      expect(transport).toHaveBeenCalledExactlyOnceWith("/book/id/progress", expect.objectContaining({
+        method: "POST", credentials: "same-origin", keepalive: true,
+        body: '{"section":1,"page":3,"page_count":8}',
+      }));
+      expect(report).toHaveBeenLastCalledWith("");
+    } finally { writer.destroy(); vi.unstubAllGlobals(); }
+  });
   it("serializes concurrent page writes and posts the newest queued position", async () => {
     const requests: { body: unknown; complete: (value: Response) => void }[] = [];
     const transport = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => new Promise<Response>(complete => requests.push({ body: JSON.parse(String(init!.body)), complete }))), report = vi.fn();

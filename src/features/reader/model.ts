@@ -75,6 +75,19 @@ export interface ReaderSettings {
   pagePaddingX: number; pagePaddingY: number; readerBg: "book" | "paper" | "sand" | "mint" | "slate";
   brightnessMode: "bright" | "dim";
 }
+export const storageKey = "bindery:reader";
+export const brightBgColors = { book: "#ffffff", slate: "#f7fafc", paper: "#fffbeb", sand: "#f4f5f4", mint: "#ecfdf4" } as const;
+export const dimBgColors = { book: "#0f172a", slate: "#111827", paper: "#1f2937", sand: "#242a35", mint: "#10241d" } as const;
+export const backgroundOptions = ([
+  ["book", "书籍"], ["slate", "灰白"], ["paper", "纸张"], ["sand", "砂岩"], ["mint", "薄荷"],
+] as const).map(([value, label]) => ({ value, label, bright: brightBgColors[value], dim: dimBgColors[value] }));
+export const readerFonts = {
+  serif: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
+  sans: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
+  mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+  // Retain the TS reader's persisted kai choice instead of discarding old settings.
+  kai: 'KaiTi, STKaiti, serif',
+} as const;
 export const defaultSettings: ReaderSettings = { styleMode: "book", fontFamily: "serif", fontSize: 17, lineHeight: 1.85, textAlignMode: "justify", pagePaddingX: 9, pagePaddingY: 11, readerBg: "book", brightnessMode: "bright" };
 export function normalizeSettings(raw: unknown): ReaderSettings {
   const result = { ...defaultSettings };
@@ -82,12 +95,19 @@ export function normalizeSettings(raw: unknown): ReaderSettings {
   const value = raw as Record<string, unknown>;
   const choices = { styleMode: ["book", "custom"], fontFamily: ["serif", "sans", "kai", "mono"], textAlignMode: ["justify", "left", "center", "right"], readerBg: ["book", "paper", "sand", "mint", "slate"], brightnessMode: ["bright", "dim"] };
   for (const key of Object.keys(choices) as (keyof typeof choices)[]) {
-    if (choices[key].includes(String(value[key]))) Object.assign(result, { [key]: value[key] });
+    if (typeof value[key] === "string" && choices[key].includes(value[key])) Object.assign(result, { [key]: value[key] });
   }
-  for (const [key, min, max] of [["fontSize", 11, 28], ["lineHeight", 1.2, 2.4], ["pagePaddingX", -1, 48], ["pagePaddingY", -1, 48]] as const) {
-    let number = typeof value[key] === "number" ? value[key] : parseFloat(String(value[key]));
-    if (key === "lineHeight" && number <= 1.1) number += 1;
-    if (Number.isFinite(number)) result[key] = Math.max(min, Math.min(max, key === "lineHeight" ? number : Math.trunc(number)));
+  // Python distinguishes first-use defaults (17/9/11) from missing or invalid
+  // fields in an existing saved object (18/10/12). Preserve both loading paths.
+  for (const [key, min, max, fallback] of [["fontSize", 11, 28, 18], ["pagePaddingX", -1, 48, 10], ["pagePaddingY", -1, 48, 12]] as const) {
+    // Python's `value || ""` loses valid numeric zero padding on reload. Keep
+    // zero so existing TS settings round-trip and the zero-margin control works.
+    const number = Number.parseInt(String(value[key] ?? ""), 10);
+    result[key] = Number.isNaN(number) ? fallback : Math.max(min, Math.min(max, number));
   }
+  let lineHeight = Number.parseFloat(String(value.lineHeight || ""));
+  if (Number.isFinite(lineHeight) && lineHeight <= 1.1) lineHeight += 1;
+  lineHeight = Number.parseFloat(String(lineHeight || ""));
+  result.lineHeight = Number.isNaN(lineHeight) ? 1.85 : Math.max(1.2, Math.min(2.4, lineHeight));
   return result;
 }
