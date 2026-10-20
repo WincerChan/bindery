@@ -169,37 +169,13 @@ it("renders the two preview sections, profile selector, model states and generat
   expect(models.getAttribute("role")).toBe("group"); expect(models.getAttribute("aria-label")).toBe("预览型号");
   expect(elements(models, "button").map(node => [node.textContent, node.getAttribute("aria-pressed")]))
     .toEqual([["KO3", "false"], ["KPW3", "true"], ["其他", "false"]]);
-  expect(elements(editor, "input").filter(node => node.getAttribute("type") === "range").map(node => node.id))
-    .toEqual(["kt-marginX", "kt-lineHeight", "kt-paragraphSpacing", "kt-textIndent"]);
-  for (const [key, label, min, max, step, fallback] of [
-    ["marginX", "左右边距调整（%）", "-8.7", "20", "0.1", "0"],
-    ["lineHeight", "行高", "1.2", "2.4", "0.05", "1.6"],
-    ["paragraphSpacing", "段间距（em）", "0", "1.5", "0.1", "0"],
-    ["textIndent", "首行缩进（em）", "0", "3", "0.5", "2"],
-  ]) {
-    const slider = input(editor, `kt-${key}`), row = slider.parentElement!, output = elements(row, "output")[0]!;
-    expect(Array.from(row.childNodes).filter(node => node.nodeType === 1).map(node => node.nodeName)).toEqual(["LABEL", "INPUT", "OUTPUT", "BUTTON"]);
-    expect(["aria-label", "min", "max", "step", "value"].map(attr => slider.getAttribute(attr))).toEqual([label, min, max, step, fallback]);
-    expect(elements(row, "label")[0]!.getAttribute("for")).toBe(slider.id);
-    expect(output.getAttribute("for")).toBe(slider.id);
-    expect(output.textContent).toBe(key === "marginX" ? "默认" : "书籍");
-    expect(output.className).toBe("is-inherited");
-    const reset = elements(row, "button")[0]!;
-    expect(reset.textContent).toBe("↺");
-    expect(reset.getAttribute("aria-label")).toBe(key === "marginX" ? "恢复 Kindle 默认" : "恢复沿用书籍");
-    expect(reset.getAttribute("title")).toBe(reset.getAttribute("aria-label"));
-    expect(reset.hasAttribute("hidden")).toBe(true); expect(reset.hasAttribute("disabled")).toBe(true);
-  }
-  const advanced = withClass(editor, "kt-advanced"), checkboxes = withClass(editor, "kt-checkboxes");
-  expect(advanced.hasAttribute("open")).toBe(false);
-  expect(labels(advanced, "textarea", "生成的 CSS（只读）").hasAttribute("readonly")).toBe(true);
-  expect(checkboxes.getAttribute("role")).toBe("group"); expect(checkboxes.getAttribute("aria-label")).toBe("正文样式");
-  expect(elements(checkboxes, "label").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片"]);
-  expect(elements(checkboxes, "input").every(node => node.getAttribute("type") === "checkbox")).toBe(true);
-  expect(editor.textContent).toContain("默认方案只读，另存为后可编辑");
+  // The built-in profile has nothing to adjust: no controls, only the explanation and save-as.
+  expect(elements(editor, "input").some(node => node.getAttribute("type") === "range")).toBe(false);
+  expect(editor.getElementsByClassName("kt-checkboxes")).toHaveLength(0); expect(editor.getElementsByClassName("kt-advanced")).toHaveLength(0);
+  expect(editor.textContent).toContain("默认方案只使用书籍自带样式，不做任何调整。要调整边距、行高等，请新建方案。");
+  // Nothing to reset, delete or save on the built-in profile; its only action creates an editable one.
+  expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["新建方案"]);
   expect(editor.textContent).not.toMatch(/负值收窄|收窄到约 1 字边距|保留书籍字体样式|正文插图会被移除/);
-  expect(elements(labels(editor, "select", "字体（设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
-  expect(withClass(editor, "kt-profile-actions").textContent).toBe("重置删除另存为保存方案");
   const toolbar = withClass(preview, "kt-preview-toolbar");
   expect(labels(toolbar, "select", "预览书籍")).toBeDefined(); expect(labels(toolbar, "select", "章节")).toBeDefined();
   expect(labels(toolbar, "select", "Kindle 页边距设置")).toBeDefined();
@@ -217,12 +193,53 @@ it("renders the two preview sections, profile selector, model states and generat
   expect(elements(preview, "iframe")[0]!.getAttribute("sandbox")).toBe("allow-same-origin");
 });
 
+it("shows compact range rows, checkboxes and advanced settings for an editable profile", async () => {
+  const { manager, id } = await paired(), profiles = api();
+  vi.mocked(profiles.list).mockImplementation(async deviceId => [defaultProfile(deviceId), { ...custom(id), settings: { ...EMPTY_SETTINGS } }]);
+  const mounted = mount("preview", manager, { profiles }); await settle();
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  const editor = withClass(mounted.root, "kt-editor");
+  expect(elements(editor, "input").filter(node => node.getAttribute("type") === "range").map(node => node.id))
+    .toEqual(["kt-marginX", "kt-lineHeight", "kt-paragraphSpacing", "kt-textIndent"]);
+  for (const [key, label, min, max, step, fallback] of [
+    ["marginX", "左右边距调整（%）", "-8.7", "20", "0.1", "0"],
+    ["lineHeight", "行高", "1.2", "2.4", "0.05", "1.6"],
+    ["paragraphSpacing", "段间距（em）", "0", "1.5", "0.1", "0"],
+    ["textIndent", "首行缩进（em）", "0", "3", "0.5", "2"],
+  ]) {
+    const slider = input(editor, `kt-${key}`), row = slider.parentElement!, output = elements(row, "output")[0]!;
+    expect(Array.from(row.childNodes).filter(node => node.nodeType === 1).map(node => node.nodeName)).toEqual(["LABEL", "INPUT", "SPAN"]);
+    const cell = Array.from(row.childNodes).filter(node => node.nodeType === 1).at(-1) as Element;
+    expect(cell.getAttribute("class")).toBe("kt-range-value");
+    expect(Array.from(cell.childNodes).filter(node => node.nodeType === 1).map(node => node.nodeName)).toEqual(["OUTPUT", "BUTTON"]);
+    expect(["aria-label", "min", "max", "step", "value"].map(attr => slider.getAttribute(attr))).toEqual([label, min, max, step, fallback]);
+    expect(elements(row, "label")[0]!.getAttribute("for")).toBe(slider.id);
+    expect(output.getAttribute("for")).toBe(slider.id);
+    expect(output.textContent).toBe(key === "marginX" ? "默认" : "书籍");
+    expect(output.className).toBe("is-inherited");
+    const reset = elements(row, "button")[0]!;
+    expect(reset.textContent).toBe("↺");
+    expect(reset.getAttribute("aria-label")).toBe(key === "marginX" ? "恢复 Kindle 默认" : "恢复沿用书籍");
+    expect(reset.getAttribute("title")).toBe(reset.getAttribute("aria-label"));
+    expect(reset.hasAttribute("hidden")).toBe(true); expect(reset.hasAttribute("disabled")).toBe(true);
+  }
+  const advanced = withClass(editor, "kt-advanced"), checkboxes = withClass(editor, "kt-checkboxes");
+  expect(advanced.hasAttribute("open")).toBe(false);
+  expect(labels(advanced, "textarea", "生成的 CSS（只读）").hasAttribute("readonly")).toBe(true);
+  expect(checkboxes.getAttribute("role")).toBe("group"); expect(checkboxes.getAttribute("aria-label")).toBe("正文样式");
+  expect(elements(checkboxes, "label").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片"]);
+  expect(elements(checkboxes, "input").every(node => node.getAttribute("type") === "checkbox")).toBe(true);
+  expect(elements(labels(editor, "select", "字体（设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
+  expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "删除", "另存为", "保存方案"]);
+  mounted.dispose();
+});
+
 it("keeps the wide preview sticky with a bounded frame slot and disables sticky at the existing mobile breakpoint", () => {
   const css = readFileSync("src/features/kindle/typeset/typeset.css", "utf8");
   expect(css).toMatch(/\.kt-preview-sticky\s*\{[^}]*position: sticky;[^}]*top: 16px;[^}]*height: calc\(100dvh - 32px\);/);
   expect(css).toMatch(/\.kt-device-space\s*\{[^}]*min-height: 0;[^}]*contain: size;/);
   expect(css).toMatch(/@media \(max-width: 943px\)\s*\{[^@]*\.kt-preview-sticky\s*\{ position: static; height: auto; \}/);
-  expect(css).toMatch(/\.kt-range-reset\[hidden\]\s*\{[^}]*visibility: hidden;[^}]*pointer-events: none;/);
+  expect(css).toMatch(/\.kt-range-reset\[hidden\]\s*\{ display: none; \}/);
   expect(css).toMatch(/\.kt-checkboxes\s*\{[^}]*grid-template-columns: repeat\(2,/);
 });
 
@@ -431,11 +448,12 @@ it("hydrates preview with real chapter URLs and updates device fonts, profile CS
   const mounted = mount("preview", manager, { profiles }); await settle();
   expect(profiles.list).toHaveBeenCalledWith(manager.snapshot().device!.identity.id);
   expect(mounted.root.textContent).toContain("正文");
-  expect(elements(mounted.root, "option").map(option => option.textContent)).toContain("Book");
   const frame = elements(mounted.root, "iframe")[0]!;
   expect(frame.getAttribute("src")).toBe("/book/a/epub/Text/%E7%AC%AC%E4%B8%80%20%E7%AB%A0.xhtml");
   expect(frame.getAttribute("sandbox")).toBe("allow-same-origin"); expect(frame.getAttribute("width")).toBe("1072");
-  setValue(labels(mounted.root, "select", "方案"), "custom", "change"); setValue(input(mounted.root, "kt-marginX"), "2.5");
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  expect(elements(mounted.root, "option").map(option => option.textContent)).toContain("Book");
+  setValue(input(mounted.root, "kt-marginX"), "2.5");
   expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: 2.5% !important");
   fs.unplug(); await manager.probe(); await settle();
   expect(mounted.root.textContent).toContain("可选择记住的设备离线编辑");
@@ -536,14 +554,13 @@ it("updates preview asset modes live and includes both toggles in dirty, reset, 
   const mounted = mount("preview", manager, { profiles, onDirty }); await settle();
   const toggle = (label: string) => elements(mounted.root, "label").find(node => node.textContent === label)!.getElementsByTagName("input")[0] as HTMLInputElement;
   const change = (label: string, checked: boolean) => { const node = toggle(label); node.checked = checked; fire(node, "change"); ui.flush(); };
-  expect(toggle("去掉书籍自带字体").disabled).toBe(true);
-  expect(toggle("去掉所有图片").disabled).toBe(true);
+  expect(elements(mounted.root, "label").some(node => node.textContent === "去掉所有图片")).toBe(false);
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   const group = withClass(mounted.root, "kt-checkboxes");
   expect(elements(group, "label").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片"]);
   expect(elements(group, "span").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片"]);
   expect(toggle("去掉书籍自带字体").hasAttribute("aria-describedby")).toBe(false);
   expect(toggle("去掉所有图片").hasAttribute("aria-describedby")).toBe(false);
-  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   const frame = elements(mounted.root, "iframe")[0]!;
   change("去掉书籍自带字体", true); expect(frame.getAttribute("src")).toContain(`/kindle/content/a/10/epub/`); expect(onDirty).toHaveBeenLastCalledWith(true);
   change("去掉所有图片", true); expect(frame.getAttribute("src")).toContain(`/kindle/content/a/11/epub/`);
@@ -620,9 +637,9 @@ it("hydrates neutral page controls in place and turns pages, chapter boundaries 
 
 it("keeps the built-in profile immutable, saves a copy, then updates and deletes only that device's custom profile", async () => {
   const { manager, id } = await paired(), profiles = api(), mounted = mount("preview", manager, { profiles }); await settle();
-  expect((input(mounted.root, "kt-marginX") as HTMLInputElement).disabled).toBe(true);
-  expect((button(mounted.root, "删除") as HTMLButtonElement).disabled).toBe(true);
-  fire(button(mounted.root, "另存为"), "click"); ui.flush();
+  expect(elements(mounted.root, "input").some(node => node.id === "kt-marginX")).toBe(false);
+  expect(elements(mounted.root, "button").some(node => node.textContent === "删除" || node.textContent === "保存方案")).toBe(false);
+  fire(button(mounted.root, "新建方案"), "click"); ui.flush();
   setValue(labels(mounted.root, "input", "新方案名称"), "大字正文");
   fire(elements(mounted.root, "form")[0]!, "submit"); await settle();
   expect(profiles.create).toHaveBeenCalledWith({ deviceId: id, name: "大字正文", settings: EMPTY_SETTINGS });
@@ -633,7 +650,7 @@ it("keeps the built-in profile immutable, saves a copy, then updates and deletes
   const dialogs = elements(mounted.root, "dialog"), confirm = dialogs[1]!;
   fire(button(confirm, "确认"), "click"); await settle();
   expect(profiles.delete).toHaveBeenCalledWith(id, "new-profile");
-  expect((input(mounted.root, "kt-marginX") as HTMLInputElement).disabled).toBe(true);
+  expect(elements(mounted.root, "input").some(node => node.id === "kt-marginX")).toBe(false); // Back on the built-in profile.
 });
 
 it("guards profile switching and reset, validates CSS, and reports failed saves without losing the draft", async () => {

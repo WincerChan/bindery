@@ -41,8 +41,9 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
           assert.match(html, /上下页边距按 KPW3 窄边距实测，其他档位与型号为估算/);
           assert.match(html, /class="kt-preview kt-preview-sticky"/);
           assert.ok(html.includes('<details class="kt-calibration"><summary>校准说明</summary>'));
-          assert.match(html, /aria-label="恢复 Kindle 默认"[^>]*title="恢复 Kindle 默认"[^>]*hidden[^>]*disabled/);
-          assert.match(html, /aria-label="正文样式"/);
+          // The built-in profile renders no adjustable controls, only the new-profile action.
+          assert.doesNotMatch(html, /id="kt-marginX"|class="kt-checkboxes"|class="kt-advanced"/);
+          assert.match(html, /默认方案只使用书籍自带样式，不做任何调整/); assert.match(html, />新建方案</);
           assert.doesNotMatch(html, /收窄到约 1 字边距|负值收窄 Kindle 自身页边距|设备默认字体（保留书籍字体样式）/);
         }
       }

@@ -39,7 +39,8 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
   function openChapter(index: number, page = 1) { setChapter(index); setChapterStart({ page }); }
   const [chapterLoading, setChapterLoading] = createSignal(false), [chapterError, setChapterError] = createSignal(props.data.error);
   let disposed = false, profileRequest = 0, fontRequest = 0, chapterRequest = 0, initialFontApplied = false;
-  const dirty = () => JSON.stringify(draft()) !== baseline();
+  // The built-in profile cannot be saved; its only edit is the preview-only Kindle margin preset.
+  const dirty = () => !draft().builtIn && JSON.stringify(draft()) !== baseline();
   const cssError = () => validateCss(draft().settings.customCss);
   const currentSettings = () => ({ ...draft().settings, deviceModel: effectiveModel() });
   const settingsError = () => { try { profileSettings(currentSettings()); return ""; } catch (error) { return errorMessage(error); } };
@@ -179,11 +180,11 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       <Show when={notice()}><p role="status">{notice()}</p></Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={dirty()}><p role="status">有未保存的修改</p></Show>
-      <Show when={draft().builtIn}><p class="muted">默认方案只读，另存为后可编辑</p></Show>
+      <Show when={!draft().builtIn} fallback={<p class="muted">默认方案只使用书籍自带样式，不做任何调整。要调整边距、行高等，请新建方案。</p>}>
       <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}>{range.label}</label>
         <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? Math.max(range.max, marginPercent() ?? 0) : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={immutable()} onInput={event => { const value = Number(event.currentTarget.value); if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />
-        <output for={`kt-${range.key}`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随 Kindle 字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output>
-        <button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复 Kindle 默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复 Kindle 默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={immutable() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button>
+        <span class="kt-range-value"><output for={`kt-${range.key}`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随 Kindle 字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output>
+        <button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复 Kindle 默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复 Kindle 默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={immutable() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button></span>
       </div>}</For>
       <Select label="字体（设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={immutable()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
         <option value="">设备默认字体</option>
@@ -202,7 +203,13 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
         <Textarea label="额外自定义 CSS" rows={6} value={draft().settings.customCss} disabled={immutable()} error={cssError() ?? undefined} onInput={event => edit("customCss", event.currentTarget.value)} />
         <Textarea label="生成的 CSS（只读）" rows={8} class="kt-generated" readonly value={css() ?? "排版参数校验未通过，预览保留上次有效样式。"} />
       </div></details>
-      <div class="kt-actions kt-profile-actions"><Button variant="quiet" disabled={busy() || loading() || !dirty()} onClick={reset}>重置</Button><Button variant="quiet" disabled={!target() || immutable() || draft().id === "draft"} onClick={() => setDeleting(true)}>删除</Button><Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为</Button><Button disabled={!canStore() || draft().builtIn || !dirty()} onClick={() => save()}>保存方案</Button></div>
+      </Show>
+      <Show when={!draft().builtIn} fallback={<div class="kt-actions kt-profile-actions"><Button disabled={!canStore()} onClick={openSaveAs}>新建方案</Button></div>}>
+        <div class="kt-actions kt-profile-actions"><Button variant="quiet" disabled={busy() || loading() || !dirty()} onClick={reset}>重置</Button>
+          <Button variant="quiet" disabled={!target() || immutable() || draft().id === "draft"} onClick={() => setDeleting(true)}>删除</Button>
+          <Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为</Button>
+          <Button disabled={!canStore() || !dirty()} onClick={() => save()}>保存方案</Button></div>
+      </Show>
     </section><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
       <div class="kt-preview-header">
       <div class="kt-preview-toolbar"><div class="kt-preview-selectors"><Select label="预览书籍" value={bookId()} disabled={!props.data.books.length} onChange={event => { void chooseBook(event.currentTarget.value); }}><For each={props.data.books}>{book => <option value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</option>}</For></Select>
@@ -224,7 +231,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
         <p class="muted">按霞鹜文楷 轻便版 Medium 的全宽汉字估计，书籍字号、缩进及自定义 CSS 会影响字数。行距按 Kindle「最宽」行距实测（书籍或方案指定的行高优先）；上下页边距按 KPW3 窄边距实测，其他档位与型号为估算。不模拟 Kindle 页眉页脚文字。Kindle 自身字号仍生效，浏览器与 Kindle 排版引擎也有差异。</p>
       </details>
     </section></div>
-    <Dialog open={saveAs()} title="另存为排版方案" onClose={() => { if (!busy()) setSaveAs(false); }}><form onSubmit={event => { event.preventDefault(); void save(true); }}>
+    <Dialog open={saveAs()} title={draft().builtIn ? "新建排版方案" : "另存为排版方案"} onClose={() => { if (!busy()) setSaveAs(false); }}><form onSubmit={event => { event.preventDefault(); void save(true); }}>
       <TextField label="新方案名称" value={saveName()} maxlength={100} required disabled={busy()} onInput={event => setSaveName(event.currentTarget.value)} /><p class="muted">保存到 {target()?.name}。默认方案始终保留。</p>
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show><div class="kt-actions"><Button variant="secondary" disabled={busy()} onClick={() => setSaveAs(false)}>取消</Button><Button type="submit" disabled={!canStore() || !saveName().trim()}>保存新方案</Button></div>
     </form></Dialog>
