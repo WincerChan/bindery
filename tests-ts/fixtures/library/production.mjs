@@ -23,7 +23,7 @@ try {
   for (const path of ["/books/archive", "/archive/delete-bulk", "/books/download"]) assert.equal((await post(path, new URLSearchParams())).status, 303, path);
   const login = await post("/login", new URLSearchParams({ password: "library-password", next: "/" }));
   cookie = login.headers.getSetCookie()[0].split(";", 1)[0];
-  db = new DatabaseSync(process.env.BINDERY_DB_PATH);
+  db = new DatabaseSync(process.env.BINDERY_DB_PATH, { timeout: 5000 });
   const a = "a".repeat(32), b = "b".repeat(32);
   for (const id of [a, b]) {
     db.prepare("INSERT INTO books(book_id,title,author,source_type,theme_template,updated_at) VALUES (?, '长安的荔枝', '马伯庸', 'epub', '__book__', '2026-10-19')").run(id);

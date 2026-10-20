@@ -31,7 +31,7 @@ try {
   }
   const created = await rpc("saveTracker", { fields: { title: "编译后的写操作", next: "//evil.test" } });
   assert.equal(created.result.target, "/tracker");
-  db = new DatabaseSync(process.env.BINDERY_DB_PATH);
+  db = new DatabaseSync(process.env.BINDERY_DB_PATH, { timeout: 5000 });
   const wish = db.prepare("SELECT id FROM wishlist WHERE title = ?").get("编译后的写操作"); assert.ok(wish);
   await rpc("saveTracker", { id: wish.id, fields: { title: "已修改", read_status: "read" } });
   assert.equal(db.prepare("SELECT title FROM wishlist WHERE id = ?").get(wish.id).title, "已修改");

@@ -18,7 +18,7 @@ try {
 const anonymous = await handler(new Request("http://localhost/ingest"));
 assert.equal(anonymous.status, 303);
 assert.equal(anonymous.headers.get("Location"), "/login?next=/ingest");
-db = new DatabaseSync(process.env.BINDERY_DB_PATH);
+db = new DatabaseSync(process.env.BINDERY_DB_PATH, { timeout: 5000 });
 db.prepare("INSERT INTO sessions(session_id, created_at, last_seen) VALUES (?, ?, ?)").run("production-session", "2026", "2026");
 const cookie = "bindery_session=production-session";
 const get = (path, accept = "text/html") => handler(new Request("http://localhost" + path, { headers: { Cookie: cookie, Accept: accept } }));

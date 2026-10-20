@@ -112,7 +112,7 @@ try {
   // mutation with NO .middleware([authenticated]) at its definition.
   referer = "http://localhost/current?q=one&page=3";
   await assert.rejects(mutation({ data: { fields: { title: 123 } } }), error => ui.isRedirect(error));
-  db = new DatabaseSync(process.env.BINDERY_DB_PATH);
+  db = new DatabaseSync(process.env.BINDERY_DB_PATH, { timeout: 5000 });
   assert.equal(db.prepare("SELECT count(*) AS n FROM wishlist").get().n, 0);
 
   // Login has no createServerFn RPC exemption: exercise the actual compiled

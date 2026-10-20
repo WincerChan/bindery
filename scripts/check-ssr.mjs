@@ -62,7 +62,7 @@ try {
   assert.equal(signedIn.status, 303);
   const cookie = signedIn.headers.getSetCookie()[0].split(";", 1)[0];
   assert.match(cookie, /^bindery_session=/);
-  db = new DatabaseSync(process.env.BINDERY_DB_PATH);
+  db = new DatabaseSync(process.env.BINDERY_DB_PATH, { timeout: 5000 });
   const bookId = "a".repeat(32);
   db.prepare("INSERT INTO books(book_id,title,author,source_type,theme_template,cover_file) VALUES (?, '乱世书', '姬叉', 'epub', '__book__', 'cover.png')").run(bookId);
   db.exec("INSERT INTO books(book_id,title) VALUES ('b','B'), ('c','C')");

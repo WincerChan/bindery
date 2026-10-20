@@ -59,7 +59,7 @@ async function request(path, values, headers = {}, anonymous = false) {
   });
 }
 const base = "/book/" + id,
-  db = new DatabaseSync(join(root, "data.db"));
+  db = new DatabaseSync(join(root, "data.db"), { timeout: 5000 });
 const meta = () => db.prepare("SELECT * FROM books WHERE book_id=?").get(id);
 const wish = () =>
   db.prepare("SELECT * FROM wishlist WHERE library_book_id=?").get(id);
