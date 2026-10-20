@@ -43,7 +43,7 @@ export class PreviewDocument {
     document.addEventListener("click", this.stopLinks);
   }
   setDevice(model: KindleModel, preset: KindleMarginPreset) {
-    const { emPx, deviceMarginPx } = kindlePreviewMetrics(model, preset, null);
+    const { emPx, deviceMarginPx } = kindlePreviewMetrics(model, preset, null, "percent");
     // Leave top/bottom margins alone: no vertical calibration has been measured.
     // Scrollbars must not subtract pixels from the calibrated screen width; scrolling still works.
     this.base.textContent = `html { font-size: ${emPx}px; box-sizing: border-box !important; padding-left: ${deviceMarginPx}px !important; padding-right: ${deviceMarginPx}px !important; scrollbar-width: none !important; } ::-webkit-scrollbar { display: none !important; } body { margin-left: 0; margin-right: 0; overflow-wrap: anywhere; } img, svg { max-width: 100%; }`;

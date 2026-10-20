@@ -50,17 +50,21 @@ describe("vendored boko WASM and KFX metadata", () => {
     expect(await marginsOf(css)).toContain("2.75");
     expect(await marginsOf("body { margin-left: 2.75em !important; margin-right: 2.75em !important; }")).not.toContain("2.75");
   });
-  it("preserves a negative profile adjustment in both KFX margin fields ($48/$50)", async () => {
-    const profile = { ...defaultProfile("device"), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, marginX: -0.8 } };
+  // KFX margin-left/right ($48/$50) hold { $307: value, $306: unit }, where unit $308 = em and $314 = percent.
+  it.each([["em", -0.8, 308], ["percent", -4.8, 314]] as const)("preserves a negative %s profile adjustment with its unit in both KFX margin fields", async (marginXUnit, marginX, unit) => {
+    const profile = { ...defaultProfile("device"), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, marginX, marginXUnit } };
     const result = await convertEpub(appendProfileCss(epub, generateProfileCss(profile)), wasm);
-    const margins = new Map<number, number[]>([[48, []], [50, []]]);
+    const margins = new Map<number, IonValue[]>([[48, []], [50, []]]);
     for (const entity of parseKfxEntities(result.data, [157])) walkIon(entity.value, value => {
-      for (const key of margins.keys()) {
-        const margin = ionField(value, key);
-        if (margin !== null) walkIon(margin, number => { if (typeof number === "number") margins.get(key)!.push(number); });
-      }
+      for (const key of margins.keys()) { const margin = ionField(value, key); if (margin !== null) margins.get(key)!.push(margin); }
     });
-    for (const key of [48, 50]) expect(margins.get(key)!.some(number => Math.abs(number + 0.8) < 0.00001), `$${key} must retain -0.8em`).toBe(true);
+    for (const [key, values] of margins) {
+      const kept = values.some(margin => {
+        const number = ionField(margin, 307), symbol = ionField(margin, 306);
+        return typeof number === "number" && Math.abs(number - marginX) < 0.00001 && JSON.stringify(symbol) === JSON.stringify({ symbol: unit });
+      });
+      expect(kept, `$${key} must retain ${marginX}${marginXUnit === "em" ? "em" : "%"}`).toBe(true);
+    }
   });
   it("rejects invalid EPUB and corrupt/truncated KFX without native tools", async () => {
     await expect(convertEpub(new Uint8Array([1, 2, 3]), wasm)).rejects.toBeDefined();

@@ -3,7 +3,7 @@ import { defaultProfile, EMPTY_SETTINGS, generateProfileCss, profileSettings, ty
 import { deviceInventory } from "../../../client/kindle/inventory";
 import { errorMessage } from "../../../client/kindle/fs";
 import { KINDLE_MODELS, type KindleModel } from "../../../client/kindle/identity";
-import { KINDLE_MARGIN_PRESETS, kindlePreviewMetrics, minimumMarginX, type KindleMarginPreset } from "../../../client/kindle/margins";
+import { convertMarginX, KINDLE_MARGIN_PRESETS, kindlePreviewMetrics, minimumMarginX, type KindleMarginPreset } from "../../../client/kindle/margins";
 import type { FontFamily, KindleDeviceManager } from "../../../client/kindle";
 import { validateCss } from "../../../core/css";
 import { Button, Checkbox, ConfirmDialog, Dialog, Select, Textarea, TextField } from "../../../ui";
@@ -18,7 +18,7 @@ export interface ProfileApi {
   delete(deviceId: string, id: string): Promise<unknown>;
 }
 const ranges = [
-  { key: "marginX", label: "左右边距调整", unit: "em", min: -1.5, max: 4, fallback: 0, step: 0.1 },
+  { key: "marginX", label: "左右边距调整", unit: "%", min: -10, max: 20, fallback: 0, step: 0.1 },
   { key: "lineHeight", label: "行高", unit: "", min: 1.2, max: 2.4, fallback: 1.6, step: 0.05 },
   { key: "paragraphSpacing", label: "段间距", unit: "em", min: 0, max: 1.5, fallback: 0, step: 0.1 },
   { key: "textIndent", label: "首行缩进", unit: "em", min: 0, max: 3, fallback: 2, step: 0.5 },
@@ -45,9 +45,21 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
   const connected = () => state()?.status === "granted" ? state()!.device : null;
   const fontDevice = () => connected()?.identity.id === target()?.id ? connected() : null;
   const effectiveModel = () => target()?.model ?? model();
-  const metrics = () => kindlePreviewMetrics(effectiveModel(), draft().settings.kindleMargin, draft().settings.marginX);
-  // Keep the slider on its 0.1em grid without offering a value that would cross the screen edge.
-  const marginMin = () => Math.max(-1.5, Math.ceil(minimumMarginX(effectiveModel(), draft().settings.kindleMargin) * 10) / 10);
+  const metrics = () => kindlePreviewMetrics(effectiveModel(), draft().settings.kindleMargin, draft().settings.marginX, draft().settings.marginXUnit);
+  // Keep the slider on its 0.1% grid without offering a value that would cross the screen edge.
+  const marginMin = () => Math.ceil(minimumMarginX(effectiveModel(), draft().settings.kindleMargin, "percent") * 10) / 10;
+  // Legacy em values keep their unit until edited; the slider shows their size-7 equivalent.
+  const marginPercent = () => {
+    const { marginX, marginXUnit, kindleMargin } = draft().settings;
+    return marginX === null ? null : Math.round(convertMarginX(effectiveModel(), kindleMargin, marginX, marginXUnit, "percent") * 10) / 10;
+  };
+  const marginText = () => {
+    const { marginX, marginXUnit, kindleMargin } = draft().settings;
+    if (marginX === null) return "Kindle 默认（保留书籍样式）";
+    if (marginXUnit === "em") return `${marginX} em（旧方案单位，随 Kindle 字号缩放；拖动后改用 %）`;
+    return `${marginX} %（字号 7 约 ${convertMarginX(effectiveModel(), kindleMargin, marginX, "percent", "em").toFixed(2)} em）`;
+  };
+  const rangeValue = (key: (typeof ranges)[number]["key"]) => key === "marginX" ? marginPercent() : draft().settings[key];
   const immutable = () => draft().builtIn || busy() || loading();
   const canStore = () => Boolean(target()) && !busy() && !loading() && !settingsError();
   const confirmDiscard = () => !dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？");
@@ -62,6 +74,10 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
   function edit<K extends keyof ProfileSettings>(key: K, value: ProfileSettings[K]) {
     if (immutable()) return;
     setDraft(old => ({ ...old, settings: { ...old.settings, [key]: value } }));
+  }
+  function editMargin(value: number | null) {
+    if (immutable()) return;
+    setDraft(old => ({ ...old, settings: { ...old.settings, marginX: value, ...(value === null ? {} : { marginXUnit: "percent" as const }) } }));
   }
   // Callbacks such as a signal setter may return a value; only functions are effect cleanups.
   createEffect(dirty, value => { props.onDirty?.(value); });
@@ -164,10 +180,10 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={dirty()}><p role="status">有未保存的修改</p></Show>
       <Show when={draft().builtIn}><p class="muted">默认方案不可编辑或删除。点击「另存为」建立自己的方案。</p></Show>
-      <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}><span>{range.label}</span><output>{draft().settings[range.key] === null ? (range.key === "marginX" ? "Kindle 默认（保留书籍样式）" : "沿用书籍") : `${draft().settings[range.key]} ${range.unit}`}</output></label>
-        <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? Math.max(range.max, draft().settings.marginX ?? 0) : range.max} step={range.step} value={draft().settings[range.key] ?? range.fallback} disabled={immutable()} onInput={event => edit(range.key, Number(event.currentTarget.value))} />
-        <button class="quiet" type="button" disabled={immutable() || draft().settings[range.key] === null} onClick={() => edit(range.key, null)}>{range.key === "marginX" ? "恢复 Kindle 默认" : "沿用书籍"}</button>
-        <Show when={range.key === "marginX"}><div class="kt-margin-help"><Button variant="quiet" disabled={immutable()} onClick={() => edit("marginX", -0.8)}>收窄到约 1 字边距（-0.8em）</Button><p class="muted">负值收窄 Kindle 自身页边距，正值增加留白。Kindle 的字号设置仍生效；预览按字号 7 校准，换字号后效果会不同。</p></div></Show>
+      <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}><span>{range.label}</span><output>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "沿用书籍" : `${draft().settings[range.key]} ${range.unit}`}</output></label>
+        <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? Math.max(range.max, marginPercent() ?? 0) : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={immutable()} onInput={event => { const value = Number(event.currentTarget.value); if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />
+        <button class="quiet" type="button" disabled={immutable() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>{range.key === "marginX" ? "恢复 Kindle 默认" : "沿用书籍"}</button>
+        <Show when={range.key === "marginX"}><div class="kt-margin-help"><Button variant="quiet" disabled={immutable()} onClick={() => editMargin(-4.8)}>收窄到约 1 字边距（-4.8%）</Button><p class="muted">负值收窄 Kindle 自身页边距，正值增加留白。百分比按 Kindle 正文栏宽度计算，不随 Kindle 字号变化；预览与字数估计按字号 7 校准。</p></div></Show>
       </div>}</For>
       <Select label="字体（设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={immutable()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
         <option value="">{draft().settings.stripFonts ? "设备默认字体" : "设备默认字体（保留书籍字体样式）"}</option>

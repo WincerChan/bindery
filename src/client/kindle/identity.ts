@@ -1,7 +1,7 @@
 import { EntryAccessError, entryOperation, isMissing, optionalEntry, readBytes, readInternalJson, writeBytes, type KindleDirectory } from "./fs";
 
 // KPW3, firmware 5.16.2.1.1, 霞鹜文楷 轻便版 Medium, Kindle size 7.
-// Fits 16/14/11 CJK glyphs at narrow/medium/wide, and 18 at narrow with -0.8em.
+// Fits 16/14/11 CJK glyphs at narrow/medium/wide, and 18 at narrow with -0.8em or -4.8%.
 // KO3 and unknown models use the same ratios as explicitly unmeasured estimates.
 const calibration = (width: number, measured: boolean) => ({
   emPx: 55 * width / 1072,

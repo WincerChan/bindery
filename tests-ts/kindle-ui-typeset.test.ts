@@ -331,7 +331,7 @@ it("hydrates preview with real chapter URLs and updates device fonts, profile CS
   expect(frame.getAttribute("src")).toBe("/book/a/epub/Text/%E7%AC%AC%E4%B8%80%20%E7%AB%A0.xhtml");
   expect(frame.getAttribute("sandbox")).toBe("allow-same-origin"); expect(frame.getAttribute("width")).toBe("1072");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change"); setValue(input(mounted.root, "kt-marginX"), "2.5");
-  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: 2.5em");
+  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: 2.5% !important");
   fs.unplug(); await manager.probe(); await settle();
   expect(mounted.root.textContent).toContain("可选择记住的设备离线编辑");
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("2.5");
@@ -347,17 +347,18 @@ it("applies and resets the negative-margin preset, previews calibrated counts, a
   expect(estimate()).toBe("预计每行约 16 字（按 KPW3 · 字号 7 · 窄 实测校准）");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   const margin = input(mounted.root, "kt-marginX");
-  expect(margin.getAttribute("aria-label")).toBe("左右边距调整（em）");
-  expect(margin.getAttribute("min")).toBe("-1.4"); expect(margin.getAttribute("step")).toBe("0.1");
+  expect(margin.getAttribute("aria-label")).toBe("左右边距调整（%）");
+  expect(margin.getAttribute("min")).toBe("-8.7"); expect(margin.getAttribute("step")).toBe("0.1");
   fire(button(mounted.root, "恢复 Kindle 默认"), "click"); ui.flush();
   expect(estimate()).toContain("约 16 字");
-  fire(button(mounted.root, "收窄到约 1 字边距（-0.8em）"), "click"); ui.flush();
-  expect((margin as HTMLInputElement).value).toBe("-0.8"); expect(estimate()).toContain("约 18 字");
-  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: -0.8em !important");
+  fire(button(mounted.root, "收窄到约 1 字边距（-4.8%）"), "click"); ui.flush();
+  expect((margin as HTMLInputElement).value).toBe("-4.8"); expect(estimate()).toContain("约 18 字");
+  expect(mounted.root.textContent).toContain("-4.8 %（字号 7 约 -0.80 em）");
+  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: -4.8% !important");
   fire(button(mounted.root, "恢复 Kindle 默认"), "click"); ui.flush();
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change"); expect(estimate()).toContain("约 14 字");
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "wide", "change"); expect(estimate()).toContain("约 11 字");
-  expect(margin.getAttribute("min")).toBe("-1.5");
+  expect(margin.getAttribute("min")).toBe("-34.8");
   expect(mounted.root.textContent).toContain("上下页边距沿用原预览行为，未经实机测量");
   fire(button(mounted.root, "保存方案"), "click"); await settle();
   expect(stored.settings).toMatchObject({ deviceModel: "KPW3", kindleMargin: "wide", marginX: null });
@@ -368,11 +369,30 @@ it("applies and resets the negative-margin preset, previews calibrated counts, a
   expect(reloaded.root.textContent).toContain("预计每行约 11 字");
 });
 
+it("keeps a legacy em margin until edited, then switches the adjustment to percent", async () => {
+  const { manager, id } = await paired(), profiles = api();
+  let stored: TypesettingProfile = { ...custom(id), settings: { ...custom(id).settings, marginX: 1, marginXUnit: "em" } };
+  vi.mocked(profiles.list).mockImplementation(async deviceId => [defaultProfile(deviceId), stored]);
+  vi.mocked(profiles.update).mockImplementation(async value => { stored = { ...value, builtIn: false }; return stored; });
+  const mounted = mount("preview", manager, { profiles }); await settle();
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  const css = () => (labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value;
+  expect(mounted.root.textContent).toContain("1 em（旧方案单位");
+  expect(css()).toContain("margin-left: 1em !important");
+  // 55px of the 912px narrow column at size 7.
+  expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("6");
+  expect(mounted.root.textContent).not.toContain("有未保存的修改");
+  setValue(input(mounted.root, "kt-marginX"), "-4.8");
+  expect(css()).toContain("margin-left: -4.8% !important");
+  fire(button(mounted.root, "保存方案"), "click"); await settle();
+  expect(stored.settings).toMatchObject({ marginX: -4.8, marginXUnit: "percent" });
+});
+
 it("uses the selected margin's safety bound and labels unmeasured models as estimates", async () => {
   const { manager } = await paired(), mounted = mount("preview", manager); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change");
-  setValue(input(mounted.root, "kt-marginX"), "-1.5");
+  setValue(input(mounted.root, "kt-marginX"), "-15");
   expect((button(mounted.root, "保存方案") as HTMLButtonElement).disabled).toBe(false);
   setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "narrow", "change");
   expect(mounted.root.textContent).toContain("避免超出设备屏幕");

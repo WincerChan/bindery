@@ -79,8 +79,8 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       const created = await result(await rpc("createKindleProfile", "POST", input)); assert.equal(created.deviceId, "test-device");
       assert.equal(created.settings.stripFonts, true); assert.equal(created.settings.stripImages, true);
       const updated = await result(await rpc("updateKindleProfile", "POST", { ...input, id: created.id, name: "已更新" })); assert.equal(updated.name, "已更新");
-      const stored = (await result(await rpc("listKindleProfiles", "GET", "test-device")))[1]; assert.deepEqual(stored.settings, { ...settings, deviceModel: "KPW3", kindleMargin: "narrow" });
-      const negative = { ...settings, deviceModel: "KO3", kindleMargin: "medium", marginX: -0.8 };
+      const stored = (await result(await rpc("listKindleProfiles", "GET", "test-device")))[1]; assert.deepEqual(stored.settings, { ...settings, deviceModel: "KPW3", kindleMargin: "narrow", marginXUnit: "em" });
+      const negative = { ...settings, deviceModel: "KO3", kindleMargin: "medium", marginX: -4.8, marginXUnit: "percent" };
       await result(await rpc("updateKindleProfile", "POST", { ...input, id: created.id, settings: negative }));
       assert.deepEqual((await result(await rpc("listKindleProfiles", "GET", "test-device")))[1].settings, negative);
       assert.equal((await result(await rpc("listKindleProfiles", "GET", "another-device"))).length, 1);
