@@ -56,7 +56,7 @@
 .kt-font-table .kt-font-warning { color: var(--color-warning); }
 .kt-font-table td:nth-child(4) { white-space: nowrap; font-family: var(--font-mono); font-size: 12.5px; text-align: right; }
 .kt-font-table td:last-child { padding-right: 0; }
-.kt-font-sample { display: block; border: 0; width: 100%; height: 34px; background: transparent; }
+.kt-font-sample { display: block; border: 0; width: 100%; height: 68px; background: transparent; }
 .kt-row-actions { display: flex; gap: 2px; justify-content: end; }
 .kt-coverage { display: flex; gap: 4px; }
 .kt-coverage span { display: inline-flex; justify-content: center; align-items: center; width: 32px; height: 24px; border-bottom: 2px solid var(--color-ink); font: 500 11.5px var(--font-mono); }

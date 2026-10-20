@@ -71,10 +71,13 @@ export function FontSample(props: { device: PairedDevice; family: FontFamily }) 
     if (!doc?.body || disposed || sampleDocument === doc) return;
     registration?.clear();
     sampleDocument = doc;
-    const text = doc.createElement("p");
-    text.textContent = "永和九年，岁在癸丑，暮春之初，会于会稽山阴之兰亭。";
-    text.style.cssText = 'margin:0; font:22px/1.5 "Bindery Device Sample"; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
-    doc.body.replaceChildren(text); doc.body.style.margin = "0";
+    const lines = ["我可以吞下玻璃而不伤身体。", "The quick brown fox jumps over the lazy dog."].map(sample => {
+      const line = doc.createElement("p");
+      line.textContent = sample;
+      line.style.cssText = 'margin:0; font:22px/1.5 "Bindery Device Sample"; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
+      return line;
+    });
+    doc.body.replaceChildren(...lines); doc.body.style.margin = "0";
     const fonts = new DocumentFonts(doc); registration = fonts;
     try { await fonts.load(props.device, props.family, "Bindery Device Sample"); }
     catch (error) { if (!disposed && registration === fonts) setError(errorMessage(error)); }
