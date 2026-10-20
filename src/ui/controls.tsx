@@ -1,4 +1,4 @@
-import { createUniqueId, omit, Show } from "solid-js";
+import { createUniqueId, omit, onSettled, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
 
 export type ButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -25,8 +25,22 @@ export function TextField(props: JSX.InputHTMLAttributes<HTMLInputElement> & Fie
 }
 export function Select(props: JSX.SelectHTMLAttributes<HTMLSelectElement> & FieldProps) {
   const generated = createUniqueId(), id = () => props.id || generated;
+  let select!: HTMLSelectElement;
+  // A controlled select must keep showing `value` when its options are rebuilt (e.g. a list refreshed
+  // with new objects): removing the selected <option> makes the browser fall back to the first one,
+  // and an unchanged `value` prop is never re-applied.
+  onSettled(() => {
+    if (typeof MutationObserver === "undefined") return;
+    const sync = () => {
+      const value = props.value;
+      if (value !== undefined && value !== null && select.value !== String(value)) select.value = String(value);
+    };
+    const observer = new MutationObserver(sync);
+    observer.observe(select, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  });
   return <label class={`field ${props.class || ""}`} for={id()}><span>{props.label}</span>
-    <select {...omit(props, "label", "hint", "error", "class")} id={id()} aria-invalid={props.error ? "true" : undefined} aria-describedby={descriptionId(id(), props)} />
+    <select {...omit(props, "label", "hint", "error", "class")} ref={select} id={id()} aria-invalid={props.error ? "true" : undefined} aria-describedby={descriptionId(id(), props)} />
     <FieldHelp {...props} id={id()} />
   </label>;
 }

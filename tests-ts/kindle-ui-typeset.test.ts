@@ -532,6 +532,31 @@ it("keeps a legacy em margin until edited, then switches the adjustment to perce
   expect(stored.settings).toMatchObject({ marginX: -4.8, marginXUnit: "percent" });
 });
 
+it("keeps the saved profile selected after saving when the browser drops the re-rendered option", async () => {
+  const observers: { callback: MutationCallback; target?: Node }[] = [];
+  vi.stubGlobal("MutationObserver", class {
+    target?: Node;
+    constructor(readonly callback: MutationCallback) { observers.push(this); }
+    observe(target: Node) { this.target = target; }
+    disconnect() {}
+  });
+  const { manager, id } = await paired(), profiles = api();
+  let stored = custom(id);
+  vi.mocked(profiles.list).mockImplementation(async deviceId => [defaultProfile(deviceId), stored]);
+  vi.mocked(profiles.update).mockImplementation(async value => { stored = { ...value, builtIn: false }; return stored; });
+  const mounted = mount("preview", manager, { profiles }); await settle();
+  const profileSelect = () => labels(mounted.root, "select", "方案") as HTMLSelectElement;
+  setValue(profileSelect(), "custom", "change"); setValue(input(mounted.root, "kt-lineHeight"), "1.8");
+  fire(button(mounted.root, "保存方案"), "click"); await settle();
+  expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "custom", settings: expect.objectContaining({ lineHeight: 1.8 }) }));
+  // Saving replaces the profile object, so its <option> is re-created; a real browser then shows the first option.
+  profileSelect().value = "default";
+  for (const observer of observers) if (observer.target === profileSelect()) observer.callback([], observer as unknown as MutationObserver);
+  expect(profileSelect().value).toBe("custom");
+  expect(elements(mounted.root, "input").some(node => node.id === "kt-lineHeight")).toBe(true);
+  mounted.dispose();
+});
+
 it("uses the selected margin's safety bound and labels unmeasured models as estimates", async () => {
   const { manager } = await paired(), mounted = mount("preview", manager); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
