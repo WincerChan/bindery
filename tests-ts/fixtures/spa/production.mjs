@@ -42,6 +42,29 @@ try {
   const bookForm = new FormData(); bookForm.set("book_id", bookId); bookForm.set("action", "read"); bookForm.set("read", "true");
   assert.equal((await rpc("mutateBook", bookForm)).result.target, null);
   assert.equal(db.prepare("SELECT read FROM books WHERE book_id = ?").get(bookId).read, 1);
+  assert.equal((await rpc("mutateLibrarySelection", { action: "archive", ids: [bookId] })).result, 1);
+  assert.equal(db.prepare("SELECT archived FROM books WHERE book_id = ?").get(bookId).archived, 1);
+  assert.equal((await rpc("mutateLibrarySelection", { action: "restore", ids: [bookId] })).result, 1);
+  assert.equal(db.prepare("SELECT archived FROM books WHERE book_id = ?").get(bookId).archived, 0);
+  const jobId = "b".repeat(32), invalidJob = "c".repeat(32);
+  for (const [id, book] of [[jobId, bookId], [invalidJob, null]]) db.prepare("INSERT INTO jobs(id,book_id,action,status,created_at,updated_at) VALUES (?,?,'regenerate','failed','2026','2026')").run(id, book);
+  assert.deepEqual((await rpc("retryJob", jobId)).result, { retried: true });
+  assert.ok(db.prepare("SELECT id FROM jobs WHERE book_id = ? AND action = 'retry'").get(bookId));
+  assert.deepEqual((await rpc("cleanupInvalidJobs", "failed")).result, { cleaned: true });
+  assert.equal(db.prepare("SELECT id FROM jobs WHERE id = ?").get(invalidJob), undefined);
+  // All B mutations authenticate before validation and retain the current URL as next.
+  for (const name of ["mutateLibrarySelection", "retryJob", "cleanupInvalidJobs", "regenerateSelection"]) {
+    const denied = await handler(new Request("http://localhost" + rpcPath(name), { method: "POST", headers: { Origin: "http://localhost", Referer: "http://localhost/ingest?jobs_tab=failed&jobs_page=2", "X-Server-Function-Format": "8", "Content-Type": "application/json" }, body: JSON.stringify([{ method: "POST", context: {}, data: null }]) }));
+    assert.equal(denied.status, 200); const payload = await denied.json();
+    assert.equal(payload.error.isSerializedRedirect, true, name);
+    assert.equal(payload.error.href, "/login?next=%2Fingest%3Fjobs_tab%3Dfailed%26jobs_page%3D2", name);
+  }
+  assert.equal((await rpc("mutateLibrarySelection", { action: "archive", ids: [bookId] })).result, 1);
+  assert.equal((await rpc("mutateLibrarySelection", { action: "delete", ids: [bookId] })).result, 1);
+  assert.equal(db.prepare("SELECT book_id FROM books WHERE book_id = ?").get(bookId), undefined);
+  // Restore the read-test fixture used by the unchanged anonymous FormData check below.
+  db.prepare("INSERT INTO books(book_id,title,read) VALUES (?, 'RPC 书籍', 1)").run(bookId);
+  await mkdir(join(root, "library", bookId), { recursive: true }); await writeFile(join(root, "library", bookId, "book.epub"), "fixture");
   const security = (path, body = {}, extraCookie = "") => handler(new Request("http://localhost/security/" + path, {
     method: "POST", headers: { Cookie: cookie + extraCookie, "Content-Type": "application/json", "HX-Request": "true" }, body: JSON.stringify(body), redirect: "manual",
   }));
@@ -72,7 +95,7 @@ try {
   const denied = await anonymous.json();
   assert.equal(denied.error.isSerializedRedirect, true); assert.equal(denied.error.href, "/login?next=%2F");
   assert.equal(db.prepare("SELECT read FROM books WHERE book_id = ?").get(bookId).read, 1);
-  console.log("Compiled SPA RPC checks passed: tracker CRUD, FormData book write, auth, original WebAuthn endpoints and unchanged cookie attributes");
+  console.log("Compiled SPA RPC checks passed: tracker CRUD, FormData book write, auth, library archive/restore/delete, jobs retry/cleanup, anonymous B mutations, original WebAuthn endpoints and unchanged cookie attributes");
 } finally {
   db?.close(); try { await handler?.shutdown(); } finally { await rm(root, { recursive: true, force: true }); }
 }

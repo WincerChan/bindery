@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { createServerFn } from "@tanstack/solid-start";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LibraryStorage, saveBook as persistBook } from "../src/server/storage";
@@ -21,6 +21,8 @@ vi.mock("@tanstack/solid-start", () => ({
 import { startInstance } from "../src/start";
 import { checkTracker, deleteTracker, removeTemplate, saveTemplate, saveTracker, testTemplate } from "../src/features/catalog/mutations";
 import { mutateBook, saveBook } from "../src/features/books/mutations";
+import { mutateLibrarySelection } from "../src/features/library/mutations";
+import { cleanupInvalidJobs, retryJob } from "../src/features/ingest/mutations";
 
 type Boundary = { middlewares: unknown[]; validator(data: unknown): unknown; handler(input: { context: { library: LibraryStorage }; data: unknown }): Promise<unknown> };
 const boundary = (fn: unknown) => fn as Boundary;
@@ -42,7 +44,7 @@ describe("SPA server-function boundaries", () => {
     // This production mutation deliberately relies on the global guard; the
     // compiled entry test exercises it without a per-function middleware.
     expect(boundary(saveTracker).middlewares).toEqual([]);
-    for (const fn of [deleteTracker, checkTracker, removeTemplate, saveTemplate, testTemplate, mutateBook, saveBook]) expect(boundary(fn).middlewares).toEqual([mocks.auth]);
+    for (const fn of [deleteTracker, checkTracker, removeTemplate, saveTemplate, testTemplate, mutateBook, saveBook, mutateLibrarySelection, cleanupInvalidJobs, retryJob]) expect(boundary(fn).middlewares).toEqual([mocks.auth]);
     expect(() => boundary(saveTracker).validator({ id: "../escape", fields: {} })).toThrow("ID");
     expect(() => boundary(saveTracker).validator({ fields: { title: 1 } })).toThrow("表单");
     expect(() => boundary(saveTemplate).validator({ kind: "rules", id: "../escape", raw: "{}" })).toThrow("ID");
@@ -67,6 +69,35 @@ describe("SPA server-function boundaries", () => {
     expect(await invoke(mutateBook, form({ book_id: id, action: "read", read: "1" }))).toEqual({ target: null });
     expect(library.db.getWishByLibraryBookId(id)).toMatchObject({ read: true });
     await expect(invoke(mutateBook, form({ book_id: "b".repeat(32), action: "read", read: "1" }))).rejects.toMatchObject({ status: 404 });
+  });
+  it("validates library/job mutation inputs before side effects", () => {
+    for (const data of [{ action: "unknown", ids: [] }, { action: "archive", ids: [] }, { action: "delete", ids: ["../escape"] }, { action: "restore", ids: "all" }]) expect(() => boundary(mutateLibrarySelection).validator(data)).toThrow();
+    expect(() => boundary(retryJob).validator("../escape")).toThrow("ID");
+    expect(() => boundary(cleanupInvalidJobs).validator("unknown")).toThrow("分组");
+  });
+  it("archives/restores/deletes selections via existing storage semantics and reports restore conflicts", async () => {
+    const ids = ["a".repeat(32), "b".repeat(32)];
+    for (const id of ids) { persistBook(bookFromDict({ title: id }), library.base, id); library.saveMetadata(metadataFromDict({ book_id: id, title: id })); }
+    expect(await invoke(mutateLibrarySelection, { action: "archive", ids: [...ids, ids[0]] })).toBe(2);
+    expect(library.listBooks()).toHaveLength(0); expect(library.listArchivedBooks()).toHaveLength(2);
+    mkdirSync(join(library.base, ids[1]!));
+    await expect(invoke(mutateLibrarySelection, { action: "restore", ids })).rejects.toMatchObject({ status: 409 });
+    expect(library.listArchivedBooks()).toHaveLength(2); // atomic preflight, no partial restore
+    rmSync(join(library.base, ids[1]!), { recursive: true });
+    expect(await invoke(mutateLibrarySelection, { action: "restore", ids: [ids[0]] })).toBe(1);
+    expect(library.listBooks()).toHaveLength(1); expect(library.listArchivedBooks()).toHaveLength(1);
+    expect(await invoke(mutateLibrarySelection, { action: "delete", ids })).toBe(1);
+    expect(existsSync(join(library.base, ids[0]!))).toBe(true); expect(existsSync(join(library.base, "archive", ids[1]!))).toBe(false);
+  });
+  it("queues retry and cleans invalid history without returning a redirect Response", async () => {
+    const id = "a".repeat(32), job = "b".repeat(32), invalid = "c".repeat(32);
+    persistBook(bookFromDict({ title: "重试" }), library.base, id); library.saveMetadata(metadataFromDict({ book_id: id, title: "重试", source_type: "txt" }));
+    for (const [jobId, bookId] of [[job, id], [invalid, null]]) library.db.createJob({ id: jobId!, book_id: bookId!, action: "regenerate", status: "failed", stage: "失败", message: null, log: null, rule_template: "default", created_at: "2026", updated_at: "2026" });
+    expect(await invoke(retryJob, job)).toEqual({ retried: true });
+    expect(library.db.listJobs().some(value => value.action === "retry" && value.book_id === id)).toBe(true);
+    expect(await invoke(cleanupInvalidJobs, "failed")).toEqual({ cleaned: true });
+    expect(library.db.getJob(invalid)).toBeNull(); expect(library.db.getJob(job)).not.toBeNull();
+    await expect(invoke(retryJob, "f".repeat(32))).rejects.toMatchObject({ status: 404 });
   });
   it("reuses template save validation and turns referenced-template failures into mutation errors", async () => {
     mocks.saveTheme.mockReturnValue({ raw: "bad css", error: "主题 CSS 校验失败", saved: false });

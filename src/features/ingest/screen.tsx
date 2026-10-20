@@ -11,5 +11,5 @@ export function IngestScreen(props: { data: Pick<ComponentProps<typeof IngestPag
   // Fragments are not sent to SSR. Apply them after hydration so dialog/ARIA state stays in sync.
   const open = () => jobsSheetOpen(!isServer && !ready() ? location().href.split("#")[0]! : location().href);
   const navigate = (href: string) => router.navigate({ href, replace: true, resetScroll: false, hashScrollIntoView: false });
-  return <IngestPage options={props.data.options} jobs={props.data.jobs} jobsOpen={open()} openJobs={() => navigate(jobsSheetTarget(location().href, true))} closeJobs={() => navigate(jobsSheetTarget(location().href, false))} navigateJobs={navigate} />;
+  return <IngestPage options={props.data.options} jobs={props.data.jobs} jobsOpen={open()} openJobs={() => navigate(jobsSheetTarget(location().href, true))} closeJobs={() => navigate(jobsSheetTarget(location().href, false))} />;
 }

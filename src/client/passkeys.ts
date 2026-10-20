@@ -2,7 +2,7 @@ import { browserSupportsWebAuthn, startAuthentication, startRegistration, type P
 import { loginTarget } from "../shared/session-navigation";
 export { browserSupportsWebAuthn };
 export class PasskeyRequestError extends Error {
-  constructor(message: string, readonly code = "server") {
+  constructor(message: string, readonly code = "server", readonly target?: string) {
     super(message);
   }
 }
@@ -17,8 +17,7 @@ export async function postJson<T>(path: string, body: unknown = {}): Promise<T> 
   });
   if (path.startsWith("/security/")) checkSession(response);
   if (response.redirected) {
-    location.assign(response.url);
-    throw new PasskeyRequestError("请重新登录");
+    throw new PasskeyRequestError("请重新登录", "login", loginTarget(location.pathname + location.search));
   }
   const data = await response.json();
   if (!response.ok) throw new PasskeyRequestError(data.error || "请求失败，请重试。", data.error === "needs_password" ? "needs_password" : "server");
@@ -28,8 +27,7 @@ function checkSession(response: Response) {
   const target = response.headers.get("HX-Redirect") || response.headers.get("Location") || (response.redirected ? response.url : "");
   const login = target && new URL(target, location.href).pathname === "/login";
   if (response.status === 401 || login) {
-    location.assign(loginTarget(location.pathname + location.search));
-    throw new PasskeyRequestError("请重新登录", "login");
+    throw new PasskeyRequestError("请重新登录", "login", loginTarget(location.pathname + location.search));
   }
 }
 export async function deletePasskey(id: string): Promise<void> {

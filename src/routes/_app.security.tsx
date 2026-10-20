@@ -20,6 +20,7 @@ function Security() {
   const router = useRouter();
   async function failure(error: unknown) {
     if (isRedirect(error)) { await router.navigate({ href: error.options.href || "/login" }); return; }
+    if (error instanceof PasskeyRequestError && error.code === "login") { await router.navigate({ href: error.target || "/login" }); return; }
     const message = passkeyMessage(error); setMessage(message); showToast(message, "error");
   }
   const data = Route.useLoaderData(),

@@ -1,6 +1,6 @@
 import { hydrate, render, renderToString, isServer } from "@solidjs/web";
 import { createSignal, flush, Loading, onCleanup, type ComponentProps } from "solid-js";
-import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet, RouterProvider } from "@tanstack/solid-router";
+import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet, RouterProvider, redirect } from "@tanstack/solid-router";
 import { AppShell } from "../../src/shell/app-shell";
 import { LibraryPage } from "../../src/features/library/library-page";
 import { TrackerPage } from "../../src/features/catalog/tracker";
@@ -24,10 +24,29 @@ import type { KindleDeviceManager } from "../../src/client/kindle/device";
 import type { TransferQueue } from "../../src/client/kindle/queue";
 import { Route as securityRoute } from "../../src/routes/_app.security";
 
+export function loginRedirect(next: string) { return redirect({ href: `/login?next=${encodeURIComponent(next)}` }); }
+
+export async function navigationWorkspace(node: HTMLElement, initialLibrary: LibraryPageData, initialIngest: Cases["ingest"], entry: string, regenerate: ComponentProps<typeof LibraryPage>["regenerate"] = async () => ({ queued: 1, failed: 0, skipped: 0 })) {
+  let library = initialLibrary, ingest = initialIngest, libraryLoads = 0, ingestLoads = 0;
+  const root = createRootRoute({ component: AppShell });
+  const home = createRoute({ getParentRoute: () => root, path: "/", validateSearch: (search: Record<string, unknown>) => search, loaderDeps: ({ search }) => search,
+    loader: () => { libraryLoads++; return library; }, component: () => { const data = home.useLoaderData(); return <LibraryPage data={data()} regenerate={regenerate} />; } });
+  const upload = createRoute({ getParentRoute: () => root, path: "/ingest", validateSearch: (search: Record<string, unknown>) => search, loaderDeps: ({ search }) => search,
+    loader: ({ location }) => { ingestLoads++; const { tab, page } = jobsSearch(Object.fromEntries(new URLSearchParams(location.searchStr))); return { options: ingest.options, jobs: { ...ingest.jobs!, active_tab: tab, page } }; },
+    component: () => { const data = upload.useLoaderData(); return <IngestScreen data={data()} />; } });
+  const others = ["/login", "/rules", "/security", "/tracker", "/book/$book_id", "/book/$book_id/preview"].map(path => createRoute({ getParentRoute: () => root, path, validateSearch: (search: Record<string, unknown>) => search, component: () => <p>{path}</p> }));
+  const router = createRouter({ routeTree: root.addChildren([home, upload, ...others]), history: createMemoryHistory({ initialEntries: [entry] }), isServer: false, origin: "http://bindery.local" });
+  await router.load();
+  const dispose = render(() => <Loading><RouterProvider router={router} /></Loading>, node);
+  return { router, dispose, flush, href: () => router.state.location.href, libraryLoads: () => libraryLoads, ingestLoads: () => ingestLoads,
+    nextLibrary(value: LibraryPageData) { library = value; }, nextIngest(value: Cases["ingest"]) { ingest = value; } };
+}
+
 export async function securityNavigation(node: HTMLElement) {
   const root = createRootRoute({ component: () => <Outlet /> });
   securityRoute.update({ id: "/security", path: "/security", getParentRoute: () => root } as never);
-  const router = createRouter({ routeTree: root.addChildren([securityRoute]), history: createMemoryHistory({ initialEntries: ["/security"] }), isServer: false, origin: "http://localhost" });
+  const login = createRoute({ getParentRoute: () => root, path: "/login", validateSearch: (search: Record<string, unknown>) => search, component: () => <p>登录</p> });
+  const router = createRouter({ routeTree: root.addChildren([securityRoute, login]), history: createMemoryHistory({ initialEntries: ["/security"] }), isServer: false, origin: "http://localhost" });
   await router.load();
   const dispose = render(() => <Loading><RouterProvider router={router} /></Loading>, node); flush();
   return { router, dispose, flush };
