@@ -1,10 +1,7 @@
-import { contentUrl, defaultSettings, pageEpsilon, pageMetrics, textMatches, type ReaderData, type ReaderSettings } from "./model";
-
-const fonts = { serif: '"Noto Serif SC", "Songti SC", SimSun, serif', sans: '"Noto Sans SC", "Microsoft YaHei", sans-serif', kai: 'KaiTi, STKaiti, serif', mono: 'ui-monospace, monospace' };
-const bright = { book: "#ffffff", paper: "#f8f5ed", sand: "#f4e8ce", mint: "#edf5ed", slate: "#f1f5f9" };
-const dim = { book: "#0f172a", paper: "#1f2937", sand: "#242a35", mint: "#10241d", slate: "#111827" };
+import { brightBgColors, contentUrl, defaultSettings, dimBgColors, pageEpsilon, pageMetrics, readerFonts, textMatches, type ReaderData, type ReaderSettings } from "./model";
 interface Anchor { node: Text; offset: number }
-interface FrameState { frame: HTMLIFrameElement; section: number; ready: boolean; scroller?: HTMLDivElement; pages?: HTMLDivElement; tail?: HTMLDivElement; style?: HTMLStyleElement; observer?: ResizeObserver; cleanup?: () => void; anchor?: Anchor; page: number }
+const typographyProperties = ["font-family", "font-size", "line-height", "text-align", "text-justify"] as const;
+interface FrameState { frame: HTMLIFrameElement; section: number; ready: boolean; scroller?: HTMLDivElement; pages?: HTMLDivElement; tail?: HTMLDivElement; style?: HTMLStyleElement; bookTypography?: { value: string; priority: string }[]; observer?: ResizeObserver; cleanup?: () => void; anchor?: Anchor; page: number }
 export interface ReaderLocation { section: number; page: number; pageCount: number; frame: number }
 
 /** Parent-owned DOM control. No EPUB script is executed or copied into the app. */
@@ -85,10 +82,12 @@ export class ReaderFrames {
       if (!doc?.body || new URL(doc.URL).pathname !== expected.pathname || doc.contentType !== "text/html") throw new Error("章节加载失败，请重新登录或重试");
       const scroller = doc.createElement("div"), pages = doc.createElement("div"), tail = doc.createElement("div");
       scroller.id = "bindery-reader-scroller"; pages.id = "bindery-reader-pages"; tail.id = "bindery-reader-tail";
+      tail.setAttribute("aria-hidden", "true");
       while (doc.body.firstChild) pages.appendChild(doc.body.firstChild);
       pages.appendChild(tail); scroller.appendChild(pages); doc.body.appendChild(scroller);
       const style = doc.createElement("style"); doc.head.appendChild(style);
-      Object.assign(state, { scroller, pages, tail, style, ready: true });
+      const bookTypography = typographyProperties.map(name => ({ value: doc.body.style.getPropertyValue(name), priority: doc.body.style.getPropertyPriority(name) }));
+      Object.assign(state, { scroller, pages, tail, style, bookTypography, ready: true });
       this.layout(state);
       const scroll = () => { if (index === this.active) this.emit(state); };
       const key = (event: KeyboardEvent) => this.key(event);
@@ -158,26 +157,66 @@ export class ReaderFrames {
     }
   }
   private layout(state: FrameState) {
-    const value = this.settings, width = Math.max(1, state.scroller!.clientWidth || state.frame.clientWidth);
-    const x = value.styleMode === "custom" ? Math.max(0, value.pagePaddingX) : 0, y = value.styleMode === "custom" ? Math.max(0, value.pagePaddingY) : 0;
-    const bg = (value.brightnessMode === "dim" ? dim : bright)[value.readerBg], color = value.brightnessMode === "dim" ? "#e5e7eb" : "#111827";
-    state.style!.textContent = `html,body{height:100%!important;width:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;background:${bg}!important;}
-      #bindery-reader-scroller{position:relative!important;display:block!important;box-sizing:border-box!important;height:100%!important;width:100%!important;margin:0!important;padding:0!important;overflow-x:auto!important;overflow-y:hidden!important;direction:ltr!important;writing-mode:horizontal-tb!important;scrollbar-width:none;overscroll-behavior-x:contain;}
+    const value = this.settings, doc = state.frame.contentDocument!, vars = doc.documentElement.style;
+    const x = value.styleMode === "custom" ? value.pagePaddingX : 0, y = value.styleMode === "custom" ? value.pagePaddingY : 0;
+    const bg = (value.brightnessMode === "dim" ? dimBgColors : brightBgColors)[value.readerBg], color = value.brightnessMode === "dim" ? "#e5e7eb" : "#111827";
+    doc.documentElement.setAttribute("data-bindery-style", value.styleMode);
+    // Preserve the book's html/body box model, including auto body width. Forcing
+    // width:100% makes author margins/padding overflow the iframe's viewport.
+    state.style!.textContent = `html,body{height:99%!important;background:var(--bindery-reader-bg)!important;}
+      body{overflow:hidden!important;}
+      #bindery-reader-scroller{position:relative!important;display:block!important;height:99%!important;width:100%!important;max-width:599px!important;margin:0 auto!important;background:var(--bindery-reader-bg)!important;overflow-x:auto!important;overflow-y:hidden!important;direction:ltr!important;writing-mode:horizontal-tb!important;scroll-behavior:auto!important;scrollbar-width:none;overscroll-behavior-x:contain;}
       #bindery-reader-scroller::-webkit-scrollbar{display:none}
-      #bindery-reader-pages{position:relative!important;display:block!important;float:none!important;width:100%!important;min-width:100%!important;max-width:none!important;height:100%!important;box-sizing:border-box!important;column-fill:auto!important;column-width:${Math.max(1, width - x * 2)}px!important;column-gap:${x * 2}px!important;padding:${y}px ${x}px!important;margin:0!important;direction:ltr!important;writing-mode:horizontal-tb!important;}
-      #bindery-reader-tail{position:absolute!important;display:block!important;top:0!important;height:1px!important;pointer-events:none!important;opacity:0!important;}
-      img,svg{max-width:100%!important;max-height:100%!important;object-fit:contain} pre{white-space:pre-wrap!important;overflow-wrap:anywhere} table{max-width:100%!important} h1,h2,h3,h4,h5,h6,figure{break-inside:avoid-column} mark[data-reader-search]{background:#fde68a!important;color:#111827!important}
-      @media(max-width:767px){#bindery-reader-scroller{overflow-x:hidden!important;touch-action:pan-y;overscroll-behavior-x:none}}
-      ${value.styleMode === "custom" ? `#bindery-reader-pages,#bindery-reader-pages :is(p,li,div,span,b,strong,blockquote,td,th,h1,h2,h3,h4,h5,h6){font-family:${fonts[value.fontFamily]}!important;font-size:${value.fontSize}px!important;line-height:${value.lineHeight}!important;text-align:${value.textAlignMode}!important;text-justify:inter-ideograph!important;color:${color}!important;background-color:transparent!important}` : value.brightnessMode === "dim" ? `#bindery-reader-pages,#bindery-reader-pages *{color:${color}!important;background-color:transparent!important}` : ""}`;
+      #bindery-reader-pages{position:relative!important;display:block!important;float:none!important;clear:both!important;width:var(--bindery-page-step)!important;min-width:var(--bindery-page-step)!important;max-width:none!important;height:99%!important;box-sizing:border-box!important;column-fill:auto;column-width:var(--bindery-column-width);column-gap:var(--bindery-column-gap);padding-top:var(--bindery-page-padding-y)!important;padding-bottom:var(--bindery-page-padding-y)!important;padding-left:var(--bindery-page-padding-x)!important;padding-right:var(--bindery-page-padding-x)!important;margin:0!important;direction:ltr!important;writing-mode:horizontal-tb!important;}
+      #bindery-reader-tail{position:absolute!important;display:block!important;left:calc(100% + var(--bindery-page-tail-offset,0px))!important;top:0!important;width:var(--bindery-page-tail-pad,0px)!important;min-width:var(--bindery-page-tail-pad,0px)!important;height:1px!important;pointer-events:none!important;opacity:0!important;}
+      h1,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}
+      img,svg,video{max-width:99%!important;height:auto!important;}
+      mark[data-reader-search]{background:#fde68a!important;color:#111827!important;}
+      @media(max-width:767px){#bindery-reader-scroller{overflow-x:hidden!important;touch-action:pan-y!important;overscroll-behavior-x:none!important;}}
+      ${value.styleMode === "custom" ? `html[data-bindery-style="custom"] body,html[data-bindery-style="custom"] #bindery-reader-pages,html[data-bindery-style="custom"] #bindery-reader-pages :is(p,li,div,span,b,strong,blockquote,td,th,h1,h2,h3,h4,h5,h6){font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;color:var(--bindery-reader-text,#111827)!important;}
+      html[data-bindery-style="custom"] #bindery-reader-pages :is(h1,h2,h3,h4,h5,h6,span,b,strong){background-color:transparent!important;background-image:none!important;}` : ""}`;
+    vars.setProperty("--bindery-page-max-width", "599px");
+    // Like Python, retain -1 in the variables: negative CSS padding computes to
+    // its initial zero, while column sizing below uses nonnegative padding.
+    vars.setProperty("--bindery-page-padding-x", `${x}px`);
+    vars.setProperty("--bindery-page-padding-y", `${y}px`);
+    vars.setProperty("--bindery-font-family", readerFonts[value.fontFamily]);
+    vars.setProperty("--bindery-font-size", `${value.fontSize}px`);
+    vars.setProperty("--bindery-line-height", String(value.lineHeight));
+    vars.setProperty("--bindery-reader-bg", bg);
+    vars.setProperty("--bindery-reader-text", color);
+    vars.setProperty("--bindery-text-align", value.textAlignMode);
+    vars.setProperty("--bindery-text-justify", value.textAlignMode === "justify" ? "inter-ideograph" : "auto");
+    const typography = [readerFonts[value.fontFamily], `${value.fontSize}px`, String(value.lineHeight), value.textAlignMode, value.textAlignMode === "justify" ? "inter-ideograph" : "auto"];
+    typographyProperties.forEach((name, index) => {
+      if (value.styleMode === "custom") {
+        doc.body.style.setProperty(name, typography[index], "important");
+        state.pages!.style.setProperty(name, typography[index], "important");
+      } else {
+        // Python removes these inline properties when returning to book mode,
+        // losing the book's original inline typography. Restore it instead.
+        const original = state.bookTypography![index];
+        if (original.value) doc.body.style.setProperty(name, original.value, original.priority);
+        else doc.body.style.removeProperty(name);
+        state.pages!.style.removeProperty(name);
+      }
+    });
+    // Measure after applying the book box model and max-width. Percentage body
+    // margins can leave fractional CSS pixels; pin pages to clientWidth so the
+    // column pitch cannot drift from the integer scroll step over a long chapter.
+    const width = Math.max(1, state.scroller!.clientWidth || state.frame.clientWidth);
+    vars.setProperty("--bindery-page-step", `${width}px`);
+    vars.setProperty("--bindery-column-width", `${Math.max(1, width - Math.max(0, x) * 2)}px`);
+    vars.setProperty("--bindery-column-gap", `${Math.max(0, x) * 2}px`);
   }
   private refresh(state: FrameState, desiredPage: number, anchor?: Anchor) {
-    const scroller = state.scroller!, tail = state.tail!;
+    const scroller = state.scroller!, vars = state.frame.contentDocument!.documentElement.style;
     // Add only the fractional last-page remainder; tail lives inside the columns.
-    tail.style.width = "0px"; tail.style.left = "0px";
+    vars.setProperty("--bindery-page-tail-pad", "0px"); vars.setProperty("--bindery-page-tail-offset", "0px");
     const rawMax = Math.max(0, scroller.scrollWidth - scroller.clientWidth), step = Math.max(1, scroller.clientWidth);
     const pad = (step - rawMax % step) % step;
-    tail.style.left = `${scroller.clientWidth + rawMax}px`;
-    tail.style.width = `${pad < pageEpsilon || step - pad < pageEpsilon ? 0 : pad}px`;
+    vars.setProperty("--bindery-page-tail-offset", `${rawMax}px`);
+    vars.setProperty("--bindery-page-tail-pad", `${pad <= pageEpsilon || step - pad <= pageEpsilon ? 0 : pad}px`);
     const metrics = pageMetrics(scroller.clientWidth, scroller.scrollWidth);
     let page = Math.max(1, Math.min(metrics.count, desiredPage));
     if (anchor?.node.isConnected) {

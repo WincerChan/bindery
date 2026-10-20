@@ -16,7 +16,10 @@ export class ProgressWriter {
     const payload = this.latest; this.latest = undefined; this.inFlight = true;
     let failed = false;
     try {
-      const response = await this.transport(`/book/${this.bookId}/progress`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload), keepalive: true });
+      // Native fetch rejects a ProgressWriter receiver ("Illegal invocation").
+      // Invoke injected transports as functions too, so passing fetch is safe.
+      const transport = this.transport;
+      const response = await transport(`/book/${this.bookId}/progress`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload), keepalive: true });
       if (!response.ok || !(await response.json()).ok) throw new Error("save failed");
       if (!this.stopped) this.report("");
     } catch {
