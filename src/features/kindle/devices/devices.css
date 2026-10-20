@@ -11,6 +11,7 @@
 .kindle-page .field { min-width: 0; font-size: 12px; color: var(--color-ink-3); }
 .kindle-page .field input, .kindle-page .field select, .kindle-page .field textarea { font-size: 13.5px; border-color: var(--color-control-line); }
 .kindle-page .field input, .kindle-page .field select { height: 40px; padding: 0 12px; }
+.kindle-page .field select { padding-right: 36px; }
 .kindle-page .checkbox { min-height: 24px; font-size: 13.5px; gap: 10px; }
 .kindle-page .empty-state { border: 0; padding: 48px 16px; }
 .kindle-page .empty-state h2 { margin-bottom: 12px; font-size: 16px; }

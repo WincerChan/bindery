@@ -132,7 +132,7 @@
 .reader-custom-settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 12px; }
 .reader-setting { display: flex; align-items: center; gap: 12px; min-width: 0; margin: 0; }
 .reader-setting > span { flex: none; width: 64px; font-size: 12px; font-weight: 600; color: var(--reader-muted); }
-.reader-page .reader-setting select { flex: 1; width: 0; min-width: 0; min-height: 36px; padding: 6px 8px; background: var(--reader-panel); border-color: var(--reader-line); color: inherit; font-size: 14px; }
+.reader-page .reader-setting select { --select-arrow-gap: 10px; flex: 1; width: 0; min-width: 0; min-height: 36px; padding: 6px 30px 6px 8px; background-color: var(--reader-panel); border-color: var(--reader-line); color: inherit; font-size: 14px; }
 .reader-stepper { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .reader-stepper .reader-control { width: 40px; min-height: 36px; padding: 0; flex: none; }
 .reader-stepper output { min-width: 40px; text-align: center; color: var(--reader-muted); font: 12px var(--font-mono); }
