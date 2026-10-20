@@ -337,6 +337,54 @@ it("hydrates preview with real chapter URLs and updates device fonts, profile CS
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("2.5");
 });
 
+it("applies and resets the negative-margin preset, previews calibrated counts, and persists the Kindle margin with its profile", async () => {
+  const { manager, id } = await paired(), profiles = api();
+  let stored = custom(id);
+  vi.mocked(profiles.list).mockImplementation(async deviceId => [defaultProfile(deviceId), stored]);
+  vi.mocked(profiles.update).mockImplementation(async value => { stored = { ...value, builtIn: false }; return stored; });
+  const mounted = mount("preview", manager, { profiles }); await settle();
+  const estimate = () => elements(mounted.root, "p", "data-kindle-line-estimate")[0]!.textContent;
+  expect(estimate()).toBe("预计每行约 16 字（按 KPW3 · 字号 7 · 窄 实测校准）");
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  const margin = input(mounted.root, "kt-marginX");
+  expect(margin.getAttribute("aria-label")).toBe("左右边距调整（em）");
+  expect(margin.getAttribute("min")).toBe("-1.4"); expect(margin.getAttribute("step")).toBe("0.1");
+  fire(button(mounted.root, "恢复 Kindle 默认"), "click"); ui.flush();
+  expect(estimate()).toContain("约 16 字");
+  fire(button(mounted.root, "收窄到约 1 字边距（-0.8em）"), "click"); ui.flush();
+  expect((margin as HTMLInputElement).value).toBe("-0.8"); expect(estimate()).toContain("约 18 字");
+  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: -0.8em !important");
+  fire(button(mounted.root, "恢复 Kindle 默认"), "click"); ui.flush();
+  setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change"); expect(estimate()).toContain("约 14 字");
+  setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "wide", "change"); expect(estimate()).toContain("约 11 字");
+  expect(margin.getAttribute("min")).toBe("-1.5");
+  expect(mounted.root.textContent).toContain("上下页边距沿用原预览行为，未经实机测量");
+  fire(button(mounted.root, "保存方案"), "click"); await settle();
+  expect(stored.settings).toMatchObject({ deviceModel: "KPW3", kindleMargin: "wide", marginX: null });
+  mounted.dispose();
+  const reloaded = mount("preview", manager, { profiles }); await settle();
+  setValue(labels(reloaded.root, "select", "方案"), "custom", "change");
+  expect((labels(reloaded.root, "select", "Kindle 页边距设置") as HTMLSelectElement).value).toBe("wide");
+  expect(reloaded.root.textContent).toContain("预计每行约 11 字");
+});
+
+it("uses the selected margin's safety bound and labels unmeasured models as estimates", async () => {
+  const { manager } = await paired(), mounted = mount("preview", manager); await settle();
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change");
+  setValue(input(mounted.root, "kt-marginX"), "-1.5");
+  expect((button(mounted.root, "保存方案") as HTMLButtonElement).disabled).toBe(false);
+  setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "narrow", "change");
+  expect(mounted.root.textContent).toContain("避免超出设备屏幕");
+  expect((button(mounted.root, "保存方案") as HTMLButtonElement).disabled).toBe(true);
+  expect(mounted.root.textContent).toContain("排版参数无效，预览保留上次有效样式");
+  const preview = mount("preview", null); await settle();
+  fire(button(preview.root, "KO3"), "click"); ui.flush();
+  expect(preview.root.textContent).toContain("KO3 按 KPW3 比例估算");
+  fire(button(preview.root, "其他"), "click"); ui.flush();
+  expect(preview.root.textContent).toContain("其他型号按 KPW3 比例估算");
+});
+
 it("updates preview asset modes live and includes both toggles in dirty, reset, save and save-as", async () => {
   const { manager, id } = await paired(), profiles = api(), onDirty = vi.fn();
   const mounted = mount("preview", manager, { profiles, onDirty }); await settle();
@@ -374,6 +422,11 @@ it("takes over a chapter already loaded before hydration and applies CSS and dev
   vi.stubGlobal("FontFace", class { load() { return Promise.resolve(this); } });
   const mounted = mount("preview", manager, {}, root => { Object.defineProperty(elements(root, "iframe")[0]!, "contentDocument", { value: doc }); }); await settle();
   expect(elements(head, "style", "data-bindery-profile")).toHaveLength(1);
+  expect(Array.from(head.childNodes).map(node => node.textContent)).toEqual([
+    expect.stringContaining("font-size: 55px"), bookStyle.textContent, "",
+  ]);
+  setValue(labels(mounted.root, "select", "Kindle 页边距设置"), "medium", "change");
+  expect(head.firstChild!.textContent).toContain("padding-left: 137px");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   setValue(labels(mounted.root, "select", "字体（设备上已安装）"), "Book", "change"); await settle();
   expect(elements(head, "style", "data-bindery-profile")[0]!.textContent).toContain('font-family: "Book"');

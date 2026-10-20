@@ -7,6 +7,8 @@ import { LibraryStorage } from "../src/server/storage";
 import { signIn } from "../src/server/auth";
 import { KindleProfiles } from "../src/server/kindle/profiles";
 import { defaultProfile, EMPTY_SETTINGS, generateProfileCss, profileInput, profileSettings } from "../src/client/kindle/profiles";
+import { KINDLE_MODELS } from "../src/client/kindle/identity";
+import { KINDLE_MARGIN_PRESETS, minimumMarginX } from "../src/client/kindle/margins";
 
 const scope = vi.hoisted(() => ({ request: null as Request | null, library: null as LibraryStorage | null }));
 vi.mock("../src/server/runtime", () => ({ getLibrary: () => scope.library }));
@@ -33,7 +35,7 @@ const input = (deviceId = "device-a") => ({ deviceId, name: "正文", settings: 
 describe("Kindle typesetting profiles", () => {
   it("loads legacy settings with both toggles off and round-trips validated toggles through settings_json", () => {
     const profiles = new KindleProfiles(scope.library!.db), value = input();
-    const { stripFonts: _fonts, stripImages: _images, ...legacy } = value.settings;
+    const { stripFonts: _fonts, stripImages: _images, deviceModel: _model, kindleMargin: _margin, ...legacy } = value.settings;
     expect(profileSettings(legacy)).toEqual(value.settings);
     const created = profiles.create({ ...value, settings: { ...legacy, stripFonts: true, stripImages: true } });
     expect(new KindleProfiles(scope.library!.db).list(value.deviceId)[1]).toEqual(created);
@@ -64,8 +66,36 @@ describe("Kindle typesetting profiles", () => {
   });
   it("validates ranges, custom CSS and font quoting through the shared validator", () => {
     const value = input(); expect(generateProfileCss({ ...value, id: "custom", builtIn: false })).toBe('body > * {\n  margin-left: 0.5em !important;\n  margin-right: 0.5em !important;\n}\n\np {\n  line-height: 1.5 !important;\n  margin-top: 0 !important;\n  margin-bottom: 0.25em !important;\n  text-indent: 2em !important;\n  text-align: justify !important;\n}\n\nbody, body * {\n  font-family: "Book Serif" !important;\n}\n\nh1 { text-align: center; }');
-    for (const settings of [{ ...value.settings, customCss: "p {" }, { ...value.settings, marginX: -1 }, { ...value.settings, lineHeight: NaN }, { ...value.settings, fontFamily: "bad\nfont" }]) expect(() => profileInput({ ...value, settings })).toThrow();
+    for (const settings of [{ ...value.settings, customCss: "p {" }, { ...value.settings, marginX: -1.5 }, { ...value.settings, lineHeight: NaN }, { ...value.settings, fontFamily: "bad\nfont" }]) expect(() => profileInput({ ...value, settings })).toThrow();
     expect(generateProfileCss({ ...value, id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, fontFamily: 'a"; } body { color: red; } /*' } })).toContain('font-family: "a\\"; } body { color: red; } /*"');
+  });
+  it("validates signed bounds for every model and margin preset in server CRUD, retaining legacy positive values", () => {
+    const profiles = new KindleProfiles(scope.library!.db);
+    for (const deviceModel of Object.keys(KINDLE_MODELS) as Array<keyof typeof KINDLE_MODELS>) {
+      for (const kindleMargin of Object.keys(KINDLE_MARGIN_PRESETS) as Array<keyof typeof KINDLE_MARGIN_PRESETS>) {
+        const min = minimumMarginX(deviceModel, kindleMargin), value = input(`${deviceModel}-${kindleMargin}`);
+        const created = profiles.create({ ...value, settings: { ...value.settings, deviceModel, kindleMargin, marginX: min } });
+        expect(profiles.list(value.deviceId)[1]).toEqual(created);
+        expect(() => profiles.create({ ...value, settings: { ...created.settings, marginX: min - 0.00001 } })).toThrow("marginX");
+        expect(() => profiles.update({ ...created, settings: { ...created.settings, marginX: min - 0.00001 } })).toThrow("marginX");
+        expect(profiles.update({ ...created, settings: { ...created.settings, marginX: 20 } }).settings.marginX).toBe(20);
+      }
+    }
+    expect(minimumMarginX("KPW3", "narrow")).toBeCloseTo(-80 / 55);
+    expect(minimumMarginX("KPW3", "medium")).toBeCloseTo(-137 / 55);
+    expect(minimumMarginX("KPW3", "wide")).toBe(-4);
+    for (const [key, values] of [["deviceModel", [null, "unknown", "__proto__", 3]], ["kindleMargin", [null, "unknown", "__proto__", 3]]] as const) {
+      for (const invalid of values) expect(() => profiles.create({ ...input(), settings: { ...EMPTY_SETTINGS, [key]: invalid } })).toThrow(key);
+    }
+  });
+  it("persists calibration metadata and negative values without emitting that metadata as CSS", () => {
+    const profiles = new KindleProfiles(scope.library!.db);
+    const created = profiles.create({ ...input(), settings: { ...EMPTY_SETTINGS, deviceModel: "KO3", kindleMargin: "medium", marginX: -0.8 } });
+    expect(new KindleProfiles(scope.library!.db).list(created.deviceId)[1]).toEqual(created);
+    expect(generateProfileCss(created)).toBe("body > * {\n  margin-left: -0.8em !important;\n  margin-right: -0.8em !important;\n}");
+    const changed = profiles.update({ ...created, settings: { ...created.settings, kindleMargin: "wide" } });
+    expect(new KindleProfiles(scope.library!.db).list(created.deviceId)[1].settings.kindleMargin).toBe("wide");
+    expect(generateProfileCss(changed)).toBe(generateProfileCss(created));
   });
   it("checks real authentication before all four RPC handlers and persists authenticated changes", async () => {
     for (const fn of [listKindleProfiles, createKindleProfile, updateKindleProfile, deleteKindleProfile]) await expect(invoke(fn, input())).rejects.toMatchObject({ status: 303 });

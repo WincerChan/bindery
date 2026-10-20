@@ -1,9 +1,17 @@
 import { EntryAccessError, entryOperation, isMissing, optionalEntry, readBytes, readInternalJson, writeBytes, type KindleDirectory } from "./fs";
 
+// KPW3, firmware 5.16.2.1.1, 霞鹜文楷 轻便版 Medium, Kindle size 7.
+// Fits 16/14/11 CJK glyphs at narrow/medium/wide, and 18 at narrow with -0.8em.
+// KO3 and unknown models use the same ratios as explicitly unmeasured estimates.
+const calibration = (width: number, measured: boolean) => ({
+  emPx: 55 * width / 1072,
+  sideMargins: { narrow: 80 * width / 1072, medium: 137 * width / 1072, wide: 220 * width / 1072 },
+  measured,
+});
 export const KINDLE_MODELS = {
-  KPW3: { name: "Kindle Paperwhite 3", width: 1072, height: 1448, ppi: 300, inches: 6 },
-  KO3: { name: "Kindle Oasis 3", width: 1264, height: 1680, ppi: 300, inches: 7 },
-  other: { name: "其他 Kindle", width: null, height: null, ppi: null, inches: null },
+  KPW3: { name: "Kindle Paperwhite 3", width: 1072, height: 1448, ppi: 300, inches: 6, typesetting: calibration(1072, true) },
+  KO3: { name: "Kindle Oasis 3", width: 1264, height: 1680, ppi: 300, inches: 7, typesetting: calibration(1264, false) },
+  other: { name: "其他 Kindle", width: null, height: null, ppi: null, inches: null, typesetting: calibration(1072, false) },
 } as const;
 export type KindleModel = keyof typeof KINDLE_MODELS;
 export interface DeviceIdentity { id: string; model: KindleModel; name: string; created_at: string }

@@ -3,8 +3,9 @@ import { errorMessage } from "../../../client/kindle/fs";
 import type { FontFamily, KindleModel, PairedDevice } from "../../../client/kindle";
 import { DocumentFonts, PreviewDocument } from "./frame";
 import { screenFor } from "./model";
+import type { KindleMarginPreset } from "../../../client/kindle/margins";
 
-export function ChapterFrame(props: { src: string; model: KindleModel; css: string | null; device: PairedDevice | null; family?: FontFamily }) {
+export function ChapterFrame(props: { src: string; model: KindleModel; marginPreset: KindleMarginPreset; css: string | null; device: PairedDevice | null; family?: FontFamily }) {
   let frame!: HTMLIFrameElement, screen!: HTMLDivElement, controller: PreviewDocument | undefined;
   let disposed = false, generation = 0;
   const [scale, setScale] = createSignal(0.4), [error, setError] = createSignal("");
@@ -24,8 +25,9 @@ export function ChapterFrame(props: { src: string; model: KindleModel; css: stri
       controller = new PreviewDocument(doc); setLoaded(value => value + 1);
     } catch (error) { setError(errorMessage(error)); }
   }
-  createEffect(() => ({ css: props.css, device: props.device, family: props.family, loaded: loaded() }), value => {
+  createEffect(() => ({ css: props.css, device: props.device, family: props.family, model: props.model, marginPreset: props.marginPreset, loaded: loaded() }), value => {
     if (!controller) return;
+    if (value.css !== null) controller.setDevice(value.model, value.marginPreset);
     const current = generation;
     void controller.update(value.css, value.device, value.family).catch(error => { if (!disposed && current === generation) setError(`设备字体加载失败：${errorMessage(error)}`); });
   });

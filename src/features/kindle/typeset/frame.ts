@@ -1,5 +1,6 @@
 import { loadPreviewFont, type FontFamily } from "../../../client/kindle/fonts";
-import type { PairedDevice } from "../../../client/kindle/identity";
+import type { KindleModel, PairedDevice } from "../../../client/kindle/identity";
+import { kindlePreviewMetrics, type KindleMarginPreset } from "../../../client/kindle/margins";
 
 /** A font registration belongs to exactly one isolated document. Late loads cannot resurrect it. */
 export class DocumentFonts {
@@ -32,12 +33,20 @@ export class PreviewDocument {
   constructor(private document: Document) {
     this.fonts = new DocumentFonts(document);
     this.base = document.createElement("style");
-    // 40 CSS pixels at the device pixel dimensions approximates a 9.6pt baseline at 300ppi.
-    this.base.textContent = "html { font-size: 40px; } body { overflow-wrap: anywhere; } img, svg { max-width: 100%; }";
+    this.setDevice("KPW3", "narrow");
     this.style = document.createElement("style");
     this.style.setAttribute("data-bindery-profile", "");
-    document.head.append(this.base, this.style);
+    // Device baseline, book CSS, profile CSS. Root padding represents the device's physical
+    // gutter, outside the body blocks whose negative margins may expand into that gutter.
+    document.head.insertBefore(this.base, document.head.firstChild);
+    document.head.append(this.style);
     document.addEventListener("click", this.stopLinks);
+  }
+  setDevice(model: KindleModel, preset: KindleMarginPreset) {
+    const { emPx, deviceMarginPx } = kindlePreviewMetrics(model, preset, null);
+    // Leave top/bottom margins alone: no vertical calibration has been measured.
+    // Scrollbars must not subtract pixels from the calibrated screen width; scrolling still works.
+    this.base.textContent = `html { font-size: ${emPx}px; box-sizing: border-box !important; padding-left: ${deviceMarginPx}px !important; padding-right: ${deviceMarginPx}px !important; scrollbar-width: none !important; } ::-webkit-scrollbar { display: none !important; } body { margin-left: 0; margin-right: 0; overflow-wrap: anywhere; } img, svg { max-width: 100%; }`;
   }
   async update(css: string | null, device: PairedDevice | null, family?: FontFamily) {
     if (css !== null) this.style.textContent = css;

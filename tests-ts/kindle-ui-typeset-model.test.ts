@@ -8,13 +8,14 @@ import { pairDevice } from "../src/client/kindle/identity";
 import { epubPath } from "../src/server/storage";
 import { readerFixture } from "./fixtures/reader/support";
 import { fakeKindle } from "./support/fake-fs";
+import { kindlePreviewMetrics } from "../src/client/kindle/margins";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => { cleanups.splice(0).forEach(cleanup => cleanup()); vi.unstubAllGlobals(); });
 const font = (name: string) => new File([new Uint8Array([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])], name);
 function fontDocument() {
   const fonts = new Set<FontFace>(), styles: Array<{ textContent: string; dataset: object; remove: ReturnType<typeof vi.fn> }> = [];
-  const document = { fonts, createElement: () => { const style = { textContent: "", dataset: {}, setAttribute: vi.fn(), remove: vi.fn() }; styles.push(style); return style; }, head: { append: vi.fn() }, addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as Document;
+  const document = { fonts, createElement: () => { const style = { textContent: "", dataset: {}, setAttribute: vi.fn(), remove: vi.fn() }; styles.push(style); return style; }, head: { append: vi.fn(), insertBefore: vi.fn() }, addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as Document;
   return { document, fonts, styles };
 }
 async function fontDevice() {
@@ -27,6 +28,18 @@ it("uses exact KPW3 / KO3 dimensions and explicitly falls back to KPW3 for other
   expect(screenFor("KPW3")).toMatchObject({ width: 1072, height: 1448, ppi: 300 });
   expect(screenFor("KO3")).toMatchObject({ width: 1264, height: 1680, ppi: 300 });
   expect(screenFor("other")).toEqual(screenFor("KPW3"));
+});
+it("matches all four KPW3 observations and labels scaled KO3 / other calibration as estimates", () => {
+  expect(kindlePreviewMetrics("KPW3", "narrow", 0)).toMatchObject({ emPx: 55, deviceMarginPx: 80, contentWidthPx: 912, charsPerLine: 16, measured: true });
+  expect(kindlePreviewMetrics("KPW3", "narrow", -0.8)).toMatchObject({ sideMarginPx: 36, contentWidthPx: 1000, charsPerLine: 18 });
+  expect(kindlePreviewMetrics("KPW3", "medium", null).charsPerLine).toBe(14);
+  expect(kindlePreviewMetrics("KPW3", "wide", null).charsPerLine).toBe(11);
+  expect(kindlePreviewMetrics("KPW3", "narrow", 1).charsPerLine).toBe(14);
+  const oasis = kindlePreviewMetrics("KO3", "narrow", -0.8);
+  expect(oasis.emPx).toBeCloseTo(55 * 1264 / 1072);
+  expect(oasis.deviceMarginPx).toBeCloseTo(80 * 1264 / 1072);
+  expect(oasis).toMatchObject({ charsPerLine: 18, measured: false });
+  expect(kindlePreviewMetrics("other", "narrow", 0)).toMatchObject({ charsPerLine: 16, measured: false });
 });
 it("groups inspected install batches by family and retains additional weights", async () => {
   const result = await inspectFontBatch([font("Book-Regular.ttf"), font("Book-Light.ttf"), font("Book-Medium.otf"), font("Second-Bold.ttf")]);
@@ -60,6 +73,11 @@ it("updates the profile stylesheet without altering book styles and clears docum
   const { device, family } = await fontDevice(), target = fontDocument();
   vi.stubGlobal("FontFace", class { load() { return Promise.resolve(this); } });
   const preview = new PreviewDocument(target.document);
+  expect(target.styles[0]!.textContent).toContain("font-size: 55px");
+  expect(target.styles[0]!.textContent).toContain("padding-left: 80px");
+  expect(target.styles[0]!.textContent).toContain("scrollbar-width: none !important");
+  preview.setDevice("KPW3", "medium"); expect(target.styles[0]!.textContent).toContain("padding-right: 137px");
+  preview.setDevice("KO3", "wide"); expect(target.styles[0]!.textContent).toContain(`font-size: ${55 * 1264 / 1072}px`);
   await preview.update("p { line-height: 1.6; }", device, family); expect(target.fonts.size).toBe(5);
   await preview.update("p { line-height: 1.8; }", device, family); expect(target.styles[1]!.textContent).toContain("1.8"); expect(target.fonts.size).toBe(5);
   await preview.update(null, null); expect(target.fonts.size).toBe(0); expect(target.styles[1]!.textContent).toContain("1.8");

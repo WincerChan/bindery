@@ -1,12 +1,15 @@
 import { validateCss } from "../../core/css";
+import { KINDLE_MODELS, type KindleModel } from "./identity";
+import { KINDLE_MARGIN_PRESETS, minimumMarginX, type KindleMarginPreset } from "./margins";
 
 export interface ProfileSettings {
+  deviceModel: KindleModel; kindleMargin: KindleMarginPreset;
   marginX: number | null; marginY: number | null; lineHeight: number | null;
   paragraphSpacing: number | null; textIndent: number | null; justify: boolean | null;
   fontFamily: string | null; customCss: string; stripFonts: boolean; stripImages: boolean;
 }
 export interface TypesettingProfile { id: string; deviceId: string; name: string; settings: ProfileSettings; builtIn: boolean }
-export const EMPTY_SETTINGS: ProfileSettings = Object.freeze({ marginX: null, marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: "", stripFonts: false, stripImages: false });
+export const EMPTY_SETTINGS: ProfileSettings = Object.freeze({ deviceModel: "KPW3", kindleMargin: "narrow", marginX: null, marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: "", stripFonts: false, stripImages: false });
 export const DEFAULT_PROFILE_ID = "default";
 export const defaultProfile = (deviceId: string): TypesettingProfile => ({ id: DEFAULT_PROFILE_ID, deviceId, name: "默认（只用书籍自带样式）", settings: { ...EMPTY_SETTINGS }, builtIn: true });
 export function deviceIdInput(value: unknown): string {
@@ -16,13 +19,25 @@ export function deviceIdInput(value: unknown): string {
 export function profileSettings(value: unknown): ProfileSettings {
   if (!value || typeof value !== "object") throw new Error("无效的排版参数");
   const v = value as Record<string, unknown>, output = { ...EMPTY_SETTINGS };
+  // Older settings_json has neither field; preserve its numeric values and use the measured baseline.
+  for (const [key, choices] of [["deviceModel", KINDLE_MODELS], ["kindleMargin", KINDLE_MARGIN_PRESETS]] as const) {
+    if (v[key] !== undefined) {
+      if (typeof v[key] !== "string" || !Object.hasOwn(choices, v[key])) throw new Error(`无效的排版参数：${key}`);
+    }
+  }
+  output.deviceModel = (v.deviceModel ?? EMPTY_SETTINGS.deviceModel) as KindleModel;
+  output.kindleMargin = (v.kindleMargin ?? EMPTY_SETTINGS.kindleMargin) as KindleMarginPreset;
   for (const key of ["stripFonts", "stripImages"] as const) {
     if (v[key] !== undefined && typeof v[key] !== "boolean") throw new Error(`无效的排版参数：${key}`);
     output[key] = v[key] === true;
   }
   for (const key of ["marginX", "marginY", "lineHeight", "paragraphSpacing", "textIndent"] as const) {
     const n = v[key];
-    if (n !== null && (typeof n !== "number" || !Number.isFinite(n) || n < (key === "lineHeight" ? 0.5 : 0) || n > 20)) throw new Error(`无效的排版参数：${key}`);
+    const min = key === "marginX" ? minimumMarginX(output.deviceModel, output.kindleMargin) : key === "lineHeight" ? 0.5 : 0;
+    if (n !== null && (typeof n !== "number" || !Number.isFinite(n) || n < min || n > 20)) {
+      if (key === "marginX") throw new Error(`左右边距调整（marginX）须在 ${min.toFixed(2)}–20em 内，避免超出设备屏幕（按字号 7 校准）`);
+      throw new Error(`无效的排版参数：${key}`);
+    }
     output[key] = n as number | null;
   }
   if (v.justify !== null && typeof v.justify !== "boolean") throw new Error("无效的两端对齐设置");
@@ -37,7 +52,8 @@ export function profileSettings(value: unknown): ProfileSettings {
  * boko drops margins declared on `body` when building KFX (inherited properties such as line-height and font-family
  * still propagate), so horizontal margins target the top-level blocks instead. KFX has no CSS hook for per-page
  * top/bottom margins — those come from the Kindle's own margin setting — so `marginY` is kept for stored profiles
- * but not emitted.
+ * but not emitted. Signed horizontal adjustments are relative to the device margin. deviceModel/kindleMargin
+ * are calibration metadata for validation and preview only; they never generate CSS.
  */
 export function generateProfileCss(profile: TypesettingProfile): string {
   if (profile.id === DEFAULT_PROFILE_ID) return "";
