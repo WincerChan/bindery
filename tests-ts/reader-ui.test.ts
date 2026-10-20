@@ -1,30 +1,42 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "vite";
 import solid from "vite-plugin-solid";
+import { solidOptions } from "../scripts/solid-options";
 import { resolve } from "node:path";
 import { contentUrl, defaultSettings, highlightedParts, initialPosition, normalizeSettings, pageMetrics, readerReturnTo, sectionUrl, textMatches, type ReaderData } from "../src/features/reader/model";
 import { ProgressWriter } from "../src/features/reader/progress";
 let ui: typeof import("./fixtures/reader/ui");
 beforeAll(async () => {
-  const result = await build({ configFile: false, logLevel: "silent", plugins: [solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/reader/ui.tsx") } });
+  const result = await build({ configFile: false, logLevel: "silent", plugins: [solid(solidOptions)], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/reader/ui.tsx") } });
   const entry = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);
   if (!entry || entry.type !== "chunk") throw new Error("Missing reader SSR bundle");
   ui = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(entry.code).toString("base64"));
 });
 describe("reader SSR and controls (adapted from test_reader_ui.py)", () => {
-  it("renders three sandboxed frames, pagination, native chapter links and escaped book copy", () => {
+  it("renders three sandboxed frames, icon controls, native TOC links and escaped book copy", () => {
     const html = ui.renderReader();
     expect(html.match(/<iframe/g)).toHaveLength(3); expect(html.match(/sandbox="allow-same-origin"/g)).toHaveLength(3); expect(html).not.toContain("allow-scripts"); expect(html).not.toContain("srcdoc");
-    for (const label of ["目录", "全文检索", "设置", "上一页", "下一页", "下一章", "返回详情"]) expect(html).toContain(label);
+    for (const label of ["切换目录", "全文检索", "设置", "上一页", "下一页", "返回详情"]) expect(html).toContain(`aria-label="${label}"`);
     expect(html).toContain("书名&lt;&amp;>"); expect(html).toContain("第一章&lt;&amp;>"); expect(html).toContain("%E7%AC%AC%E4%B8%80%E7%AB%A0.xhtml");
-    expect(html).toContain("return_to=%2Fjobs%3Ftab%3Dsuccess"); expect(html).toContain('aria-label="章节导航"'); expect(html).toContain('data-current-toc="true"');
+    expect(html).toContain("return_to=%2Fjobs%3Ftab%3Dsuccess"); expect(html).toContain('aria-label="章节目录"'); expect(html).toContain('data-current-toc="true"');
     expect(html).toContain('href="/book/' + "d".repeat(32) + '?return_to='); expect(html).toContain('role="status"');
+    expect(html).not.toMatch(/<h1|reader-footer|reader-chapter-nav|>上一页<|>下一页</);
+    expect(html).toContain('aria-expanded="false"'); expect(html).toContain('aria-hidden="true"');
   });
-  it("provides labelled native settings and searchable dialogs without a second main or cards", () => {
+  it("provides closed drawer/popovers, background segments and no custom controls before mount", () => {
     const html = ui.renderReader();
     expect(html.match(/<dialog/g)).toHaveLength(3); expect(html).toContain("aria-labelledby="); expect(html).toContain('type="submit"'); expect(html).toContain('type="search"');
-    for (const copy of ["样式", "书籍", "自定义", "字体", "字号", "行高", "左右边距", "上下边距", "亮色", "暗色", "两端对齐", "关键词"]) expect(html).toContain(copy);
+    for (const copy of ["背景", "书籍", "灰白", "纸张", "砂岩", "薄荷", "样式", "自定义", "亮色", "暗色", "关键词", "书籍：尽量保持 EPUB 原样式；自定义：覆盖字体/字号/行高。"]) expect(html).toContain(copy);
+    expect(html).not.toMatch(/<dialog[^>]*\sopen(?:[\s>])|<select|type="number"/);
+    expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('src="/book/d/cover?v=1"'); expect(html).not.toMatch(/<main|shadow|class="card/);
+  });
+  it("reports chapter page percentage, including the SSR resume seed", () => {
+    const plain = (query = "") => ui.renderReader(query).replace(/<!--.*?-->/g, "");
+    expect(plain()).toContain("1 / 1 · 100%");
+    expect(plain()).toContain("共 2 节 · 当前 1");
+    expect(plain("resume=1")).toContain("3 / 8 · 38%");
+    expect(plain("resume=1")).toContain("共 2 节 · 当前 2");
   });
   it("restores the saved section only for resume=1; direct chapter links keep the requested chapter", () => {
     expect(ui.renderReader("resume=1")).toContain("Text/ch2.xhtml");

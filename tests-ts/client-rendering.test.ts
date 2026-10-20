@@ -226,7 +226,7 @@ it("updates reader TOC and search result fragments, highlighting and load-more s
   expect(elements(mounted.root, "button").some(el => el.textContent === "加载更多")).toBe(false);
   fetch.mockResolvedValue({ ok: true, json: async () => ({ query: "空", indexed_sections: 1, hits: [], has_more: false }) });
   input.value = "空"; fire(input, "input"); mounted.flush(); fire(form, "submit"); await settle(); mounted.flush();
-  expect(elements(results(), "li")).toHaveLength(0); expect(mounted.root.textContent).toContain("没有找到匹配内容");
+  expect(elements(results(), "li")).toHaveLength(0); expect(mounted.root.textContent).toContain("未命中");
 });
 
 it("renders route views with the development runtime and no untracked reactive reads", () => {
