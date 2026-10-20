@@ -97,12 +97,18 @@ function issue(options: {
 }
 
 // Shared by the production entry and direct Request/Response tests. Returns null
-// for SSR/RPC routes after authenticating them; all state stays in SQLite.
+// for authenticated routes or RPCs (globally authenticated by src/start.ts).
+// All state stays in SQLite.
 export async function handleAuthRequest(request: Request, db: BinderyDatabase): Promise<Response | null> {
   const url = new URL(request.url),
     path = url.pathname,
     jar = cookies(request);
   if (!path.startsWith("/login") && !isAuthenticated(db, jar[SESSION_COOKIE])) {
+    // Use the same build-defined base and prefix match as Start's handler.
+    // Both GET data RPCs and POST actions must reach its redirect serializer;
+    // src/start.ts applies authentication to every server function by default.
+    const serverFnBase = process.env.TSS_SERVER_FN_BASE;
+    if (serverFnBase && path.startsWith(serverFnBase)) return null;
     const location = `/login?next=${path}`;
     return request.headers.get("HX-Request") === "true" ? new Response("", {
       status: 401,

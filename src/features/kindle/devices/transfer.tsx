@@ -5,6 +5,7 @@ import { useKindle } from "../context";
 import { byteProgressDetail, bytes, megabytes } from "./format";
 import type { KindleLibraryBook } from "./library";
 import { BokoLicense } from "./boko-license";
+import { Link } from "../../../shared/spa-link";
 
 function progressDetail(item: TransferItem) {
   if ((item.phase !== "download" && item.phase !== "write") || item.loaded === undefined || item.state === "失败" || item.state === "等待" || item.state === "完成") return item.message;
@@ -106,7 +107,7 @@ export function KindleTransferPage(props: { books: KindleLibraryBook[]; loadProf
           </li>}</For></ul>
           <Show when={totalPages() > 1}><nav aria-label="书库分页" class="kindle-actions"><Button variant="secondary" disabled={currentPage() === 1} onClick={() => setPage(currentPage() - 1)}>上一页</Button><span>{currentPage()} / {totalPages()}</span><Button variant="secondary" disabled={currentPage() === totalPages()} onClick={() => setPage(currentPage() + 1)}>下一页</Button></nav></Show>
         </Show>
-        <Show when={!deviceId() || !k.inventory()}><p class="notice">{!k.ready() ? "检测中…" : !deviceId() ? "请先连接并授权 Kindle。" : "正在读取设备清单，完成后显示设备已有书籍。"} <a href="/kindle/connect">连接与切换设备</a></p></Show>
+        <Show when={!deviceId() || !k.inventory()}><p class="notice">{!k.ready() ? "检测中…" : !deviceId() ? "请先连接并授权 Kindle。" : "正在读取设备清单，完成后显示设备已有书籍。"} <Link href="/kindle/connect">连接与切换设备</Link></p></Show>
       </section>
       <aside aria-label="传输" class="kindle-aside">
         <h2>设置</h2>
@@ -114,7 +115,7 @@ export function KindleTransferPage(props: { books: KindleLibraryBook[]; loadProf
           <Select label="排版方案" value={profile()} disabled={!deviceId() || profilesBusy()} onChange={e => setProfile(e.currentTarget.value)}><For each={profiles()}>{p => <option value={p.id}>{p.name}</option>}</For></Select>
           <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
           <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId())}>重试</Button></p></Show>
-          <a class="kindle-preview-link" href="/kindle/preview">预览并调整排版方案</a>
+          <Link class="kindle-preview-link" href="/kindle/preview">预览并调整排版方案</Link>
           <Checkbox label="写入封面缩略图（有封面时自动写入）" checked disabled />
           <Checkbox label="覆盖设备上的同名书" checked={overwrite()} onChange={e => setOverwrite(e.currentTarget.checked)} />
           <p class="kindle-small">覆盖仅替换 Bindery 记录的同一本书，保留原文件名与 .sdr 阅读记录。其他来源或不同书籍的同名文件会另存副本。</p>
@@ -125,7 +126,7 @@ export function KindleTransferPage(props: { books: KindleLibraryBook[]; loadProf
           <div class="kindle-actions"><Button variant="quiet" disabled={!active().length} onClick={() => active().forEach(i => k.cancel(i.id))}>取消所有未完成</Button><Button class="kindle-start-transfer" disabled={!deviceId() || !k.inventory() || !chosen().length || profilesBusy() || k.busy()} onClick={start}>开始传输（{chosen().length}）</Button></div><div class="kindle-actions"><Button variant="quiet" disabled={!k.items().some(i => i.state === "完成" || i.state === "失败")} onClick={k.clearFinished}>清除已结束</Button></div>
         </section>
         <p class="kindle-small">EPUB 从书库下载，在浏览器内由 boko Web Worker 转换 KFX，再经 USB 写入 Kindle。切换 Kindle 标签页时队列继续；刷新或关闭网页会中断传输。转换阶段无法提供精确百分比。</p>
-        <a class="kindle-small" href="#boko-license">boko 许可证与对应源码</a>
+        <Link class="kindle-small" href="#boko-license">boko 许可证与对应源码</Link>
       </aside>
     </div>
     <BokoLicense />

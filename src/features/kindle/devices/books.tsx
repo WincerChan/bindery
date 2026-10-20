@@ -5,6 +5,7 @@ import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, TextField
 import { useKindle } from "../context";
 import { bytes, dateLabel } from "./format";
 import { KindleIcon } from "../icons";
+import { Link } from "../../../shared/spa-link";
 import type { KindleLibraryBook } from "./library";
 
 function DeviceCover(props: { book: DeviceBook; title: string; author: string | null; libraryCover?: string | null }) {
@@ -70,10 +71,10 @@ export function KindleBooksPage(props: { books: KindleLibraryBook[] }) {
       <div class="kindle-filters" role="group" aria-label="按来源筛选"><For each={["全部", "Bindery", "其他"]}>{value => <Chip variant="filter" selected={source() === value} onClick={() => { setSource(value); setSelected([]); }}>{value === "Bindery" ? "来自 Bindery" : value}{value !== "全部" ? ` ${all().filter(b => b.source === value).length}` : ""}</Chip>}</For></div>
       <div class="kindle-toolbar-actions">
         <TextField class="kindle-search" label="搜索设备上的书" labelHidden type="search" placeholder="搜索书名或作者" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />
-        <Button variant="quiet-danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button><a class="btn btn-primary" href="/kindle/transfer">从书库传书</a>
+        <Button variant="quiet-danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button><Link class="btn btn-primary" href="/kindle/transfer">从书库传书</Link>
       </div>
     </div>
-    <Show when={notice()}><p role="status" class="notice">{notice()} <a href="/kindle/transfer">查看传输队列</a></p></Show>
+    <Show when={notice()}><p role="status" class="notice">{notice()} <Link href="/kindle/transfer">查看传输队列</Link></p></Show>
     <Show when={notRemoved().length}>
       <details open class="kindle-small kindle-entry-notice" data-delete-report>
         <summary>书籍文件已删除，以下 {notRemoved().length} 个条目未能删除</summary>
@@ -88,11 +89,11 @@ export function KindleBooksPage(props: { books: KindleLibraryBook[] }) {
       <td><Checkbox label="" aria-label={`选择 ${title(book)}`} checked={selected().includes(book.filename)} onChange={e => setSelected(current => e.currentTarget.checked ? [...current.filter(n => n !== book.filename), book.filename] : current.filter(n => n !== book.filename))} /></td>
       <td><div class="kindle-book-info"><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} /><div><strong title={book.filename}>{title(book)}</strong><p class="kindle-small">{metadata(book)?.author || "作者未知"}</p></div></div></td>
       <td>{book.source}</td><td class="kindle-mono">{book.format.toUpperCase()}</td><td>{book.record?.profile_name || "—"}</td><td class="kindle-mono">{bytes(book.size)}</td><td class="kindle-mono kindle-time">{dateLabel(book.record?.transferred_at || null)}</td>
-      <td><div class="kindle-row-actions"><Show when={book.record}><a class="btn btn-icon" href={`/kindle/preview?book=${encodeURIComponent(book.record!.book_id)}`} aria-label={`预览 ${title(book)}`} title={`预览 ${title(book)}`}><KindleIcon name="eye" /></a><Button variant="icon" aria-label={`重新传入 ${title(book)}`} title="使用记录中的排版方案，覆盖此书首份 Bindery 副本并保留其阅读记录" disabled={k.busy() || !metadata(book)} onClick={() => resend(book)}><KindleIcon name="redo" /></Button></Show><Button variant="icon" aria-label={`从设备删除 ${title(book)}`} title={`从设备删除 ${title(book)}`} disabled={k.busy()} onClick={() => confirm([book])}><KindleIcon name="trash" /></Button></div></td>
+      <td><div class="kindle-row-actions"><Show when={book.record}><Link class="btn btn-icon" href={`/kindle/preview?book=${encodeURIComponent(book.record!.book_id)}`} aria-label={`预览 ${title(book)}`} title={`预览 ${title(book)}`}><KindleIcon name="eye" /></Link><Button variant="icon" aria-label={`重新传入 ${title(book)}`} title="使用记录中的排版方案，覆盖此书首份 Bindery 副本并保留其阅读记录" disabled={k.busy() || !metadata(book)} onClick={() => resend(book)}><KindleIcon name="redo" /></Button></Show><Button variant="icon" aria-label={`从设备删除 ${title(book)}`} title={`从设备删除 ${title(book)}`} disabled={k.busy()} onClick={() => confirm([book])}><KindleIcon name="trash" /></Button></div></td>
     </tr>}</For></Show></tbody></table></div>
-    <Show when={connected()} fallback={<EmptyState title={k.ready() ? "请先连接 Kindle" : "检测中…"}><a href="/kindle/connect">连接并授权设备</a>后，可查看和管理设备上的书籍。</EmptyState>}>
+    <Show when={connected()} fallback={<EmptyState title={k.ready() ? "请先连接 Kindle" : "检测中…"}><Link href="/kindle/connect">连接并授权设备</Link>后，可查看和管理设备上的书籍。</EmptyState>}>
       <Show when={k.inventory()} fallback={<p class="muted" role="status">{k.inventoryError() || "正在读取设备书籍…"}</p>}>
-        <Show when={!visible().length}><EmptyState title={all().length ? "没有符合条件的书籍" : "设备上还没有书籍"}>{all().length ? "试试其他来源或搜索词。" : <a href="/kindle/transfer">从书库选择书籍传入</a>}</EmptyState></Show>
+        <Show when={!visible().length}><EmptyState title={all().length ? "没有符合条件的书籍" : "设备上还没有书籍"}>{all().length ? "试试其他来源或搜索词。" : <Link href="/kindle/transfer">从书库选择书籍传入</Link>}</EmptyState></Show>
       </Show>
     </Show>
     <p class="kindle-table-note">显示 <span class="kindle-mono">{connected() ? visible().length : 0} / {all().length}</span> 本 · 读取 <span class="kindle-mono">documents/</span>，删除时一并清理对应的 <span class="kindle-mono">.sdr</span> 阅读记录</p>

@@ -10,12 +10,17 @@ import {
 import { showToast } from "../../client/toast";
 import type { BookPage } from "../../server/books/service";
 import { formatCssText } from "./css";
+import { isRedirect } from "@tanstack/solid-router";
+import { Link } from "../../shared/spa-link";
+import { useMutation } from "../../shared/client-mutation";
+import { lookupBook, mutateBook, saveBook } from "./mutations";
 
 export function BookEditor(props: {
   page: BookPage;
   onCancel?: () => void;
   onSaved?: (page: BookPage) => void;
 }) {
+  const mutation = useMutation();
   const [page, setPage] = createSignal(untrack(() => props.page)),
     [busy, setBusy] = createSignal(false),
     [error, setError] = createSignal(untrack(() => props.page.error || "")),
@@ -31,27 +36,22 @@ export function BookEditor(props: {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
-        `/book/${id()}/${lookup ? "metadata/fetch" : "edit"}`,
-        {
-          method: "POST",
-          body: new FormData(form),
-          headers: { Accept: "application/json" },
-        },
-      );
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "操作失败，请重试");
+      const body = new FormData(form); body.set("book_id", id());
+      const data = lookup ? { page: await lookupBook({ data: body }) } : await saveBook({ data: body });
       if (data.page) {
         setPage(data.page);
         setRating(data.page.book.rating);
         setError(data.page.error || "");
       }
-      if (data.message) showToast(data.message, data.kind);
-      if (!lookup && data.target) {
+      if ("message" in data && data.message) showToast(data.message, data.kind);
+      if (data.page.error) showToast(data.page.error, "error");
+      if (!lookup && "message" in data && data.message) {
         if (props.onSaved) props.onSaved(data.page);
-        else location.assign(data.target);
+        else await mutation.router.navigate({ href: data.page.navigation.detail_url });
+        await mutation.router?.invalidate();
       }
     } catch (error) {
+      if (isRedirect(error)) { await mutation.router.navigate({ href: error.options.href || "/login" }); return; }
       const message =
         error instanceof Error ? error.message : "操作失败，请重试";
       setError(message);
@@ -59,6 +59,14 @@ export function BookEditor(props: {
     } finally {
       setBusy(false);
     }
+  }
+  async function cover(event: SubmitEvent, action: "upload" | "url" | "extract") {
+    event.preventDefault();
+    const body = new FormData(event.currentTarget as HTMLFormElement); body.set("book_id", id()); body.set("action", action);
+    await mutation.run(() => mutateBook({ data: body }), async () => {
+      await mutation.router.invalidate();
+      setPage(props.page);
+    }, "已更新封面");
   }
   const changed = (key: string) =>
     page().lookup_changed_fields?.includes(key) ? "books-autofill" : "";
@@ -85,18 +93,18 @@ export function BookEditor(props: {
         <header class="books-edit-heading">
           <h1>{book().title}</h1>
           <div class="books-actions">
-            <a
+            <Link
               class="btn btn-secondary"
               href={page().navigation.detail_url}
               onClick={(event) => {
-                if (props.onCancel) {
+                if (props.onCancel && !event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
                   event.preventDefault();
                   props.onCancel();
                 }
               }}
             >
               取消
-            </a>
+            </Link>
             <Button type="submit" disabled={busy()}>
               保存并写回
             </Button>
@@ -352,6 +360,7 @@ export function BookEditor(props: {
           <form
             action={`/book/${id()}/cover/upload`}
             method="post"
+            onSubmit={event => { void cover(event, "upload"); }}
             enctype="multipart/form-data"
           >
             <TextField
@@ -361,18 +370,18 @@ export function BookEditor(props: {
               accept="image/*"
               required
             />
-            <Button type="submit" variant="secondary">
+            <Button type="submit" variant="secondary" disabled={busy() || mutation.busy()}>
               上传封面
             </Button>
           </form>
-          <form action={`/book/${id()}/cover/url`} method="post">
+          <form action={`/book/${id()}/cover/url`} method="post" onSubmit={event => { void cover(event, "url"); }}>
             <TextField label="封面 URL" name="cover_url" type="url" required />
-            <Button type="submit" variant="secondary">
+            <Button type="submit" variant="secondary" disabled={busy() || mutation.busy()}>
               下载封面
             </Button>
           </form>
-          <form action={`/book/${id()}/cover/extract`} method="post">
-            <Button type="submit" variant="secondary">
+          <form action={`/book/${id()}/cover/extract`} method="post" onSubmit={event => { void cover(event, "extract"); }}>
+            <Button type="submit" variant="secondary" disabled={busy() || mutation.busy()}>
               从 EPUB 提取封面
             </Button>
           </form>

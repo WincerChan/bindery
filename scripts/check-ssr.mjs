@@ -114,7 +114,14 @@ try {
     method: "GET",
     context: {}
   }]))}`;
-  assert.equal((await get(rpcPath)).status, 303);
+  const anonymousRpc = await get(rpcPath);
+  assert.equal(anonymousRpc.status, 200);
+  assert.equal(anonymousRpc.headers.get("cache-control"), "no-store");
+  assert.ok(anonymousRpc.headers.get("X-Server-Function-Format"));
+  assert.equal(anonymousRpc.headers.get("Location"), null);
+  const deniedRpc = await anonymousRpc.json();
+  assert.equal(deniedRpc.error.isSerializedRedirect, true);
+  assert.equal(deniedRpc.error.href, "/login?next=%2F");
   const rpc = await handler(new Request("http://localhost" + rpcPath, {
     headers: {
       Cookie: cookie,

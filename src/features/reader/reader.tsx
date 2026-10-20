@@ -1,5 +1,6 @@
 import { createEffect, createSignal, createUniqueId, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { BookCover, Button } from "../../ui";
+import { Link } from "../../shared/spa-link";
 import { contentUrl, defaultSettings, highlightedParts, initialPosition, normalizeSettings, sectionUrl, type ReaderData, type ReaderSettings, type SearchHit, type SearchResults } from "./model";
 import { ReaderFrames } from "./frame";
 import { ProgressWriter } from "./progress";
@@ -165,7 +166,7 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
   return <article class="reader-page" data-background={settings().readerBg} data-brightness={settings().brightnessMode} data-panel-open={panel() || undefined} aria-label={`阅读 ${book().title}`}>
     <header class="reader-toolbar">
       <button ref={tocTrigger} class="reader-icon-button" type="button" aria-label="切换目录" aria-haspopup="dialog" aria-controls={`${id}-toc`} aria-expanded={panel() === "toc" ? "true" : "false"} onClick={() => togglePanel("toc")}><ReaderIcon name="menu" /></button>
-      <a class="reader-back" href={detailUrl()} aria-label="返回详情"><ReaderIcon name="previous" /><span>返回详情</span></a>
+      <Link class="reader-back" href={detailUrl()} aria-label="返回详情"><ReaderIcon name="previous" /><span>返回详情</span></Link>
       <div class="reader-heading" title={`${book().title} · ${current()?.title || ""}`}><span>{book().title} · {current()?.title}</span></div>
       <button ref={searchTrigger} class="reader-icon-button reader-search-toggle" type="button" aria-label="全文检索" title="全文检索" aria-haspopup="dialog" aria-controls={`${id}-search`} aria-expanded={panel() === "search" ? "true" : "false"} onClick={() => togglePanel("search")}><ReaderIcon name="search" /></button>
       <button ref={settingsTrigger} class="reader-icon-button" type="button" aria-label="设置" title="设置" aria-haspopup="dialog" aria-controls={`${id}-settings`} aria-expanded={panel() === "settings" ? "true" : "false"} onClick={() => togglePanel("settings")}><ReaderIcon name="settings" /></button>

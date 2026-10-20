@@ -9,6 +9,7 @@ import { validateCss } from "../../../core/css";
 import { Button, Checkbox, ConfirmDialog, Dialog, Select, Textarea, TextField } from "../../../ui";
 import { usePageDevice } from "./device";
 import { ChapterFrame } from "./frames";
+import { Link } from "../../../shared/spa-link";
 import { previewContentUrl, screenFor, type PreviewChapter, type PreviewData } from "./model";
 
 export interface ProfileApi {
@@ -173,7 +174,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       </Select>
       <Show when={!target()}><div class="kt-models" role="group" aria-label="预览型号"><For each={["KO3", "KPW3", "other"] as const}>{value => <button type="button" aria-pressed={model() === value ? "true" : "false"} onClick={() => setModel(value)}>{value === "other" ? "其他" : value}</button>}</For></div></Show></div>
       <Show when={!state()}><p role="status">检测中…</p></Show>
-      <Show when={!fontDevice()}><p class="muted">排版方案属于已配对的设备。可选择记住的设备离线编辑；连接并授权后才能加载设备字体。<a href="/kindle/connect">连接设备</a></p></Show>
+      <Show when={!fontDevice()}><p class="muted">排版方案属于已配对的设备。可选择记住的设备离线编辑；连接并授权后才能加载设备字体。<Link href="/kindle/connect">连接设备</Link></p></Show>
       <Show when={connected() && target() && connected()!.identity.id !== target()!.id}><p class="notice">当前连接的设备与正在编辑的方案所属设备不同；保存仍属于 {target()!.name}。</p></Show>
       <Show when={error() || memoryError()}><p role="alert" class="field-error">{error() || memoryError()}</p></Show>
       <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>

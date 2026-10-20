@@ -38,7 +38,11 @@ async function rpc(name, data, method = 'GET') {
 }
 const settings = { marginX: null, marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: '' };
 const profile = { deviceId: 'device-a', name: '宽边距', settings };
-for (const [name, data, method] of [['listKindleProfiles', 'device-a', 'GET'], ['createKindleProfile', profile, 'POST'], ['updateKindleProfile', { ...profile, id: 'x' }, 'POST'], ['deleteKindleProfile', { deviceId: 'device-a', id: 'x' }, 'POST']]) assert.equal((await rpc(name, data, method)).status, 303, 'protected ' + name);
+for (const [name, data, method] of [['listKindleProfiles', 'device-a', 'GET'], ['createKindleProfile', profile, 'POST'], ['updateKindleProfile', { ...profile, id: 'x' }, 'POST'], ['deleteKindleProfile', { deviceId: 'device-a', id: 'x' }, 'POST']]) {
+  const denied = await rpc(name, data, method); assert.equal(denied.status, 200, 'protected ' + name);
+  assert.ok(denied.headers.get('X-Server-Function-Format')); assert.equal(denied.headers.get('Location'), null);
+  const payload = await denied.json(); assert.equal(payload.error.isSerializedRedirect, true); assert.equal(payload.error.href, '/login?next=%2F');
+}
 const login = await request('/login', { method: 'POST', body: new URLSearchParams({ password: 'kindle-ui-password' }) });
 assert.equal(login.status, 303); cookie = login.headers.getSetCookie()[0].split(';', 1)[0];
 for (const path of ['/kindle', '/kindle/connect', '/kindle/transfer']) {

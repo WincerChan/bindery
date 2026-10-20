@@ -1,13 +1,26 @@
-import { createSignal, For, Show, untrack } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
+import { Link } from "../../shared/spa-link";
+import { useMutation } from "../../shared/client-mutation";
+import { mutateBook } from "./mutations";
 import { BookCover, Button, ConfirmDialog, Select } from "../../ui";
 import type { BookPage } from "../../server/books/service";
 import { BookEditor } from "./book-editor";
 
 export function BookDetail(props: { page: BookPage }) {
-  const [page, setPage] = createSignal(untrack(() => props.page)),
-    [editing, setEditing] = createSignal(false),
+  const [saved, setSaved] = createSignal<{ source: BookPage; value: BookPage } | null>(null);
+  const page = () => saved()?.source === props.page ? saved()!.value : props.page;
+  const mutation = useMutation();
+  const [editing, setEditing] = createSignal(false),
     [deleting, setDeleting] = createSignal(false);
   let deleteForm!: HTMLFormElement;
+  async function perform(action: "read" | "archive" | "delete" | "regenerate", form: HTMLFormElement) {
+    const data = new FormData(form); data.set("book_id", book().book_id); data.set("action", action);
+    await mutation.run(() => mutateBook({ data }), async result => {
+      setDeleting(false);
+      if (result.target) await mutation.router.navigate({ href: result.target });
+      await mutation.router.invalidate();
+    }, action === "read" ? "已更新阅读状态" : action === "archive" ? "已归档" : action === "delete" ? "已删除" : "已创建重建任务", action === "delete");
+  }
   const book = () => page().book,
     nav = () => page().navigation;
   const specs = () => [
@@ -23,7 +36,7 @@ export function BookDetail(props: { page: BookPage }) {
   return (
     <article class="books-page">
       <nav class="books-breadcrumb" aria-label="路径">
-        <a href={nav().return_to}>书库</a>
+        <Link href={nav().return_to}>书库</Link>
         <span aria-hidden="true">/</span>
         <span>{book().title}</span>
       </nav>
@@ -65,39 +78,40 @@ export function BookDetail(props: { page: BookPage }) {
                 </div>
               </header>
               <div class="books-actions">
-                <a class="btn btn-primary" href={nav().preview_url}>
+                <Link class="btn btn-primary" href={nav().preview_url}>
                   阅读
-                </a>
+                </Link>
                 <a
                   class="btn btn-secondary"
                   href={`/book/${book().book_id}/download`}
                 >
                   下载 EPUB
                 </a>
-                <form action={`/book/${book().book_id}/read`} method="post">
+                <form action={`/book/${book().book_id}/read`} method="post" onSubmit={event => { event.preventDefault(); void perform("read", event.currentTarget); }}>
                   <input
                     type="hidden"
                     name="read"
                     value={book().read ? "0" : "1"}
                   />
                   <input type="hidden" name="next" value={nav().detail_url} />
-                  <Button type="submit" variant="secondary">
+                  <Button type="submit" variant="secondary" disabled={mutation.busy()}>
                     {book().read ? "标记未读" : "标记已读"}
                   </Button>
                 </form>
-                <a
+                <Link
                   class="btn btn-secondary"
                   href={nav().edit_url}
                   onClick={(event) => {
-                    event.preventDefault();
-                    setEditing(true);
+                    if (!event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+                      event.preventDefault(); setEditing(true);
+                    }
                   }}
                 >
                   编辑
-                </a>
-                <form action={`/book/${book().book_id}/archive`} method="post">
+                </Link>
+                <form action={`/book/${book().book_id}/archive`} method="post" onSubmit={event => { event.preventDefault(); void perform("archive", event.currentTarget); }}>
                   <input type="hidden" name="next" value={nav().return_to} />
-                  <Button type="submit" variant="quiet">
+                  <Button type="submit" variant="quiet" disabled={mutation.busy()}>
                     归档
                   </Button>
                 </form>
@@ -152,6 +166,7 @@ export function BookDetail(props: { page: BookPage }) {
                     class="books-actions"
                     action={`/book/${book().book_id}/regenerate`}
                     method="post"
+                    onSubmit={event => { event.preventDefault(); void perform("regenerate", event.currentTarget); }}
                   >
                     <input type="hidden" name="next" value={nav().detail_url} />
                     <Select
@@ -167,7 +182,7 @@ export function BookDetail(props: { page: BookPage }) {
                         )}
                       </For>
                     </Select>
-                    <Button type="submit" variant="secondary">
+                    <Button type="submit" variant="secondary" disabled={mutation.busy()}>
                       重新生成 EPUB
                     </Button>
                   </form>
@@ -186,7 +201,7 @@ export function BookDetail(props: { page: BookPage }) {
                   }}
                 >
                   <input type="hidden" name="next" value={nav().return_to} />
-                  <Button type="submit" variant="danger">
+                  <Button type="submit" variant="danger" disabled={mutation.busy()}>
                     永久删除
                   </Button>
                 </form>
@@ -197,8 +212,8 @@ export function BookDetail(props: { page: BookPage }) {
               title="确定要永久删除这本书吗？"
               danger
               confirmLabel="永久删除"
-              onClose={() => setDeleting(false)}
-              onConfirm={() => deleteForm.submit()}
+              onClose={() => { if (!mutation.busy()) setDeleting(false); }}
+              onConfirm={() => perform("delete", deleteForm)}
             >
               <p>移除源文件、EPUB 与全部记录，无法恢复。</p>
             </ConfirmDialog>
@@ -208,10 +223,7 @@ export function BookDetail(props: { page: BookPage }) {
         <BookEditor
           page={page()}
           onCancel={() => setEditing(false)}
-          onSaved={(updated) => {
-            setPage(updated);
-            setEditing(false);
-          }}
+          onSaved={updated => { setSaved({ source: props.page, value: updated }); setEditing(false); }}
         />
       </Show>
     </article>

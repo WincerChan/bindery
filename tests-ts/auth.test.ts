@@ -126,7 +126,8 @@ describe("password and session compatibility", () => {
     expect(logout.status).toBe(303);
     expect(db.getSession(id)).toBeNull();
   });
-  it.each(["/security", "/", "/_serverFn/data/secret", "/book/%E4%B8%AD"])("protects %s and preserves HTMX authentication behavior", async url => {
+  it.each(["/security", "/", "/_serverFn/data/secret", "/book/%E4%B8%AD"])("protects %s and preserves HTMX authentication behavior without a configured RPC base", async url => {
+    vi.stubEnv("TSS_SERVER_FN_BASE", "");
     const req = new Request(origin + url);
     expect((await handleAuthRequest(req, db))?.status).toBe(303);
     const htmx = await handleAuthRequest(new Request(origin + url, {
@@ -146,6 +147,31 @@ describe("password and session compatibility", () => {
     expect((await passwordLogin("//evil.com")).headers.get("location")).toBe("/");
     vi.stubEnv("BINDERY_PASSWORD_HASH", "");
     expect((await passwordLogin()).headers.get("location")).toContain(encodeURIComponent("未配置密码哈希"));
+  });
+});
+describe("Start RPC entrance boundary", () => {
+  it.each(["GET", "POST"])("hands %s RPCs to Start using its configured base, including HX requests", async method => {
+    vi.stubEnv("TSS_SERVER_FN_BASE", "/configured-rpc/");
+    for (const suffix of ["data/secret", "secret"]) for (const headers of [new Headers(), new Headers({ "HX-Request": "true" })]) {
+      expect(await handleAuthRequest(new Request(origin + "/configured-rpc/" + suffix, { method, headers }), db)).toBeNull();
+    }
+  });
+  it.each(["/configured-rpc", "/configured-rpc-other/secret", "/tracker/duplicate-check", "/assets/private.js", "/"])("keeps the entrance gate for %s", async path => {
+    vi.stubEnv("TSS_SERVER_FN_BASE", "/configured-rpc/");
+    for (const method of ["GET", "POST"]) {
+      const response = await handleAuthRequest(new Request(origin + path, { method }), db);
+      expect(response?.status).toBe(303);
+      expect(response?.headers.get("Location")).toBe(`/login?next=${path}`);
+      const hx = await handleAuthRequest(new Request(origin + path, { method, headers: { "HX-Request": "true" } }), db);
+      expect(hx?.status).toBe(401);
+      expect(hx?.headers.get("HX-Redirect")).toBe(`/login?next=${path}`);
+    }
+  });
+  it.each([undefined, ""])("fails closed when the RPC base is %s", async base => {
+    vi.stubEnv("TSS_SERVER_FN_BASE", base);
+    for (const method of ["GET", "POST"]) {
+      expect((await handleAuthRequest(new Request(origin + "/_serverFn/data/secret", { method }), db))?.status).toBe(303);
+    }
   });
 });
 describe("WebAuthn origin/RP resolution", () => {

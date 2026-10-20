@@ -1,9 +1,8 @@
-import { createFileRoute, Outlet, useLocation, useRouter } from "@tanstack/solid-router";
+import { createFileRoute, Outlet, useLocation } from "@tanstack/solid-router";
 import { Show } from "solid-js";
 import { KindleProvider } from "../features/kindle/context";
 import { KindleDeviceBar } from "../features/kindle/device-bar";
 import { KindleTabs } from "../features/kindle/tabs";
-import { navigateKindleLink } from "../features/kindle/devices/navigation";
 import "../features/kindle/devices/devices.css";
 
 export const Route = createFileRoute("/_app/kindle")({
@@ -12,11 +11,11 @@ export const Route = createFileRoute("/_app/kindle")({
 });
 
 function KindleLayout() {
-  const router = useRouter(), location = useLocation();
+  const location = useLocation();
   const connecting = () => location().pathname.replace(/\/$/, "") === "/kindle/connect";
   return (
     <KindleProvider>
-      <div class={`kindle-page ${connecting() ? "kindle-connect-page" : ""}`} onClick={event => { void navigateKindleLink(event, href => router.navigate({ href }), window.location); }}>
+      <div class={`kindle-page ${connecting() ? "kindle-connect-page" : ""}`}>
         <Show when={!connecting()}><KindleDeviceBar /><KindleTabs /></Show>
         <Outlet />
       </div>

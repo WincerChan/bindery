@@ -58,7 +58,9 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       const settings = { marginX: 1, marginY: null, lineHeight: 1.6, paragraphSpacing: null, textIndent: 2, justify: true, fontFamily: null, customCss: "", stripFonts: true, stripImages: true };
       const input = { deviceId: "test-device", name: "正文", settings };
       for (const [name, method, data] of [["getPreview", "GET", bookId], ["getChapters", "GET", bookId], ["listKindleProfiles", "GET", "test-device"], ["createKindleProfile", "POST", input], ["updateKindleProfile", "POST", { ...input, id: "missing" }], ["deleteKindleProfile", "POST", { deviceId: "test-device", id: "missing" }]]) {
-        const response = await rpc(name, method, data, false); assert.equal(response.status, 303, name); await response.text();
+        const response = await rpc(name, method, data, false); assert.equal(response.status, 200, name);
+        assert.ok(response.headers.get("X-Server-Function-Format")); assert.equal(response.headers.get("Location"), null);
+        const payload = await response.json(); assert.equal(payload.error.isSerializedRedirect, true); assert.equal(payload.error.href, "/login?next=%2F");
       }
       const result = async response => { assert.equal(response.status, 200); const payload = await response.json(); assert.ok(!payload.error, JSON.stringify(payload)); return payload.result; };
       const preview = await result(await rpc("getPreview", "GET", bookId)); assert.equal(preview.bookId, bookId); assert.ok(preview.sections.length > 0);

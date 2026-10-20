@@ -13,6 +13,10 @@ import { KINDLE_MARGIN_PRESETS, MAXIMUM_MARGIN_X, MARGIN_X_UNITS, minimumMarginX
 const scope = vi.hoisted(() => ({ request: null as Request | null, library: null as LibraryStorage | null }));
 vi.mock("../src/server/runtime", () => ({ getLibrary: () => scope.library }));
 vi.mock("@tanstack/solid-start/server", () => ({ getRequest: () => scope.request, setResponseStatus: () => {} }));
+vi.mock("@tanstack/solid-router", async () => {
+  const { createRequire } = await import("node:module"), require = createRequire(import.meta.url);
+  return import(createRequire(require.resolve("@tanstack/solid-router")).resolve("@tanstack/router-core"));
+});
 vi.mock("@tanstack/solid-start", () => ({
   createMiddleware: () => ({ server: (handler: unknown) => ({ options: { server: handler } }) }),
   createServerFn: (options: unknown) => {
@@ -110,7 +114,7 @@ describe("Kindle typesetting profiles", () => {
     expect(generateProfileCss(percent)).toBe("body > * {\n  margin-left: -4.8% !important;\n  margin-right: -4.8% !important;\n}");
   });
   it("checks real authentication before all four RPC handlers and persists authenticated changes", async () => {
-    for (const fn of [listKindleProfiles, createKindleProfile, updateKindleProfile, deleteKindleProfile]) await expect(invoke(fn, input())).rejects.toMatchObject({ status: 303 });
+    for (const fn of [listKindleProfiles, createKindleProfile, updateKindleProfile, deleteKindleProfile]) await expect(invoke(fn, input())).rejects.toMatchObject({ options: { href: "/login?next=%2F" } });
     scope.request = new Request("http://localhost/kindle", { headers: { Cookie: `bindery_session=${signIn(scope.library!.db)}` } });
     const created = await invoke(createKindleProfile, input()) as { id: string }; expect(await invoke(listKindleProfiles, "device-a")).toHaveLength(2);
     await invoke(updateKindleProfile, { ...input(), name: "RPC update", id: created.id }); expect((await invoke(listKindleProfiles, "device-a") as Array<{ name: string }>)[1].name).toBe("RPC update");

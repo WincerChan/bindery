@@ -1,4 +1,5 @@
 import { browserSupportsWebAuthn, startAuthentication, startRegistration, type PublicKeyCredentialRequestOptionsJSON, type PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/browser";
+import { loginTarget } from "../shared/session-navigation";
 export { browserSupportsWebAuthn };
 export class PasskeyRequestError extends Error {
   constructor(message: string, readonly code = "server") {
@@ -14,6 +15,7 @@ export async function postJson<T>(path: string, body: unknown = {}): Promise<T> 
     },
     body: JSON.stringify(body)
   });
+  if (path.startsWith("/security/")) checkSession(response);
   if (response.redirected) {
     location.assign(response.url);
     throw new PasskeyRequestError("请重新登录");
@@ -21,6 +23,26 @@ export async function postJson<T>(path: string, body: unknown = {}): Promise<T> 
   const data = await response.json();
   if (!response.ok) throw new PasskeyRequestError(data.error || "请求失败，请重试。", data.error === "needs_password" ? "needs_password" : "server");
   return data as T;
+}
+function checkSession(response: Response) {
+  const target = response.headers.get("HX-Redirect") || response.headers.get("Location") || (response.redirected ? response.url : "");
+  const login = target && new URL(target, location.href).pathname === "/login";
+  if (response.status === 401 || login) {
+    location.assign(loginTarget(location.pathname + location.search));
+    throw new PasskeyRequestError("请重新登录", "login");
+  }
+}
+export async function deletePasskey(id: string): Promise<void> {
+  const response = await fetch(`/security/passkeys/${encodeURIComponent(id)}/delete`, {
+    method: "POST", credentials: "same-origin", redirect: "manual",
+    // An expired session must yield a visible 401 rather than an opaque
+    // redirect, indistinguishable from the delete endpoint's success 303.
+    headers: { "HX-Request": "true" },
+  });
+  checkSession(response);
+  if (response.type === "opaqueredirect" || response.status === 303) return;
+  const data = await response.json().catch(() => ({}));
+  throw new PasskeyRequestError(data.error || "删除失败，请重试。");
 }
 export async function loginWithPasskey(next: string): Promise<void> {
   const optionsJSON = await postJson<PublicKeyCredentialRequestOptionsJSON>("/login/passkey/options");

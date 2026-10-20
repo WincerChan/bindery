@@ -5,9 +5,14 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "vite";
 import solid from "vite-plugin-solid";
+import { mutationPlugin } from "./support/mutation-plugin";
+import { securityPlugin } from "./support/security-plugin";
 import { solidOptions } from "../scripts/solid-options";
 import { metadataFromDict } from "../src/core/models";
 import { bookNavigation } from "../src/features/books/navigation";
+import { TransferQueue } from "../src/client/kindle/queue";
+import type { KindleDeviceManager } from "../src/client/kindle/device";
+import type { PairedDevice } from "../src/client/kindle/identity";
 import type { BookView } from "../src/server/book-view";
 import type { Cases } from "./fixtures/client-rendering";
 import { clientDocument, elements, fire } from "./support/client-dom";
@@ -17,7 +22,9 @@ let ui: Probe, ssr: Probe, dev: Probe;
 const directory = mkdtempSync(join(tmpdir(), "bindery-client-rendering-"));
 const disposers: (() => void)[] = [];
 function browserGlobals() {
-  vi.stubGlobal("document", clientDocument());
+  const document = clientDocument(), body = document.createElement("body");
+  body.dispatchEvent = vi.fn(() => true); Object.defineProperty(document, "body", { configurable: true, value: body });
+  vi.stubGlobal("document", document);
   vi.stubGlobal("self", globalThis);
   vi.stubGlobal("scrollTo", () => {});
 }
@@ -28,7 +35,7 @@ beforeAll(async () => {
   for (const mode of ["client", "server", "development"]) {
     const server = mode === "server", development = mode === "development";
     const result = await build({
-      configFile: false, logLevel: "silent", plugins: [solid({ ...solidOptions, dev: development, hot: false })],
+      configFile: false, logLevel: "silent", plugins: [mutationPlugin(), securityPlugin(), solid({ ...solidOptions, dev: development, hot: false })],
       // Avoid Vitest's `test` condition selecting the signals dev runtime.
       resolve: { conditions: server ? ["node", "production"] : ["browser", development ? "development" : "production"] },
       define: { "process.env.NODE_ENV": JSON.stringify(development ? "development" : "production") },
@@ -37,7 +44,7 @@ beforeAll(async () => {
     });
     const chunk = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);
     if (!chunk || chunk.type !== "chunk") throw new Error("Missing rendering probe bundle");
-    expect(chunk.imports).toEqual([]);
+    expect(chunk.imports.filter(id => !server || !["node:module", "module"].includes(id))).toEqual([]);
     const filename = join(directory, mode + ".mjs");
     writeFileSync(filename, chunk.code);
     const module: Probe = await import(/* @vite-ignore */ pathToFileURL(filename).href);
@@ -358,13 +365,115 @@ it("switches detail/editor fragment panels and displays saved specs and cover", 
   expect(css(mounted.root, "div", "books-editor")).toHaveLength(1);
   expect(css(mounted.root, "div", "books-detail")).toHaveLength(0);
   vi.stubGlobal("FormData", class extends FormData { constructor() { super(); } });
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ target: "/book/id", page: { ...initial, book: { ...initial.book, title: "新书名", publisher: "新出版社", cover_url: "/new-cover" } } }) }));
+  vi.stubGlobal("__binderyTestMutation", vi.fn().mockResolvedValue({ message: "已保存", kind: "success", page: { ...initial, book: { ...initial.book, title: "新书名", publisher: "新出版社", cover_url: "/new-cover" } } }));
   fire(elements(mounted.root, "form").find(el => el.getAttribute("action")?.endsWith("/edit"))!, "submit");
   await settle(); mounted.flush();
   expect(css(mounted.root, "div", "books-editor")).toHaveLength(0);
   expect(elements(mounted.root, "h1")[0]!.textContent).toBe("新书名");
   expect(css(mounted.root, "dl", "books-spec")[0]!.textContent).toContain("新出版社");
   expect(elements(mounted.root, "img")[0]!.getAttribute("src")).toBe("/new-cover");
+});
+
+it("uses actual Router Links across Kindle tabs without replacing the provider or interrupting a queue, and invalidates a book mutation", async () => {
+  const initial = detail(), node = root(), location = { assign: vi.fn(), href: "http://bindery.local/" };
+  vi.stubGlobal("location", location);
+  const state = { status: "unpaired", device: null, checkedAt: null, now: 0, message: "" };
+  const stop = vi.fn(), manager = { snapshot: () => state, subscribe: () => () => {}, remembered: async () => [], startMonitoring: vi.fn(() => stop) } as unknown as KindleDeviceManager;
+  let finish!: (record: { filename: string; size: number }) => void, signal: AbortSignal | undefined;
+  const transferBook = vi.fn(async (_device, _id, _profile, options) => { signal = options.signal; return new Promise<{ filename: string; size: number }>(resolve => { finish = resolve; }); });
+  const queue = new TransferQueue({ transferBook } as never);
+  const queued = queue.enqueue({ identity: { id: "kindle" } } as PairedDevice, "book");
+  const mounted = await ui.spaNavigation(node, initial, tracker([]), manager, queue); disposers.push(mounted.dispose);
+  await settle(); mounted.flush();
+  const shell = elements(node, "div", "data-spa-shell")[0];
+  const rpc = vi.fn(async (_name: string, _input: unknown) => { mounted.next({ ...initial, book: { ...initial.book, read: true } }); return { target: null }; });
+  vi.stubGlobal("__binderyTestMutation", rpc);
+  vi.stubGlobal("FormData", class extends FormData { constructor() { super(); } });
+  fire(elements(node, "form").find(form => form.getAttribute("action")?.endsWith("/read"))!, "submit");
+  await vi.waitFor(() => { mounted.flush(); expect(node.textContent).toContain("标记未读"); });
+  expect(rpc).toHaveBeenCalledOnce(); expect(rpc.mock.calls[0]?.[0]).toBe("mutateBook"); expect(mounted.loads()).toBeGreaterThan(1);
+  const toast = vi.mocked(document.body.dispatchEvent).mock.calls.map(([event]) => (event as CustomEvent).detail);
+  expect(toast).toContainEqual({ message: "已更新阅读状态", kind: "success" });
+  rpc.mockRejectedValueOnce(new Error("写入失败")); const loads = mounted.loads();
+  fire(elements(node, "form").find(form => form.getAttribute("action")?.endsWith("/read"))!, "submit");
+  await vi.waitFor(() => expect(vi.mocked(document.body.dispatchEvent).mock.calls.map(([event]) => (event as CustomEvent).detail)).toContainEqual({ message: "写入失败", kind: "error" }));
+  expect(mounted.loads()).toBe(loads);
+  await mounted.navigate("/tracker?page=3&duplicate=old"); await settle(); mounted.flush();
+  vi.stubGlobal("FormData", class extends FormData { constructor() { super(); this.set("q", "中文"); this.set("read_filter", "unread"); } });
+  const filter = elements(node, "form").find(form => form.getAttribute("method") === "get")!;
+  expect(filter.getAttribute("action")).toBe("/tracker"); fire(filter, "submit");
+  await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe("/tracker?q=%E4%B8%AD%E6%96%87&read_filter=unread"); });
+  await mounted.navigate("/kindle"); await settle(); mounted.flush();
+  const provider = mounted.context(); expect(provider).toBeDefined(); expect(mounted.mounts()).toBe(1);
+  const click = (text: string, modified = false) => { const preventDefault = vi.fn(); fire(elements(node, "a").find(a => a.textContent === text)!, "click", { button: 0, ctrlKey: modified, preventDefault }); return preventDefault; };
+  expect(click("字体", true)).not.toHaveBeenCalled(); await settle(); expect(mounted.href()).toBe("/kindle");
+  for (const [text, href] of [["传书", "/kindle/transfer"], ["字体", "/kindle/fonts"], ["排版与预览", "/kindle/preview"]]) {
+    expect(click(text!)).toHaveBeenCalledOnce();
+    await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe(href); });
+    expect(mounted.context()).toBe(provider); expect(mounted.mounts()).toBe(1); expect(mounted.cleanups()).toBe(0);
+    expect(elements(node, "div", "data-spa-shell")[0]).toBe(shell); expect(signal?.aborted).toBe(false); expect(stop).not.toHaveBeenCalled();
+  }
+  const queryLink = elements(node, "a").find(a => a.textContent === "查询与锚点")!;
+  expect(queryLink.getAttribute("href")).toBe("/kindle/transfer?book=a#queue");
+  for (const modifier of [{ button: 1 }, { metaKey: true }, { shiftKey: true }, { altKey: true }]) {
+    const preventDefault = vi.fn(); fire(queryLink, "click", { button: 0, ...modifier, preventDefault }); expect(preventDefault).not.toHaveBeenCalled();
+  }
+  click("查询与锚点"); await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe("/kindle/transfer?book=a#queue"); });
+  click("本页锚点"); await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe("/kindle/transfer?book=a#license"); });
+  expect(mounted.context()).toBe(provider); expect(mounted.cleanups()).toBe(0); expect(signal?.aborted).toBe(false);
+  finish({ filename: "book.kfx", size: 1 });
+  await vi.waitFor(() => expect(queue.snapshot().find(item => item.id === queued)?.state).toBe("完成"));
+  expect(location.assign).not.toHaveBeenCalled(); expect(location.href).toBe("http://bindery.local/");
+});
+
+it("refreshes the real security page after add, rename and manual-redirect delete without document navigation", async () => {
+  let passkeys = [{ credential_id: "old-key", name: "旧名称", device_label: "设备", created_at: "2026-10-20", last_used_at: null }];
+  const load = vi.fn(() => ({ passkeys: passkeys.map(key => ({ ...key })), passkey_configured: true, toast: null }));
+  vi.stubGlobal("__binderyTestSecurityData", load);
+  const registration = vi.fn(async () => ({ id: "new-key" })); vi.stubGlobal("__binderyTestRegistration", registration);
+  vi.stubGlobal("location", { href: "http://localhost/security", pathname: "/security", search: "", assign: vi.fn() });
+  const confirm = vi.fn(() => true); vi.stubGlobal("window", { confirm, location, addEventListener() {}, removeEventListener() {} });
+  vi.stubGlobal("FormData", class extends FormData { constructor(form?: Element) { super(); if (form) for (const input of elements(form, "input")) { const name = input.getAttribute("name"); if (name) this.set(name, (input as HTMLInputElement).value); } } });
+  let failDelete = false;
+  const fetch = vi.fn(async (url: string, init: RequestInit) => {
+    expect(init.method).toBe("POST"); expect(init.credentials).toBe("same-origin");
+    const body = init.body ? JSON.parse(String(init.body)) : {};
+    if (url.endsWith("register/options")) return Response.json({ challenge: "original-challenge" });
+    if (url.endsWith("register/verify")) { expect(body.credential).toEqual({ id: "new-key" }); passkeys.push({ credential_id: "new-key", name: body.name, device_label: "设备", created_at: "2026-10-20", last_used_at: null }); return Response.json({ ok: true }); }
+    if (url.endsWith("/rename")) { passkeys[0]!.name = body.name; return Response.json({ ok: true }); }
+    if (url.endsWith("/delete")) {
+      expect(init.redirect).toBe("manual"); expect(new Headers(init.headers).get("HX-Request")).toBe("true");
+      if (failDelete) return Response.json({ error: "删除写入失败" }, { status: 500 });
+      passkeys = passkeys.filter(key => !url.includes(key.credential_id));
+      return new Response(null, { status: 303, headers: { Location: "/security?toast=deleted" } });
+    }
+    throw new Error("Unexpected security request: " + url);
+  });
+  vi.stubGlobal("fetch", fetch);
+  const node = root(), mounted = await ui.securityNavigation(node); disposers.push(mounted.dispose);
+  const submit = (form: Element) => { const preventDefault = vi.fn(); fire(form, "submit", { preventDefault }); mounted.flush(); expect(preventDefault).toHaveBeenCalledOnce(); };
+  const renameForm = () => elements(node, "form").find(form => form.getAttribute("class") === "inline-form")!;
+  const name = elements(node, "input").find(input => input.getAttribute("placeholder") === "例如：我的电脑") as HTMLInputElement;
+  name.value = "新密钥"; fire(name, "input"); mounted.flush();
+  const add = elements(node, "form").find(form => form.getAttribute("class") === "form-stack")!;
+  submit(add);
+  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(2); expect(elements(node, "input").map(input => (input as HTMLInputElement).value)).toContain("新密钥"); });
+  expect(name.value).toBe(""); expect(registration).toHaveBeenCalledWith({ optionsJSON: { challenge: "original-challenge" } });
+  const renamed = elements(renameForm(), "input")[0] as HTMLInputElement; renamed.value = "已重命名"; submit(renameForm());
+  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(3); expect((elements(renameForm(), "input")[0] as HTMLInputElement).value).toBe("已重命名"); });
+  const deletion = elements(node, "form").find(form => form.getAttribute("action")?.endsWith("old-key/delete"))!;
+  expect(deletion.getAttribute("method")).toBe("post");
+  confirm.mockReturnValueOnce(false); submit(deletion); expect(fetch).toHaveBeenCalledTimes(3);
+  failDelete = true; submit(deletion);
+  await vi.waitFor(() => { mounted.flush(); expect(node.textContent).toContain("删除写入失败"); });
+  expect(load).toHaveBeenCalledTimes(3); expect(elements(node, "article")).toHaveLength(2);
+  failDelete = false; submit(deletion);
+  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(4); expect(elements(node, "article")).toHaveLength(1); });
+  expect(confirm).toHaveBeenCalledTimes(3);
+  const toast = vi.mocked(document.body.dispatchEvent).mock.calls.map(([event]) => (event as CustomEvent).detail.message);
+  expect(toast).toEqual(expect.arrayContaining(["已添加通行密钥", "已重命名通行密钥", "删除写入失败", "已删除通行密钥"]));
+  expect(location.assign).not.toHaveBeenCalled(); expect(mounted.router.state.location.href).toBe("/security");
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/security/passkeys/register/options", "/security/passkeys/register/verify", "/security/passkeys/old-key/rename", "/security/passkeys/old-key/delete", "/security/passkeys/old-key/delete"]);
 });
 
 it("updates reader TOC and search result fragments, highlighting and load-more state", async () => {

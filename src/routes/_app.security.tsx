@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/solid-router";
+import { createFileRoute, isRedirect, useRouter } from "@tanstack/solid-router";
 import { createServerFn } from "@tanstack/solid-start";
 import { createSignal, For, onSettled, Show } from "solid-js";
 import { authenticated } from "../server/functions";
-import { browserSupportsWebAuthn, passkeyMessage, PasskeyRequestError, postJson, registerPasskey } from "../client/passkeys";
+import { browserSupportsWebAuthn, deletePasskey, passkeyMessage, PasskeyRequestError, postJson, registerPasskey } from "../client/passkeys";
+import { showToast } from "../client/toast";
 const getSecurityData = createServerFn({
   method: "GET"
 }).middleware([authenticated]).handler(async () => (await import("../server/auth-views")).securityData());
@@ -16,6 +17,11 @@ export const Route = createFileRoute("/_app/security")({
   component: Security
 });
 function Security() {
+  const router = useRouter();
+  async function failure(error: unknown) {
+    if (isRedirect(error)) { await router.navigate({ href: error.options.href || "/login" }); return; }
+    const message = passkeyMessage(error); setMessage(message); showToast(message, "error");
+  }
   const data = Route.useLoaderData(),
     [supported, setSupported] = createSignal(false),
     [busy, setBusy] = createSignal(false),
@@ -28,6 +34,7 @@ function Security() {
   });
   async function add(event: SubmitEvent) {
     event.preventDefault();
+    if (busy()) return;
     setBusy(true);
     setMessage("");
     try {
@@ -39,12 +46,12 @@ function Security() {
         setNeedsPassword(false);
       }
       await registerPasskey(name());
-      location.assign("/security?toast=" + encodeURIComponent("已添加通行密钥"));
+      showToast("已添加通行密钥"); setName(""); await router.invalidate();
     } catch (error) {
       if (error instanceof PasskeyRequestError && error.code === "needs_password") {
         setNeedsPassword(true);
         setMessage("添加通行密钥前，请先验证密码。");
-      } else setMessage(passkeyMessage(error));
+      } else await failure(error);
     } finally {
       setPassword("");
       setBusy(false);
@@ -52,20 +59,27 @@ function Security() {
   }
   async function rename(event: SubmitEvent, id: string) {
     event.preventDefault();
+    if (busy()) return;
     const form = event.currentTarget as HTMLFormElement,
       value = new FormData(form).get("name");
     setBusy(true);
     setMessage("");
     try {
-      await postJson(`/security/passkeys/${encodeURIComponent(id)}/rename`, {
-        name: value
-      });
-      setMessage("已重命名通行密钥");
+      await postJson(`/security/passkeys/${encodeURIComponent(id)}/rename`, { name: value });
+      setMessage("已重命名通行密钥"); showToast("已重命名通行密钥"); await router.invalidate();
     } catch (error) {
-      setMessage(passkeyMessage(error));
+      await failure(error);
     } finally {
       setBusy(false);
     }
+  }
+  async function remove(event: SubmitEvent, id: string) {
+    event.preventDefault();
+    if (busy() || !window.confirm("删除后将无法再用它登录。确定删除？")) return;
+    setBusy(true); setMessage("");
+    try { await deletePasskey(id); showToast("已删除通行密钥"); await router.invalidate(); }
+    catch (error) { await failure(error); }
+    finally { setBusy(false); }
   }
   return <div class="security-page">
     <p class="eyebrow">ACCOUNT SECURITY</p><h1>安全</h1><p class="muted">通行密钥保存在设备或密码管理器中，用指纹、面容或设备密码即可登录。</p>
@@ -80,9 +94,7 @@ function Security() {
           <label>名称<input name="name" value={key.name} maxlength={40} disabled={busy() || !data().passkey_configured} /></label>
           <button type="submit" disabled={busy() || !data().passkey_configured}>重命名</button>
         </form>
-        <form action={`/security/passkeys/${encodeURIComponent(key.credential_id)}/delete`} method="post" onSubmit={e => {
-            if (!window.confirm("删除后将无法再用它登录。确定删除？")) e.preventDefault();
-          }}><button type="submit" class="quiet danger" disabled={busy() || !data().passkey_configured}>删除通行密钥</button></form>
+        <form action={`/security/passkeys/${encodeURIComponent(key.credential_id)}/delete`} method="post" onSubmit={e => { void remove(e, key.credential_id); }}><button type="submit" class="quiet danger" disabled={busy() || !data().passkey_configured}>删除通行密钥</button></form>
       </article>}</For>
     </section>
     <Show when={data().passkey_configured && supported()}><section><h2>添加通行密钥</h2>

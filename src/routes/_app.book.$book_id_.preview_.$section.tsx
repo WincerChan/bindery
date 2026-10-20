@@ -5,6 +5,7 @@ import { createServerFn } from "@tanstack/solid-start";
 import { authenticated } from "../server/functions";
 import { authenticatedRoute, HttpError } from "../server/http";
 import { Reader } from "../features/reader/reader";
+import { Link } from "../shared/spa-link";
 import "../features/reader/reader.css";
 
 interface ReaderSearch { return_to?: string; resume?: number; page?: string; nav?: string; find?: string | number | boolean }
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/_app/book/$book_id_/preview_/$section")({
   headers: () => ({ "Cache-Control": "no-store, max-age=0", "CDN-Cache-Control": "no-store", Pragma: "no-cache", Expires: "0" }),
   component: ReaderPage,
   notFoundComponent: NotFoundPage,
-  errorComponent: () => <div role="alert"><h1>阅读器加载失败，请稍后重试</h1><a href="/">返回书库</a></div>,
+  errorComponent: () => <div role="alert"><h1>阅读器加载失败，请稍后重试</h1><Link href="/">返回书库</Link></div>,
 });
 function ReaderPage() {
   const data = Route.useLoaderData(), search = Route.useSearch();

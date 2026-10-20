@@ -7,6 +7,7 @@ import { Button, ConfirmDialog } from "../../../ui";
 import { useOptionalKindle } from "../context";
 import { usePageDevice } from "./device";
 import { FontSample } from "./frames";
+import { Link } from "../../../shared/spa-link";
 import { fileSize, inspectFontBatch } from "./model";
 import { KindleIcon } from "../icons";
 import { byteProgressDetail } from "../devices/format";
@@ -130,7 +131,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     </div>
     <input ref={input} type="file" multiple accept=".ttf,.otf" hidden aria-label="选择 TTF 或 OTF 字体文件" onChange={event => { void choose(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
     <Show when={!state()}><p role="status">检测中…</p></Show>
-    <Show when={state() && !device()}><p class="notice">请连接并授权 Kindle 后查看或管理字体。<a href="/kindle/connect">连接设备</a></p></Show>
+    <Show when={state() && !device()}><p class="notice">请连接并授权 Kindle 后查看或管理字体。<Link href="/kindle/connect">连接设备</Link></p></Show>
     <Show when={busy()}><p role="status">正在读取或更新设备字体…</p></Show>
     <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
     <Show when={notice()}><p role="status" class="notice">{notice()}</p></Show>
@@ -145,9 +146,9 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
         <td><div class="kt-coverage"><For each={["R", "B", "I", "BI"]}>{code => <span class={family.coverage.includes(code) ? "" : "is-missing"} title={`${({ R: "常规", B: "粗体", I: "斜体", BI: "粗斜体" } as Record<string, string>)[code]}${family.coverage.includes(code) ? "" : "（缺失）"}`}>{code}</span>}</For></div>
           <small>{family.coverage.filter(code => !["R", "B", "I", "BI"].includes(code)).join("、")}</small>
           <small class={["R", "B", "I", "BI"].every(code => family.coverage.includes(code)) ? "" : "kt-font-warning"}>{["R", "B", "I", "BI"].every(code => family.coverage.includes(code)) ? "四种样式齐全" : "缺少的粗体 / 斜体可能由 Kindle 模拟"}</small></td>
-        <td>{fileSize(family.size)}</td><td><div class="kt-row-actions"><a class="btn btn-icon" aria-label={`用 ${family.name} 预览`} title={`用 ${family.name} 预览`} href={`/kindle/preview?font=${encodeURIComponent(family.name)}`} onClick={event => {
+        <td>{fileSize(family.size)}</td><td><div class="kt-row-actions"><Link class="btn btn-icon" aria-label={`用 ${family.name} 预览`} title={`用 ${family.name} 预览`} href={`/kindle/preview?font=${encodeURIComponent(family.name)}`} onClick={event => {
           if (props.onPreview && !event.defaultPrevented && !event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); props.onPreview(family.name); }
-        }}><KindleIcon name="eye" /></a><Button variant="icon" aria-label={`从设备删除 ${family.name}`} title={`从设备删除 ${family.name}`} disabled={busy() || !device()} onClick={() => setDeleting(family)}><KindleIcon name="trash" /></Button></div></td></tr>}</For>
+        }}><KindleIcon name="eye" /></Link><Button variant="icon" aria-label={`从设备删除 ${family.name}`} title={`从设备删除 ${family.name}`} disabled={busy() || !device()} onClick={() => setDeleting(family)}><KindleIcon name="trash" /></Button></div></td></tr>}</For>
     </tbody></table></section>
     <Show when={device() && !busy() && families().length === 0 && !error()}><p class="muted">设备 fonts/ 目录中还没有可用字体。</p></Show>
     <section class="kt-font-help" aria-label="添加字体"><div><h2>添加字体</h2><p>把 TTF / OTF 文件拖到这个页面上，或点击「添加字体」。请一起添加同一家族的常规、粗体、斜体与粗斜体文件。</p><p>R 常规 · B 粗体 · I 斜体 · BI 粗斜体。缺少的粗体和斜体可能由 Kindle 模拟，效果会与真实字形不同。</p></div><p><KindleIcon name="warning" />增删字体后，需要在 Kindle 上重启或重新插拔，字体列表才会更新。</p></section>

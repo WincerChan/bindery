@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { createServerFn } from "@tanstack/solid-start";
-import { authenticated } from "../server/functions";
 import { authenticatedRoute } from "../server/http";
 import { TrackerPage } from "../features/catalog/tracker";
 import "../features/catalog/catalog.css";
 
-const loadTracker = createServerFn({ method: "GET" }).middleware([authenticated])
+// Global function middleware in src/start.ts authenticates and supplies library.
+const loadTracker = createServerFn({ method: "GET" })
   .inputValidator((input: Record<string, string>) => input)
   .handler(async ({ context, data }) => (await import("../server/catalog/tracker")).trackerPage(context.library, data));
 export const Route = createFileRoute("/_app/tracker")({

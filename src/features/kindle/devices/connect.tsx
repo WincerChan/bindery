@@ -1,6 +1,7 @@
 import { createSignal, For, Show } from "solid-js";
 import { type KindleModel } from "../../../client/kindle";
 import { Button, TextField } from "../../../ui";
+import { Link } from "../../../shared/spa-link";
 import { useKindle } from "../context";
 import { modelLabel } from "./format";
 import { KindleIcon } from "../icons";
@@ -30,7 +31,7 @@ export function KindleConnectPage() {
         </li>
       </ol>
       <div class="kindle-actions"><Button disabled={!k.ready() || !k.supported() || k.busy()} onClick={k.pick}>选择 Kindle 目录</Button><span class="kindle-small">需要 Chrome 或 Edge 桌面版</span></div>
-      <Show when={k.ready() && k.state().status === "granted"}><p class="notice">已连接 {k.state().device?.identity.name}。<a href="/kindle">查看设备书籍</a>，或<a href="/kindle/transfer">从书库传书</a>。</p></Show>
+      <Show when={k.ready() && k.state().status === "granted"}><p class="notice">已连接 {k.state().device?.identity.name}。<Link href="/kindle">查看设备书籍</Link>，或<Link href="/kindle/transfer">从书库传书</Link>。</p></Show>
     </section>
     <aside aria-label="记住的设备" class="kindle-aside">
       <h2>记住的设备</h2>

@@ -8,10 +8,16 @@ import { signIn } from "../src/server/auth";
 
 const scope = vi.hoisted(() => ({ request: null as Request | null, library: null as LibraryStorage | null, setStatus: vi.fn() }));
 vi.mock("@tanstack/solid-start/server", () => ({ getRequest: () => scope.request, setResponseStatus: scope.setStatus }));
-vi.mock("@tanstack/solid-start", () => ({ createMiddleware: () => ({ server: (handler: unknown) => ({ options: { server: handler } }) }) }));
+vi.mock("@tanstack/solid-router", async () => {
+  const { createRequire } = await import("node:module"), require = createRequire(import.meta.url);
+  return import(createRequire(require.resolve("@tanstack/solid-router")).resolve("@tanstack/router-core"));
+});
+vi.mock("@tanstack/solid-start", () => ({ createMiddleware: () => ({ server: (server: unknown) => ({ options: { server } }) }) }));
 vi.mock("../src/server/runtime", () => ({ getLibrary: () => scope.library }));
 import { authenticated } from "../src/server/functions";
 import { HttpError } from "../src/server/http";
+import { isRedirect } from "@tanstack/solid-router";
+import { loginTarget } from "../src/shared/session-navigation";
 
 const root = mkdtempSync(join(tmpdir(), "bindery-function-boundary-"));
 let sequence = 0;
@@ -24,8 +30,6 @@ beforeEach(() => {
 });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 function invoke(next: (value?: unknown) => Promise<unknown>) {
-  // Isolate our middleware logic from the framework builder/request scope.
-  // The production integration test separately exercises the real compiled RPC.
   return authenticated.options.server!({ next } as never);
 }
 function login() {
@@ -34,8 +38,23 @@ function login() {
 describe("authenticated server-function middleware", () => {
   it("blocks direct unauthenticated RPC execution before the handler", async () => {
     const next = vi.fn();
-    await expect(invoke(next)).rejects.toMatchObject({ status: 303 });
+    await expect(invoke(next)).rejects.toMatchObject({ options: { href: "/login?next=%2F" } });
     expect(next).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["http://localhost/tracker?q=%E4%B8%AD%E6%96%87&page=3#ignored", "/tracker?q=%E4%B8%AD%E6%96%87&page=3"],
+    ["https://evil.test/tracker", "/"],
+    ["http://localhost:3000/security", "/"],
+    ["https://localhost/security", "/"],
+    ["/relative", "/"],
+    ["invalid", "/"],
+    ["", "/"],
+  ])("uses only a valid same-origin Referer (%s) for the login target", async (referer, target) => {
+    scope.request = new Request("http://localhost/_serverFn/rpc", { headers: { Referer: referer } });
+    try { await invoke(vi.fn()); throw new Error("Expected redirect"); }
+    catch (error) { expect(isRedirect(error)).toBe(true); expect(error).toMatchObject({ options: { href: loginTarget(target) } }); }
+    expect(loginTarget("//evil.test/path")).toBe("/login?next=%2F");
+    expect(loginTarget("https://evil.test/path")).toBe("/login?next=%2F");
   });
   it("passes the real authenticated library only as server context", async () => {
     login(); const next = vi.fn(async () => ({ result: true }));

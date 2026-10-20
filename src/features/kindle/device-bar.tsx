@@ -2,6 +2,7 @@ import { createSignal, For, onSettled, Show } from "solid-js";
 import { useKindle } from "./context";
 import { bytes, modelLabel } from "./devices/format";
 import { Button } from "../../ui";
+import { Link } from "../../shared/spa-link";
 
 export function KindleDeviceBar() {
   const k = useKindle(), [now, setNow] = createSignal(0);
@@ -32,7 +33,7 @@ export function KindleDeviceBar() {
         <Show when={k.state().status === "prompt" || k.state().status === "denied"}><Button disabled={k.busy()} onClick={() => k.authorize()}>授权</Button></Show>
         <Button variant="quiet" disabled={k.busy()} onClick={k.refresh}>重新检测</Button>
       </Show>
-      <a class="btn btn-secondary" href="/kindle/connect">{k.state().device ? "切换设备" : "连接 Kindle"}</a>
+      <Link class="btn btn-secondary" href="/kindle/connect">{k.state().device ? "切换设备" : "连接 Kindle"}</Link>
     </div>
     <Show when={k.inventory()?.unreadableCount}>
       <details class="kindle-small kindle-full kindle-entry-notice" data-unreadable-notice>

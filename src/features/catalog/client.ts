@@ -1,10 +1,3 @@
-export async function catalogRequest<T>(url: string, body?: FormData, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { method: body ? "POST" : "GET", body, signal, headers: { Accept: "application/json" } });
-  if (response.redirected && new URL(response.url).pathname === "/login") { location.assign(response.url); throw new Error("请先登录"); }
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.detail || "操作失败，请重试");
-  return result as T;
-}
 export function formatCssText(raw: string): string {
   let out = "", indent = 0, quote = "", comment = false, escape = false, pendingSpace = false, brackets = 0;
   const pad = () => { out += "  ".repeat(indent); };

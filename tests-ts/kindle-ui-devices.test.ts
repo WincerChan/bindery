@@ -16,7 +16,6 @@ import { KindleTransferService, type TransferOptions } from "../src/client/kindl
 import type { KindleContextValue } from "../src/features/kindle/context";
 import type { KindleLibraryBook } from "../src/features/kindle/devices/library";
 import { loadKindleLibrary } from "../src/features/kindle/devices/library";
-import { navigateKindleLink } from "../src/features/kindle/devices/navigation";
 import type { LibraryPageData } from "../src/server/library/queries";
 import { fakeKindle } from "./support/fake-fs";
 import { clientDocument, elements, fire } from "./support/client-dom";
@@ -463,12 +462,4 @@ it("loads device thumbnails and revokes their object URLs when leaving the books
 it("loads every library query page and deduplicates records before exposing the picker", async () => {
   const load = vi.fn(async (page: number) => ({ books: page === 1 ? [book("a"), book("b")] : [book("b"), book("c")], total_pages: 2 }) as LibraryPageData);
   expect((await loadKindleLibrary(load)).map(b => b.book_id)).toEqual(["a", "b", "c"]); expect(load.mock.calls).toEqual([[1], [2]]);
-});
-
-it("routes Kindle links through the SPA and preserves native modified, external and licence links", () => {
-  const navigate = vi.fn(), preventDefault = vi.fn(), location = { href: "https://bindery.test/kindle", origin: "https://bindery.test" };
-  const event = (href: string, overrides = {}) => ({ button: 0, preventDefault, target: { closest: () => ({ href, target: "", hasAttribute: () => false, getAttribute: () => href }) }, ...overrides }) as unknown as MouseEvent;
-  navigateKindleLink(event("https://bindery.test/kindle/preview?book=a"), navigate, location); expect(navigate).toHaveBeenLastCalledWith("/kindle/preview?book=a"); expect(preventDefault).toHaveBeenCalledOnce();
-  for (const e of [event("https://bindery.test/kindle/fonts", { ctrlKey: true }), event("https://bindery.test/kindle/fonts", { button: 1 }), event("https://elsewhere.test/kindle"), event("#boko-license"), event("https://bindery.test/"), event("https://bindery.test/kindle/fonts", { defaultPrevented: true })]) navigateKindleLink(e, navigate, location);
-  expect(navigate).toHaveBeenCalledOnce();
 });

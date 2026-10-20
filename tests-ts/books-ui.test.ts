@@ -1,6 +1,7 @@
 import { beforeAll, describe, it, expect } from "vitest";
 import { build } from "vite";
 import solid from "vite-plugin-solid";
+import { mutationPlugin } from "./support/mutation-plugin";
 import { resolve } from "node:path";
 import type { BookPage } from "../src/server/books/service";
 import { metadataFromDict } from "../src/core/models";
@@ -10,7 +11,7 @@ beforeAll(async () => {
   const result = await build({
     configFile: false,
     logLevel: "silent",
-    plugins: [solid({ ssr: true })],
+    plugins: [mutationPlugin(), solid({ ssr: true })],
     ssr: { noExternal: true },
     build: {
       write: false,

@@ -1,6 +1,6 @@
 import { hydrate, render, renderToString, isServer } from "@solidjs/web";
-import { createSignal, flush, Loading, type ComponentProps } from "solid-js";
-import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/solid-router";
+import { createSignal, flush, Loading, onCleanup, type ComponentProps } from "solid-js";
+import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet, RouterProvider } from "@tanstack/solid-router";
 import { AppShell } from "../../src/shell/app-shell";
 import { LibraryPage } from "../../src/features/library/library-page";
 import { TrackerPage } from "../../src/features/catalog/tracker";
@@ -17,6 +17,21 @@ import { TrackerForm } from "../../src/features/catalog/tracker";
 import { Reader } from "../../src/features/reader/reader";
 import { Pagination } from "../../src/ui/pagination";
 import type { LibraryPageData } from "../../src/server/library/queries";
+import { KindleProvider, useKindle, type KindleContextValue } from "../../src/features/kindle/context";
+import { KindleTabs } from "../../src/features/kindle/tabs";
+import { Link } from "../../src/shared/spa-link";
+import type { KindleDeviceManager } from "../../src/client/kindle/device";
+import type { TransferQueue } from "../../src/client/kindle/queue";
+import { Route as securityRoute } from "../../src/routes/_app.security";
+
+export async function securityNavigation(node: HTMLElement) {
+  const root = createRootRoute({ component: () => <Outlet /> });
+  securityRoute.update({ id: "/security", path: "/security", getParentRoute: () => root } as never);
+  const router = createRouter({ routeTree: root.addChildren([securityRoute]), history: createMemoryHistory({ initialEntries: ["/security"] }), isServer: false, origin: "http://localhost" });
+  await router.load();
+  const dispose = render(() => <Loading><RouterProvider router={router} /></Loading>, node); flush();
+  return { router, dispose, flush };
+}
 
 export type Cases = {
   library: LibraryPageData;
@@ -103,6 +118,24 @@ export async function routedIngest(root: HTMLElement, initial: Cases["ingest"], 
   const router = ingestRoutes(initial, entry); await router.load();
   const dispose = (hydrating ? hydrate : render)(() => <Loading><RouterProvider router={router} /></Loading>, root);
   return { href: () => router.state.location.href, historyLength: () => router.history.length, flush, dispose };
+}
+
+// Actual Router + actual components. Only RPC transport is replaced by the
+// component-build plugin; invalidation must really rerun the route loader.
+export async function spaNavigation(node: HTMLElement, initial: Cases["detail"], tracker: Cases["tracker"], manager: KindleDeviceManager, queue: TransferQueue) {
+  let next = initial, loads = 0, context: KindleContextValue | undefined, mounts = 0, cleanups = 0;
+  const root = createRootRoute({ component: () => <div data-spa-shell><Outlet /></div> });
+  const detail = createRoute({ getParentRoute: () => root, path: "/book/$book_id", loader: () => { loads++; return next; }, component: () => {
+    const data = detail.useLoaderData(); return <BookDetail page={data()} />;
+  } });
+  const tracking = createRoute({ getParentRoute: () => root, path: "/tracker", validateSearch: (search: Record<string, unknown>) => search, component: () => <TrackerPage data={tracker} /> });
+  function Capture() { const k = useKindle(); context = k; mounts++; onCleanup(() => { cleanups++; }); return <><p data-queue-state>{k.items().map(item => item.state).join(",")}</p><Link href="/kindle/transfer?book=a#queue">查询与锚点</Link><Link href="#license">本页锚点</Link></>; }
+  const kindle = createRoute({ getParentRoute: () => root, path: "/kindle", component: () => <KindleProvider manager={manager} queue={queue}><Capture /><KindleTabs /><Outlet /></KindleProvider> });
+  const children = ["/", "transfer", "preview", "fonts", "connect"].map(path => createRoute({ getParentRoute: () => kindle, path, component: () => <p data-kindle-page>{path}</p> }));
+  const router = createRouter({ routeTree: root.addChildren([detail, tracking, kindle.addChildren(children)]), history: createMemoryHistory({ initialEntries: [`/book/${initial.book.book_id}`] }), isServer: false, origin: "http://bindery.local" });
+  await router.load();
+  const dispose = render(() => <Loading><RouterProvider router={router} /></Loading>, node);
+  return { dispose, flush, context: () => context, mounts: () => mounts, cleanups: () => cleanups, loads: () => loads, href: () => router.state.location.href, next(page: Cases["detail"]) { next = page; }, navigate: (href: string) => router.navigate({ href }) };
 }
 
 export async function routedMarkup(initial: LibraryPageData, entry: string) {
