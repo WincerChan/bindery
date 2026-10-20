@@ -290,7 +290,8 @@ try {
   assert.equal((await request(base + "/restore", {})).status, 409);
   const { rmSync } = await import("node:fs");
   rmSync(join(root, "library", id), { recursive: true });
-  response = await request(base + "/restore", {});
+  // Explicit next keeps the legacy Python flow comparable; defaults are tested separately.
+  response = await request(base + "/restore", { next: "/" });
   out.restore = {
     status: response.status,
     location: response.headers.get("location"),

@@ -33,6 +33,7 @@ export function clientDocument(): Document {
   };
   elementPrototype.showModal = function () { this.open = true; };
   elementPrototype.close = function () { this.open = false; };
+  elementPrototype.scrollIntoView = function () {};
   const textPrototype = Object.getPrototypeOf(document.createTextNode(""));
   textPrototype.remove = elementPrototype.remove;
   Object.defineProperty(textPrototype, "data", { configurable: true,

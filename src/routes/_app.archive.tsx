@@ -1,12 +1,7 @@
-import { createFileRoute, useRouter } from "@tanstack/solid-router";
-import { ArchivePage } from "../features/library/archive-page";
-import { loadArchive, restoreSelection } from "../features/library/functions";
-import "../features/library/library.css";
+import { createFileRoute, redirect } from "@tanstack/solid-router";
+import { authenticatedRoute } from "../server/http";
 
 export const Route = createFileRoute("/_app/archive")({
-  loader: () => loadArchive(), head: () => ({ meta: [{ title: "归档 · Bindery" }] }), component: Archive,
+  beforeLoad: () => { throw redirect({ href: "/?scope=archived", replace: true }); },
+  server: { handlers: { GET: authenticatedRoute(() => new Response(null, { status: 303, headers: { Location: "/?scope=archived" } })) } },
 });
-function Archive() {
-  const data = Route.useLoaderData(), router = useRouter();
-  return <ArchivePage books={data()} restore={ids => restoreSelection({ data: ids })} refresh={() => router.invalidate()} />;
-}

@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
-import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, Pagination, Select, Tag, TextField } from "../../ui";
+import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, GeneratedCover, Pagination, Select, Tag, TextField } from "../../ui";
 import { showToast } from "../../client/toast";
 import { withToast } from "../../shared/notifications";
 import type { BookView } from "../../server/book-view";
@@ -7,21 +7,21 @@ import type { LibraryPageData } from "../../server/library/queries";
 import { bookHref, gridPageSize, libraryReturnTo, type LibrarySearch } from "./search";
 
 type View = "grid" | "list";
-export function LibraryBook(props: { book: BookView; returnTo: string; view: View; selecting: boolean; selected: boolean; toggle: () => void; confirmArchive?: (form: HTMLFormElement) => void }) {
+export function LibraryBook(props: { book: BookView; returnTo: string; view: View; selecting: boolean; selected: boolean; toggle: () => void; confirmArchive?: (form: HTMLFormElement) => void; confirmDelete?: (form: HTMLFormElement) => void }) {
   const book = () => props.book;
-  return <article class={`library-book ${props.selected ? "is-selected" : ""}`} data-book-card data-book-id={book().book_id} data-book-layout={props.view}>
+  return <article class={`library-book ${book().archived ? "is-archived" : ""} ${props.selected ? "is-selected" : ""}`} data-book-card data-book-id={book().book_id} data-book-layout={props.view}>
     <div class="library-selection" data-book-select-wrap hidden={!props.selecting}>
       <Checkbox data-book-select label={`选择《${book().title}》`} value={book().book_id} checked={props.selected} onChange={props.toggle} />
     </div>
     <div class="library-cover">
-      <BookCover {...book()} compact={props.view === "list"} />
-      <Show when={props.selecting} fallback={<>
+      <Show when={book().archived} fallback={<BookCover {...book()} compact={props.view === "list"} />}><GeneratedCover {...book()} compact={props.view === "list"} /></Show>
+      <Show when={props.selecting} fallback={<Show when={!book().archived}><>
         <a class="library-cover-link" data-book-detail-link href={bookHref(book().book_id, props.returnTo)} aria-label={`打开《${book().title}》详情`} />
         <a class="library-hover-read" data-book-hover-actions href={bookHref(book().book_id, props.returnTo, true)}>阅读</a>
-      </>}><button type="button" class="library-cover-link" aria-label={`选择《${book().title}》`} aria-pressed={props.selected ? "true" : "false"} onClick={props.toggle} /></Show>
+      </></Show>}><button type="button" class="library-cover-link" aria-label={`选择《${book().title}》`} aria-pressed={props.selected ? "true" : "false"} onClick={props.toggle} /></Show>
     </div>
     <div class="library-book-info">
-      <Show when={props.selecting} fallback={<a class="library-title" data-book-detail-link href={bookHref(book().book_id, props.returnTo)} title={book().title}>{book().title}</a>}>
+      <Show when={props.selecting} fallback={<Show when={!book().archived} fallback={<h2 class="library-title" title={book().title}>{book().title}</h2>}><a class="library-title" data-book-detail-link href={bookHref(book().book_id, props.returnTo)} title={book().title}>{book().title}</a></Show>}>
         <button type="button" class="library-title library-select-title" aria-pressed={props.selected ? "true" : "false"} onClick={props.toggle}>{book().title}</button>
       </Show>
       <p class="library-author">{book().author || "未知"}</p>
@@ -32,21 +32,23 @@ export function LibraryBook(props: { book: BookView; returnTo: string; view: Vie
     <span class="library-format">{book().source_type.toUpperCase()}</span>
     <time class="library-updated" datetime={book().updated_at || undefined}>{book().updated_at.slice(0, 10) || "—"}</time>
     <div class="library-book-actions" hidden={props.selecting}>
+      <Show when={book().archived} fallback={<>
       <a class="btn btn-secondary btn-sm" href={bookHref(book().book_id, props.returnTo, true)}>阅读</a>
       <a class="btn btn-quiet btn-sm library-desktop-action" href={`/book/${book().book_id}/download`}>下载</a>
       <form class="library-desktop-action" action={`/book/${book().book_id}/archive`} method="post" onSubmit={event => {
         if (props.confirmArchive) { event.preventDefault(); props.confirmArchive(event.currentTarget); }
       }}><input type="hidden" name="next" value={props.returnTo} /><Button type="submit" variant="quiet" size="sm">归档</Button></form>
+      </>}><form action={`/book/${book().book_id}/restore`} method="post"><input type="hidden" name="next" value={props.returnTo} /><Button type="submit" variant="secondary" size="sm">恢复</Button></form><form action={`/book/${book().book_id}/delete`} method="post" onSubmit={event => { event.preventDefault(); props.confirmDelete?.(event.currentTarget); }}><input type="hidden" name="next" value={props.returnTo} /><Button type="submit" variant="danger" size="sm">彻底删除</Button></form></Show>
     </div>
   </article>;
 }
 
-export function LibrarySection(props: { data: LibraryPageData; view?: View; selecting?: boolean; selected?: string[]; toggle?: (id: string) => void; confirmArchive?: (form: HTMLFormElement) => void }) {
+export function LibrarySection(props: { data: LibraryPageData; view?: View; selecting?: boolean; selected?: string[]; toggle?: (id: string) => void; confirmArchive?: (form: HTMLFormElement) => void; confirmDelete?: (form: HTMLFormElement) => void }) {
   return <div id="library-section" data-page={props.data.page} data-total-books={props.data.total_books}>
     <div id="library" class={`library-collection ${props.selecting ? "is-selecting" : ""}`} data-view={props.view || "grid"}>
-      <Show when={props.data.books.length} fallback={<EmptyState title="书库还是空的" action={<a href="/ingest" class="btn btn-primary">入库第一本书</a>}>上传 TXT 或 EPUB，开始整理你的书库。</EmptyState>}>
+      <Show when={props.data.books.length} fallback={<Show when={props.data.scope === "archived"} fallback={<EmptyState title="书库还是空的" action={<a href="/ingest" class="btn btn-primary">入库第一本书</a>}>上传 TXT 或 EPUB，开始整理你的书库。</EmptyState>}><EmptyState title="归档为空。" /></Show>}>
         <div class="library-list-head" data-library-list-head aria-hidden="true"><span>书名 / 作者</span><span>出版</span><span>格式</span><span>更新</span><span>操作</span></div>
-        <For each={props.data.books}>{book => <LibraryBook book={book} returnTo={props.data.return_to} view={props.view || "grid"} selecting={Boolean(props.selecting)} selected={Boolean(props.selected?.includes(book.book_id))} toggle={() => props.toggle?.(book.book_id)} confirmArchive={props.confirmArchive} />}</For>
+        <For each={props.data.books}>{book => <LibraryBook book={book} returnTo={props.data.return_to} view={props.view || "grid"} selecting={Boolean(props.selecting)} selected={Boolean(props.selected?.includes(book.book_id))} toggle={() => props.toggle?.(book.book_id)} confirmArchive={props.confirmArchive} confirmDelete={props.confirmDelete} />}</For>
       </Show>
     </div>
     <div class="library-pager"><span>{props.data.total_books ? (props.data.page - 1) * props.data.per_page + 1 : 0}–{(props.data.page - 1) * props.data.per_page + props.data.books.length} / {props.data.total_books}</span><span aria-label={`第 ${props.data.page} / ${props.data.total_pages} 页`}>{props.data.page} / {props.data.total_pages}</span></div>
@@ -61,17 +63,21 @@ export function SelectedIds(props: { ids: string[] }) {
 export function LibraryPage(props: {
   data: LibraryPageData; initialView?: View;
   onSearch?: (search: LibrarySearch) => unknown | Promise<unknown>;
+  restore?: (ids: string[]) => Promise<unknown>; refresh?: () => Promise<unknown>;
   regenerate: (ids: string[]) => Promise<{ queued: number; failed: number; skipped: number }>;
 }) {
   const [view, setView] = createSignal<View>(untrack(() => props.initialView || "grid")), [selecting, setSelecting] = createSignal(false), [selected, setSelected] = createSignal<string[]>([]);
-  const [query, setQuery] = createSignal(untrack(() => props.data.q)), [busy, setBusy] = createSignal(false), [archiveForm, setArchiveForm] = createSignal<HTMLFormElement | null>(null);
+  const [query, setQuery] = createSignal(untrack(() => props.data.q)), [busy, setBusy] = createSignal(false), [archiveForm, setArchiveForm] = createSignal<HTMLFormElement | null>(null), [deleteForm, setDeleteForm] = createSignal<HTMLFormElement | null>(null);
+  const archived = () => props.data.scope === "archived";
+  let previousScope = untrack(() => props.data.scope);
+  createEffect(() => props.data.scope, scope => { if (scope !== previousScope) { setSelected([]); setSelecting(false); } previousScope = scope; });
   let page!: HTMLDivElement, timer: ReturnType<typeof setTimeout> | undefined;
   createEffect(() => props.data.q, q => { setQuery(q); });
   createEffect(() => props.data.books.map(book => book.book_id), ids => { setSelected(current => current.filter(id => ids.includes(id))); });
   onCleanup(() => clearTimeout(timer));
   async function search(overrides: Partial<LibrarySearch>) {
     clearTimeout(timer);
-    const value = { sort: props.data.sort, q: query(), read_filter: props.data.read_filter, per_page: props.data.per_page, page: 1, ...overrides };
+    const value = { scope: props.data.scope, sort: props.data.sort, q: query(), read_filter: props.data.read_filter, per_page: props.data.per_page, page: 1, ...overrides };
     try { if (props.onSearch) await props.onSearch(value); else window.location.assign(libraryReturnTo(value)); }
     catch (error) { showToast(error instanceof Error ? error.message : "加载失败，请重试", "error"); }
   }
@@ -106,8 +112,14 @@ export function LibraryPage(props: {
     try {
       const result = await props.regenerate(selected());
       if (!result.queued) { showToast(result.failed ? "任务队列已满，请稍后重试" : "没有匹配的书籍可批量处理", "error"); return; }
-      window.location.assign(withToast("/jobs?tab=running", `已创建 ${result.queued} 个任务${result.failed ? `，${result.failed} 个任务入队失败` : ""}`, result.failed ? "warning" : "success"));
+      window.location.assign(withToast("/ingest?jobs_tab=running#jobs", `已创建 ${result.queued} 个任务${result.failed ? `，${result.failed} 个任务入队失败` : ""}`, result.failed ? "warning" : "success"));
     } catch (error) { showToast(error instanceof Error ? error.message : "创建任务失败", "error"); }
+    finally { setBusy(false); }
+  }
+  async function restore() {
+    setBusy(true);
+    try { await props.restore?.(selected()); setSelected([]); await props.refresh?.(); showToast("已恢复书籍"); }
+    catch (error) { showToast(error instanceof Error ? error.message : "恢复失败，请重试", "error"); }
     finally { setBusy(false); }
   }
   async function download(event: SubmitEvent) {
@@ -124,13 +136,14 @@ export function LibraryPage(props: {
     finally { setBusy(false); }
   }
   return <div class="library-page" ref={page}>
-    <div class="library-heading"><h1>书库</h1><span data-library-count>{props.data.total_books} 册{props.data.read_filter === "unread" ? " · 仅未读" : ""}</span><a href="/ingest" class="btn btn-primary">+ 入库</a></div>
+    <div class="library-heading"><h1>书库</h1><span data-library-count>{props.data.total_books} 册{archived() ? " · 已归档" : props.data.read_filter === "unread" ? " · 仅未读" : ""}</span><a href="/ingest" class="btn btn-primary">+ 入库</a></div>
     <form id="library-controls" class="library-controls" action="/" method="get" onSubmit={event => { event.preventDefault(); void search({}); }}>
       <TextField class="library-search" label="搜索" type="search" name="q" placeholder="搜索书名、作者" value={query()} onInput={event => { setQuery(event.currentTarget.value); clearTimeout(timer); timer = setTimeout(() => void search({}), 400); }} />
       <Select label="排序" name="sort" value={props.data.sort} onChange={event => void search({ sort: event.currentTarget.value === "created" ? "created" : "updated" })}><option value="created">最近导入</option><option value="updated">最近修改</option></Select>
-      <input type="hidden" name="read_filter" value={props.data.read_filter} /><input type="hidden" name="page" value="1" data-page-input /><input type="hidden" name="per_page" value={props.data.per_page} data-per-page-input />
+      <input type="hidden" name="scope" value={props.data.scope} /><input type="hidden" name="read_filter" value={props.data.read_filter} /><input type="hidden" name="page" value="1" data-page-input /><input type="hidden" name="per_page" value={props.data.per_page} data-per-page-input />
       <Button type="submit" variant="secondary">搜索</Button>
-      <Chip data-read-filter-toggle selected={props.data.read_filter === "unread"} onClick={() => void search({ read_filter: props.data.read_filter === "unread" ? "all" : "unread" })}>仅看未读{props.data.read_filter === "unread" ? " ×" : ""}</Chip>
+      <Chip data-scope-toggle selected={archived()} onClick={() => void search({ scope: archived() ? "active" : "archived", read_filter: "all" })}>已归档{archived() ? " ×" : ""}</Chip>
+      <Show when={!archived()}><Chip data-read-filter-toggle selected={props.data.read_filter === "unread"} onClick={() => void search({ read_filter: props.data.read_filter === "unread" ? "all" : "unread" })}>仅看未读{props.data.read_filter === "unread" ? " ×" : ""}</Chip></Show>
       <div class="library-view-toggle" role="group" aria-label="显示方式"><Chip selected={view() === "grid"} onClick={() => changeView("grid")}>封面墙</Chip><Chip selected={view() === "list"} onClick={() => changeView("list")}>列表</Chip></div>
       <Chip data-bulk-mode-toggle selected={selecting()} onClick={() => selecting() ? done() : setSelecting(true)}>多选</Chip>
     </form>
@@ -138,11 +151,14 @@ export function LibraryPage(props: {
       <span aria-live="polite">已选 <strong data-selected-count>{selected().length}</strong> 册</span>
       <Checkbox data-bulk-select-all label="全选本页" checked={Boolean(props.data.books.length) && selected().length === props.data.books.length} indeterminate={selected().length > 0 && selected().length < props.data.books.length} onChange={event => setSelected(event.currentTarget.checked ? props.data.books.map(book => book.book_id) : [])} />
       <Button data-bulk-clear variant="quiet" onClick={() => setSelected([])}>清空</Button><Button data-bulk-done variant="secondary" onClick={done}>完成</Button>
+      <Show when={archived()} fallback={<>
       <form action="/books/download" method="post" onSubmit={download}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet" disabled={!selected().length || busy()}>批量下载</Button></form>
       <Button variant="quiet" disabled={!selected().length || busy()} onClick={regenerate}>批量重新生成</Button>
       <form action="/books/archive" method="post" onSubmit={event => { event.preventDefault(); setArchiveForm(event.currentTarget); }}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet" disabled={!selected().length || busy()}>批量归档</Button></form>
+      </>}><Button variant="secondary" disabled={!selected().length || busy()} onClick={restore}>批量恢复</Button><form action="/archive/delete-bulk" method="post" onSubmit={event => { event.preventDefault(); setDeleteForm(event.currentTarget); }}><SelectedIds ids={selected()} /><Button type="submit" variant="danger" disabled={!selected().length || busy()}>批量删除</Button></form></Show>
     </div></div>
-    <LibrarySection data={props.data} view={view()} selecting={selecting()} selected={selected()} toggle={toggle} confirmArchive={setArchiveForm} />
-    <ConfirmDialog open={Boolean(archiveForm())} title="归档书籍" confirmLabel="归档" onClose={() => setArchiveForm(null)} onConfirm={() => archiveForm()?.submit()}>确定归档选中的书籍吗？归档后可在归档页恢复。</ConfirmDialog>
+    <LibrarySection data={props.data} view={view()} selecting={selecting()} selected={selected()} toggle={toggle} confirmArchive={setArchiveForm} confirmDelete={setDeleteForm} />
+    <ConfirmDialog open={Boolean(archiveForm())} title="归档书籍" confirmLabel="归档" onClose={() => setArchiveForm(null)} onConfirm={() => archiveForm()?.submit()}>确定归档选中的书籍吗？归档后可在书库「已归档」中恢复。</ConfirmDialog>
+    <ConfirmDialog open={Boolean(deleteForm())} title="永久删除书籍" danger confirmLabel="彻底删除" onClose={() => setDeleteForm(null)} onConfirm={() => deleteForm()?.submit()}>确定永久删除？书籍文件删除后无法恢复。</ConfirmDialog>
   </div>;
 }

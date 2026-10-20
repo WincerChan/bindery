@@ -210,6 +210,7 @@ export class LibraryStorage {
       FROM books AS b LEFT JOIN wishlist AS w ON w.library_book_id = b.book_id WHERE w.library_book_id IS NULL`);
   }
   listBooksPage({
+    scope = "active",
     sort = "updated",
     q = "",
     read_filter = "all",
@@ -217,9 +218,9 @@ export class LibraryStorage {
     per_page = 24
   } = {}): [Metadata[], number] {
     this.ensure();
-    const unread = strip(read_filter || "").toLowerCase() === "unread";
+    const archived = scope === "archived", unread = !archived && strip(read_filter || "").toLowerCase() === "unread";
     const query = strip(q || "").toLowerCase(),
-      conditions = ["b.archived = 0"],
+      conditions = [archived ? "b.archived = 1" : "b.archived = 0"],
       params: Value[] = [];
     if (query) {
       conditions.push("(lower(b.title) LIKE ? OR lower(coalesce(b.author, '')) LIKE ?)");
@@ -230,11 +231,15 @@ export class LibraryStorage {
       this.seedWishlistFromBooks();
     }
     const where = `FROM books AS b LEFT JOIN wishlist AS w ON w.library_book_id = b.book_id WHERE ${conditions.join(" AND ")}`;
+    const order = strip(sort || "").toLowerCase() === "created" ? "b.created_at DESC" : "CASE WHEN b.updated_at IS NULL OR b.updated_at = '' THEN b.created_at ELSE b.updated_at END DESC";
+    const size = Math.max(1, Math.trunc(per_page)), offset = (Math.max(1, Math.trunc(page)) - 1) * size;
+    if (archived) {
+      const books = this.db.all(`SELECT b.* ${where} ORDER BY ${order}`, ...params).map(rowToMetadata).filter(m => isDir(archiveBookDir(this.base, m.book_id)));
+      return [books.slice(offset, offset + size), books.length];
+    }
     const total = this.db.get<{
       count: number;
     }>(`SELECT COUNT(1) AS count ${where}`, ...params)!.count;
-    const order = strip(sort || "").toLowerCase() === "created" ? "b.created_at DESC" : "CASE WHEN b.updated_at IS NULL OR b.updated_at = '' THEN b.created_at ELSE b.updated_at END DESC";
-    const size = Math.max(1, Math.trunc(per_page));
     const books = this.db.all(`SELECT b.* ${where} ORDER BY ${order} LIMIT ? OFFSET ?`, ...params, size, (Math.max(1, Math.trunc(page)) - 1) * size);
     return [books.map(rowToMetadata).filter(m => isDir(bookDir(this.base, m.book_id))), total];
   }

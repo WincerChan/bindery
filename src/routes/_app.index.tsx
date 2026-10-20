@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/solid-router";
 import { LibraryPage } from "../features/library/library-page";
-import { loadLibrary, regenerateSelection } from "../features/library/functions";
+import { loadLibrary, regenerateSelection, restoreSelection } from "../features/library/functions";
 import { libraryQueryInput } from "../features/library/search";
 import "../features/library/library.css";
 export const Route = createFileRoute("/_app/")({
@@ -17,5 +17,5 @@ export const Route = createFileRoute("/_app/")({
 });
 function Home() {
   const data = Route.useLoaderData(), router = useRouter();
-  return <LibraryPage data={data()} onSearch={search => router.navigate({ to: "/", search: { ...search } })} regenerate={ids => regenerateSelection({ data: ids })} />;
+  return <LibraryPage data={data()} onSearch={search => router.navigate({ to: "/", search: { ...search } })} regenerate={ids => regenerateSelection({ data: ids })} restore={ids => restoreSelection({ data: ids })} refresh={() => router.invalidate()} />;
 }

@@ -1,4 +1,5 @@
 export interface LibrarySearch {
+  scope: "active" | "archived";
   sort: "created" | "updated";
   q: string;
   page: number;
@@ -10,11 +11,13 @@ const integer = (value: unknown, fallback: number) => {
   return Number.isSafeInteger(number) ? number : fallback;
 };
 export function normalizeSearch(input: Record<string, unknown>): LibrarySearch {
+  const scope = String(input.scope || "").trim().toLowerCase() === "archived" ? "archived" : "active";
   return {
+    scope,
     sort: String(input.sort || "").trim().toLowerCase() === "created" ? "created" : "updated",
     q: input.q === undefined ? "" : String(input.q),
     page: Math.max(1, integer(input.page, 1)),
-    read_filter: String(input.read_filter || "").trim().toLowerCase() === "unread" ? "unread" : "all",
+    read_filter: scope !== "archived" && String(input.read_filter || "").trim().toLowerCase() === "unread" ? "unread" : "all",
     per_page: Math.max(4, Math.min(96, integer(input.per_page, 24))),
   };
 }
@@ -24,7 +27,7 @@ export function libraryQueryInput(input: Record<string, unknown>) {
 }
 export function libraryReturnTo(input: Record<string, unknown>): string {
   const search = normalizeSearch(input);
-  return "/?" + new URLSearchParams(Object.entries(search).map(([key, value]) => [key, String(value)]));
+  return "/?" + new URLSearchParams(Object.entries(search).filter(([key, value]) => key !== "scope" || value !== "active").map(([key, value]) => [key, String(value)]));
 }
 export const bookHref = (id: string, returnTo: string, preview = false) =>
   `/book/${id}${preview ? "/preview" : ""}?return_to=${encodeURIComponent(returnTo)}`;

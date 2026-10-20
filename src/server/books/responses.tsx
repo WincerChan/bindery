@@ -183,9 +183,10 @@ export async function archiveResponse({
   archiveBook(params.book_id, library);
   return bookRedirect(safeInternalTarget(textField(form, "next")));
 }
-export function restoreResponse({ params, library }: Context): Response {
+export async function restoreResponse({ request, params, library }: Context): Promise<Response> {
+  const form = await bookForm(request);
   restoreBook(params.book_id, library);
-  return redirect("/");
+  return redirect(safeInternalTarget(textField(form, "next"), "/?scope=archived"));
 }
 export async function deleteResponse({
   request,
@@ -198,7 +199,7 @@ export async function deleteResponse({
     ? new Response("", {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       })
-    : bookRedirect(safeInternalTarget(textField(form, "next")));
+    : bookRedirect(safeInternalTarget(textField(form, "next"), "/?scope=archived"));
 }
 export async function uploadCoverResponse({
   request,

@@ -1,4 +1,7 @@
-.ingest-page, .ingest-jobs-page { min-width: 0; }
+.ingest-page { min-width: 0; }
+.ingest-page .page-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ingest-page .page-head > .btn { flex-shrink: 0; }
+.ingest-jobs-sheet .ingest-job { grid-template-columns: minmax(0,1fr); }
 .ingest-page form > *, .ingest-page section > *, .ingest-jobs-section > * { margin-block: 16px; }
 .ingest-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .ingest-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-start; }

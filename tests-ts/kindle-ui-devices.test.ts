@@ -138,7 +138,7 @@ it("keeps the device identity hierarchy and the complete books toolbar/table in 
   const c = await connected([record("a", "a.kfx")]); await c.manager.restore(saved(c.device));
   const root = document.createElement("div"); root.innerHTML = server.markup("books", c.input);
   const bar = elements(root, "section", "data-kindle-device-bar")[0]!;
-  expect(elements(bar, "h1").map(node => node.textContent)).toEqual(["Kindle"]);
+  expect(elements(bar, "h1").map(node => node.textContent)).toEqual(["设备"]);
   const identity = withClass(bar, "kindle-device-identity");
   expect(Array.from(identity.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["p", "h1", "p"]);
   expect(withClass(bar, "kindle-status").getAttribute("role")).toBe("status");

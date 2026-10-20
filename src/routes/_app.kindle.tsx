@@ -7,7 +7,7 @@ import { navigateKindleLink } from "../features/kindle/devices/navigation";
 import "../features/kindle/devices/devices.css";
 
 export const Route = createFileRoute("/_app/kindle")({
-  head: () => ({ meta: [{ title: "Kindle · Bindery" }] }),
+  head: () => ({ meta: [{ title: "设备 · Bindery" }] }),
   component: KindleLayout,
 });
 

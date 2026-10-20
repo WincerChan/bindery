@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { libraryPage, archivePage, loadLibraryPage } from "../src/server/library/queries";
+import { libraryPage, loadLibraryPage } from "../src/server/library/queries";
 import { archiveBooks, deleteArchivedBooks, downloadBooks, normalizeBookIds, regenerateBooks, restoreArchivedBooks } from "../src/server/library/actions";
 import { archivePost, deletePost, downloadPost } from "../src/server/library/handlers";
 import { bookHref, gridPageSize, libraryQueryInput, libraryReturnTo, normalizeSearch } from "../src/features/library/search";
@@ -59,7 +59,36 @@ describe("library filters, sorting and pagination (Python library_filters)", () 
     expect(libraryPage(library, { q: " alpha " }).books.map(book => book.book_id)).toEqual([a, b]);
     expect(libraryPage(library, { sort: "created" }).books.map(book => book.book_id)).toEqual([b, a]);
     expect(libraryPage(library, { q: "missing", page: 9 })).toMatchObject({ page: 1, total_books: 0, total_pages: 1, books: [] });
-    expect(archivePage(library).map(book => book.book_id)).toEqual([c]);
+    expect(libraryPage(library, { scope: "archived" }).books.map(book => book.book_id)).toEqual([c]);
+  });
+  it("searches, sorts and paginates archived directories before slicing, ignoring read_filter", () => {
+    const { library } = fixture;
+    for (let index = 0; index < 7; index++) {
+      const id = String(index).repeat(32);
+      createBook(library, id, { title: index % 2 ? "Alpha" : "乙", author: index % 2 ? "作者" : "ALPHA", read: true, created_at: String(index), updated_at: String(7 - index) });
+      archiveBooks([id], library);
+      library.saveMetadata({ ...library.loadMetadata(id), updated_at: String(7 - index) });
+    }
+    createBook(library, a, { title: "Alpha" });
+    rmSync(join(library.base, "archive", "0".repeat(32)), { recursive: true });
+    const options = { scope: "archived", q: " alpha ", per_page: 2, read_filter: "unread" };
+    const [updated, total] = library.listBooksPage(options);
+    expect(total).toBe(6); expect(updated.map(book => book.book_id)).toEqual(["1".repeat(32), "2".repeat(32)]);
+    expect(library.listBooksPage({ ...options, page: 2 })[0].map(book => book.book_id)).toEqual(["3".repeat(32), "4".repeat(32)]);
+    expect(library.listBooksPage({ ...options, sort: "created" })[0].map(book => book.book_id)).toEqual(["6".repeat(32), "5".repeat(32)]);
+    expect(library.listBooksPage({ ...options, q: "missing" })).toEqual([[], 0]);
+    expect(libraryPage(library, { scope: "archived", per_page: 4, page: 99, read_filter: "unread" })).toMatchObject({ page: 2, total_books: 6, total_pages: 2, read_filter: "all", scope: "archived" });
+  });
+  it("does not create tracker entries or mutate archived metadata when viewing the archive", () => {
+    const { library } = fixture;
+    createBook(library, a, { read: false, rating: 2 }); createBook(library, b);
+    library.seedWishlistFromBooks();
+    const wish = library.db.getWishByLibraryBookId(a)!; library.db.updateWish(wish.id, { read: true, read_status: "read", rating: 5 });
+    archiveBooks([a, b], library);
+    library.db.deleteWish(library.db.getWishByLibraryBookId(b)!.id);
+    const metadata = library.loadMetadata(a), wishes = library.db.listWishes();
+    expect(libraryPage(library, { scope: "archived" }).books.find(book => book.book_id === a)).toMatchObject({ read: false, rating: 2 });
+    expect(library.loadMetadata(a)).toEqual(metadata); expect(library.db.listWishes()).toEqual(wishes);
   });
   it("preserves storage orphan totals and does not replace missing directories with full scans", () => {
     const { library } = fixture; createBook(library, a); rmSync(join(library.base, a), { recursive: true });
@@ -74,6 +103,13 @@ describe("return navigation and responsive sizing", () => {
     const href = bookHref(a, back, true);
     expect(new URL(href, "http://local").searchParams.get("return_to")).toBe(back);
     expect(href).toContain(`/book/${a}/preview?return_to=`);
+  });
+  it("normalizes scope and preserves archived return URLs without unread filtering", () => {
+    expect(normalizeSearch({ scope: " ARCHIVED ", read_filter: "unread" })).toMatchObject({ scope: "archived", read_filter: "all" });
+    expect(normalizeSearch({ scope: "bogus" }).scope).toBe("active");
+    const archived = new URL(libraryReturnTo({ scope: "archived", q: "书", page: 3, read_filter: "unread" }), "http://local");
+    expect(Object.fromEntries(archived.searchParams)).toMatchObject({ scope: "archived", q: "书", page: "3", read_filter: "all" });
+    expect(libraryReturnTo({ scope: "active" })).not.toContain("scope=");
   });
   it.each([[0, 4], [136, 4], [292, 8], [916, 24], [99999, 96]])("uses four rows at width %i", (width, size) => expect(gridPageSize(width)).toBe(size));
   it.each([[0, 4], [200, 96], ["garbage", 24]])("normalizes page size %s", (value, expected) => expect(normalizeSearch({ per_page: value }).per_page).toBe(expected));
@@ -161,11 +197,11 @@ describe("authenticated HTTP form handlers and redirects", () => {
     createBook(fixture.library, a); expect((await post(archivePost, [a], false)).status).toBe(303);
     expect(fixture.library.loadMetadata(a).archived).toBe(false);
   });
-  it("keeps fixed Python bulk redirect targets and no-store responses", async () => {
+  it("keeps bulk redirect targets within the merged library and no-store responses", async () => {
     createBook(fixture.library, a);
     const archived = await post(archivePost, [a, "bad-id"]);
     expect(archived.status).toBe(303); expect(archived.headers.get("Location")).toBe("/"); expect(archived.headers.get("Cache-Control")).toBe("no-store");
-    const deleted = await post(deletePost, [a]); expect(deleted.status).toBe(303); expect(deleted.headers.get("Location")).toBe("/archive");
+    const deleted = await post(deletePost, [a]); expect(deleted.status).toBe(303); expect(deleted.headers.get("Location")).toBe("/?scope=archived");
   });
   it("returns JSON business errors for downloads", async () => {
     const empty = await post(downloadPost, []); expect(empty.status).toBe(400); expect(await empty.json()).toEqual({ detail: "未选择书籍" });

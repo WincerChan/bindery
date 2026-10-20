@@ -41,18 +41,22 @@ describe("library SSR and editorial UI regressions", () => {
     for (const name of ["q", "sort", "read_filter", "page", "per_page"]) expect(html).toContain(`name="${name}"`);
     for (const hook of ["data-bulk-mode-toggle", "data-bulk-actions", "data-bulk-select-all", "data-bulk-clear", "data-bulk-done", "data-read-filter-toggle", "data-library-count"]) expect(html).toContain(hook);
     expect(html).toContain('action="/books/archive" method="post"'); expect(html).toContain('action="/books/download" method="post"');
-    expect(html).toContain("批量重新生成"); expect(html).toContain("仅看未读"); expect(html.replace(/<!--[\s\S]*?-->/g, "")).toContain("49 册 · 仅未读");
+    expect(html).toContain("归档后可在书库「已归档」中恢复"); expect(html).toContain("批量重新生成"); expect(html).toContain("仅看未读"); expect(html.replace(/<!--[\s\S]*?-->/g, "")).toContain("49 册 · 仅未读");
     expect(html).toContain('aria-label="分页"'); expect(html).toContain("上一页"); expect(html).toContain("下一页"); expect(html.replace(/<!--[\s\S]*?-->/g, "")).toContain("25–25 / 49");
     expect(html).not.toContain('action="/upload'); expect(html).not.toContain('action="/ingest"'); expect(html).not.toContain("书库共有");
   });
   it("keeps empty library copy and omits empty archive controls/headers", () => {
     expect(ui.page(true)).toContain("书库还是空的"); expect(ui.page(true)).toContain("入库第一本书");
     const html = ui.archive(true);
-    expect(html).toContain("归档为空。"); expect(html).not.toContain("data-archive-select-all"); expect(html).not.toContain('id="archive-bulk-delete-form"'); expect(html).not.toContain("书名 / 作者");
+    expect(html).toContain("归档为空。"); expect(html).not.toContain("入库第一本书"); expect(html).not.toContain("data-archive-select-all"); expect(html).not.toContain('id="archive-bulk-delete-form"'); expect(html).not.toContain("书名 / 作者");
   });
-  it("keeps archive selection hooks, bulk restore and existing single-book POST URLs", () => {
-    const html = ui.archive();
-    for (const hook of ["data-archive-select-all", "data-archive-bulk-bar", "data-archive-select", "data-archive-clear", "data-archive-book-ids", "data-archive-bulk-delete"]) expect(html).toContain(hook);
+  it.each(["grid", "list"] as const)("renders archived books with safe actions and selection in %s view", view => {
+    const html = ui.archive(false, view);
+    for (const hook of ["data-bulk-select-all", "data-bulk-actions", "data-book-select", "data-bulk-clear", "data-book-ids"]) expect(html).toContain(hook);
+    expect(html.replace(/<!--[\s\S]*?-->/g, "")).toContain("49 册 · 已归档");
+    for (const absent of ["data-book-detail-link", "data-book-hover-actions", "/private-cover", "/download", "/regenerate", "批量归档", "仅看未读", '<img']) expect(html).not.toContain(absent);
+    expect(html).toContain("cover-gen-inner"); expect(html).toContain('name="next" value="/?scope=archived');
+    expect(html).toContain('class="btn btn-danger btn-sm');
     expect(html).toContain("批量恢复"); expect(html).toContain('action="/archive/delete-bulk" method="post"');
     expect(html).toContain('/restore" method="post"'); expect(html).toContain('/delete" method="post"');
     expect(html).toContain("永久删除书籍"); expect(html).toContain("无法恢复"); expect(html).toContain("书名 / 作者");

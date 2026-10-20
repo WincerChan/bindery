@@ -84,7 +84,12 @@ try {
   assert.match(html, /aria-label="主导航"/);
   assert.match(html, /aria-label="手机导航"/);
   const nav = html.match(/aria-label="主导航"[^>]*>([\s\S]*?)<\/nav>/)[1];
-  assert.deepEqual([...nav.matchAll(/href="([^"]+)"/g)].map(m => m[1]), ["/", "/ingest", "/jobs", "/tracker", "/rules", "/archive", "/kindle", "/security"]);
+  assert.deepEqual([...nav.matchAll(/<a\b[^>]*class="nav-link[^>]*>/g)].map(m => /href="([^"]+)"/.exec(m[0])[1]), ["/", "/ingest", "/tracker", "/kindle"]);
+  const settings = nav.match(/role="menu"[\s\S]*?<\/div>/)[0];
+  assert.deepEqual([...settings.matchAll(/href="([^"]+)"/g)].map(m => m[1]), ["/rules", "/security"]); assert.match(settings, /action="\/logout"/);
+  const mobile = html.match(/aria-label="手机导航"[^>]*>([\s\S]*?)<\/nav>/)[1];
+  assert.deepEqual([...mobile.matchAll(/href="([^"]+)"/g)].map(m => m[1]), ["/", "/ingest", "/tracker"]); assert.match(mobile, /aria-label="设置"/);
+  assert.doesNotMatch(nav + mobile, /href="\/(jobs|archive)"/);
   assert.match(nav, /href="\/"[^>]*aria-current="page"/);
   assert.doesNotMatch(loginHtml, /aria-label="主导航"/);
   const security = await get("/security", cookie);

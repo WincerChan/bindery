@@ -295,7 +295,7 @@ export async function saveBookEdit(
     queued,
     message: queued
       ? "已创建写回任务，可继续编辑下一本。"
-      : "写回任务创建失败，请稍后重试或前往任务页查看详情。",
+      : "写回任务创建失败，请稍后重试或在入库页的「最近任务」中查看详情。",
     kind: queued ? ("success" as const) : ("error" as const),
   };
 }

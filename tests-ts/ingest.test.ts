@@ -125,7 +125,7 @@ describe("preview, staging and dedupe", () => {
 
 describe("regeneration, retry, recovery and job views", () => {
   it("queues regeneration and retry, ignores next and produces synced EPUB via events", async () => {
-    const meta = seed(); expect(regenerateBook(library, meta.book_id, form([], { next: "//evil.test" })).headers.get("Location")).toBe("/jobs?tab=running");
+    const meta = seed(); expect(regenerateBook(library, meta.book_id, form([], { next: "//evil.test" })).headers.get("Location")).toBe("/ingest?jobs_tab=running#jobs");
     const first = library.db.listJobs()[0]!; expect(first.action).toBe("regenerate"); expect((await drainJobs(library))).toBe(1); expect(library.loadMetadata(meta.book_id).status).toBe("synced");
     regenerateBook(library, "", new FormData(), first.id); expect(library.db.listJobs().some(j => j.action === "retry" && j.stage === "排队中")).toBe(true);
     expect(() => regenerateBook(library, "", new FormData(), "missing")).toThrow("任务不存在");
@@ -155,17 +155,31 @@ describe("regeneration, retry, recovery and job views", () => {
     writeFileSync(join(nextDirectory, nextSpec.payload_name), ""); (await drainJobs(library)); expect(library.db.getJob(next.id)?.message).toBe("上传文件为空");
   });
   it("filters bulk processing by parsing/theme and uses edit-writeback for EPUB", async () => {
-    seed(); seed("b".repeat(32), true); expect(regenerateBulk(library, form([], { scope: "parsing" })).headers.get("Location")).toBe("/jobs?tab=running"); expect(library.db.listJobs()).toHaveLength(1);
+    seed(); seed("b".repeat(32), true); expect(regenerateBulk(library, form([], { scope: "parsing" })).headers.get("Location")).toBe("/ingest?jobs_tab=running#jobs"); expect(library.db.listJobs()).toHaveLength(1);
     regenerateBulk(library, form([], { scope: "themes" })); expect(library.db.listJobs()).toHaveLength(3); expect(library.db.listJobs().some(j => j.action === "edit-writeback")).toBe(true); (await drainJobs(library)); expect(library.db.listJobs().every(j => j.status === "success")).toBe(true);
     expect(() => regenerateBulk(library, form([], { template_id: "missing" }))).toThrow("规则不存在");
   });
   it("shows grouped paginated jobs, archived identities, invalid counts and cleans history", () => {
     const meta = seed(); for (let i = 0; i < 14; i++) enqueueJob({ book_id: meta.book_id }, library);
-    enqueueJob({ book_id: null, action: "ingest" }, library); let data = jobsPayload(library, "unknown", 999); expect(data.active_tab).toBe("running"); expect(data.page).toBe(2); expect(data.jobs).toHaveLength(3); expect(data.invalid_job_count).toBe(1);
+    enqueueJob({ book_id: null, action: "ingest" }, library); let data = jobsPayload(library, "unknown", 999); expect(data.active_tab).toBe("all"); expect(data.page).toBe(2); expect(data.jobs).toHaveLength(3); expect(data.invalid_job_count).toBe(1);
     library.archiveBook(meta.book_id); data = jobsPayload(library); expect(data.jobs.find(j => j.book_id === meta.book_id)?.book_title).toBe("测试书"); expect(data.jobs.every(j => !j.can_open_book)).toBe(true);
-    expect(cleanupInvalid(library, "failed").headers.get("Location")).toBe("/jobs?tab=failed"); expect(library.db.listJobs()).toHaveLength(14);
+    expect(cleanupInvalid(library, "failed").headers.get("Location")).toBe("/ingest?jobs_tab=failed#jobs"); expect(library.db.listJobs()).toHaveLength(14);
     expect(jobActionLabel("upload-epub")).toBe("EPUB 入库"); expect(jobActionLabel("custom-action")).toBe("custom-action"); expect(jobActionLabel("retry")).toBe("重试生成");
     const missing = jobView(library.db.listJobs()[0]!, new Map()); expect(missing).toMatchObject({ book_title: "未关联书籍", book_author: "未知", can_open_book: false });
+  });
+  it("defaults to all statuses ordered by creation with group counts and pagination", () => {
+    const meta = seed();
+    for (let index = 0; index < 15; index++) {
+      const status = ["running", "success", "failed"][index % 3]!;
+      library.db.createJob({ id: `job-${index}`, book_id: meta.book_id, action: "regenerate", status, stage: status, message: null, log: null, rule_template: "default", created_at: String(index).padStart(2, "0"), updated_at: "2026" });
+    }
+    const data = jobsPayload(library);
+    expect(data).toMatchObject({ active_tab: "all", total_jobs: 15, total_pages: 2 });
+    expect(data.jobs.map(job => job.id)).toEqual(Array.from({ length: 12 }, (_, index) => `job-${14 - index}`));
+    expect(data.tabs.map(tab => [tab.key, tab.count])).toEqual([["all", 15], ["running", 5], ["success", 5], ["failed", 5]]);
+    expect(jobsPayload(library, "all", 2).jobs.map(job => job.id)).toEqual(["job-2", "job-1", "job-0"]);
+    expect(jobsPayload(library, "failed").jobs.every(job => job.status === "failed")).toBe(true);
+    expect(cleanupInvalid(library, "all").headers.get("Location")).toBe("/ingest?jobs_tab=all#jobs");
   });
   it("sets sync timestamps together and optionally asks V8 to collect", () => {
     const meta = metadataFromDict({ status: "dirty" }); updateMetaSynced(meta); expect(meta.updated_at).toBe(meta.epub_updated_at); expect(statusView(meta).status_label).toBe("已写回元数据");

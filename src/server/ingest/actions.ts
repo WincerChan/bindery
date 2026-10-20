@@ -56,7 +56,7 @@ export async function submitUploads(library: LibraryStorage, form: FormData, req
       if (input.staged) cleanupStaged(library, input.staged.token);
     }
   }
-  const message = queued > 0 ? `已创建 ${queued} 个任务，可继续上传下一本。` : failed > 0 ? "任务创建失败，请稍后重试或前往任务页查看详情。" : "本次未创建任务。";
+  const message = queued > 0 ? `已创建 ${queued} 个任务，可继续上传下一本。` : failed > 0 ? "任务创建失败，请稍后重试或点击「最近任务」查看详情。" : "本次未创建任务。";
   const response = redirectWithToast("/ingest", message, queued > 0 ? "success" : failed > 0 ? "error" : "warning");
   if (request?.headers.get("HX-Request") === "true") return new Response(null, { status: 200, headers: { "HX-Redirect": response.headers.get("Location")! } });
   return response;
@@ -67,7 +67,7 @@ export function regenerateBook(library: LibraryStorage, id: string, form: FormDa
   const meta = requireBook(bookId, library);
   if (meta.source_type === "epub") throw new HttpError(400, retryId ? "EPUB 导入的书籍无法重试生成" : "EPUB 导入的书籍无法重新生成");
   enqueueJob({ book_id: bookId, rule_template: formText(form, "rule_template", "default"), action: retryId ? "retry" : "regenerate" }, library);
-  return new Response(null, { status: 303, headers: { Location: "/jobs?tab=running" } });
+  return new Response(null, { status: 303, headers: { Location: "/ingest?jobs_tab=running#jobs" } });
 }
 export function regenerateBulk(library: LibraryStorage, form: FormData): Response {
   const themes = formText(form, "scope", "parsing").trim().toLowerCase() === "themes", template = formText(form, "template_id").trim() || "default";
@@ -78,7 +78,7 @@ export function regenerateBulk(library: LibraryStorage, form: FormData): Respons
     if (themes ? effectiveThemeId(meta) !== template : rule !== template || meta.source_type === "epub") continue;
     if (enqueueJob({ book_id: meta.book_id, rule_template: themes && meta.source_type === "epub" ? meta.rule_template : rule, action: themes && meta.source_type === "epub" ? "edit-writeback" : "regenerate" }, library).queued) count++;
   }
-  const location = count ? "/jobs?tab=running" : `/rules?tab=${themes ? "themes" : "parsing"}&${themes ? "theme_id" : "rule_id"}=${encodeURIComponent(template)}&error=${encodeURIComponent("没有匹配的书籍可批量处理")}`;
+  const location = count ? "/ingest?jobs_tab=running#jobs" : `/rules?tab=${themes ? "themes" : "parsing"}&${themes ? "theme_id" : "rule_id"}=${encodeURIComponent(template)}&error=${encodeURIComponent("没有匹配的书籍可批量处理")}`;
   return new Response(null, { status: 303, headers: { Location: location } });
 }
 export function cleanupInvalid(library: LibraryStorage, tab: string): Response {
@@ -86,5 +86,5 @@ export function cleanupInvalid(library: LibraryStorage, tab: string): Response {
   const ids = invalidJobIds(library.db.listJobs(), index);
   library.db.deleteJobs(ids);
   for (const id of ids) if (/^[a-f0-9]{32}$/.test(id)) rmSync(queueDirectory(library, id), { recursive: true, force: true });
-  return new Response(null, { status: 303, headers: { Location: `/jobs?tab=${selectedTab(tab)}` } });
+  return new Response(null, { status: 303, headers: { Location: `/ingest?jobs_tab=${selectedTab(tab)}#jobs` } });
 }

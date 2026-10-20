@@ -6,7 +6,8 @@ import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } 
 import { join, relative } from "node:path";
 import { readArchive } from "../src/core/archive";
 import { metadataFromDict } from "../src/core/models";
-import { archiveBooks, deleteArchivedBooks, downloadBooks, restoreArchivedBooks } from "../src/server/library/actions";
+import { archiveBooks, downloadBooks, restoreArchivedBooks } from "../src/server/library/actions";
+import { deletePost } from "../src/server/library/handlers";
 import { libraryPage } from "../src/server/library/queries";
 import { normalizeSearch } from "../src/features/library/search";
 import { createBook, temporaryLibrary } from "./fixtures/library/support";
@@ -49,7 +50,7 @@ describe("actual Python library parity", () => {
     const queries = [normalizeSearch({}), normalizeSearch({ page: 2 }), normalizeSearch({ per_page: 20, page: 99 }), normalizeSearch({ sort: " CREATED ", q: "alpha", read_filter: " UNREAD " }), normalizeSearch({ q: "missing", page: 8 }), normalizeSearch({ sort: "unknown", per_page: 0, page: -2, read_filter: "unknown" })];
     const expected = await python("pages", queries);
     const actual = queries.map(query => {
-      const { return_to: _return, sort: _sort, q: _q, ...page } = libraryPage(library, query);
+      const { scope: _scope, return_to: _return, sort: _sort, q: _q, ...page } = libraryPage(library, query);
       return { ...page, books: page.books.map(({ book_id, title, author, read, rating, status_label, status_class }) => ({ book_id, title, author, read, rating, status_label, status_class })) };
     });
     expect(actual).toEqual(expected);
@@ -64,7 +65,11 @@ describe("actual Python library parity", () => {
     const response = downloadBooks([a, b, c, a, "bad-id"], library);
     const actual: Record<string, unknown> = { empty: [400, "未选择书籍"], missing: [404, "未找到可下载的 EPUB"], bundle: readArchive(new Uint8Array(await response.arrayBuffer())).map(entry => [entry.name, members(entry.data)]), downloaded: snapshot() };
     archiveBooks([a, b, "bad-id", a], library); actual.archive_response = [303, "/"]; actual.archived = snapshot();
-    deleteArchivedBooks([a, c, "bad-id"], library); actual.delete_response = [303, "/archive"]; actual.deleted = snapshot();
+    const form = new FormData(); for (const id of [a, c, "bad-id"]) form.append("book_ids", id);
+    const deleted = await deletePost({ request: new Request("http://local/archive/delete-bulk", { method: "POST", body: form }), library, params: {} });
+    // 导航合并有意偏离 Python 的 /archive；文件和数据副作用仍严格比对。
+    expect([deleted.status, deleted.headers.get("Location")]).toEqual([303, "/?scope=archived"]);
+    delete expected.delete_response; actual.deleted = snapshot();
     restoreArchivedBooks([b], library); actual.restored = snapshot();
     expect(actual).toEqual(expected);
   });

@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "vite";
 import solid from "vite-plugin-solid";
 import { resolve } from "node:path";
-import { navigation, navActive } from "../src/shell/navigation";
+import { navigation, navActive, settings } from "../src/shell/navigation";
 import { flashFromUrl, toastMessage, withToast } from "../src/shared/notifications";
 import { installToastBridge } from "../src/client/toast";
 
@@ -71,18 +71,24 @@ describe("reusable UI SSR", () => {
 });
 
 describe("navigation and global flash messages", () => {
-  it("matches Python navigation order, book prefix and wishlist aliases", () => {
-    expect(navigation.map(n => n.label)).toEqual(["书库", "入库", "任务", "追踪", "规则", "归档", "Kindle", "安全"]);
+  it("uses four primary entries, separate settings, book prefix and wishlist/theme aliases", () => {
+    expect(navigation.map(n => n.label)).toEqual(["书库", "入库", "追踪", "设备"]);
     for (const path of ["/", "/book/abc", "/book/abc/preview", "/books/download"]) expect(navActive(path, "/")).toBe(true);
     for (const path of ["/tracker", "/wishlist", "/wishlist/export"]) expect(navActive(path, "/tracker")).toBe(true);
-    expect(navActive("/archive", "/")).toBe(false); expect(navActive("/rules/x/editor", "/rules")).toBe(true);
+    expect(navActive("/archive", "/")).toBe(false);
+    expect(settings.map(item => item.label)).toEqual(["规则与主题", "安全与通行密钥"]);
+    for (const path of ["/rules", "/rules/x/editor", "/themes/x/editor"]) expect(navActive(path, "/rules")).toBe(true);
+    for (const path of ["/kindle", "/kindle/connect", "/kindle/fonts"]) expect(navActive(path, "/kindle")).toBe(true);
+    expect(navActive("/security", "/security")).toBe(true); expect(navActive("/ingest", "/rules")).toBe(false);
   });
   it("normalizes toast kinds and consumes query flashes while preserving other state", () => {
     expect(toastMessage("  ")).toBeNull(); expect(toastMessage("完成", " WARN ")).toEqual({ message: "完成", kind: "success" });
     const url = withToast("/ingest?q=甲&q=乙#upload", "创建成功", "warning");
     expect(flashFromUrl(url)).toEqual({ toast: { message: "创建成功", kind: "warning" }, cleanUrl: "/ingest?q=%E7%94%B2&q=%E4%B9%99#upload" });
+    expect(flashFromUrl(withToast("/ingest?jobs_tab=running#jobs", "已创建 2 个任务")).toast?.message).toBe("已创建 2 个任务");
+    expect(flashFromUrl(withToast("/ingest?jobs_tab=running#jobs", "已创建 2 个任务")).cleanUrl).toBe("/ingest?jobs_tab=running#jobs");
     expect(withToast("//evil.test", "完成")).toMatch(/^\/\?toast=/);
-    expect(flashFromUrl("/jobs?toast_kind=error").toast).toBeNull();
+    expect(flashFromUrl("/ingest?toast_kind=error").toast).toBeNull();
   });
   it("accepts direct and HTMX-enveloped events and cleans up listeners", () => {
     const body = new EventTarget(), receive = vi.fn();

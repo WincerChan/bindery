@@ -42,9 +42,21 @@ try {
   const empty = await post("/books/download", new URLSearchParams()); assert.equal(empty.status, 400); assert.deepEqual(await empty.json(), { detail: "未选择书籍" });
   const archived = await post("/books/archive", new URLSearchParams([["book_ids", a], ["book_ids", "bad-id"], ["next", "//evil.invalid"]]));
   assert.equal(archived.status, 303); assert.equal(archived.headers.get("location"), "/"); assert.equal(db.prepare("SELECT archived FROM books WHERE book_id = ?").get(a).archived, 1);
-  const archive = await get("/archive"); assert.equal(archive.status, 200); const archiveHtml = await archive.text(); assert.match(archiveHtml, /data-archive-select/); assert.match(archiveHtml, /批量恢复/);
+  const legacyArchive = await get("/archive"); assert.equal(legacyArchive.status, 303); assert.equal(legacyArchive.headers.get("location"), "/?scope=archived");
+  const archive = await get("/?scope=archived"); assert.equal(archive.status, 200); const archiveHtml = await archive.text(); assert.match(archiveHtml, /data-book-select/); assert.match(archiveHtml, /批量恢复/); assert.doesNotMatch(archiveHtml, /data-read-filter-toggle|data-book-detail-link|\/books\/download/);
   const deleted = await post("/archive/delete-bulk", new URLSearchParams([["book_ids", a], ["book_ids", b]]));
-  assert.equal(deleted.status, 303); assert.equal(deleted.headers.get("location"), "/archive"); assert.equal(db.prepare("SELECT COUNT(*) AS n FROM books WHERE book_id = ?").get(a).n, 0); assert.equal(db.prepare("SELECT archived FROM books WHERE book_id = ?").get(b).archived, 0);
+  assert.equal(deleted.status, 303); assert.equal(deleted.headers.get("location"), "/?scope=archived"); assert.equal(db.prepare("SELECT COUNT(*) AS n FROM books WHERE book_id = ?").get(a).n, 0); assert.equal(db.prepare("SELECT archived FROM books WHERE book_id = ?").get(b).archived, 0);
+  for (const [next, expected] of [["/?scope=archived&q=Alpha&page=2#books", "/?scope=archived&q=Alpha&page=2"], ["https://evil.invalid/", "/?scope=archived"], ["//evil.invalid/", "/?scope=archived"], ["", "/?scope=archived"]]) {
+    const id = "c".repeat(32);
+    db.prepare("INSERT INTO books(book_id,title,archived) VALUES (?, '跳转测试', 1)").run(id);
+    await mkdir(join(process.env.BINDERY_LIBRARY_DIR, "archive", id), { recursive: true });
+    await writeFile(join(process.env.BINDERY_LIBRARY_DIR, "archive", id, "book.epub"), zipSync({ mimetype: strToU8("application/epub+zip") }));
+    const restored = await post(`/book/${id}/restore`, new URLSearchParams({ next }));
+    assert.equal(restored.status, 303); assert.equal(restored.headers.get("location"), expected);
+    await post(`/book/${id}/archive`, new URLSearchParams());
+    const removed = await post(`/book/${id}/delete`, new URLSearchParams({ next }));
+    assert.equal(removed.status, 303); assert.equal(removed.headers.get("location"), expected);
+  }
   const serverDir = new URL("../../../dist/server/", import.meta.url);
   const manifest = (await Promise.all((await readdir(serverDir)).filter(name => name.includes("server-fn-resolver")).map(name => readFile(new URL(name, serverDir), "utf8")))).join("\n");
   const id = /"([a-f0-9]{64})":\s*\{\s*functionName: "loadLibrary_createServerFn_handler"/.exec(manifest)?.[1]; assert.ok(id, "library RPC manifest");

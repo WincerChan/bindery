@@ -3,14 +3,14 @@ import type { JSX } from "@solidjs/web";
 import { Button } from "./controls";
 import { showToast } from "../client/toast";
 
-export function Dialog(props: { open: boolean; title: string; children: JSX.Element; onClose: () => void; class?: string; closeLabel?: string; id?: string }) {
+export function Dialog(props: { open: boolean; title: string; children: JSX.Element; onClose: () => void; class?: string; closeLabel?: string; id?: string; variant?: "sheet" }) {
   let element!: HTMLDialogElement;
   const titleId = createUniqueId();
   createEffect(() => props.open, open => {
     if (open && !element.open) element.showModal();
     else if (!open && element.open) element.close();
   });
-  return <dialog ref={element} id={props.id} class={`dialog ${props.class || ""}`} aria-labelledby={titleId}
+  return <dialog ref={element} id={props.id} class={`dialog ${props.variant === "sheet" ? "dialog-sheet" : ""} ${props.class || ""}`} aria-labelledby={titleId} data-state={props.open ? "open" : "closed"}
     onCancel={event => { event.preventDefault(); props.onClose(); }}
     onClose={() => { if (props.open) props.onClose(); }}
     onClick={event => { if (event.target === element) { const box = element.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) props.onClose(); } }}>

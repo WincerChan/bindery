@@ -71,7 +71,7 @@ const css = (node: Element, tag: string, className: string) => elements(node, ta
 const ids = (node: Element) => elements(node, "article", "data-book-card").map(el => el.getAttribute("data-book-id"));
 const book = (id: string): BookView => ({ ...metadataFromDict({ book_id: id, title: id, updated_at: "2026-10-19", created_at: "2026-10-18" }), status_class: "ok", status_label: "完成", effective_theme_template: "default", can_regenerate: true, path: "", cover_url: null });
 function library(names: string[]): Cases["library"] {
-  return { books: names.map(book), total_books: names.length, page: 1, per_page: 24, total_pages: 1, sort: "updated", q: "", read_filter: "all", has_prev: false, has_next: false, prev_page: 1, next_page: 1, return_to: "/" };
+  return { scope: "active", books: names.map(book), total_books: names.length, page: 1, per_page: 24, total_pages: 1, sort: "updated", q: "", read_filter: "all", has_prev: false, has_next: false, prev_page: 1, next_page: 1, return_to: "/" };
 }
 function tracker(names: string[]): Cases["tracker"] {
   return {
@@ -125,11 +125,171 @@ it.each(["/", "/rules"])("updates actual router loader data after hydrating %s",
 it("updates archive rows after a restore refresh, including the final empty state", () => {
   const mounted = mount("archive", [book("甲"), book("乙")]);
   mounted.update([book("乙")]);
-  expect(css(mounted.root, "article", "library-archive-row").map(el => elements(el, "h2")[0]!.textContent)).toEqual(["乙"]);
-  mounted.update([]); expect(css(mounted.root, "article", "library-archive-row")).toHaveLength(0);
+  expect(css(mounted.root, "article", "is-archived").map(el => elements(el, "h2")[0]!.textContent)).toEqual(["乙"]);
+  mounted.update([]); expect(css(mounted.root, "article", "is-archived")).toHaveLength(0);
   expect(elements(mounted.root, "button", "data-archive-select-all")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("归档为空");
-  mounted.update([book("甲")]); expect(css(mounted.root, "article", "library-archive-row")).toHaveLength(1);
+  mounted.update([book("甲")]); expect(css(mounted.root, "article", "is-archived")).toHaveLength(1);
+});
+
+it("requires confirmation for single/bulk archive deletion and refreshes after bulk restore", async () => {
+  Object.defineProperty(document, "body", { configurable: true, value: new EventTarget() });
+  const restore = vi.fn().mockResolvedValue(undefined), refresh = vi.fn().mockResolvedValue(undefined);
+  const data: Cases["library"] = { ...library(["甲", "乙"]), scope: "archived", books: [book("甲"), book("乙")].map(value => ({ ...value, archived: true })), return_to: "/?scope=archived&page=2" };
+  const mounted = mount("libraryActions", { data, restore, refresh, regenerate: vi.fn() }); await settle(); mounted.flush();
+  const buttons = () => elements(mounted.root, "button");
+  fire(buttons().find(el => el.hasAttribute("data-bulk-mode-toggle"))!, "click"); mounted.flush();
+  const selectAll = elements(mounted.root, "input", "data-bulk-select-all")[0] as HTMLInputElement; selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
+  expect(elements(mounted.root, "strong", "data-selected-count")[0]!.textContent).toBe("2");
+  for (const action of ["/book/甲/delete", "/archive/delete-bulk"]) {
+    const form = elements(mounted.root, "form").find(el => el.getAttribute("action") === action) as HTMLFormElement, submit = vi.fn(); form.submit = submit;
+    const prevented = vi.fn(); fire(form, "submit", { preventDefault: prevented }); mounted.flush();
+    const dialog = elements(mounted.root, "dialog").find(el => el.textContent?.includes("永久删除书籍")) as HTMLDialogElement;
+    expect(prevented).toHaveBeenCalledOnce(); expect(submit).not.toHaveBeenCalled(); expect(dialog.open).toBe(true);
+    const confirm = elements(dialog, "button").find(el => el.textContent === "彻底删除")!; expect(confirm.className).toContain("btn-danger");
+    fire(elements(dialog, "button").find(el => el.textContent === "取消")!, "click"); mounted.flush(); expect(dialog.open).toBe(false); expect(submit).not.toHaveBeenCalled();
+    fire(form, "submit"); mounted.flush(); fire(confirm, "click"); await settle(); mounted.flush(); expect(submit).toHaveBeenCalledOnce(); expect(dialog.open).toBe(false);
+  }
+  fire(buttons().find(el => el.textContent === "批量恢复")!, "click"); await settle(); mounted.flush();
+  expect(restore).toHaveBeenCalledExactlyOnceWith(["甲", "乙"]); expect(refresh).toHaveBeenCalledOnce();
+  expect(elements(mounted.root, "strong", "data-selected-count")[0]!.textContent).toBe("0");
+  mounted.update({ data: { ...data, scope: "active", books: data.books.map(value => ({ ...value, archived: false })) }, restore, refresh, regenerate: vi.fn() });
+  expect(elements(mounted.root, "div", "data-bulk-actions")[0]!.hasAttribute("hidden")).toBe(true);
+});
+
+it("polls only visible jobs, aborts stale requests and preserves the ingest form and previews", async () => {
+  vi.stubGlobal("window", {});
+  let tick!: () => Promise<void>;
+  const interval = vi.fn((callback: () => Promise<void>) => { tick = callback; return 42; }), clear = vi.fn();
+  vi.stubGlobal("setInterval", interval); vi.stubGlobal("clearInterval", clear);
+  vi.stubGlobal("FormData", class extends FormData { constructor() { super(); } });
+  const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [{ filename: "selected.txt", format: "TXT", title: "预览书名", author: "作者", volumes: 0, chapters: 1, toc: ["第一章"], output: "book.epub", duplicates: [], upload_token: "token" }] });
+  vi.stubGlobal("fetch", fetch);
+  const initial: Cases["ingest"] = { options: { rules: [], themes: [] }, jobs: jobs(["甲"]), jobsOpen: false };
+  const mounted = mount("ingest", initial); await settle(); mounted.flush();
+  expect(interval).not.toHaveBeenCalled();
+  const trigger = () => elements(mounted.root, "button").find(el => el.getAttribute("aria-controls") === "jobs")!;
+  expect(trigger().textContent).toBe("最近任务 · 1");
+  mounted.update({ ...initial, jobsOpen: true });
+  expect(interval).toHaveBeenCalledWith(expect.any(Function), 5000);
+  const form = elements(mounted.root, "form").find(el => el.getAttribute("action") === "/ingest")!, picker = elements(form, "input").find(el => el.getAttribute("type") === "file") as HTMLInputElement;
+  const files = [new File(["正文"], "selected.txt")]; Object.defineProperty(picker, "files", { value: files });
+  fire(picker, "change"); await settle(); mounted.flush();
+  const cssInput = elements(form, "textarea")[0] as HTMLTextAreaElement;
+  cssInput.value = "p { color: red; }"; fire(cssInput, "input"); mounted.flush();
+  expect(mounted.root.textContent).toContain("预览书名");
+  fetch.mockResolvedValue({ ok: true, json: async () => jobs(["新任务"], "failed") });
+  await tick(); mounted.flush(); expect(mounted.root.textContent).toContain("新任务"); expect(trigger().textContent).toBe("最近任务");
+  expect(elements(mounted.root, "form").find(el => el.getAttribute("action") === "/ingest")).toBe(form); expect(picker.files).toBe(files);
+  expect(cssInput.value).toBe("p { color: red; }"); expect(mounted.root.textContent).toContain("预览书名");
+  let resolve!: (value: unknown) => void;
+  fetch.mockImplementation(() => new Promise(done => { resolve = done; }));
+  const pending = tick(), signal = fetch.mock.lastCall![1].signal as AbortSignal;
+  const next = { ...jobs(["当前分组"], "success"), page: 2 };
+  mounted.update({ ...initial, jobs: next, jobsOpen: true }); expect(signal.aborted).toBe(true);
+  resolve({ ok: true, json: async () => jobs(["过期任务"], "failed") }); await pending; mounted.flush();
+  expect(mounted.root.textContent).toContain("当前分组"); expect(mounted.root.textContent).not.toContain("过期任务");
+  Object.defineProperty(document, "hidden", { configurable: true, value: true });
+  const count = fetch.mock.calls.length; await tick(); expect(fetch).toHaveBeenCalledTimes(count);
+  Object.defineProperty(document, "hidden", { configurable: true, value: false });
+  const last = tick(), lastSignal = fetch.mock.lastCall![1].signal as AbortSignal;
+  expect(fetch.mock.lastCall![0]).toBe("/jobs/partial?tab=success&page=2");
+  mounted.update({ ...initial, jobs: next, jobsOpen: false }); expect(lastSignal.aborted).toBe(true); expect(clear).toHaveBeenCalledWith(42);
+  resolve({ ok: true, json: async () => next }); await last;
+  expect(picker.files).toBe(files); expect(cssInput.value).toBe("p { color: red; }"); expect(mounted.root.textContent).toContain("预览书名");
+  const starts = interval.mock.calls.length;
+  mounted.update({ ...initial, jobs: next, jobsOpen: true }); expect(interval).toHaveBeenCalledTimes(starts + 1);
+  const unmounting = tick(), unmountSignal = fetch.mock.lastCall![1].signal as AbortSignal;
+  mounted.dispose(); expect(unmountSignal.aborted).toBe(true); expect(clear).toHaveBeenCalledTimes(interval.mock.calls.length);
+  resolve({ ok: true, json: async () => next }); await unmounting;
+});
+
+it.each([
+  ["/ingest", false], ["/ingest?jobs_tab=failed&jobs_page=2", true], ["/ingest#jobs", true], ["/ingest?jobs_page=2", false],
+])("renders the URL-driven jobs sheet state for %s", async (entry, open) => {
+  const initial: Cases["ingest"] = { options: { rules: [], themes: [] }, jobs: jobs(["甲", "乙"]) };
+  const node = root(await ssr.routedIngestMarkup(initial, entry));
+  const trigger = elements(node, "button").find(el => el.getAttribute("aria-controls") === "jobs")!;
+  const sheet = elements(node, "dialog").find(el => el.id === "jobs")!;
+  expect(trigger.textContent).toBe("最近任务 · 2"); expect(trigger.getAttribute("aria-expanded")).toBe(String(open));
+  expect(sheet.getAttribute("data-state")).toBe(open ? "open" : "closed"); expect(sheet.className).toContain("dialog-sheet");
+  expect(elements(node, "section").some(el => el.id === "jobs")).toBe(false);
+});
+
+it.each(["/ingest?jobs_tab=failed&jobs_page=2", "/ingest#jobs"])("opens direct sheet links after hydration: %s", async entry => {
+  const initial: Cases["ingest"] = { options: { rules: [], themes: [] }, jobs: { ...jobs(["甲"]), tabs: [{ key: "all", label: "全部", count: 13 }, { key: "failed", label: "失败", count: 13 }], total_jobs: 13, total_pages: 2 } };
+  // A real HTTP request never sends its fragment; the browser must open #jobs during hydration.
+  const node = root(await ssr.routedIngestMarkup(initial, entry.split("#")[0]!));
+  const mounted = await ui.routedIngest(node, initial, entry, true); disposers.push(mounted.dispose); await settle(); mounted.flush();
+  const sheet = elements(node, "dialog").find(el => el.id === "jobs") as HTMLDialogElement;
+  expect(sheet.open).toBe(true); expect(sheet.getAttribute("data-state")).toBe("open"); expect(mounted.href()).toBe(entry);
+  const groups = elements(sheet, "nav").find(el => el.getAttribute("aria-label") === "任务分组")!;
+  const current = elements(groups, "a").find(el => el.getAttribute("aria-current") === "page")!;
+  if (entry.includes("failed")) expect(current.getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs");
+  else expect(elements(node, "button").find(el => el.getAttribute("aria-controls") === "jobs")!.getAttribute("aria-expanded")).toBe("true");
+});
+
+it.each([true, false])("uses replace navigation to open, filter, paginate and close the jobs sheet without resetting inputs (hydration=%s)", async hydrating => {
+  const initial: Cases["ingest"] = { options: { rules: [{ rule_id: "first", name: "规则一", version: "1" }, { rule_id: "second", name: "规则二", version: "1" }], themes: [] }, jobs: { ...jobs(["甲"]), tabs: [{ key: "all", label: "全部", count: 13 }, { key: "running", label: "进行中", count: 2 }, { key: "failed", label: "失败", count: 13 }], total_jobs: 13, total_pages: 2 } };
+  const entry = "/ingest?keep=1";
+  const node = root(hydrating ? await ssr.routedIngestMarkup(initial, entry) : undefined);
+  const mounted = await ui.routedIngest(node, initial, entry, hydrating); disposers.push(mounted.dispose); await settle(); mounted.flush();
+  const trigger = elements(node, "button").find(el => el.getAttribute("aria-controls") === "jobs")!;
+  const sheet = elements(node, "dialog").find(el => el.id === "jobs") as HTMLDialogElement;
+  const form = elements(node, "form").find(el => el.getAttribute("action") === "/ingest")!, cssInput = elements(form, "textarea")[0] as HTMLTextAreaElement;
+  const picker = elements(form, "input").find(el => el.getAttribute("type") === "file") as HTMLInputElement, files = [new File(["正文"], "selected.txt")];
+  const rule = elements(form, "select").find(el => el.getAttribute("name") === "rule_template") as HTMLSelectElement, option = elements(rule, "option")[1]!; rule.value = "second";
+  Object.defineProperty(picker, "files", { value: files }); cssInput.value = "h1 { color: blue; }"; fire(cssInput, "input"); mounted.flush();
+  expect(sheet.open).toBeFalsy(); fire(trigger, "click"); await settle(); mounted.flush();
+  expect(sheet.open).toBe(true); expect(mounted.href()).toBe("/ingest?keep=1&jobs_tab=all#jobs");
+  const clickJobLink = (anchor: Element) => {
+    // The lightweight DOM has no bubbling/closest; deliver the real delegated handler its anchor target.
+    anchor.closest = vi.fn().mockReturnValue(anchor);
+    fire(elements(sheet, "div").find(el => el.id === "jobs-section")!.parentNode as Element, "click", { target: anchor, button: 0 });
+  };
+  const failed = elements(sheet, "a").find(el => el.textContent === "失败 · 13")!;
+  expect(failed.getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs"); clickJobLink(failed); await settle(); mounted.flush();
+  expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs");
+  const next = elements(sheet, "a").find(el => el.textContent === "下一页")!;
+  expect(next.getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs"); clickJobLink(next); await settle(); mounted.flush();
+  expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs");
+  fire(elements(sheet, "button").find(el => el.getAttribute("aria-label") === "关闭最近任务")!, "click"); await settle(); mounted.flush();
+  expect(mounted.href()).toBe("/ingest"); expect(sheet.open).toBe(false); expect(trigger.getAttribute("aria-expanded")).toBe("false"); expect(mounted.historyLength()).toBe(1);
+  expect(elements(node, "form").find(el => el.getAttribute("action") === "/ingest")).toBe(form); expect(picker.files).toBe(files); expect(cssInput.value).toBe("h1 { color: blue; }"); expect(rule.value).toBe("second"); expect(elements(rule, "option")[1]).toBe(option);
+  fire(trigger, "click"); await settle(); mounted.flush(); fire(sheet, "cancel"); await settle(); mounted.flush();
+  expect(mounted.href()).toBe("/ingest"); expect(sheet.open).toBe(false);
+  fire(trigger, "click"); await settle(); mounted.flush();
+  sheet.getBoundingClientRect = vi.fn().mockReturnValue({ left: 100, right: 560, top: 0, bottom: 900 });
+  fire(sheet, "click", { clientX: 0, clientY: 20 }); await settle(); mounted.flush(); expect(mounted.href()).toBe("/ingest"); expect(sheet.open).toBe(false);
+});
+
+it("renders only four mobile tabs and all three desktop settings menu entries", async () => {
+  const node = root(await ssr.routedMarkup(library([]), "/rules"));
+  const dock = css(node, "nav", "tab-bar")[0]!, menu = css(node, "div", "settings-dropdown")[0]!;
+  expect(elements(dock, "a").map(el => el.textContent)).toEqual(["书库", "入库", "追踪"]);
+  expect(elements(dock, "button").map(el => el.textContent)).toEqual(["设置"]);
+  expect(elements(dock, "a").some(el => el.getAttribute("href") === "/kindle")).toBe(false);
+  expect(elements(menu, "a").map(el => el.textContent)).toEqual(["规则与主题", "安全与通行密钥"]);
+  expect(elements(menu, "form")[0]!.getAttribute("action")).toBe("/logout"); expect(elements(menu, "button")[0]!.textContent).toBe("退出登录");
+  expect(css(node, "dialog", "more-sheet")[0]!.textContent).not.toContain("设备");
+  expect(css(node, "button", "settings-toggle")[0]!.className).toContain("active");
+});
+
+it("closes the desktop settings menu on outside click, Escape, selection and route changes", async () => {
+  const events = new EventTarget();
+  document.addEventListener = events.addEventListener.bind(events); document.removeEventListener = vi.fn(events.removeEventListener.bind(events));
+  const node = root(), mounted = await ui.routedLibrary(node, library([]), "/rules"); disposers.push(mounted.dispose); await settle();
+  const gear = css(node, "button", "settings-toggle")[0] as HTMLButtonElement, focus = vi.fn(); gear.focus = focus;
+  const expanded = () => gear.getAttribute("aria-expanded");
+  fire(gear, "click"); mounted.flush(); expect(expanded()).toBe("true");
+  const escape = new Event("keydown", { cancelable: true }); Object.defineProperty(escape, "key", { value: "Escape" }); events.dispatchEvent(escape); mounted.flush();
+  expect(expanded()).toBe("false"); expect(focus).toHaveBeenCalledOnce(); expect(document.removeEventListener).toHaveBeenCalledTimes(2);
+  fire(gear, "click"); mounted.flush(); events.dispatchEvent(new Event("pointerdown")); mounted.flush(); expect(expanded()).toBe("false");
+  fire(gear, "click"); mounted.flush(); fire(elements(css(node, "div", "settings-dropdown")[0]!, "a")[0]!, "click"); mounted.flush(); expect(expanded()).toBe("false");
+  fire(gear, "click"); mounted.flush(); await mounted.update(library([])); expect(expanded()).toBe("false");
+  const mobile = elements(css(node, "nav", "tab-bar")[0]!, "button")[0]!;
+  fire(mobile, "click"); mounted.flush(); expect(mobile.getAttribute("aria-expanded")).toBe("true");
+  fire(elements(css(node, "dialog", "more-sheet")[0]!, "a")[0]!, "click"); mounted.flush(); expect(mobile.getAttribute("aria-expanded")).toBe("false");
 });
 
 it("updates tracker/wishlist filter rows and their empty state", () => {

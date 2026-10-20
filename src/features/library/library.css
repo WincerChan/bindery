@@ -10,6 +10,7 @@
 .library-collection { display: grid; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 28px 20px; }
 .library-collection > .empty-state { grid-column: 1 / -1; }
 .library-book { min-width: 0; position: relative; }
+.library-collection[data-view="grid"] .is-archived .library-book-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .library-cover { position: relative; }
 .library-cover-link { position: absolute; inset: 0; background: transparent; padding: 0; border-radius: 0; }
 .library-hover-read { position: absolute; bottom: 0; inset-inline: 0; min-height: 40px; display: flex; justify-content: center; align-items: center; background: var(--color-ink); color: var(--color-bg); opacity: 0; pointer-events: none; text-decoration: none; }
@@ -34,23 +35,15 @@
 .library-collection[data-view="list"] .library-hover-read { display: none; }
 .library-collection[data-view="list"] .library-book-actions { display: flex; align-items: center; gap: 4px; }
 .library-collection[data-view="list"] .library-publisher, .library-collection[data-view="list"] .library-format, .library-collection[data-view="list"] .library-updated { display: block; color: var(--color-ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.library-collection[data-view="list"] .library-list-head, .library-archive-head { display: grid; grid-template-columns: minmax(0,1fr) 140px 48px 90px 182px; gap: 16px; padding: 12px 0 12px 88px; border-block: 1px solid var(--color-line); color: var(--color-ink-3); font-size: 12px; }
+.library-collection[data-view="list"] .library-list-head { display: grid; grid-template-columns: minmax(0,1fr) 140px 48px 90px 182px; gap: 16px; padding: 12px 0 12px 88px; border-block: 1px solid var(--color-line); color: var(--color-ink-3); font-size: 12px; }
 .library-collection[data-view="list"].is-selecting .library-list-head { padding-left: 128px; grid-template-columns: minmax(0,1fr) 140px 48px 90px; }
 .library-collection .is-selected { background: var(--color-line-soft); }
-.library-archive-row { display: grid; grid-template-columns: 24px 72px minmax(0,1fr) 140px 48px 90px 160px; gap: 16px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--color-line-soft); }
-.library-archive-head { padding-left: 128px; grid-template-columns: minmax(0,1fr) 140px 48px 90px 160px; }
-.library-archive-row .library-publisher, .library-archive-row .library-format, .library-archive-row .library-updated { display: block; font-size: 12px; color: var(--color-ink-3); }
-.library-archive-row .library-title { margin: 0; }
-.library-archive-row.is-selected { background: var(--color-line-soft); }
-.library-archive-actions { display: flex; gap: 8px; }
 @media (min-width: 768px) and (max-width: 1050px) {
   .library-collection[data-view="list"] .library-book { grid-template-columns: 56px minmax(0,1fr) 48px 90px auto; }
   .library-collection[data-view="list"].is-selecting .library-book { grid-template-columns: 24px 56px minmax(0,1fr) 48px 90px; }
-  .library-collection[data-view="list"] .library-publisher, .library-list-head span:nth-child(2), .library-archive-head span:nth-child(2), .library-archive-row .library-publisher { display: none; }
+  .library-collection[data-view="list"] .library-publisher, .library-list-head span:nth-child(2) { display: none; }
   .library-collection[data-view="list"] .library-list-head { grid-template-columns: minmax(0,1fr) 48px 90px 182px; padding-left: 72px; }
   .library-collection[data-view="list"].is-selecting .library-list-head { grid-template-columns: minmax(0,1fr) 48px 90px; padding-left: 112px; }
-  .library-archive-row { grid-template-columns: 24px 56px minmax(0,1fr) 48px 90px 160px; }
-  .library-archive-head { grid-template-columns: minmax(0,1fr) 48px 90px 160px; padding-left: 112px; }
 }
 @media (max-width: 767px) {
   .library-heading { margin-bottom: 20px; }
@@ -70,8 +63,6 @@
   .library-phone-meta { display: block; font-size: 11px; color: var(--color-ink-3); margin-top: 4px; }
   .library-collection .cover-gen-title, .library-collection .cover-gen-author { display: none; }
   .library-collection .cover-gen-char { display: block; }
-  .library-archive-head, .library-archive-row .library-publisher, .library-archive-row .library-format, .library-archive-row .library-updated { display: none; }
-  .library-archive-row { grid-template-columns: 24px 48px minmax(0,1fr); gap: 12px; }
-  .library-archive-actions { grid-column: 3; flex-wrap: wrap; }
+  .library-collection .is-archived .library-book-actions { flex-direction: column; gap: 4px; }
   .library-pager { margin-top: 16px; }
 }

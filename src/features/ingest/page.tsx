@@ -2,10 +2,13 @@ import { createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import { Button, Select, Textarea, TextField } from "../../ui";
 import { formatCss } from "./css-format";
 import { UploadPreviews } from "./preview";
-import type { ingestOptions } from "../../server/ingest/queries";
+import { RecentJobs } from "./jobs";
+import type { JobsPayload, ingestOptions } from "../../server/ingest/queries";
 import type { Preview } from "../../server/ingest/preview";
-export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; error?: string; custom_css?: string }) {
+export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; error?: string; custom_css?: string; jobs?: JobsPayload; jobsOpen?: boolean; openJobs?: () => unknown; closeJobs?: () => unknown; navigateJobs?: (href: string) => unknown }) {
   const [previews, setPreviews] = createSignal<Preview[]>([]), [busy, setBusy] = createSignal(false), [submitting, setSubmitting] = createSignal(false), [error, setError] = createSignal(untrack(() => props.error || "")), [feedback, setFeedback] = createSignal(""), [title, setTitle] = createSignal(""), [author, setAuthor] = createSignal(""), [theme, setTheme] = createSignal("default"), [css, setCss] = createSignal(untrack(() => props.custom_css || ""));
+  // Keep build-setting options stable while jobs navigation replaces loader data.
+  const options = untrack(() => props.options);
   let form!: HTMLFormElement, input!: HTMLInputElement, controller: AbortController | undefined;
   onCleanup(() => controller?.abort());
   async function preview() {
@@ -31,7 +34,9 @@ export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; e
     } catch (e) { setError(e instanceof Error ? e.message : "入库失败，请稍后重试。"); }
     finally { setSubmitting(false); }
   }
-  return <div class="ingest-page"><div class="page-head"><h1>入库</h1><p class="muted">TXT / EPUB</p></div>
+  return <div class="ingest-page"><div class="page-head"><div><h1>入库</h1><p class="muted">TXT / EPUB</p></div>
+      <Show when={props.jobs}>{jobs => <RecentJobs data={jobs()} open={!!props.jobsOpen} onOpen={() => props.openJobs?.()} onClose={() => props.closeJobs?.()} navigate={props.navigateJobs} />}</Show>
+    </div>
     <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
     <form ref={form} action="/ingest" method="post" enctype="multipart/form-data" onSubmit={submit}>
       <input type="hidden" name="dedupe_mode" value={previews().some(p => p.duplicates.length) ? "normalize" : "keep"} />
@@ -45,8 +50,8 @@ export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; e
       <Show when={feedback()}><p role="status">{feedback()}</p></Show>
       <Show when={previews().length === 1 && previews()[0]?.format === "TXT"}><div class="ingest-fields"><TextField name="title" label="书名（TXT 可选覆盖）" value={title()} onInput={e => setTitle(e.currentTarget.value)} /><TextField name="author" label="作者（TXT 可选覆盖）" value={author()} onInput={e => setAuthor(e.currentTarget.value)} /></div></Show>
       <section><h2>构建设置</h2><p class="muted">默认继承全局主题，可为本书追加 CSS（会写回到 EPUB）。</p><div class="ingest-fields">
-        <Select name="rule_template" label="切章规则（仅 TXT）" hint="用于 TXT 切章；EPUB 入库会忽略。"><For each={props.options.rules}>{rule => <option value={rule.rule_id}>{rule.name} · v{rule.version}</option>}</For></Select>
-        <Select name="theme_template" label="渲染主题" value={theme()} onChange={e => setTheme(e.currentTarget.value)} hint="主题 CSS 会作为最后一层追加；本书 CSS 优先生效。"><For each={props.options.themes}>{theme => <option value={theme.theme_id}>{theme.name} · v{theme.version}</option>}</For><option value="__book__">保持书籍样式（仅 EPUB）</option></Select>
+        <Select name="rule_template" label="切章规则（仅 TXT）" hint="用于 TXT 切章；EPUB 入库会忽略。"><For each={options.rules}>{rule => <option value={rule.rule_id}>{rule.name} · v{rule.version}</option>}</For></Select>
+        <Select name="theme_template" label="渲染主题" value={theme()} onChange={e => setTheme(e.currentTarget.value)} hint="主题 CSS 会作为最后一层追加；本书 CSS 优先生效。"><For each={options.themes}>{theme => <option value={theme.theme_id}>{theme.name} · v{theme.version}</option>}</For><option value="__book__">保持书籍样式（仅 EPUB）</option></Select>
       </div><details><summary>高级：针对本批导入书籍追加 CSS</summary><Button variant="quiet" size="sm" onClick={() => setCss(formatCss(css()))}>格式化</Button><Textarea name="custom_css" label="本书 CSS" rows={8} value={css()} onInput={event => setCss(event.currentTarget.value)} hint="这段 CSS 会追加在主题之后，优先生效。" /></details></section>
       <div class="ingest-actions"><Button variant="secondary" onClick={() => void preview()} disabled={busy() || submitting()}>{busy() ? "解析中..." : "预览解析"}</Button><Button type="submit" disabled={busy() || submitting()}>{submitting() ? "入库中..." : "开始入库"}</Button></div>
       <p role="status" aria-live="polite">{busy() ? "正在解析文件，请稍候..." : submitting() ? "正在提交入库任务，请稍候..." : ""}</p>

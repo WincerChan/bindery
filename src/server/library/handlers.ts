@@ -7,7 +7,7 @@ export async function archivePost({ request, library }: ApiContext<unknown>) {
 }
 export async function deletePost({ request, library }: ApiContext<unknown>) {
   deleteArchivedBooks(await formBookIds(request), library);
-  return new Response(null, { status: 303, headers: { Location: "/archive" } });
+  return new Response(null, { status: 303, headers: { Location: "/?scope=archived" } });
 }
 export async function downloadPost({ request, library }: ApiContext<unknown>) {
   return downloadBooks(await formBookIds(request), library);

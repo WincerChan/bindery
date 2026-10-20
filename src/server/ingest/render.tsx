@@ -7,4 +7,4 @@ import type { JobsPayload } from "./queries";
 import { ingestOptions } from "./queries";
 export const renderPreviews = (previews: Preview[]) => renderToString(() => <UploadPreviews previews={previews} />);
 export const renderJobs = (data: JobsPayload) => renderToString(() => <JobsSection data={data} />);
-export const renderIngestError = (error: { error: string; custom_css: string }) => renderToString(() => <IngestPage options={ingestOptions()} {...error} />);
+export const renderIngestError = (error: { error: string; custom_css: string }, jobs: JobsPayload) => renderToString(() => <IngestPage options={ingestOptions()} jobs={jobs} {...error} />);
