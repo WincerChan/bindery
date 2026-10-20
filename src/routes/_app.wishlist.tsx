@@ -6,7 +6,7 @@ import { TrackerPage } from "../features/catalog/tracker";
 import "../features/catalog/catalog.css";
 
 const loadTracker = createServerFn({ method: "GET" }).middleware([authenticated])
-  .inputValidator((input: Record<string, string>) => input)
+  .validator((input: Record<string, string>) => input)
   .handler(async ({ context, data }) => (await import("../server/catalog/tracker")).trackerPage(context.library, data));
 export const Route = createFileRoute("/_app/wishlist")({
   validateSearch: (search: Record<string, unknown>) => Object.fromEntries(Object.entries(search).map(([key, value]) => [key, String(value ?? "")])),

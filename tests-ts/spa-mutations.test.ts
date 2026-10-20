@@ -15,7 +15,7 @@ vi.mock("@tanstack/solid-start", () => ({
   createServerFn: () => ({
     middlewares: [] as unknown[],
     middleware(middlewares: unknown[]) { this.middlewares = middlewares; return this; },
-    inputValidator(validator: (data: unknown) => unknown) { return { handler: (handler: unknown) => ({ middlewares: this.middlewares, validator, handler }) }; },
+    validator(validator: (data: unknown) => unknown) { return { handler: (handler: unknown) => ({ middlewares: this.middlewares, validator, handler }) }; },
   }),
 }));
 import { startInstance } from "../src/start";

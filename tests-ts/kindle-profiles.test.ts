@@ -20,16 +20,16 @@ vi.mock("@tanstack/solid-router", async () => {
 vi.mock("@tanstack/solid-start", () => ({
   createMiddleware: () => ({ server: (handler: unknown) => ({ options: { server: handler } }) }),
   createServerFn: (options: unknown) => {
-    const result = { options, middlewares: [] as unknown[], validator: (v: unknown) => v, middleware(values: unknown[]) { this.middlewares = values; return this; }, inputValidator(validator: (value: unknown) => unknown) { this.validator = validator; return this; }, handler(handler: unknown) { return { ...this, execute: handler }; } };
+    const result = { options, middlewares: [] as unknown[], validate: (v: unknown) => v, middleware(values: unknown[]) { this.middlewares = values; return this; }, validator(validator: (value: unknown) => unknown) { this.validate = validator; return this; }, handler(handler: unknown) { return { ...this, execute: handler }; } };
     return result;
   },
 }));
 import { listKindleProfiles, createKindleProfile, updateKindleProfile, deleteKindleProfile } from "../src/server/kindle/functions";
-interface TestFunction { middlewares: Array<{ options: { server: (input: { next: (value: { context: { library: LibraryStorage } }) => unknown }) => Promise<unknown> } }>; validator: (value: unknown) => unknown; execute: (input: { context: { library: LibraryStorage }; data: unknown }) => Promise<unknown> }
+interface TestFunction { middlewares: Array<{ options: { server: (input: { next: (value: { context: { library: LibraryStorage } }) => unknown }) => Promise<unknown> } }>; validate: (value: unknown) => unknown; execute: (input: { context: { library: LibraryStorage }; data: unknown }) => Promise<unknown> }
 async function invoke(fn: unknown, input: unknown) {
   const rpc = fn as TestFunction;
   expect(rpc.middlewares).toHaveLength(1);
-  return rpc.middlewares[0].options.server({ next: ({ context }) => rpc.execute({ context, data: rpc.validator(input) }) });
+  return rpc.middlewares[0].options.server({ next: ({ context }) => rpc.execute({ context, data: rpc.validate(input) }) });
 }
 const root = mkdtempSync(join(tmpdir(), "bindery-kindle-profiles-")); let sequence = 0;
 beforeEach(() => { const path = join(root, String(sequence++)); scope.library = new LibraryStorage(join(path, "library"), new BinderyDatabase(join(path, "data.db"))); scope.library.ensure(); scope.request = new Request("http://localhost/kindle"); });

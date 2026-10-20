@@ -10,7 +10,7 @@ import { Link } from "../shared/spa-link";
 import "../features/catalog/catalog.css";
 
 const loadEditor = createServerFn({ method: "GET" }).middleware([authenticated])
-  .inputValidator((input: string) => input)
+  .validator((input: string) => input)
   .handler(async ({ data }) => {
     const catalog = await import("../server/catalog/templates");
     return catalog.ruleEditor(data);

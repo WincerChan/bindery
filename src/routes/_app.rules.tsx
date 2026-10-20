@@ -5,7 +5,7 @@ import { RulesPage } from "../features/catalog/rules";
 import "../features/catalog/catalog.css";
 
 const loadCatalog = createServerFn({ method: "GET" }).middleware([authenticated])
-  .inputValidator((input: Record<string, string>) => input)
+  .validator((input: Record<string, string>) => input)
   .handler(async ({ data }) => (await import("../server/catalog/templates")).catalogPage(data));
 export const Route = createFileRoute("/_app/rules")({
   validateSearch: (search: Record<string, unknown>) => Object.fromEntries(Object.entries(search).map(([key, value]) => [key, String(value ?? "")])),

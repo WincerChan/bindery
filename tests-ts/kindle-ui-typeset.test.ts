@@ -116,7 +116,7 @@ beforeAll(async () => {
         `;
         if (id === "\0kindle-ui-auth") return "export const authenticated = {}";
         if (id === "\0kindle-ui-preview") return "export const previewData = () => { throw Error('unexpected preview RPC') }; export const previewChapters = previewData;";
-        if (id === "\0kindle-ui-start") return "export function createServerFn() { const chain = { middleware: () => chain, inputValidator: () => chain, handler: () => () => { throw Error('unexpected server RPC') } }; return chain; }";
+        if (id === "\0kindle-ui-start") return "export function createServerFn() { const chain = { middleware: () => chain, validator: () => chain, handler: () => () => { throw Error('unexpected server RPC') } }; return chain; }";
       } },
       solid(solidOptions),
     ],

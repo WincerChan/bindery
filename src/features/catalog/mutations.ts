@@ -4,19 +4,19 @@ import { entityId, fieldsInput, templateId, templateKind } from "../../shared/mu
 
 // Global function middleware in src/start.ts authenticates and supplies library.
 export const saveTracker = createServerFn({ method: "POST" })
-  .inputValidator((data: { id?: string; fields: Record<string, string> }) => ({ id: data.id === undefined ? undefined : entityId(data.id), fields: fieldsInput(data.fields) }))
+  .validator((data: { id?: string; fields: Record<string, string> }) => ({ id: data.id === undefined ? undefined : entityId(data.id), fields: fieldsInput(data.fields) }))
   .handler(async ({ context, data }) => ({ target: (await import("../../server/catalog/tracker")).writeTracker(context.library, data.fields, data.id) }));
 export const deleteTracker = createServerFn({ method: "POST" }).middleware([authenticated])
-  .inputValidator((data: { id: string; next: string }) => ({ id: entityId(data.id), next: fieldsInput({ next: data.next }).next! }))
+  .validator((data: { id: string; next: string }) => ({ id: entityId(data.id), next: fieldsInput({ next: data.next }).next! }))
   .handler(async ({ context, data }) => ({ target: (await import("../../server/catalog/tracker")).removeTracker(context.library, data.id, data.next) }));
 export const checkTracker = createServerFn({ method: "GET" }).middleware([authenticated])
-  .inputValidator((data: { title: string; author: string }) => fieldsInput(data))
+  .validator((data: { title: string; author: string }) => fieldsInput(data))
   .handler(async ({ context, data }) => (await import("../../server/catalog/tracker")).duplicateCheck(context.library, data.title!, data.author!));
 export const createTemplate = createServerFn({ method: "POST" }).middleware([authenticated])
-  .inputValidator(templateKind)
+  .validator(templateKind)
   .handler(async ({ data }) => ({ target: (await import("../../server/catalog/templates")).newTemplate(data) }));
 export const removeTemplate = createServerFn({ method: "POST" }).middleware([authenticated])
-  .inputValidator((data: { kind: "rules" | "themes"; id: string }) => ({ kind: templateKind(data.kind), id: templateId(data.id) }))
+  .validator((data: { kind: "rules" | "themes"; id: string }) => ({ kind: templateKind(data.kind), id: templateId(data.id) }))
   .handler(async ({ context, data }) => {
     const target = (await import("../../server/catalog/templates")).deleteTemplate(data.kind, data.id, context.library);
     const error = new URL(target, "http://local").searchParams.get("error");
@@ -24,16 +24,16 @@ export const removeTemplate = createServerFn({ method: "POST" }).middleware([aut
     return { target };
   });
 export const saveTemplate = createServerFn({ method: "POST" }).middleware([authenticated])
-  .inputValidator((data: { kind: "rules" | "themes"; id: string; raw: string }) => ({ kind: templateKind(data.kind), id: templateId(data.id), raw: fieldsInput({ raw: data.raw }).raw! }))
+  .validator((data: { kind: "rules" | "themes"; id: string; raw: string }) => ({ kind: templateKind(data.kind), id: templateId(data.id), raw: fieldsInput({ raw: data.raw }).raw! }))
   .handler(async ({ data }) => {
     const service = await import("../../server/catalog/templates");
     return data.kind === "rules" ? service.saveRule(data.id, data.raw) : service.saveTheme(data.id, data.raw);
   });
 export const testTemplate = createServerFn({ method: "POST" }).middleware([authenticated])
-  .inputValidator((data: { id: string; sample: string }) => ({ id: templateId(data.id), sample: fieldsInput({ sample: data.sample }).sample! }))
+  .validator((data: { id: string; sample: string }) => ({ id: templateId(data.id), sample: fieldsInput({ sample: data.sample }).sample! }))
   .handler(async ({ data }) => (await import("../../server/catalog/templates")).testRule(data.sample, data.id));
 export const rebuildTemplate = createServerFn({ method: "POST" }).middleware([authenticated])
-  .inputValidator((data: { kind: "rules" | "themes"; id: string }) => ({ kind: templateKind(data.kind), id: templateId(data.id) }))
+  .validator((data: { kind: "rules" | "themes"; id: string }) => ({ kind: templateKind(data.kind), id: templateId(data.id) }))
   .handler(async ({ context, data }) => {
     // Keep the existing queue selection/capacity semantics without changing the
     // ingest task's files. Only a serializable outcome crosses the RPC boundary.

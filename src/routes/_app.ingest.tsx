@@ -5,7 +5,7 @@ import { jobsSearch } from "../features/ingest/search";
 import { authenticatedRoute, HttpError } from "../server/http";
 import { IngestScreen } from "../features/ingest/screen";
 import "../features/ingest/ingest.css";
-const loadIngest = createServerFn({ method: "GET" }).middleware([authenticated]).inputValidator(jobsSearch).handler(async ({ context, data }) => {
+const loadIngest = createServerFn({ method: "GET" }).middleware([authenticated]).validator(jobsSearch).handler(async ({ context, data }) => {
   if (data.invalid) throw new HttpError(422, "Input should be a valid integer");
   const { ingestOptions, jobsPayload } = await import("../server/ingest/queries");
   return { options: ingestOptions(), jobs: jobsPayload(context.library, data.tab, data.page) };

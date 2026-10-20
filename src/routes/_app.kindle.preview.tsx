@@ -7,9 +7,9 @@ import { authenticated } from "../server/functions";
 import { createKindleProfile, deleteKindleProfile, listKindleProfiles, updateKindleProfile } from "../server/kindle/functions";
 import "../features/kindle/typeset/typeset.css";
 
-const getPreview = createServerFn({ method: "GET" }).middleware([authenticated]).inputValidator((book: string) => typeof book === "string" ? book : "")
+const getPreview = createServerFn({ method: "GET" }).middleware([authenticated]).validator((book: string) => typeof book === "string" ? book : "")
   .handler(async ({ context, data }) => (await import("../features/kindle/typeset/preview.server")).previewData(context.library, data));
-const getChapters = createServerFn({ method: "GET" }).middleware([authenticated]).inputValidator((book: string) => typeof book === "string" ? book : "")
+const getChapters = createServerFn({ method: "GET" }).middleware([authenticated]).validator((book: string) => typeof book === "string" ? book : "")
   .handler(async ({ context, data }) => (await import("../features/kindle/typeset/preview.server")).previewChapters(context.library, data));
 const profileApi: ProfileApi = {
   list: deviceId => listKindleProfiles({ data: deviceId }),

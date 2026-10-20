@@ -10,7 +10,7 @@ import "../features/reader/reader.css";
 
 interface ReaderSearch { return_to?: string; resume?: number; page?: string; nav?: string; find?: string | number | boolean }
 const getReader = createServerFn({ method: "GET" }).middleware([authenticated])
-  .inputValidator((input: { bookId: string; section: string; returnTo: string }) => ({ bookId: typeof input?.bookId === "string" ? input.bookId : "", section: typeof input?.section === "string" ? input.section : "", returnTo: typeof input?.returnTo === "string" ? input.returnTo : "/" }))
+  .validator((input: { bookId: string; section: string; returnTo: string }) => ({ bookId: typeof input?.bookId === "string" ? input.bookId : "", section: typeof input?.section === "string" ? input.section : "", returnTo: typeof input?.returnTo === "string" ? input.returnTo : "/" }))
   .handler(async ({ data, context }) => (await import("../server/reader/service")).loadReader(data.bookId, data.section, data.returnTo, context.library));
 export const Route = createFileRoute("/_app/book/$book_id_/preview_/$section")({
   server: { handlers: { GET: async ({ request, params, next }) => {

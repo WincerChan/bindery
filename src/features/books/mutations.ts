@@ -3,12 +3,12 @@ import { authenticated } from "../../server/functions";
 import { bookFormInput } from "../../shared/mutation-input";
 import { safeInternalTarget } from "./navigation";
 
-export const saveBook = createServerFn({ method: "POST" }).middleware([authenticated]).inputValidator(bookFormInput)
+export const saveBook = createServerFn({ method: "POST" }).middleware([authenticated]).validator(bookFormInput)
   .handler(async ({ context, data }) => (await import("../../server/books/service")).saveBookEdit(String(data.get("book_id")), data, context.library));
-export const lookupBook = createServerFn({ method: "POST" }).middleware([authenticated]).inputValidator(bookFormInput)
+export const lookupBook = createServerFn({ method: "POST" }).middleware([authenticated]).validator(bookFormInput)
   .handler(async ({ context, data }) => (await import("../../server/books/service")).fetchBookMetadata(String(data.get("book_id")), data, context.library));
 export const mutateBook = createServerFn({ method: "POST" }).middleware([authenticated])
-  .inputValidator((data: FormData) => {
+  .validator((data: FormData) => {
     const form = bookFormInput(data);
     if (!["read", "archive", "delete", "regenerate", "url", "extract", "upload"].includes(String(form.get("action")))) throw new Error("操作类型错误");
     return form;

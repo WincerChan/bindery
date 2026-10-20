@@ -8,7 +8,7 @@ import { BookDetail } from "../features/books/book-detail";
 import "../features/books/books.css";
 const loadBook = createServerFn({ method: "GET" })
   .middleware([authenticated])
-  .inputValidator((data: { id: string; return_to?: string }) => data)
+  .validator((data: { id: string; return_to?: string }) => data)
   .handler(async ({ data, context }) => {
     const { loadBookPage } = await import("../server/books/service");
     return loadBookPage(data.id, data.return_to, context.library);
