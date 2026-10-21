@@ -14,7 +14,7 @@
   --color-ink-4: #9AA0A6;
   --color-track: #DCDFD8;
   --color-warning: #8A5A00;
-  --color-accent: #2449E8;
+  --color-accent: #64519F;
   --color-ok: #1F7A4D;
   --color-danger: #B42318;
   --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
@@ -76,7 +76,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled { opacity: .
 .site-header { border-bottom: 1px solid var(--color-line); }
 .header-row { min-height: 56px; display: flex; align-items: center; gap: 28px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--color-ink); text-decoration: none; }
-.brand-mark { width: 18px; height: 22px; border: 2px solid currentColor; border-left-width: 5px; }
+.brand-mark { display: block; width: 28px; height: 28px; flex: none; }
 .desktop-nav { display: flex; align-items: stretch; align-self: stretch; flex: 1; gap: 2px; }
 .settings-menu { position: relative; display: flex; align-items: stretch; margin-left: auto; }
 .settings-toggle { background: transparent; border: 0; border-radius: 0; cursor: pointer; }

@@ -39,6 +39,9 @@ pnpm start      # 运行 dist 生产构建，默认 0.0.0.0:3000
 - `src/client/`：浏览器端 boko WASM、KFX/KEPUB 转换、Kindle/Kobo 设备、PWA。
 - `bindery-templates/`：默认规则/主题种子，运行时复制到用户模板目录。
 
+Logo 源文件为 `public/logo.svg`：三瓣「汇聚」图形，采用鸢尾紫配色，透明底、原生贝塞尔曲线。favicon 使用深紫单色版；配色、深色背景版本和应用预览见 `docs/design/logo-converge/`。
+修改后执行 `node src/client/pwa/generate-icons.mjs`，同步生成 favicon 和 PWA 的普通 / maskable PNG 图标，无需额外依赖。
+
 ## 环境变量
 
 所有列出的变量都支持 `NAME_FILE` 形式（从文件读取，去掉末尾换行），例如 `BINDERY_PASSWORD_HASH_FILE`。

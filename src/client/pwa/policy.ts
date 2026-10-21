@@ -24,7 +24,7 @@ export function requestStrategy(request: PwaRequest, scope: string, precache: re
   if (url.search) return "network-only";
   // WASM imported via Vite's ?url can be emitted by a separate Worker build.
   if (isBuildAsset(path)
-    || precache.includes(path) && /^(?:manifest\.json|offline\.html|favicon\.svg|icons\/[\w.-]+\.png)$/.test(path)) return "cache-first";
+    || precache.includes(path) && /^(?:manifest\.json|offline\.html|favicon\.svg|logo\.svg|icons\/[\w.-]+\.png)$/.test(path)) return "cache-first";
   return "network-only";
 }
 

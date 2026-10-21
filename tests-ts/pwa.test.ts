@@ -1,6 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Connect, ViteDevServer } from "vite";
-import { readFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { canCacheResponse, cachePrefix, outdatedCaches, requestStrategy, type PwaRequest } from "../src/client/pwa/policy";
@@ -10,7 +13,7 @@ import { manifest } from "../src/client/pwa/manifest";
 const scope = "https://bindery.example/";
 const request = (path: string, init: RequestInit = {}): PwaRequest => new Request(new URL(path, scope), init);
 const navigate = (path: string): PwaRequest => ({ ...request(path), url: new URL(path, scope).href, method: "GET", mode: "navigate", headers: new Headers() });
-const precache = ["manifest.json", "offline.html", "favicon.svg", "icons/icon-192.png"];
+const precache = ["manifest.json", "offline.html", "favicon.svg", "logo.svg", "icons/icon-192.png"];
 
 describe("PWA cache privacy boundary", () => {
   it.each(["/", "/?q=私人书籍", "/login?next=/", "/book/a/preview/0", "/devices"])("uses the network with a public offline fallback for navigation %s", path => {
@@ -26,7 +29,7 @@ describe("PWA cache privacy boundary", () => {
   it.each(["/book/a/epub/OEBPS/a.html", "/book/a/cover", "/book/a/download", "/_serverFn/data/123", "/api/books"])("does not substitute HTML for navigated private resources %s", path => {
     expect(requestStrategy(navigate(path), scope, precache)).toBe("network-only");
   });
-  it.each(["/assets/app-Ab12cd34.js", "/assets/app-Ab12cd34.css", "/assets/kindle-worker-Ab12cd34.js", "/assets/boko_bg-Ab12cd34.wasm", "/assets/boko.wasm", "/assets/workers/boko.wasm", "/icons/icon-192.png", "/offline.html", "/manifest.json"])("uses cache-first for public static asset %s", path => {
+  it.each(["/assets/app-Ab12cd34.js", "/assets/app-Ab12cd34.css", "/assets/kindle-worker-Ab12cd34.js", "/assets/boko_bg-Ab12cd34.wasm", "/assets/boko.wasm", "/assets/workers/boko.wasm", "/icons/icon-192.png", "/offline.html", "/manifest.json", "/logo.svg"])("uses cache-first for public static asset %s", path => {
     expect(requestStrategy(request(path), scope, precache)).toBe("cache-first");
   });
   it.each([
@@ -78,6 +81,20 @@ describe("PWA build and cache generations", () => {
 });
 
 describe("install manifest and PNG icons", () => {
+  it("regenerates the favicon and PNGs from the curved SVG without stale exports", () => {
+    const root = mkdtempSync(join(tmpdir(), "bindery-logo-"));
+    try {
+      const script = "src/client/pwa/generate-icons.mjs";
+      mkdirSync(join(root, "src/client/pwa"), { recursive: true });
+      mkdirSync(join(root, "public"));
+      copyFileSync(script, join(root, script));
+      copyFileSync("public/logo.svg", join(root, "public/logo.svg"));
+      execFileSync(process.execPath, [join(root, script)], { timeout: 10000 });
+      for (const file of ["public/favicon.svg", ...manifest.icons.map(icon => "public" + icon.src)]) {
+        expect(readFileSync(join(root, file))).toEqual(readFileSync(file));
+      }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
   it("declares the root-scoped standalone Bindery app with design token colours", () => {
     expect(manifest).toMatchObject({ id: "/", name: "Bindery", short_name: "Bindery", start_url: "/", scope: "/", display: "standalone", lang: "zh-CN" });
     const styles = readFileSync("src/styles.css", "utf8");
@@ -98,14 +115,25 @@ describe("install manifest and PNG icons", () => {
       offset += length + 12;
     }
     const pixels = inflateSync(Buffer.concat(chunks));
-    let foreground = 0;
+    if (size === 192) {
+      const pixel = (x: number, y: number) => [...pixels.subarray(y * (size * 3 + 1) + 1 + x * 3, y * (size * 3 + 1) + 4 + x * 3)];
+      // Inside the curved edge, outside its endpoint chord; preserve the central gap.
+      expect(pixel(77, 46)).toEqual([78, 66, 105]);
+      expect(pixel(96, 108)).toEqual([245, 246, 243]);
+    }
+    let foreground = 0, minX = size, minY = size, maxX = -1, maxY = -1;
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const offset = y * (size * 3 + 1) + 1 + x * 3;
       if (pixels[offset] === 245 && pixels[offset + 1] === 246 && pixels[offset + 2] === 243) continue;
       foreground++;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
       if (icon.purpose === "maskable") expect(Math.hypot(x + .5 - size / 2, y + .5 - size / 2)).toBeLessThan(size * .4);
     }
     expect(foreground).toBeGreaterThan(size * size * .1);
+    // Actual ink bounds must be centered, including on maskable app icons.
+    expect(Math.abs(minX - (size - 1 - maxX))).toBeLessThanOrEqual(1);
+    expect(Math.abs(minY - (size - 1 - maxY))).toBeLessThanOrEqual(1);
   });
 });
 

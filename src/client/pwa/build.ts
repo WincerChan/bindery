@@ -7,7 +7,7 @@ import { manifest } from "./manifest.ts";
 import { isBuildAsset } from "./policy.ts";
 
 const sourceDir = dirname(fileURLToPath(import.meta.url));
-const publicAssets = ["manifest.json", "offline.html", "favicon.svg", ...manifest.icons.map(icon => icon.src.slice(1))];
+const publicAssets = ["manifest.json", "offline.html", "favicon.svg", "logo.svg", ...manifest.icons.map(icon => icon.src.slice(1))];
 
 /** Manifest entries cover lazy routes; output files also cover separate Vite Worker builds. */
 export function collectPrecache(clientManifest: Manifest, outputFiles: readonly string[]): string[] {
