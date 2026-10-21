@@ -96,7 +96,7 @@ export function SecurityScreen(props: { data: SecurityScreenData }) {
         <p>{key.device_type === "multi_device" || key.backed_up ? "已同步" : "仅此设备"} · 创建 {key.created_at.slice(0, 10)} · 最近使用 {key.last_used_at?.slice(0, 10) || "从未"}</p>
         <form class="inline-form" onSubmit={e => rename(e, key.credential_id)}>
           <label>名称<input name="name" value={key.name} maxlength={40} disabled={busy() || !props.data.passkey_configured} /></label>
-          <button type="submit" disabled={busy() || !props.data.passkey_configured}>重命名</button>
+          <button type="submit" class="btn btn-secondary" disabled={busy() || !props.data.passkey_configured}>重命名</button>
         </form>
         <form action={`/security/passkeys/${encodeURIComponent(key.credential_id)}/delete`} method="post" onSubmit={e => { void remove(e, key.credential_id); }}><button type="submit" class="quiet danger" disabled={busy() || !props.data.passkey_configured}>删除通行密钥</button></form>
       </article>}</For>
