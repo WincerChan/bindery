@@ -1,6 +1,6 @@
 import { createContext, createSignal, onSettled, useContext } from "solid-js";
 import type { JSX } from "@solidjs/web";
-import { DeviceManager, deviceInventory, errorMessage, getTransferQueue, type DeviceInventory, type DeviceState, type RememberedDevice, type TransferItem, type TransferQueue, type TransferOptions } from "../../client/devices";
+import { DeviceManager, assertReachable, deviceInventory, errorMessage, getTransferQueue, type DeviceInventory, type DeviceState, type RememberedDevice, type TransferItem, type TransferQueue, type TransferOptions } from "../../client/devices";
 import type { DeviceKind } from "../../client/devices/models";
 
 // One inert manager per runtime. SSR never calls its browser / File System Access APIs.
@@ -19,14 +19,35 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue)
   const [inventoryBusy, setInventoryBusy] = createSignal(false), [inventoryError, setInventoryError] = createSignal("");
   const [remembered, setRemembered] = createSignal<RememberedDevice[]>([]);
   const [permissions, setPermissions] = createSignal<Record<string, PermissionState>>({});
+  const [connections, setConnections] = createSignal<Record<string, boolean>>({});
   const [items, setItems] = createSignal<readonly TransferItem[]>([]);
   const [error, setError] = createSignal(""), [busy, setBusy] = createSignal(false);
   let alive = true, revision = 0, observed = neutral();
   const kind = (): DeviceKind => state().device?.identity.kind ?? state().detected?.kind ?? "kindle";
+  /**
+   * Pick the device to restore without ever prompting for permission.
+   * - exactly one currently connected device wins;
+   * - with several connected devices, the last used one wins (then the first connected);
+   * - with none connected, the last used device (then the first remembered) is shown as disconnected.
+   */
+  async function initialDevice(saved: RememberedDevice[]): Promise<RememberedDevice | null> {
+    if (!saved.length) return null;
+    const statuses = new Map(await Promise.all(saved.map(async device => [device.id, await device.root.queryPermission({ mode: "readwrite" }).catch(() => "prompt" as PermissionState)] as const)));
+    const connectedIds = new Set<string>();
+    await Promise.all(saved.filter(device => statuses.get(device.id) === "granted").map(async device => {
+      try { await assertReachable(device.root, device.identity.kind); connectedIds.add(device.id); }
+      catch { /* Unplugged or temporarily unavailable; do not request permission here. */ }
+    }));
+    const connected = saved.filter(device => connectedIds.has(device.id)), last = manager.lastUsedId();
+    if (connected.length === 1) return connected[0]!;
+    if (connected.length > 1) return connected.find(device => device.id === last) ?? connected[0]!;
+    return saved.find(device => device.id === last) ?? saved[0]!;
+  }
   async function loadRemembered() {
     const saved = await manager.remembered();
-    const statuses = await Promise.all(saved.map(async d => [d.id, await d.root.queryPermission({ mode: "readwrite" })] as const));
-    if (alive) { setRemembered(saved); setPermissions(Object.fromEntries(statuses)); }
+    const statuses = await Promise.all(saved.map(async d => [d.id, await d.root.queryPermission({ mode: "readwrite" }).catch(() => "prompt" as PermissionState)] as const));
+    const reachable = await Promise.all(saved.map(async d => [d.id, statuses.find(([id]) => id === d.id)?.[1] === "granted" ? await assertReachable(d.root, d.identity.kind).then(() => true, () => false) : false] as const));
+    if (alive) { setRemembered(saved); setPermissions(Object.fromEntries(statuses)); setConnections(Object.fromEntries(reachable)); }
     return saved;
   }
   async function refreshInventory() {
@@ -59,13 +80,15 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue)
     receive(manager.snapshot());
     void run(async () => {
       const saved = await loadRemembered();
-      if (alive && manager.snapshot().checkedAt === null && !manager.snapshot().device && saved.length) await manager.restore(saved[0]!);
+      if (!alive || manager.snapshot().checkedAt !== null || manager.snapshot().device) return;
+      const selected = await initialDevice(saved);
+      if (alive && selected) await manager.restore(selected);
     });
     const stop = manager.startMonitoring(); setReady(true);
     return () => { alive = false; revision++; stop(); unsubscribe(); unsubscribeQueue(); };
   }
   return {
-    manager, ready, supported, state, inventory, inventoryBusy, inventoryError, remembered, permissions, items, error, busy, kind,
+    manager, ready, supported, state, inventory, inventoryBusy, inventoryError, remembered, permissions, connections, items, error, busy, kind,
     start, run, refreshInventory, loadRemembered,
     pick: () => run(async () => { await manager.pick(); await loadRemembered(); }),
     authorize: (saved?: RememberedDevice) => run(async () => {
@@ -76,6 +99,12 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue)
     }),
     refresh: () => run(async () => { await manager.probe(); await refreshInventory(); await loadRemembered(); }),
     forget: (id: string) => run(async () => { await manager.forget(id); await loadRemembered(); }),
+    switchDevice: (id: string) => run(async () => {
+      const saved = (await manager.remembered()).find(device => device.id === id);
+      if (!saved) throw new Error("未找到已记住的设备");
+      await manager.restore(saved);
+      await loadRemembered();
+    }),
     enqueue: (bookId: string, profileId = "default", options: boolean | Pick<TransferOptions, "overwrite" | "stripFonts" | "stripImages"> = false) => {
       const current = manager.snapshot();
       if (current.status !== "granted" || !current.device || current.device.identity.id !== state().device?.identity.id) throw new Error("设备已切换或断开，请重新选择书籍");

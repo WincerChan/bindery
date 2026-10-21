@@ -1,6 +1,7 @@
 import { createSignal, For, onSettled, Show } from "solid-js";
 import { useDevice } from "./context";
 import { bytes, kindLabel, modelLabel } from "./format";
+import { modelShortName } from "../../client/devices/models";
 import { Button } from "../../ui";
 import { Link } from "../../shared/spa-link";
 
@@ -12,6 +13,13 @@ export function DeviceBar() {
   const usage = () => k.inventory()?.usage;
   const ago = () => k.state().checkedAt === null ? "尚未检测" : `检测于 ${Math.max(0, Math.floor((now() - k.state().checkedAt!) / 1000))} 秒前`;
   const width = (n: number) => `${usage()?.total ? n / usage()!.total * 100 : 0}%`;
+  const currentId = () => k.state().device?.identity.id ?? "";
+  const savedStatus = (saved: { id: string }) => {
+    if (saved.id === currentId() && k.state().checkedAt !== null) return ({ granted: "已连接", prompt: "需要授权", denied: "已拒绝", disconnected: "未连接", unpaired: "待配对" })[k.state().status];
+    const permission = k.permissions()[saved.id] ?? "prompt";
+    if (permission !== "granted") return permission === "denied" ? "已拒绝" : "需要授权";
+    return k.connections()[saved.id] ? "已连接" : "未连接";
+  };
   return <section aria-label="当前设备" class="kindle-device-bar" data-kindle-device-bar>
     <div class="kindle-device-identity">
       <h1 class="page-title">{k.ready() && k.state().device ? k.state().device!.identity.name : "设备"}</h1>
@@ -29,11 +37,23 @@ export function DeviceBar() {
       </div>
     </Show>
     <div class="kindle-actions kindle-device-actions">
+      <Show when={k.ready()}>
+        <label class="kindle-device-switch"><span class="sr-only">切换当前设备</span>
+          <select aria-label="切换当前设备" value={currentId()} disabled={!k.supported() || k.busy() || !k.remembered().length} onChange={event => {
+            const id = event.currentTarget.value, select = event.currentTarget;
+            if (!id || id === currentId()) return;
+            void k.switchDevice(id).finally(() => { select.value = currentId(); });
+          }}>
+            <option value="">{k.remembered().length ? "当前设备" : "尚未记住设备"}</option>
+            <For each={k.remembered()}>{saved => <option value={saved.id}>{saved.identity.name} · {modelShortName(saved.identity.kind, saved.identity.model)} · {savedStatus(saved)}</option>}</For>
+          </select>
+        </label>
+      </Show>
       <Show when={k.ready() && k.supported()}>
         <Show when={k.state().status === "prompt" || k.state().status === "denied"}><Button disabled={k.busy()} onClick={() => k.authorize()}>授权</Button></Show>
         <Button variant="quiet" disabled={k.busy()} onClick={k.refresh}>重新检测</Button>
       </Show>
-      <Link class="btn btn-secondary" href="/devices/connect">{k.state().device ? "切换设备" : "连接设备"}</Link>
+      <Link class="btn btn-secondary" href="/devices/connect">连接新设备</Link>
     </div>
     <Show when={k.inventory()?.unreadableCount}>
       <details class="kindle-small kindle-full kindle-entry-notice" data-unreadable-notice>

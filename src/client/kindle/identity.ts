@@ -9,6 +9,6 @@ export { assertDevice, detectDevice, parseIdentity, readIdentity, readKoboVersio
 export const validateKindle = (root: DeviceDirectory) => validateKindleRoot(root);
 export async function readFirmware(root: DeviceDirectory): Promise<string | null> { return readKindleFirmware(root); }
 export async function pairDevice(root: DeviceDirectory, model: KindleModel, name: string): Promise<import("../devices/identity").PairedDevice> {
-  const detection: DeviceDetection = { kind: "kindle", model, productId: null, firmware: await readKindleFirmware(root) };
+  const detection: DeviceDetection = { kind: "kindle", model, modelCode: null, productUuid: null, firmware: await readKindleFirmware(root) };
   return pairDetectedDevice(root, detection, model, name);
 }

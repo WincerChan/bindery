@@ -2,6 +2,7 @@ import { createSignal, onCleanup } from "solid-js";
 import { assertReachable, errorMessage, type DeviceDirectory } from "./fs";
 import { detectDevice, pairDetectedDevice, readFirmware, readIdentity, type DeviceDetection, type PairedDevice } from "./identity";
 import { IndexedDbHandles, type HandleRepository, type RememberedDevice } from "./remembered";
+import { LocalStorageDevicePreference, type DevicePreferenceStore } from "./preferences";
 import { withDeviceLock } from "./transaction";
 import type { DeviceKind } from "./models";
 
@@ -17,14 +18,18 @@ export class DeviceManager {
   private generation = 0;
   private probeGeneration = -1;
   private probing: Promise<void> | null = null;
-  constructor(private handles: HandleRepository = new IndexedDbHandles(), private picker?: DirectoryPicker) {}
+  constructor(private handles: HandleRepository = new IndexedDbHandles(), private picker?: DirectoryPicker, private preferences: DevicePreferenceStore = new LocalStorageDevicePreference()) {}
   snapshot = () => this.state;
   subscribe = (listener: (state: DeviceState) => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private update(patch: Partial<DeviceState>) { this.state = { ...this.state, ...patch }; for (const listener of this.listeners) listener(this.state); }
   remembered() { return this.handles.list(); }
+  /** The last device the user paired/selected. Storage failures only disable persistence. */
+  lastUsedId() { return this.preferences.get(); }
+  private remember(id: string) { this.preferences.set(id); }
   private kind(): DeviceKind { return this.state.device?.identity.kind ?? this.state.detected?.kind ?? "kindle"; }
   async forget(id: string) {
     await this.handles.remove(id);
+    if (this.lastUsedId() === id) this.preferences.clear();
     if (this.expectedId === id || this.state.device?.identity.id === id) {
       this.generation++; this.root = null; this.expectedId = null;
       this.update({ status: "unpaired", device: null, detected: null, checkedAt: null, message: "" });
@@ -43,8 +48,9 @@ export class DeviceManager {
   async restore(remembered: RememberedDevice | string) {
     const saved = typeof remembered === "string" ? (await this.remembered()).find(d => d.id === remembered) : remembered;
     if (!saved) throw new Error("未找到已配对设备");
+    this.remember(saved.id);
     this.generation++; this.root = saved.root; this.expectedId = saved.id;
-    this.update({ device: { root: saved.root, identity: saved.identity, firmware: null }, detected: { kind: saved.identity.kind, model: saved.identity.model, productId: saved.identity.product_id ?? null, firmware: null }, checkedAt: null });
+    this.update({ device: { root: saved.root, identity: saved.identity, firmware: null }, detected: { kind: saved.identity.kind, model: saved.identity.model, modelCode: saved.identity.model_code ?? null, productUuid: saved.identity.product_id ?? null, firmware: null }, checkedAt: null });
     await this.probe();
   }
   async pair(model: string, name: string) {
@@ -54,8 +60,9 @@ export class DeviceManager {
     const device = await pairDetectedDevice(root, detection, model, name);
     await this.handles.put({ id: device.identity.id, identity: device.identity, root: device.root });
     if (generation !== this.generation) return device;
+    this.remember(device.identity.id);
     this.expectedId = device.identity.id;
-    this.update({ status: "granted", device, detected: { kind: device.identity.kind, model: device.identity.model, productId: device.identity.product_id ?? detection.productId, firmware: device.firmware }, checkedAt: Date.now(), message: "" });
+    this.update({ status: "granted", device, detected: { kind: device.identity.kind, model: device.identity.model, modelCode: device.identity.model_code ?? detection.modelCode, productUuid: device.identity.product_id ?? detection.productUuid, firmware: device.firmware }, checkedAt: Date.now(), message: "" });
     return device;
   }
   /** Call directly from a click handler: Chrome requires transient user activation. */
@@ -98,6 +105,7 @@ export class DeviceManager {
         await withDeviceLock(device, async () => {});
         if (generation !== this.generation) return;
         await this.handles.put({ id: identity.id, root, identity });
+        this.remember(identity.id);
         update({ status: "granted", device, checkedAt: Date.now(), message: "" });
       } catch (error) {
         try {

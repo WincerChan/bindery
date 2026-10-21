@@ -9,21 +9,30 @@ import { KindleIcon } from "../kindle/icons";
 export function DeviceConnectPage() {
   const k = useDevice(), [model, setModel] = createSignal<KindleModel>("KPW3"), [name, setName] = createSignal("");
   const detection = () => k.state().detected, kind = () => k.kind();
+  const detectedKind = () => detection()?.kind;
   const canPair = () => k.ready() && k.state().status === "unpaired" && k.state().checkedAt !== null && !!detection();
   const defaultName = () => detection() ? modelLabel(kind(), detection()!.model).split(" · ")[0]! : "我的设备";
   return <div class="kindle-split kindle-connect">
     <section aria-label="连接设备">
       <div class="kindle-connect-heading">
         <h1>连接你的设备</h1>
-        <p class="muted">用 USB 线连上电脑后，在浏览器里选中设备根目录。Kindle 的书写入 documents/、封面写入 system/thumbnails/；Kobo 的书写入 Bindery/；字体都写入 fonts/。设备身份保存在 .bindery/。</p>
+        <Show when={detection()} fallback={<p class="muted">用 USB 线连上电脑后，在浏览器里选中设备根目录。Bindery 会根据根目录结构自动识别 Kindle 或 Kobo；设备身份保存在 .bindery/。</p>}>
+          <Show when={detectedKind() === "kindle"} fallback={<p class="muted">Kobo 的书写入 Bindery/，字体写入 fonts/，设备身份保存在 .bindery/。不会读写 KoboReader.sqlite。</p>}>
+            <p class="muted">Kindle 的书写入 documents/、封面写入 system/thumbnails/，字体写入 fonts/，设备身份保存在 .bindery/。</p>
+          </Show>
+        </Show>
       </div>
       <ol class="kindle-steps">
         <li><strong>用 USB 线连接设备</strong><p>Kindle 与 Kobo 都会作为 USB 磁盘出现，请保持连接。</p></li>
-        <li><strong>选中设备磁盘的根目录</strong><p>Kindle 根目录能看到 documents 和 system；Kobo 根目录能看到 .kobo 文件夹。</p></li>
+        <li><strong>选中设备磁盘的根目录</strong>
+          <Show when={detection()} fallback={<p>Kindle 根目录能看到 documents 和 system；Kobo 根目录能看到 .kobo 文件夹。</p>}>
+            <Show when={detectedKind() === "kindle"} fallback={<p>根目录里能看到 .kobo 文件夹。</p>}><p>根目录里能看到 documents 和 system 两个文件夹。</p></Show>
+          </Show>
+        </li>
         <li><strong>在浏览器弹窗里允许编辑</strong><p>浏览器重启后再次授权时会提供「每次访问都允许」选项。</p></li>
         <li><strong>第一次连接：确认型号并命名</strong><p>Bindery 会写入 .bindery/device.json，之后用它识别这台设备。</p>
           <Show when={detection()}>
-            <p class="kindle-small" data-detected-device>已识别：{kindLabel(kind())} · {modelLabel(kind(), detection()!.model)}{detection()!.productId ? ` · 产品 ID ${detection()!.productId}` : ""}</p>
+            <p class="kindle-small" data-detected-device>已识别：{kindLabel(kind())} · {modelLabel(kind(), detection()!.model)}{detection()!.modelCode ? ` · 型号代码 ${detection()!.modelCode}` : ""}{detection()!.productUuid ? ` · 产品 UUID ${detection()!.productUuid}` : ""}</p>
           </Show>
           <Show when={kind() === "kindle"}>
             <fieldset class="kindle-model-choice" disabled={!k.ready() || !k.supported() || k.busy()}><legend>Kindle 型号</legend><div class="kindle-models" role="radiogroup" aria-label="型号"><For each={["KPW3", "KO3", "other"] as const}>{value => <label class="checkbox"><input type="radio" name="kindle-model" value={value} checked={model() === value} onChange={() => setModel(value)} />{KINDLE_MODELS[value].name}</label>}</For></div></fieldset>
@@ -51,7 +60,9 @@ export function DeviceConnectPage() {
           <div class="kindle-actions"><Button variant="secondary" size="sm" disabled={k.busy() || !k.supported()} onClick={() => k.authorize(saved)}>{k.state().device?.identity.id === saved.id && k.state().status === "granted" ? "重新检测" : "授权 / 选择"}</Button><Button variant="quiet" size="sm" disabled={k.busy()} onClick={() => k.forget(saved.id)}>忘记</Button></div>
         </div>}</For>
       </Show>
-      <p class="kindle-small">每台设备分别记住排版方案。忘记设备仅删除此浏览器中的记录，不删除设备上的书籍或身份。</p>
+      <Show when={detectedKind() === "kindle"} fallback={<p class="kindle-small">已记住的设备只保存在此浏览器中；Kobo 的书目与字体直接读取设备上的文件。忘记设备不会删除设备上的书籍或身份。</p>}>
+        <p class="kindle-small">每台 Kindle 分别记住排版方案。忘记设备仅删除此浏览器中的记录，不删除设备上的书籍或身份。</p>
+      </Show>
       <p class="kindle-small">网页收不到插拔通知；页面可见时每 1.5 秒、重新获得焦点时自动检测。</p>
     </aside>
   </div>;

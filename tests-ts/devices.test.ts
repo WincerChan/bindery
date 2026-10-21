@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { convertToKepub } from "../src/core/kepub";
-import { detectDevice, pairDetectedDevice, parseIdentity, readIdentity } from "../src/client/devices/identity";
+import { detectDevice, pairDetectedDevice, parseIdentity, parseKoboVersion, readIdentity } from "../src/client/devices/identity";
 import { DeviceManager } from "../src/client/devices/device";
 import type { HandleRepository, RememberedDevice } from "../src/client/devices/remembered";
 import { applyDevicePatchesFor, validateDevicePath } from "../src/client/devices/transaction";
@@ -9,6 +9,7 @@ import { deviceInventory, inventory, isKoboBook } from "../src/client/devices/in
 import { deleteBook } from "../src/client/devices/operations";
 import { fontTargetName, installFonts, listFonts } from "../src/client/devices/fonts";
 import { koboBookFilename } from "../src/client/devices/paths";
+import { LocalStorageDevicePreference, MemoryDevicePreference } from "../src/client/devices/preferences";
 import type { DeviceFont } from "../src/client/devices/fonts";
 import { KoboTransferService } from "../src/client/devices/kobo/transfer";
 import { fakeKindle, fakeKobo, FakeFileSystem } from "./support/fake-fs";
@@ -32,15 +33,18 @@ describe("device kind detection and multi-device memory", () => {
   it("recognizes Kindle, known/unknown Kobo, and rejects unrelated directories", async () => {
     const kindle = await fakeKindle(), kobo = await fakeKobo("N418"), unknown = await fakeKobo("N999");
     expect(await detectDevice(kindle.root)).toMatchObject({ kind: "kindle", model: "KPW3", firmware: "Kindle 5.16.2.1.1" });
-    expect(await detectDevice(kobo.root)).toMatchObject({ kind: "kobo", model: "libra2", productId: "N418", firmware: "4.38.23171" });
-    expect(await detectDevice(unknown.root)).toMatchObject({ kind: "kobo", model: "unknown", productId: "N999" });
+    expect(await detectDevice(kobo.root)).toMatchObject({ kind: "kobo", model: "libra2", modelCode: "N418", productUuid: "00000000-0000-0000-0000-000000000388", firmware: "4.38.23171" });
+    expect(await detectDevice(unknown.root)).toMatchObject({ kind: "kobo", model: "unknown", modelCode: "N999", productUuid: "00000000-0000-0000-0000-000000000388" });
     await expect(detectDevice(new FakeFileSystem().root)).rejects.toThrow("请选择 Kindle 磁盘根目录");
     expect(isKoboBook("Bindery/A.kepub.epub")).toBe(true); expect(isKoboBook("A.epub")).toBe(true); expect(isKoboBook("A.kfx")).toBe(false);
   });
   it("pairs Kobo with kind/product metadata and reads legacy Kindle identities", async () => {
     const kobo = await fakeKobo("N418"), detection = await detectDevice(kobo.root), paired = await pairDetectedDevice(kobo.root, detection, detection.model, "我的 Libra 2");
-    expect(paired.identity).toMatchObject({ kind: "kobo", model: "libra2", name: "我的 Libra 2", product_id: "N418" });
-    expect(JSON.parse(await kobo.text(".bindery/device.json"))).toMatchObject({ kind: "kobo", model: "libra2" });
+    expect(paired.identity).toMatchObject({ kind: "kobo", model: "libra2", model_code: "N418", name: "我的 Libra 2", product_id: "00000000-0000-0000-0000-000000000388" });
+    expect(JSON.parse(await kobo.text(".bindery/device.json"))).toMatchObject({ kind: "kobo", model: "libra2", model_code: "N418" });
+    const real = parseKoboVersion("N418123456789,4.1.15,4.38.23171,4.1.15,4.1.15,00000000-0000-0000-0000-000000000388");
+    expect(real).toMatchObject({ serial: "N418123456789", modelCode: "N418", firmware: "4.38.23171", productUuid: "00000000-0000-0000-0000-000000000388" });
+    expect(parseKoboVersion("serial,4.1.15,,4.1.15,4.1.15,uuid")).toMatchObject({ modelCode: null, firmware: null, productUuid: "uuid" });
     const kindle = await fakeKindle(); await kindle.write(".bindery/device.json", JSON.stringify({ id: "legacy", model: "KPW3", name: "旧 Kindle", created_at: "2020-01-01T00:00:00Z" }));
     expect(await readIdentity(kindle.root, "kindle")).toMatchObject({ kind: "kindle", model: "KPW3" });
     expect(() => parseIdentity({ id: "x", kind: "kobo", model: "", name: "x", created_at: "2020-01-01T00:00:00Z" })).toThrow();
@@ -121,4 +125,14 @@ describe("Kobo write policy, books, transfer, deletion and fonts", () => {
     const families = await listFonts(fs.root, undefined, "kobo");
     expect(families).toHaveLength(1); expect(families[0]!.coverage.sort()).toEqual(["B", "BI", "I", "R"]);
   });
+});
+
+it("degrades safely when browser storage is unavailable", () => {
+  const broken = new LocalStorageDevicePreference({
+    getItem() { throw new Error("blocked"); },
+    setItem() { throw new Error("blocked"); },
+    removeItem() { throw new Error("blocked"); },
+  });
+  expect(broken.get()).toBeNull(); expect(() => broken.set("x")).not.toThrow(); expect(() => broken.clear()).not.toThrow();
+  const memory = new MemoryDevicePreference("a"); memory.set("b"); expect(memory.get()).toBe("b"); memory.clear(); expect(memory.get()).toBeNull();
 });

@@ -76,15 +76,15 @@ src/core/kepub-entities.ts WHATWG 命名实体表（由 CPython html.entities.ht
 
 最大 EPUB：21,148,474 bytes，2241 个成员，2228 个内容文档转换、12 个成员原样复制。
 
-**Worker 使用的异步路径**（`convertToKepubAsync`，Node 4 次中位数）：
+**Worker 使用的异步路径**（`convertToKepubAsync`，返工后 4 次预热中位数）：
 
-- 总耗时 **1.176 s**（1139 / 1170 / 1182 / 1201 ms）。
-- 解包/中央目录：约 3 ms
-- OPF 解析/改写/dummy：约 35 ms
-- 内容解压：约 281 ms
-- HTML/XHTML 流式改写：约 558 ms
-- 压缩（原生 `CompressionStream("deflate-raw")`）：约 261 ms
-- 其余 ZIP 组装：约 12 ms（`packMs` 约 273 ms 含压缩）
+- 总耗时 **约 1.09–1.10 s**（最近一次预热：1138 / 1095 / 1069 / 1099 ms，中位数 1099 ms）。
+- 解包/中央目录：约 5 ms
+- OPF 解析/改写/dummy：约 40 ms
+- 内容解压：约 262 ms
+- HTML/XHTML 流式改写：约 498 ms
+- 压缩（原生 `CompressionStream("deflate-raw")`）：约 255 ms
+- 其余 ZIP 组装：约 12 ms（`packMs` 约 267 ms 含压缩）
 - 输出：22,849,493 bytes
 
 **模拟 Worker 线程**（同一异步入口，`node:worker_threads`）：1068 / 1094 / 1134 / 1181 ms，中位数 **1.114 s**。
@@ -99,7 +99,7 @@ src/core/kepub-entities.ts WHATWG 命名实体表（由 CPython html.entities.ht
 
 - `pnpm typecheck`：通过。
 - `pnpm build`：通过（Vite 构建并重新生成 `routeTree.gen.ts`）。
-- `pnpm test`：**72 个测试文件 / 1288 项全部通过**。期间有一次全量运行命中既有 `kindle-epub-strip` 的 ZIP 时间戳跨秒断言（两次生成落在不同秒），立即重跑全部通过；该 flake 与本次设备/KEPUB 改动无关。
+- 返工后 `pnpm test`：**72 个测试文件通过 / 2 个可选文件跳过（总 74）**，**1292 项通过 / 2 项跳过（总 1294）**。本地 kepubify 对照与性能基准均已在设置环境变量后实际运行通过；默认套件只保留跳过占位。
 - 任务基线 70 文件 / 1296 项中包含依赖本地真实书库的用例；本 worktree 根目录没有 `library/`，这些本地用例不会收集。本 worktree 的常驻测试基线为约 70 文件 / 1267 项，本次新增 21 项（设备识别、多设备、白名单、Kobo 书目/传书/删书/字体、Kobo UI、重定向、KEPUB 对照），因此 1288 项。
 - 既有 Kindle 用例全部保留；仅更新路径/文案相关断言：`/kindle*` → `/devices*`、`/kindle/content` → `/devices/content`、连接页标题/按钮中性化、删除报告「设备本机」、导航/PWA 路径、生产 SSR 期望，以及把旧 preview/fonts 路由测试切到新路由。未删除或跳过任何原有 Kindle 行为用例。
 
@@ -121,3 +121,33 @@ src/core/kepub-entities.ts WHATWG 命名实体表（由 CPython html.entities.ht
 - ZIP64、加密 EPUB、非 UTF-8 ZIP 文件名的 EPUB 会明确拒绝或按 UTF-8 解码；kepubify 对部分此类输入可能也能处理。
 - Kobo 产品 ID 映射来自社区已知型号，可能缺少新机型；未知时会降级显示但功能不受影响。
 - 浏览器 File System Access API 的权限/断开行为已用 FakeFileSystem 覆盖，但真实 Kobo USB 挂载的长路径/权限差异未验证。
+
+## 9. 返工（第一轮验收后）
+
+### 当前设备选择
+
+- 新增 `src/client/devices/preferences.ts`：`localStorage` 键 `bindery.device.last` 持久化上次使用设备；读写异常/隐私模式安全降级为仅当前会话。`DeviceManager` 接受可注入的 preference store，`restore`/`pair`/当前设备探测成功时更新，`forget` 清除对应值。
+- 初次加载不再固定 `saved[0]`。`DeviceProvider` 会对所有已记住且权限为 granted 的设备做一次只读 `assertReachable` 探测（绝不调用 `requestPermission`）：恰好一台连接则选它；多台连接选上次使用（缺失时第一台连接设备）；都未连接则选上次使用（再退到第一台），并显示未连接/需授权状态。
+- 设备栏新增「切换当前设备」下拉，列出名称、型号和连接状态，选择后原地 `manager.restore` 并持久化；保留「连接新设备」入口到 `/devices/connect`。切换会清空旧设备书目并重新读取；既有传输任务仍绑定原设备，队列的“设备已切换”保护继续阻止把新任务发给旧设备。
+- 新增测试覆盖：单台连接、多台连接选上次、都未连接选上次且不弹权限、下拉就地切换、持久化后重新挂载恢复、存储异常降级。
+
+### Kobo `.kobo/version`
+
+- 按真机格式解析：`serial,4.1.15,4.38.23171,4.1.15,4.1.15,product-uuid`。
+- 型号取序列号前 4 位（如 `N418`）；固件取第 3 字段；最后字段保留为产品 UUID。身份文件同时保存 `model_code` 和 `product_id`（UUID）。
+- 型号映射表注明：`N418` = Libra 2 待用户真机文件复核，其余为“未核实（社区映射）”。未知型号仍显示「Kobo（未知型号）」并保持全部功能。
+- 测试夹具 `fakeKobo()` 改为真实格式；新增解析测试。
+
+### 种类专属文案
+
+- 连接页根据已识别种类切换写入位置说明：Kindle 才出现 `documents/`、`system/thumbnails/`；Kobo 显示 `Bindery/`、`fonts/` 和“不读写 KoboReader.sqlite”。记住设备侧栏的排版方案说明只在 Kindle 出现。
+- 书目页的 `documents/`、`.sdr`、缩略图、`.sdr` 删除说明只在 Kindle 出现；Kobo 显示 `Bindery/`、KoboReader.sqlite 和重启更新书架提示。
+- 传书页 Kindle 只显示 KFX/排版方案/封面缩略图/boko；Kobo 只显示 KEPUB、去字体/去图片和 Bindery 说明。
+- 字体页文案改为设备中性；字体预览入口只在 Kindle 显示。
+
+### 可复现验证与单本删除
+
+- 新增 `tests-ts/kepub-local-parity.test.ts`：仅在设置 `KEPUBIFY_BIN` 且找到 `library/` 或 `BINDERY_PARITY_LIBRARY` 时运行；对每本 EPUB 临时副本执行 kepubify 并逐成员比较，未设置时打印跳过原因。
+- 新增 `tests-ts/kepub-bench.test.ts`：仅在 `BINDERY_BENCH=1` 时运行，报告最大 EPUB 的 4 次异步中位数及解包/OPF/解压/HTML/压缩/ZIP 阶段耗时；默认套件只收集 skip 占位。
+- `tests-ts/fixtures/parity/kepub/README.md` 已补充两个命令和跳过条件。
+- 单本删除按钮原本已存在于每行操作区，带确认；本轮补充了 Kobo/Kindle 的单本删除验证说明和 Kobo UI 断言。

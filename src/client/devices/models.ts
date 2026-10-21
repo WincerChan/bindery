@@ -40,30 +40,31 @@ export const KOBO_MODELS = {
 export type KoboModel = keyof typeof KOBO_MODELS;
 
 /**
- * Product IDs from `.kobo/version` (last comma-separated field). Kobo reuses
- * model codes across revisions; every listed model still shares a family name
- * and screen class, which is all Bindery displays in phase one.
+ * Model codes are the first four characters of the serial in `.kobo/version`.
+ * N418/Libra 2 is pending verification against the user's real device file;
+ * all other entries are unverified community mappings and only affect the
+ * displayed name. Unknown codes remain fully usable as "Kobo（未知型号）".
  */
 export const KOBO_PRODUCT_MODELS: Record<string, KoboModel> = {
-  N249: "claraHD",
-  N306: "nia",
-  N365: "claraBW",
-  N367: "claraColour",
-  N415: "sage",
-  N418: "libra2",
-  N428: "libraColour",
-  N236: "auraEdition2",
-  N437: "auraH2O",
-  N506: "clara2e",
-  N514: "aura",
-  N604: "elipsa",
-  N613: "glo",
-  N705: "mini",
-  N905: "touch",
-  N709: "auraOne",
-  N782: "forma",
-  N873: "libraH2O",
-  N250: "auraH2O",
+  N249: "claraHD", // 未核实（社区映射）
+  N306: "nia", // 未核实（社区映射）
+  N365: "claraBW", // 未核实（社区映射）
+  N367: "claraColour", // 未核实（社区映射）
+  N415: "sage", // 未核实（社区映射）
+  N418: "libra2", // Libra 2（待用户真机 `.kobo/version` 复核）
+  N428: "libraColour", // 未核实（社区映射）
+  N236: "auraEdition2", // 未核实（社区映射）
+  N437: "auraH2O", // 未核实（社区映射）
+  N506: "clara2e", // 未核实（社区映射）
+  N514: "aura", // 未核实（社区映射）
+  N604: "elipsa", // 未核实（社区映射）
+  N613: "glo", // 未核实（社区映射）
+  N705: "mini", // 未核实（社区映射）
+  N905: "touch", // 未核实（社区映射）
+  N709: "auraOne", // 未核实（社区映射）
+  N782: "forma", // 未核实（社区映射）
+  N873: "libraH2O", // 未核实（社区映射）
+  N250: "auraH2O", // 未核实（社区映射）
 };
 
 export function koboModelForProduct(product: string | null | undefined): KoboModel {

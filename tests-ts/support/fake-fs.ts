@@ -104,9 +104,9 @@ export async function fakeKindle() {
   const fs = new FakeFileSystem(); await fs.mkdir("documents"); await fs.mkdir("system/thumbnails"); await fs.mkdir("fonts"); await fs.write("system/version.txt", "Kindle 5.16.2.1.1"); fs.operations = []; return fs;
 }
 
-/** Kobo root with `.kobo/version`; the last comma field is the product ID. */
-export async function fakeKobo(productId = "N418") {
+/** Real Kobo `.kobo/version` shape: serial/model prefix, firmware at field 3, UUID last. */
+export async function fakeKobo(modelCode = "N418", productUuid = "00000000-0000-0000-0000-000000000388", firmware = "4.38.23171") {
   const fs = new FakeFileSystem(); await fs.mkdir(".kobo"); await fs.mkdir("fonts");
-  await fs.write(".kobo/version", `4.38.23171,4.38.23171,4.38.23171,4.38.23171,${productId}`);
+  await fs.write(".kobo/version", `${modelCode}123456789,4.1.15,${firmware},4.1.15,4.1.15,${productUuid}`);
   fs.operations = []; return fs;
 }

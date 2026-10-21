@@ -43,3 +43,35 @@ EPUB 3 package metadata and cover-image detection.
 `input-dummy.epub` covers the dummy-titlepage heuristic, a non-linear first spine item,
 Calibre metadata removal, and the kepubify file filter (`calibre_bookmarks.txt`,
 `iTunesMetadata.plist`, `.DS_STORE`, `__MACOSX`, `thumbs.db`, directory entries).
+
+## Optional local real-library checks
+
+These are not part of the required fixture gate and never run without explicit
+environment variables. They read the library only; real books are not committed.
+
+### kepubify parity on every library EPUB
+
+```bash
+KEPUBIFY_BIN=/path/to/kepubify \
+BINDERY_PARITY_LIBRARY=/path/to/library \
+pnpm vitest run tests-ts/kepub-local-parity.test.ts
+```
+
+The test copies each EPUB into a temporary directory, runs
+`kepubify -o <name>.kepub.epub <name>.epub`, converts the same input through the
+async Worker path, and compares every member name and byte. Without
+`KEPUBIFY_BIN`, or when the library directory is missing, it reports the skip
+reason and does not touch any real book.
+
+### Staged performance benchmark
+
+```bash
+BINDERY_BENCH=1 \
+BINDERY_BENCH_LIBRARY=/path/to/library \
+pnpm vitest run tests-ts/kepub-bench.test.ts
+```
+
+The benchmark selects the largest EPUB, warms up, then reports median total and
+per-stage times (unpack, OPF, inflate, HTML transform, native compression, ZIP
+assembly) plus one synchronous run. `pnpm test` only collects the skipped
+placeholder unless `BINDERY_BENCH=1` is set.

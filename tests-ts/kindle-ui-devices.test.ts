@@ -19,6 +19,7 @@ import { loadKindleLibrary } from "../src/features/kindle/devices/library";
 import type { LibraryPageData } from "../src/server/library/queries";
 import { fakeKindle, fakeKobo } from "./support/fake-fs";
 import { detectDevice, pairDetectedDevice } from "../src/client/devices/identity";
+import { MemoryDevicePreference } from "../src/client/devices/preferences";
 import { clientDocument, elements, fire } from "./support/client-dom";
 
 type Page = "books" | "connect" | "transfer";
@@ -111,6 +112,12 @@ const saved = (d: PairedDevice): RememberedDevice => ({ id: d.identity.id, ident
 const record = (id: string, filename: string, profile = "default"): ManifestBook => ({ book_id: id, filename, content_id: `id_${id}`, cde_content_type: "EBOK", profile_id: profile, profile_name: profile === "default" ? "默认" : "宽边距", transferred_at: "2026-10-19T03:04:05Z", size: 4, thumbnail: null });
 function input(manager = new KindleDeviceManager(repository()), books = [book("a", "书库甲"), book("b", "书库乙", true)]): Input {
   return { manager, books, queue: new TransferQueue({ transferBook: async () => { throw new Error("测试队列尚未接入转换服务"); } }), loadProfiles: async id => [defaultProfile(id)] };
+}
+async function twoDevices() {
+  const kindle = await fakeKindle(), kobo = await fakeKobo("N418");
+  const a = await pairDevice(kindle.root, "KPW3", "Kindle A");
+  const b = await pairDetectedDevice(kobo.root, await detectDevice(kobo.root), "libra2", "Kobo B");
+  return { kindle, kobo, a, b };
 }
 async function connectedKobo(files: string[] = []) {
   const fs = await fakeKobo("N418");
@@ -477,6 +484,7 @@ it("renders Kobo transfer controls without Kindle-only settings or licenses", as
   expect(text(m)).toContain("我的 Libra 2"); expect(text(m)).toContain("Kobo");
   expect(text(m)).toContain("去掉书籍自带字体"); expect(text(m)).toContain("去掉所有图片（保留封面）");
   expect(text(m)).not.toContain("排版方案"); expect(text(m)).not.toContain("boko"); expect(text(m)).not.toContain("GPL-3.0");
+  expect(text(m)).not.toContain("documents/"); expect(text(m)).not.toContain(".sdr"); expect(text(m)).not.toContain("KFX");
   expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(2);
   expect(elements(m.root, "option").some(node => node.textContent === "默认（只用书籍自带样式）")).toBe(false);
 });
@@ -488,6 +496,7 @@ it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs",
   expect(button(m.root, "从设备删除 书库甲").hasAttribute("disabled")).toBe(false);
   expect(button(m.root, "从设备删除 外部").hasAttribute("disabled")).toBe(true);
   expect(text(m)).toContain("读取 Bindery/ 与设备上的 EPUB / KEPUB");
+  expect(text(m)).not.toContain("documents/"); expect(text(m)).not.toContain(".sdr"); expect(text(m)).not.toContain("缩略图");
   fire(button(m.root, "从设备删除 书库甲"), "click"); m.flush(); expect(text(m)).toContain("设备下次连接或重启时会更新书架");
   fire(button(m.root, "确认删除"), "click"); await settle(m);
   await expect(c.fs.bytes("Bindery/书库甲.kepub.epub")).rejects.toMatchObject({ name: "NotFoundError" });
@@ -497,8 +506,52 @@ it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs",
 it("detects a Kobo with an unknown product ID and still permits pairing", async () => {
   const fs = await fakeKobo("N999"), manager = new KindleDeviceManager(repository(), async () => fs.root), m = mount("connect", input(manager)); await settle(m);
   fire(button(m.root, "选择设备目录"), "click"); await settle(m);
-  expect(text(m)).toContain("已识别：Kobo · Kobo（未知型号）"); expect(text(m)).toContain("产品 ID N999");
+  expect(text(m)).toContain("已识别：Kobo · Kobo（未知型号）"); expect(text(m)).toContain("型号代码 N999"); expect(text(m)).toContain("产品 UUID 00000000-0000-0000-0000-000000000388");
+  expect(text(m)).not.toContain("documents/"); expect(text(m)).not.toContain("system/thumbnails"); expect(text(m)).not.toContain("KFX");
   const name = field(m.root, "显示名称"); name.value = "未知 Kobo"; fire(name, "input"); m.flush();
   fire(elements(m.root, "form")[0]!, "submit"); await settle(m);
   expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ kind: "kobo", model: "unknown", name: "未知 Kobo" });
+});
+
+it("restores the single currently connected device and prefers the last-used device when several are connected", async () => {
+  const { kindle, a, b } = await twoDevices(); kindle.unplug();
+  const repo = repository([saved(a), saved(b)]), preference = new MemoryDevicePreference(a.identity.id);
+  const single = mount("books", input(new KindleDeviceManager(repo, undefined, preference))); await settle(single);
+  expect(single.context().state().device?.identity.id).toBe(b.identity.id);
+  expect(preference.get()).toBe(b.identity.id);
+
+  kindle.plug();
+  const multiplePreference = new MemoryDevicePreference(b.identity.id);
+  const multiple = mount("books", input(new KindleDeviceManager(repo, undefined, multiplePreference))); await settle(multiple);
+  expect(multiple.context().state().device?.identity.id).toBe(b.identity.id);
+  expect(multiplePreference.get()).toBe(b.identity.id);
+});
+
+it("restores the last-used disconnected device when none are connected, without prompting", async () => {
+  const { kindle, kobo, a, b } = await twoDevices(); kindle.unplug(); kobo.unplug();
+  const request = vi.spyOn(kobo.root, "requestPermission"), preference = new MemoryDevicePreference(b.identity.id);
+  const m = mount("books", input(new KindleDeviceManager(repository([saved(a), saved(b)]), undefined, preference))); await settle(m);
+  expect(m.context().state().device?.identity.id).toBe(b.identity.id);
+  expect(m.context().state().status).toBe("disconnected");
+  expect(request).not.toHaveBeenCalled();
+  expect(preference.get()).toBe(b.identity.id);
+});
+
+it("switches in place from the device bar, persists the choice and restores it on the next mount", async () => {
+  const { a, b } = await twoDevices(), repo = repository([saved(a), saved(b)]), preference = new MemoryDevicePreference(a.identity.id);
+  const m = mount("books", input(new KindleDeviceManager(repo, undefined, preference))); await settle(m);
+  expect(m.context().state().device?.identity.id).toBe(a.identity.id);
+  const select = elements(m.root, "select").find(node => node.getAttribute("aria-label") === "切换当前设备")!;
+  expect(elements(select, "option").map(node => node.textContent)).toEqual([
+    "当前设备",
+    "Kindle A · Kindle Paperwhite 3 · 已连接",
+    "Kobo B · Kobo Libra 2 · 已连接",
+  ]);
+  (select as HTMLSelectElement).value = b.identity.id; fire(select, "change"); await settle(m);
+  expect(m.context().state().device?.identity.id).toBe(b.identity.id);
+  expect(preference.get()).toBe(b.identity.id);
+  expect((select as HTMLSelectElement).value).toBe(b.identity.id);
+
+  const next = mount("books", input(new KindleDeviceManager(repo, undefined, preference))); await settle(next);
+  expect(next.context().state().device?.identity.id).toBe(b.identity.id);
 });
