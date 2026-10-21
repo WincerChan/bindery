@@ -22,4 +22,4 @@ export function libraryPage(library: LibraryStorage, input: Partial<LibrarySearc
     return_to: libraryReturnTo(current),
   };
 }
-export type LibraryPageData = ReturnType<typeof libraryPage>;
+export type LibraryPageData = ReturnType<typeof libraryPage> & { passkey_prompt?: boolean };

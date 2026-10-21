@@ -117,6 +117,15 @@ it.each([true, false])("updates book cards, selection and empty states (hydratio
   mounted.update(library(["一", "二"])); expect(ids(mounted.root)).toEqual(["一", "二"]);
 });
 
+it("shows the dismissible passkey enrollment hint above the library shelves", () => {
+  const mounted = mount("library", { ...library([]), passkey_prompt: true }, false);
+  const hint = () => css(mounted.root, "div", "passkey-hint")[0];
+  expect(hint()).toBeDefined(); expect(hint()!.textContent).toContain("添加通行密钥，下次免密码登录");
+  expect(elements(hint()!, "a")[0]!.getAttribute("href")).toBe("/security");
+  fire(elements(hint()!, "button")[0]!, "click"); mounted.flush();
+  expect(hint()).toBeUndefined();
+});
+
 it.each(["/", "/rules"])("updates actual router loader data after hydrating %s", async entry => {
   const initial = library(["甲", "魔临", "乙"]);
   const node = root(await ssr.routedMarkup(initial, entry));
@@ -307,6 +316,18 @@ it("closes the desktop settings menu on outside click, Escape, selection and rou
   fire(elements(css(node, "dialog", "more-sheet")[0]!, "a")[0]!, "click"); mounted.flush(); expect(mobile.getAttribute("aria-expanded")).toBe("false");
 });
 
+it("shows the settings install entry for prompt-capable and iOS states, not for unavailable or standalone states", () => {
+  const mounted = mount("install", { mode: null });
+  expect(elements(mounted.root, "button")).toHaveLength(0);
+  mounted.update({ mode: "prompt" });
+  expect(elements(mounted.root, "button").map(element => element.textContent)).toEqual(["安装应用"]);
+  mounted.update({ mode: "ios" });
+  expect(elements(mounted.root, "button").map(element => element.getAttribute("role"))).toEqual(["menuitem"]);
+  expect(mounted.root.textContent).toBe("安装应用");
+  mounted.update({ mode: null });
+  expect(elements(mounted.root, "button")).toHaveLength(0);
+});
+
 it("updates tracker/wishlist filter rows and their empty state", () => {
   const mounted = mount("tracker", tracker(["甲", "乙"]));
   mounted.update(tracker(["乙"]));
@@ -434,11 +455,12 @@ it("uses actual Router Links across Kindle tabs without replacing the provider o
   expect(location.assign).not.toHaveBeenCalled(); expect(location.href).toBe("http://bindery.local/");
 });
 
-it("refreshes the real security page after add, rename and manual-redirect delete without document navigation", async () => {
+it("refreshes the real security page after passkey reauth, add, rename and manual-redirect delete without document navigation", async () => {
   let passkeys = [{ credential_id: "old-key", name: "旧名称", device_label: "设备", created_at: "2026-10-20", last_used_at: null }];
   const load = vi.fn(() => ({ passkeys: passkeys.map(key => ({ ...key })), passkey_configured: true, toast: null }));
   vi.stubGlobal("__binderyTestSecurityData", load);
   const registration = vi.fn(async () => ({ id: "new-key" })); vi.stubGlobal("__binderyTestRegistration", registration);
+  const authentication = vi.fn(async () => ({ id: "old-key" })); vi.stubGlobal("__binderyTestAuthentication", authentication);
   vi.stubGlobal("location", { href: "http://localhost/security", pathname: "/security", search: "", assign: vi.fn() });
   const confirm = vi.fn(() => true); vi.stubGlobal("window", { confirm, location, addEventListener() {}, removeEventListener() {} });
   vi.stubGlobal("FormData", class extends FormData { constructor(form?: Element) { super(); if (form) for (const input of elements(form, "input")) { const name = input.getAttribute("name"); if (name) this.set(name, (input as HTMLInputElement).value); } } });
@@ -446,6 +468,8 @@ it("refreshes the real security page after add, rename and manual-redirect delet
   const fetch = vi.fn(async (url: string, init: RequestInit) => {
     expect(init.method).toBe("POST"); expect(init.credentials).toBe("same-origin");
     const body = init.body ? JSON.parse(String(init.body)) : {};
+    if (url.endsWith("reauth/passkey/options")) return Response.json({ challenge: "reauth-challenge" });
+    if (url.endsWith("reauth/passkey/verify")) { expect(body.credential).toEqual({ id: "old-key" }); return Response.json({ ok: true }); }
     if (url.endsWith("register/options")) return Response.json({ challenge: "original-challenge" });
     if (url.endsWith("register/verify")) { expect(body.credential).toEqual({ id: "new-key" }); passkeys.push({ credential_id: "new-key", name: body.name, device_label: "设备", created_at: "2026-10-20", last_used_at: null }); return Response.json({ ok: true }); }
     if (url.endsWith("/rename")) { passkeys[0]!.name = body.name; return Response.json({ ok: true }); }
@@ -466,12 +490,13 @@ it("refreshes the real security page after add, rename and manual-redirect delet
   const add = elements(node, "form").find(form => form.getAttribute("class") === "form-stack")!;
   submit(add);
   await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(2); expect(elements(node, "input").map(input => (input as HTMLInputElement).value)).toContain("新密钥"); });
-  expect(name.value).toBe(""); expect(registration).toHaveBeenCalledWith({ optionsJSON: { challenge: "original-challenge" } });
+  expect(name.value).toBe(""); expect(authentication).toHaveBeenCalledWith({ optionsJSON: { challenge: "reauth-challenge" } });
+  expect(registration).toHaveBeenCalledWith({ optionsJSON: { challenge: "original-challenge" } });
   const renamed = elements(renameForm(), "input")[0] as HTMLInputElement; renamed.value = "已重命名"; submit(renameForm());
   await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(3); expect((elements(renameForm(), "input")[0] as HTMLInputElement).value).toBe("已重命名"); });
   const deletion = elements(node, "form").find(form => form.getAttribute("action")?.endsWith("old-key/delete"))!;
   expect(deletion.getAttribute("method")).toBe("post");
-  confirm.mockReturnValueOnce(false); submit(deletion); expect(fetch).toHaveBeenCalledTimes(3);
+  confirm.mockReturnValueOnce(false); submit(deletion); expect(fetch).toHaveBeenCalledTimes(5);
   failDelete = true; submit(deletion);
   await vi.waitFor(() => { mounted.flush(); expect(node.textContent).toContain("删除写入失败"); });
   expect(load).toHaveBeenCalledTimes(3); expect(elements(node, "article")).toHaveLength(2);
@@ -481,11 +506,34 @@ it("refreshes the real security page after add, rename and manual-redirect delet
   const toast = vi.mocked(document.body.dispatchEvent).mock.calls.map(([event]) => (event as CustomEvent).detail.message);
   expect(toast).toEqual(expect.arrayContaining(["已添加通行密钥", "已重命名通行密钥", "删除写入失败", "已删除通行密钥"]));
   expect(location.assign).not.toHaveBeenCalled(); expect(mounted.router.state.location.href).toBe("/security");
-  expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/security/passkeys/register/options", "/security/passkeys/register/verify", "/security/passkeys/old-key/rename", "/security/passkeys/old-key/delete", "/security/passkeys/old-key/delete"]);
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/security/reauth/passkey/options", "/security/reauth/passkey/verify", "/security/passkeys/register/options", "/security/passkeys/register/verify", "/security/passkeys/old-key/rename", "/security/passkeys/old-key/delete", "/security/passkeys/old-key/delete"]);
   fetch.mockResolvedValueOnce(new Response(null, { status: 401, headers: { "HX-Redirect": "/login" } }));
   submit(renameForm());
   await vi.waitFor(() => { mounted.flush(); expect(mounted.router.state.location.href).toBe("/login?next=%2Fsecurity"); });
   expect(location.assign).not.toHaveBeenCalled();
+});
+
+it("switches security enrollment between first password setup, passkey reauth and password fallback", async () => {
+  let passkeys: { credential_id: string; name: string; device_type: string | null; backed_up: number; created_at: string; last_used_at: string | null }[] = [];
+  const load = vi.fn(() => ({ passkeys: passkeys.map(key => ({ ...key })), passkey_configured: true, toast: null }));
+  vi.stubGlobal("__binderyTestSecurityData", load);
+  vi.stubGlobal("window", { confirm: vi.fn(() => true), addEventListener() {}, removeEventListener() {} });
+  const node = root(), mounted = await ui.securityNavigation(node); disposers.push(mounted.dispose); mounted.flush();
+  const addForm = () => elements(node, "form").find(form => form.getAttribute("class") === "form-stack")!,
+    password = () => elements(addForm(), "input").find(input => input.getAttribute("type") === "password"),
+    buttons = () => elements(addForm(), "button").map(button => button.textContent);
+  expect(node.textContent).toContain("首次添加需要先验证密码。");
+  expect(password()).toBeDefined(); expect(buttons()).toEqual(["验证密码并添加"]);
+  passkeys = [{ credential_id: "old-key", name: "旧名称", device_type: "multi_device", backed_up: 1, created_at: "2026-10-20", last_used_at: null }];
+  await mounted.router.invalidate(); mounted.flush();
+  expect(node.textContent).toContain("添加前请先重新验证身份。");
+  expect(password()).toBeUndefined(); expect(buttons()).toEqual(["用通行密钥验证并添加", "改用密码验证"]);
+  fire(elements(addForm(), "button").find(button => button.textContent === "改用密码验证")!, "click"); mounted.flush();
+  expect(password()).toBeDefined(); expect(buttons()).toEqual(["验证密码并添加", "改用通行密钥验证"]);
+  passkeys = [];
+  await mounted.router.invalidate(); mounted.flush();
+  expect(node.textContent).toContain("首次添加需要先验证密码。");
+  expect(password()).toBeDefined(); expect(buttons()).toEqual(["验证密码并添加"]);
 });
 
 it.each([true, false])("ingest selection, drop, dedupe, removal and multipart submission (hydration=%s)", async hydrating => {

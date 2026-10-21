@@ -1,7 +1,8 @@
 import { hydrate, render, renderToString, isServer } from "@solidjs/web";
 import { createSignal, flush, Loading, onCleanup, type ComponentProps } from "solid-js";
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet, RouterProvider, redirect } from "@tanstack/solid-router";
-import { AppShell } from "../../src/shell/app-shell";
+import { AppShell, InstallAppMenuItem } from "../../src/shell/app-shell";
+import type { InstallMode } from "../../src/client/pwa/install";
 import { LibraryPage } from "../../src/features/library/library-page";
 import { TrackerPage } from "../../src/features/catalog/tracker";
 import { RulesPage } from "../../src/features/catalog/rules";
@@ -67,12 +68,13 @@ export type Cases = {
   editor: ComponentProps<typeof Editor>;
   trackerForm: ComponentProps<typeof TrackerForm>;
   pagination: ComponentProps<typeof Pagination>;
+  install: { mode: InstallMode | null };
 };
 
 function view<K extends keyof Cases>(kind: K, data: () => Cases[K]) {
   // Kind is fixed for each mount; updates flow through the real component props.
   switch (kind) {
-    case "library": return <LibraryPage data={(data as () => Cases["library"])()} regenerate={async () => ({ queued: 0, failed: 0, skipped: 0 })} />;
+    case "library": return <LibraryPage data={(data as () => Cases["library"])()} passkeyPrompt={(data as () => Cases["library"])().passkey_prompt} regenerate={async () => ({ queued: 0, failed: 0, skipped: 0 })} />;
     case "libraryActions": return <LibraryPage {...(data as () => Cases["libraryActions"])()} />;
     case "archive": return <LibraryPage data={{ scope: "archived", books: (data as () => Cases["archive"])().map(book => ({ ...book, archived: true })), total_books: (data as () => Cases["archive"])().length, page: 1, per_page: 24, total_pages: 1, sort: "updated", q: "", read_filter: "all", has_prev: false, has_next: false, prev_page: 1, next_page: 1, return_to: "/?scope=archived" }} restore={async () => {}} refresh={async () => {}} regenerate={async () => ({ queued: 0, failed: 0, skipped: 0 })} />;
     case "tracker": return <TrackerPage data={(data as () => Cases["tracker"])()} />;
@@ -86,6 +88,7 @@ function view<K extends keyof Cases>(kind: K, data: () => Cases[K]) {
     case "editor": return <Editor {...(data as () => Cases["editor"])()} />;
     case "trackerForm": return <TrackerForm {...(data as () => Cases["trackerForm"])()} />;
     case "pagination": return <Pagination {...(data as () => Cases["pagination"])()} />;
+    case "install": return <InstallAppMenuItem mode={(data as () => Cases["install"])().mode} role="menuitem" onInstall={() => {}} />;
   }
 }
 

@@ -1,6 +1,7 @@
 import { getRequest } from "@tanstack/solid-start/server";
 import { configuredHash, safeNext, webauthnConfig } from "./auth";
 import { publicPasskey } from "./auth-http";
+export { passkeyEnrollmentPrompt } from "./auth";
 import { getLibrary } from "./runtime";
 import type { BinderyDatabase } from "./db";
 export function loginData(request = getRequest(), db: BinderyDatabase = getLibrary().db) {

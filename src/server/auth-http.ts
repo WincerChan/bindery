@@ -2,10 +2,12 @@ import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthe
 import { BinderyDatabase, nowIso, type Challenge, type Passkey } from "./db";
 import { awareTimestamp, compatJson } from "./db/encoding";
 import { strip } from "../core/text";
-import { configuredHash, isAuthenticated, passwordIsFresh, safeNext, SESSION_COOKIE, signIn, signOut, verifyPassword, webauthnConfig, type WebauthnConfig } from "./auth";
+import { configuredHash, cookies, isAuthenticated, passwordIsFresh, safeNext, SESSION_COOKIE, signIn, signOut, verifyPassword, webauthnConfig, type WebauthnConfig } from "./auth";
+export { cookies } from "./auth";
 export const WEBAUTHN_COOKIE = "bindery_webauthn";
 const LOGIN_PATH = "/login/passkey",
-  REGISTER_PATH = "/security/passkeys";
+  REGISTER_PATH = "/security/passkeys",
+  REAUTH_PATH = "/security/reauth/passkey";
 const TRANSPORTS = new Set(["usb", "nfc", "ble", "internal", "hybrid", "cable", "smart-card"]);
 // py_webauthn's registration defaults, including existing RSA/P-521 credentials.
 const ALGORITHMS = [-7, -8, -36, -37, -38, -39, -257, -258, -259];
@@ -14,20 +16,14 @@ export class AuthError extends Error {
     super(message);
   }
 }
-export function cookies(request: Request): Record<string, string> {
-  const result: Record<string, string> = Object.create(null);
-  for (const part of (request.headers.get("cookie") || "").split(";")) {
-    const at = part.indexOf("=");
-    if (at < 0) continue;
-    result[part.slice(0, at).trim()] = part.slice(at + 1).trim().replace(/^"|"$/g, "");
-  }
-  return result;
-}
 function sessionCookie(value: string): string {
   return `${SESSION_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax`;
 }
+function challengePath(kind: string): string {
+  return kind === "login" ? LOGIN_PATH : kind === "reauth" ? REAUTH_PATH : REGISTER_PATH;
+}
 function challengeCookie(value: string, kind: string, config: WebauthnConfig | null, clear = false): string {
-  return `${WEBAUTHN_COOKIE}=${value}; Max-Age=${clear ? 0 : 300}; Path=${kind === "login" ? LOGIN_PATH : REGISTER_PATH}; HttpOnly; SameSite=Strict${config?.secure ? "; Secure" : ""}${clear ? "; Expires=Thu, 01 Jan 1970 00:00:00 GMT" : ""}`;
+  return `${WEBAUTHN_COOKIE}=${value}; Max-Age=${clear ? 0 : 300}; Path=${challengePath(kind)}; HttpOnly; SameSite=Strict${config?.secure ? "; Secure" : ""}${clear ? "; Expires=Thu, 01 Jan 1970 00:00:00 GMT" : ""}`;
 }
 export function publicPasskey(key: Passkey) {
   const {
@@ -84,16 +80,53 @@ function nameFor(value: unknown, db: BinderyDatabase): string {
 function consume(request: Request, db: BinderyDatabase, kind: string): Challenge | null {
   const jar = cookies(request),
     challenge = db.popChallenge(jar[WEBAUTHN_COOKIE] || "");
-  if (!challenge || challenge.kind !== kind || !(awareTimestamp(challenge.expires_at) > Date.now()) || kind === "register" && challenge.session_id !== jar[SESSION_COOKIE]) return null;
+  if (!challenge || challenge.kind !== kind || !(awareTimestamp(challenge.expires_at) > Date.now()) || kind !== "login" && challenge.session_id !== jar[SESSION_COOKIE]) return null;
   return challenge;
 }
 function issue(options: {
   challenge: string;
-}, kind: "login" | "register", request: Request, db: BinderyDatabase, config: WebauthnConfig): Response {
-  const id = db.createChallenge(kind, Buffer.from(options.challenge, "base64url"), kind === "register" ? cookies(request)[SESSION_COOKIE]! : null);
+}, kind: "login" | "register" | "reauth", request: Request, db: BinderyDatabase, config: WebauthnConfig): Response {
+  const id = db.createChallenge(kind, Buffer.from(options.challenge, "base64url"), kind === "login" ? null : cookies(request)[SESSION_COOKIE]!);
   const response = json(options);
   response.headers.append("Set-Cookie", challengeCookie(id, kind, config));
   return response;
+}
+function canAddPasskey(db: BinderyDatabase, session: ReturnType<BinderyDatabase["getSession"]>): boolean {
+  if (!session || !passwordIsFresh(session)) return false;
+  // With no keys left, only a password step-up counts as first-time enrollment.
+  return db.countPasskeys() > 0 || session.auth_method === "password";
+}
+async function verifyAssertion(db: BinderyDatabase, config: WebauthnConfig, challenge: Challenge | null, body: Record<string, unknown>): Promise<Passkey> {
+  let key: Passkey, verified;
+  try {
+    if (!challenge) throw new Error();
+    const credential = body.credential as AuthenticationResponseJSON;
+    const found = db.getPasskey(credential.rawId);
+    if (!found) throw new Error();
+    key = found;
+    verified = await verifyAuthenticationResponse({
+      response: credential,
+      expectedChallenge: Buffer.from(challenge.challenge).toString("base64url"),
+      expectedOrigin: config.origin,
+      expectedRPID: config.rp_id,
+      credential: {
+        id: key.credential_id,
+        publicKey: new Uint8Array(key.public_key),
+        counter: key.sign_count
+      },
+      requireUserVerification: true
+    });
+    if (!verified.verified) throw new Error();
+  } catch {
+    throw new AuthError("通行密钥验证失败");
+  }
+  // WebCrypto yields while verifying. Recheck the counter atomically so two
+  // independent challenges cannot roll it back, or revive a deleted key.
+  const counter = verified.authenticationInfo.newCounter;
+  const updated = db.run(`UPDATE passkeys SET sign_count = ?, backed_up = ?, last_used_at = ?
+    WHERE credential_id = ? AND ((sign_count = 0 AND ? = 0) OR sign_count < ?)`, counter, Number(verified.authenticationInfo.credentialBackedUp), nowIso(), key.credential_id, counter, counter);
+  if (!updated) throw new AuthError("通行密钥验证失败");
+  return key;
 }
 
 // Shared by the production entry and direct Request/Response tests. Returns null
@@ -163,40 +196,48 @@ export async function handleAuthRequest(request: Request, db: BinderyDatabase): 
         throw new AuthError("通行密钥验证失败");
       }
       const config = configFor(request);
-      let key: Passkey, verified;
-      try {
-        if (!challenge) throw new Error();
-        const credential = body.credential as AuthenticationResponseJSON;
-        const found = db.getPasskey(credential.rawId);
-        if (!found) throw new Error();
-        key = found;
-        verified = await verifyAuthenticationResponse({
-          response: credential,
-          expectedChallenge: Buffer.from(challenge.challenge).toString("base64url"),
-          expectedOrigin: config.origin,
-          expectedRPID: config.rp_id,
-          credential: {
-            id: key.credential_id,
-            publicKey: new Uint8Array(key.public_key),
-            counter: key.sign_count
-          },
-          requireUserVerification: true
-        });
-        if (!verified.verified) throw new Error();
-      } catch {
-        throw new AuthError("通行密钥验证失败");
-      }
-      // WebCrypto yields while verifying. Recheck the counter atomically so two
-      // independent challenges cannot roll it back, or revive a deleted key.
-      const counter = verified.authenticationInfo.newCounter;
-      const updated = db.run(`UPDATE passkeys SET sign_count = ?, backed_up = ?, last_used_at = ?
-        WHERE credential_id = ? AND ((sign_count = 0 AND ? = 0) OR sign_count < ?)`, counter, Number(verified.authenticationInfo.credentialBackedUp), nowIso(), key.credential_id, counter, counter);
-      if (!updated) throw new AuthError("通行密钥验证失败");
+      await verifyAssertion(db, config, challenge, body);
       const response = json({
         redirect: safeNext(body.next)
       });
-      response.headers.append("Set-Cookie", sessionCookie(signIn(db, "passkey")));
+      const sessionId = signIn(db, "passkey");
+      // Match password login: signing in via either method starts the same
+      // 10-minute step-up window. Sensitive actions still re-verify explicitly.
+      db.markReauthenticated(sessionId, nowIso());
+      response.headers.append("Set-Cookie", sessionCookie(sessionId));
       response.headers.append("Set-Cookie", challengeCookie("", "login", config, true));
+      return response;
+    }
+    if (path === `${REAUTH_PATH}/options`) {
+      await jsonBody(request);
+      const config = configFor(request);
+      if (!db.countPasskeys()) throw new AuthError("通行密钥不可用", 404);
+      return issue(await generateAuthenticationOptions({
+        rpID: config.rp_id,
+        userVerification: "required",
+        allowCredentials: db.listPasskeys().map(key => ({
+          id: key.credential_id,
+          transports: JSON.parse(key.transports_json) as string[]
+        }))
+      }), "reauth", request, db, config);
+    }
+    if (path === `${REAUTH_PATH}/verify`) {
+      // Pop before parsing or verifying, so every failure consumes the challenge.
+      const challenge = consume(request, db, "reauth");
+      let body: Record<string, unknown>;
+      try {
+        body = await jsonBody(request);
+      } catch (e) {
+        if (e instanceof AuthError && e.status === 415) throw e;
+        throw new AuthError("通行密钥验证失败");
+      }
+      const config = configFor(request);
+      await verifyAssertion(db, config, challenge, body);
+      db.markReauthenticated(jar[SESSION_COOKIE]!, nowIso());
+      const response = json({
+        ok: true
+      });
+      response.headers.append("Set-Cookie", challengeCookie("", "reauth", config, true));
       return response;
     }
     if (path === "/security/reauth") {
@@ -212,7 +253,7 @@ export async function handleAuthRequest(request: Request, db: BinderyDatabase): 
     if (path === `${REGISTER_PATH}/register/options`) {
       await jsonBody(request);
       const config = configFor(request);
-      if (!passwordIsFresh(db.getSession(jar[SESSION_COOKIE]!))) throw new AuthError("needs_password", 403);
+      if (!canAddPasskey(db, db.getSession(jar[SESSION_COOKIE]!))) throw new AuthError("needs_password", 403);
       const options = await generateRegistrationOptions({
         rpID: config.rp_id,
         rpName: "Bindery",
@@ -237,7 +278,7 @@ export async function handleAuthRequest(request: Request, db: BinderyDatabase): 
         body = await jsonBody(request),
         config = configFor(request);
       if (!challenge) throw new AuthError("通行密钥验证失败");
-      if (!passwordIsFresh(db.getSession(jar[SESSION_COOKIE]!))) throw new AuthError("needs_password", 403);
+      if (!canAddPasskey(db, db.getSession(jar[SESSION_COOKIE]!))) throw new AuthError("needs_password", 403);
       const name = nameFor("name" in body ? body.name : "", db);
       let info, transports: string[];
       try {
@@ -258,7 +299,7 @@ export async function handleAuthRequest(request: Request, db: BinderyDatabase): 
       }
       try {
         // Registration verification also yields to other requests (e.g. logout).
-        if (!passwordIsFresh(db.getSession(jar[SESSION_COOKIE]!))) throw new AuthError("needs_password", 403);
+        if (!canAddPasskey(db, db.getSession(jar[SESSION_COOKIE]!))) throw new AuthError("needs_password", 403);
         db.insertPasskey({
           credential_id: info.credential.id,
           public_key: info.credential.publicKey,
@@ -300,6 +341,9 @@ export async function handleAuthRequest(request: Request, db: BinderyDatabase): 
       }
       configFor(request);
       if (!db.deletePasskey(id)) throw new AuthError("通行密钥不存在", 404);
+      // Removing the last key returns the account to first-time enrollment:
+      // every session must prove the password again before adding one.
+      if (!db.countPasskeys()) db.clearReauthentication();
       return redirect("/security?toast=" + encodeURIComponent("已删除通行密钥"));
     }
     return null;
@@ -308,7 +352,7 @@ export async function handleAuthRequest(request: Request, db: BinderyDatabase): 
     const response = json({
       error: error.message
     }, error.status);
-    if (path.endsWith("/verify")) response.headers.append("Set-Cookie", challengeCookie("", path.startsWith("/login/") ? "login" : "register", webauthnConfig(request), true));
+    if (path.endsWith("/verify")) response.headers.append("Set-Cookie", challengeCookie("", path.startsWith("/login/") ? "login" : path.startsWith(REAUTH_PATH) ? "reauth" : "register", webauthnConfig(request), true));
     return response;
   }
 }

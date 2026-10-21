@@ -5,6 +5,15 @@ import { BinderyDatabase, nowIso, type Session } from "./db";
 import { awareTimestamp } from "./db/encoding";
 import { readEnv } from "./env";
 export const SESSION_COOKIE = "bindery_session";
+export function cookies(request: Request): Record<string, string> {
+  const result: Record<string, string> = Object.create(null);
+  for (const part of (request.headers.get("cookie") || "").split(";")) {
+    const at = part.indexOf("=");
+    if (at < 0) continue;
+    result[part.slice(0, at).trim()] = part.slice(at + 1).trim().replace(/^"|"$/g, "");
+  }
+  return result;
+}
 export function configuredHash(env: NodeJS.ProcessEnv = process.env): string | undefined {
   return readEnv("BINDERY_PASSWORD_HASH", env);
 }
@@ -31,6 +40,8 @@ export function isAuthenticated(db: BinderyDatabase, id: string | null | undefin
 export function signOut(db: BinderyDatabase, id: string | null | undefined): void {
   if (id) db.deleteSession(id);
 }
+// sessions.password_verified_at is the legacy name for the last step-up
+// verification, whichever method (password or an existing passkey) performed it.
 export function passwordIsFresh(session: Pick<Session, "password_verified_at"> | null, now = Date.now()): boolean {
   const age = now - awareTimestamp(session?.password_verified_at);
   return age >= 0 && age <= 600000;
@@ -80,6 +91,10 @@ export function webauthnConfig(request?: Request, env: NodeJS.ProcessEnv = proce
   } catch {
     return null;
   }
+}
+export function passkeyEnrollmentPrompt(request: Request, db: BinderyDatabase): boolean {
+  const session = db.getSession(cookies(request)[SESSION_COOKIE] || "");
+  return Boolean(webauthnConfig(request)) && db.countPasskeys() === 0 && session?.auth_method === "password";
 }
 export function safeNext(value: unknown): string {
   return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\") && !/[\x00-\x1f\x7f-\x9f]/.test(value) ? value : "/";

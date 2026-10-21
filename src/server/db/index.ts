@@ -69,7 +69,16 @@ export class BinderyDatabase extends Connection {
     this.run("DELETE FROM sessions WHERE session_id = ?", id);
   }
   markPasswordVerified(id: string, now: string): void {
+    this.run("UPDATE sessions SET password_verified_at = ?, auth_method = 'password' WHERE session_id = ?", now, id);
+  }
+  // The legacy column is the last step-up verification timestamp. A passkey
+  // does not rewrite the login method; only a password step-up does, so
+  // zero-key first enrollment can always require the password.
+  markReauthenticated(id: string, now: string): void {
     this.run("UPDATE sessions SET password_verified_at = ? WHERE session_id = ?", now, id);
+  }
+  clearReauthentication(): void {
+    this.run("UPDATE sessions SET password_verified_at = NULL");
   }
   createJob(job: Job): void {
     this.run(`INSERT INTO jobs(${JOB_COLUMNS.join(", ")}) VALUES (${JOB_COLUMNS.map(() => "?").join(", ")})`, ...JOB_COLUMNS.map(c => job[c as keyof Job]));
@@ -184,8 +193,8 @@ export class BinderyDatabase extends Connection {
     }));
     return new Uint8Array(Buffer.from(value, "base64url"));
   }
-  createChallenge(kind: "login" | "register", challenge: Uint8Array, sessionId: string | null = null, date = new Date()): string {
-    if (!["login", "register"].includes(kind) || kind === "register" && !sessionId) throw new Error("Invalid challenge kind or missing registration session");
+  createChallenge(kind: "login" | "register" | "reauth", challenge: Uint8Array, sessionId: string | null = null, date = new Date()): string {
+    if (!["login", "register", "reauth"].includes(kind) || kind !== "login" && !sessionId) throw new Error("Invalid challenge kind or missing session");
     const id = randomBytes(32).toString("base64url");
     this.withConnection(conn => transaction(conn, () => {
       conn.prepare("DELETE FROM webauthn_challenges WHERE expires_at <= ?").run(nowIso(date));

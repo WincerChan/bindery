@@ -30,7 +30,18 @@
 }
 
 .auth-page { max-width: 25rem; margin: 12vh auto; padding: 1.5rem; }
+.auth-page .page-header { margin-bottom: 20px; }
+.login-passkey { width: 100%; margin-top: 8px; }
+.login-password { margin-top: 20px; padding-top: 8px; border-top: 1px solid var(--color-line); }
+.login-password > summary { display: flex; align-items: center; min-height: 40px; color: var(--color-accent); font-size: 14px; cursor: pointer; list-style: none; }
+.login-password > summary::-webkit-details-marker { display: none; }
+.login-password > summary::after { content: "＋"; margin-left: 6px; }
+.login-password[open] > summary::after { content: "－"; }
 .security-page { max-width: 52rem; }
+.form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.passkey-hint { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 16px; padding: 8px 0; border-block: 1px solid var(--color-line); }
+.passkey-hint a { color: var(--color-ink); font-size: 14px; }
+.passkey-hint button { min-height: 32px; padding: 0 4px; font-size: 18px; line-height: 1; }
 .eyebrow { letter-spacing: .16em; font-size: .7rem; color: var(--color-ink-3); margin-top: 2.5rem; }
 h1 { font-size: 2rem; font-weight: 650; margin: .5rem 0 1rem; }
 h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }

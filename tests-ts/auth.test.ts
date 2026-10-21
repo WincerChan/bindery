@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { randomBytes } from "node:crypto";
 import { BinderyDatabase, nowIso } from "../src/server/db";
-import { isAuthenticated, passwordIsFresh, safeNext, SESSION_COOKIE, signIn, verifyPassword, webauthnConfig } from "../src/server/auth";
+import { isAuthenticated, passkeyEnrollmentPrompt, passwordIsFresh, safeNext, SESSION_COOKIE, signIn, verifyPassword, webauthnConfig } from "../src/server/auth";
 import { handleAuthRequest, WEBAUTHN_COOKIE } from "../src/server/auth-http";
 import { assertionCredential, authReference, installPasskey, recordedChallenge, registrationCredential, verifyRecordedAssertion } from "./support/webauthn-reference";
 const root = mkdtempSync(join(tmpdir(), "bindery-auth-"));
@@ -70,6 +70,16 @@ async function registrationOptions(session: string) {
   return {
     options: await response.json(),
     jar: `${session}; ${cookie(response, WEBAUTHN_COOKIE)}`,
+    response
+  };
+}
+async function reauthOptions(session: string) {
+  const response = await request("/security/reauth/passkey/options", {}, session);
+  expect(response.status).toBe(200);
+  return {
+    options: await response.json(),
+    jar: `${session}; ${cookie(response, WEBAUTHN_COOKIE)}`,
+    challengeId: cookie(response, WEBAUTHN_COOKIE).split("=")[1]!,
     response
   };
 }
@@ -210,7 +220,7 @@ describe("real WebAuthn signatures and legacy-stored credentials", () => {
     expect(db.getPasskey(key.id)?.sign_count).toBe(3);
     const id = cookie(verified, SESSION_COOKIE).split("=")[1]!;
     expect(db.getSession(id)?.auth_method).toBe("passkey");
-    expect(db.getSession(id)?.password_verified_at).toBeNull();
+    expect(passwordIsFresh(db.getSession(id))).toBe(true);
     expect((await request("/login/passkey/verify", {
       credential
     }, jar)).status).toBe(400);
@@ -379,12 +389,12 @@ describe("real WebAuthn signatures and legacy-stored credentials", () => {
   });
   it("enforces JSON on every JSON endpoint and honors unavailable config", async () => {
     const session = cookie(await passwordLogin(), SESSION_COOKIE);
-    for (const endpoint of ["/login/passkey/options", "/login/passkey/verify", "/security/reauth", "/security/passkeys/register/options", "/security/passkeys/register/verify", "/security/passkeys/missing/rename"]) expect((await request(endpoint, "{}", session, {
+    for (const endpoint of ["/login/passkey/options", "/login/passkey/verify", "/security/reauth", "/security/reauth/passkey/options", "/security/reauth/passkey/verify", "/security/passkeys/register/options", "/security/passkeys/register/verify", "/security/passkeys/missing/rename"]) expect((await request(endpoint, "{}", session, {
       "Content-Type": "text/plain"
     })).status).toBe(415);
     expect((await request("/security/reauth", [], session)).status).toBe(400);
     vi.stubEnv("BINDERY_PUBLIC_ORIGIN", "");
-    for (const endpoint of ["/login/passkey/options", "/login/passkey/verify", "/security/reauth", "/security/passkeys/register/options", "/security/passkeys/register/verify", "/security/passkeys/missing/rename", "/security/passkeys/missing/delete"]) expect((await request(endpoint, {}, session)).status).toBe(404);
+    for (const endpoint of ["/login/passkey/options", "/login/passkey/verify", "/security/reauth", "/security/reauth/passkey/options", "/security/reauth/passkey/verify", "/security/passkeys/register/options", "/security/passkeys/register/verify", "/security/passkeys/missing/rename", "/security/passkeys/missing/delete"]) expect((await request(endpoint, {}, session)).status).toBe(404);
   });
   it("purges expired challenges, preserves the user ID, and consumes atomically across SQLite connections", async () => {
     const old = db.createChallenge("login", new Uint8Array([1]), null, new Date(Date.now() - 360000));
@@ -411,5 +421,106 @@ describe("real WebAuthn signatures and legacy-stored credentials", () => {
     })));
     expect(results.filter(Boolean)).toHaveLength(1);
     expect(() => db.createChallenge("register", new Uint8Array())).toThrow();
+  });
+});
+
+describe("passkey step-up reauthentication", () => {
+  it("requires a password for first enrollment and after deleting the last passkey", async () => {
+    const passkeySession = signIn(db, "passkey");
+    db.markReauthenticated(passkeySession, nowIso());
+    expect((await request("/security/passkeys/register/options", {}, `${SESSION_COOKIE}=${passkeySession}`)).status).toBe(403);
+    const session = cookie(await passwordLogin(), SESSION_COOKIE);
+    let challenge = await registrationOptions(session),
+      credential = registrationCredential(challenge.options.challenge, {}, path);
+    expect((await request("/security/passkeys/register/verify", { credential }, challenge.jar)).status).toBe(200);
+    const key = db.listPasskeys()[0]!;
+    expect((await request(`/security/passkeys/${encodeURIComponent(key.credential_id)}/delete`, {}, session)).status).toBe(303);
+    expect(db.countPasskeys()).toBe(0);
+    expect((await request("/security/passkeys/register/options", {}, session)).status).toBe(403);
+    expect((await request("/security/reauth", { password: "兼容-password😀" }, session)).status).toBe(200);
+    challenge = await registrationOptions(session);
+    expect(challenge.options.excludeCredentials).toEqual([]);
+  });
+  it("lets an existing passkey reauthenticate registration and records its use", async () => {
+    const key = await enroll();
+    const session = cookie(await passwordLogin(), SESSION_COOKIE), sessionId = session.split("=")[1]!;
+    db.markPasswordVerified(sessionId, nowIso(new Date(Date.now() - 660000)));
+    const reauth = await reauthOptions(session);
+    expect(reauth.options.allowCredentials).toEqual([{
+      id: key.credential_id,
+      type: "public-key",
+      transports: ["internal", "hybrid"]
+    }]);
+    for (const attr of ["HttpOnly", "Max-Age=300", "Path=/security/reauth/passkey", "SameSite=Strict", "Secure"]) expect(reauth.response.headers.get("set-cookie")).toContain(attr);
+    const assertion = assertionCredential(key.credential_id, reauth.options.challenge, { counter: 1 });
+    const verified = await request("/security/reauth/passkey/verify", { credential: assertion }, reauth.jar);
+    expect(verified.status).toBe(200);
+    expect(await verified.json()).toEqual({ ok: true });
+    expect(db.popChallenge(reauth.challengeId)).toBeNull();
+    expect(passwordIsFresh(db.getSession(sessionId))).toBe(true);
+    expect(db.getSession(sessionId)?.auth_method).toBe("password");
+    expect(db.getPasskey(key.credential_id)?.sign_count).toBe(1);
+    const challenge = await registrationOptions(session),
+      credential = registrationCredential(challenge.options.challenge, {}, path);
+    expect((await request("/security/passkeys/register/verify", { credential }, challenge.jar)).status).toBe(200);
+    expect(db.countPasskeys()).toBe(2);
+  });
+  it.each([["wrong origin", { origin: "https://evil.com" }], ["wrong RP", { rp_id: "evil.com" }], ["missing UV", { flags: 1 }], ["missing UP", { flags: 4 }], ["corrupt signature", { corrupt: true }], ["counter replay", { counter: 0 }]])("rejects reauth with %s and consumes the challenge", async (_, config) => {
+    const key = await enroll();
+    db.updatePasskeyUsage(key.id, 1, false, nowIso());
+    const sessionId = signIn(db, "passkey"), session = `${SESSION_COOKIE}=${sessionId}`;
+    const { options, jar, challengeId, response } = await reauthOptions(session);
+    const credential = assertionCredential(key.id, options.challenge, {
+      counter: 1,
+      ...(config as object)
+    });
+    const failed = await request("/security/reauth/passkey/verify", { credential }, jar);
+    expect(failed.status).toBe(400);
+    expect(await failed.json()).toEqual({ error: "通行密钥验证失败" });
+    expect(failed.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(failed.headers.get("set-cookie")).toContain("Path=/security/reauth/passkey");
+    expect(db.popChallenge(challengeId)).toBeNull();
+    expect(db.getPasskey(key.id)?.sign_count).toBe(1);
+    expect(passwordIsFresh(db.getSession(sessionId))).toBe(false);
+    expect(response.status).toBe(200);
+  });
+  it("binds challenges to the session, expires them, consumes them once and rejects anonymous use", async () => {
+    const key = await enroll();
+    const sessionId = signIn(db, "passkey"), session = `${SESSION_COOKIE}=${sessionId}`;
+    let reauth = await reauthOptions(session), challengeCookie = reauth.jar.split("; ").at(-1)!;
+    const other = signIn(db, "passkey");
+    let response = await request("/security/reauth/passkey/verify", {
+      credential: assertionCredential(key.id, reauth.options.challenge, { counter: 1 })
+    }, `${SESSION_COOKIE}=${other}; ${challengeCookie}`);
+    expect(response.status).toBe(400);
+    expect(db.popChallenge(reauth.challengeId)).toBeNull();
+    reauth = await reauthOptions(session);
+    db.run("UPDATE webauthn_challenges SET expires_at = ? WHERE id = ?", nowIso(new Date(Date.now() - 1000)), reauth.challengeId);
+    response = await request("/security/reauth/passkey/verify", {
+      credential: assertionCredential(key.id, reauth.options.challenge, { counter: 1 })
+    }, reauth.jar);
+    expect(response.status).toBe(400);
+    expect(db.popChallenge(reauth.challengeId)).toBeNull();
+    reauth = await reauthOptions(session);
+    const credential = assertionCredential(key.id, reauth.options.challenge, { counter: 1 });
+    expect((await request("/security/reauth/passkey/verify", { credential }, reauth.jar)).status).toBe(200);
+    expect((await request("/security/reauth/passkey/verify", { credential }, reauth.jar)).status).toBe(400);
+    expect(db.popChallenge(reauth.challengeId)).toBeNull();
+    for (const url of ["/security/reauth/passkey/options", "/security/reauth/passkey/verify"]) {
+      const anonymous = await request(url, {});
+      expect(anonymous.status).toBe(303);
+      expect(anonymous.headers.get("location")).toBe(`/login?next=${url}`);
+    }
+  });
+
+  it("offers the library enrollment hint only for a fresh password session with no passkeys and valid WebAuthn config", async () => {
+    const session = cookie(await passwordLogin(), SESSION_COOKIE);
+    const withCookie = (jar: string) => new Request(origin + "/", { headers: { Cookie: jar } });
+    expect(passkeyEnrollmentPrompt(withCookie(session), db)).toBe(true);
+    await enroll();
+    expect(passkeyEnrollmentPrompt(withCookie(session), db)).toBe(false);
+    expect(passkeyEnrollmentPrompt(withCookie(`${SESSION_COOKIE}=${signIn(db, "passkey")}`), db)).toBe(false);
+    vi.stubEnv("BINDERY_PUBLIC_ORIGIN", "");
+    expect(passkeyEnrollmentPrompt(withCookie(session), db)).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { BookCover, Button, Checkbox, ConfirmDialog, EmptyState, GeneratedCover, PageHeader, Pagination, Tag, TextField } from "../../ui";
 import { showToast } from "../../client/toast";
+import { browserSupportsWebAuthn } from "../../client/passkeys";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
 import { mutateLibrarySelection } from "./mutations";
@@ -63,7 +64,7 @@ export function SelectedIds(props: { ids: string[] }) {
 }
 
 export function LibraryPage(props: {
-  data: LibraryPageData; initialView?: View;
+  data: LibraryPageData; initialView?: View; passkeyPrompt?: boolean;
   onSearch?: (search: LibrarySearch) => unknown | Promise<unknown>;
   restore?: (ids: string[]) => Promise<unknown>; refresh?: () => Promise<unknown>;
   regenerate: (ids: string[]) => Promise<{ queued: number; failed: number; skipped: number }>;
@@ -72,6 +73,12 @@ export function LibraryPage(props: {
   const refresh = () => props.refresh ? props.refresh() : mutation.router.invalidate();
   const [view, setView] = createSignal<View>(untrack(() => props.initialView || "grid")), [selecting, setSelecting] = createSignal(false), [selected, setSelected] = createSignal<string[]>([]);
   const [query, setQuery] = createSignal(untrack(() => props.data.q)), [downloading, setBusy] = createSignal(false), [archiveForm, setArchiveForm] = createSignal<HTMLFormElement | null>(null), [deleteForm, setDeleteForm] = createSignal<HTMLFormElement | null>(null);
+  const [passkeyHintDismissed, setPasskeyHintDismissed] = createSignal(false), [webauthnSupported, setWebauthnSupported] = createSignal(typeof window === "undefined");
+  const showPasskeyHint = () => Boolean(props.passkeyPrompt) && webauthnSupported() && !passkeyHintDismissed();
+  function dismissPasskeyHint() {
+    setPasskeyHintDismissed(true);
+    try { localStorage.setItem("bindery-passkey-hint-dismissed", "1"); } catch { /* The hint still closes for this view. */ }
+  }
   const busy = () => downloading() || mutation.busy();
   const archived = () => props.data.scope === "archived";
   let previousScope = untrack(() => props.data.scope);
@@ -88,6 +95,8 @@ export function LibraryPage(props: {
   }
   onSettled(() => {
     if (typeof window === "undefined") return;
+    setWebauthnSupported(browserSupportsWebAuthn());
+    try { setPasskeyHintDismissed(localStorage.getItem("bindery-passkey-hint-dismissed") === "1"); } catch { /* Storage may be disabled. */ }
     const media = window.matchMedia("(max-width: 767px)");
     const saved = () => { try { return localStorage.getItem("bindery-view") === "list" ? "list" : "grid"; } catch { return "grid"; } };
     const syncView = () => setView(media.matches ? "list" : saved());
@@ -143,6 +152,7 @@ export function LibraryPage(props: {
   }
   return <div class="library-page" ref={page}>
     <PageHeader title="书库" description={<>{archived() ? "已归档" : "共"} <span data-library-count>{props.data.total_books}</span> 册{!archived() && props.data.read_filter === "unread" ? " · 仅看未读" : ""}</>} actions={<Link href="/ingest" class="btn btn-primary">+ 入库</Link>} />
+    <Show when={showPasskeyHint()}><div class="passkey-hint" role="status"><Link href="/security">添加通行密钥，下次免密码登录</Link><button type="button" class="quiet" aria-label="关闭添加通行密钥提示" onClick={dismissPasskeyHint}>×</button></div></Show>
     <nav class="library-shelves" aria-label="书架">
       <Link href={libraryReturnTo({ ...props.data, scope: "active", read_filter: "all", page: 1 })} aria-current={archived() ? undefined : "page"}>在库</Link>
       <Link data-scope-toggle href={libraryReturnTo({ ...props.data, scope: "archived", read_filter: "all", page: 1 })} aria-current={archived() ? "page" : undefined}>已归档</Link>

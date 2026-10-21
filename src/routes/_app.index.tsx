@@ -17,5 +17,5 @@ export const Route = createFileRoute("/_app/")({
 });
 function Home() {
   const data = Route.useLoaderData(), router = useRouter();
-  return <LibraryPage data={data()} onSearch={search => router.navigate({ to: "/", search: { ...search } })} regenerate={ids => regenerateSelection({ data: ids })} />;
+  return <LibraryPage data={data()} passkeyPrompt={data().passkey_prompt} onSearch={search => router.navigate({ to: "/", search: { ...search } })} regenerate={ids => regenerateSelection({ data: ids })} />;
 }

@@ -1,6 +1,6 @@
-import { browserSupportsWebAuthn, startAuthentication, startRegistration, type PublicKeyCredentialRequestOptionsJSON, type PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/browser";
+import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, startAuthentication, startRegistration, WebAuthnAbortService, type PublicKeyCredentialRequestOptionsJSON, type PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/browser";
 import { loginTarget } from "../shared/session-navigation";
-export { browserSupportsWebAuthn };
+export { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill };
 export class PasskeyRequestError extends Error {
   constructor(message: string, readonly code = "server", readonly target?: string) {
     super(message);
@@ -42,10 +42,15 @@ export async function deletePasskey(id: string): Promise<void> {
   const data = await response.json().catch(() => ({}));
   throw new PasskeyRequestError(data.error || "删除失败，请重试。");
 }
-export async function loginWithPasskey(next: string): Promise<void> {
+export async function loginWithPasskey(next: string, options: { autofill?: boolean } = {}): Promise<void> {
+  const autofill = Boolean(options.autofill);
+  // A conditional request may be waiting in the password autofill UI. Abort it
+  // before starting an explicit button ceremony so only one prompt is active.
+  if (!autofill) WebAuthnAbortService.cancelCeremony();
   const optionsJSON = await postJson<PublicKeyCredentialRequestOptionsJSON>("/login/passkey/options");
   const credential = await startAuthentication({
-    optionsJSON
+    optionsJSON,
+    useBrowserAutofill: autofill
   });
   const result = await postJson<{
     redirect: string;
@@ -54,6 +59,18 @@ export async function loginWithPasskey(next: string): Promise<void> {
     next
   });
   location.assign(result.redirect);
+}
+export function cancelPasskeyCeremony(): void {
+  WebAuthnAbortService.cancelCeremony();
+}
+export async function reauthenticateWithPasskey(): Promise<void> {
+  const optionsJSON = await postJson<PublicKeyCredentialRequestOptionsJSON>("/security/reauth/passkey/options");
+  const credential = await startAuthentication({
+    optionsJSON
+  });
+  await postJson("/security/reauth/passkey/verify", {
+    credential
+  });
 }
 export async function registerPasskey(name: string): Promise<void> {
   const optionsJSON = await postJson<PublicKeyCredentialCreationOptionsJSON>("/security/passkeys/register/options");
