@@ -42,7 +42,7 @@ describe("catalog UI SSR and accessible controls", () => {
   });
   it("renders tracker filtering, export, detail return URL, edit/delete and pagination", () => {
     const html = ui.tracker(tracker);
-    for (const expected of ['action="/tracker"', 'method="get"', 'name="q"', 'name="read_filter"', 'name="library_filter"', 'name="book_status_filter"', "导出 CSV", "添加书籍", "编辑", 'aria-label="查看《', "return_to=%2Ftracker%3Fq%3D", "更新", "上一页", 'aria-label="分页"', 'action="/tracker/' + wish.id + '/delete"', "点此前往编辑该条目。"]) expect(html).toContain(expected);
+    for (const expected of ['action="/tracker"', 'method="get"', 'name="q"', 'name="read_filter"', 'name="library_filter"', 'name="book_status_filter"', "导出 CSV", "添加书籍", "编辑", 'class="catalog-tracker-book"', "return_to=%2Ftracker%3Fq%3D", "更新", "上一页", 'aria-label="分页"', 'action="/tracker/' + wish.id + '/delete"', "点此前往编辑该条目。"]) expect(html).toContain(expected);
     expect(html).toContain("书名&lt;script>"); expect(html).not.toContain("<script>");
     expect(ui.tracker({ ...tracker, wishes: [] })).toContain("没有符合筛选条件的书籍。");
   });

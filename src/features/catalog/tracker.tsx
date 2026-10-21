@@ -79,7 +79,7 @@ export function TrackerPage(props: { data: TrackerPageData }) {
     <div class="catalog-tracker-rows" role="table" aria-label="追踪列表">
       <div class="catalog-tracker-row catalog-tracker-head" role="row"><span role="columnheader">书名</span><span role="columnheader">作者</span><span role="columnheader">状态</span><span role="columnheader">阅读</span><span role="columnheader">书库</span><span role="columnheader">评分</span><span role="columnheader">更新</span><span role="columnheader" class="catalog-tracker-actions-head">操作</span></div>
       <For each={props.data.wishes}>{wish => <div class="catalog-tracker-row" role="row" id={`wish-row-${wish.id}`}>
-        <span role="cell" class="catalog-tracker-title" title={wish.comment || undefined}><strong>{wish.title}</strong><Show when={wish.tags_text}><span class="catalog-tracker-tags">{wish.tags_text}</span></Show></span>
+        <span role="cell" class="catalog-tracker-title" title={wish.comment || undefined}><Show when={wish.library_book_id} fallback={<strong>{wish.title}</strong>}><Link class="catalog-tracker-book" href={`/book/${wish.library_book_id}?return_to=${encodeURIComponent(props.data.current_url)}`}><strong>{wish.title}</strong><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg><span class="sr-only">（打开书库详情）</span></Link></Show><Show when={wish.tags_text}><span class="catalog-tracker-tags">{wish.tags_text}</span></Show></span>
         <span role="cell" class="catalog-tracker-author">{wish.author || "未知作者"}</span>
         <span role="cell"><Tag>{wish.book_status_label}</Tag></span>
         <span role="cell" class={wish.read ? "catalog-tracker-read" : undefined}>{wish.read_status_label}</span>
@@ -87,7 +87,6 @@ export function TrackerPage(props: { data: TrackerPageData }) {
         <span role="cell" class="catalog-tracker-rating">{wish.rating === null ? "—" : `${wish.rating} / 5`}</span>
         <span role="cell" class="catalog-tracker-updated">{wish.updated_at_display}</span>
         <span role="cell" class="catalog-tracker-actions">
-          <Show when={wish.library_book_id} fallback={<span class="catalog-tracker-disabled" aria-disabled="true">查看</span>}><Link aria-label={`查看《${wish.title}》详情`} href={`/book/${wish.library_book_id}?return_to=${encodeURIComponent(props.data.current_url)}`}>查看</Link></Show>
           <button type="button" class="catalog-tracker-link" onClick={() => setActive({ wish })}>编辑</button>
           <form action={`/tracker/${wish.id}/delete`} method="post" onSubmit={event => { event.preventDefault(); setDeleting(wish); }}><input type="hidden" name="next" value={props.data.current_url} /><button type="submit" class="catalog-tracker-link catalog-tracker-delete">删除</button></form>
         </span>
