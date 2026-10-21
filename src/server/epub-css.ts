@@ -4,7 +4,7 @@ import type { Metadata } from "../core/models";
 import { composeCss } from "../core/themes";
 import { readArchive } from "../core/archive";
 import { buildEpub, updateEpubMetadata } from "../core/epub";
-import { strip } from "../core/python";
+import { strip } from "../core/text";
 import { coverPath, epubPath, saveBook, sourcePath } from "./storage";
 import { parseBookFile } from "./parsing";
 import { getRule, getTheme } from "./templates";
@@ -36,7 +36,7 @@ export function bookEpubNeedsCssSync(data: Uint8Array | IndexedCssSource, meta: 
   return !overlays.length || normalizeCss(new TextDecoder().decode(read(overlays[0]!))) !== normalizeCss(css);
 }
 
-/** Python _ensure_book_epub_css: lazy sync, preserving imported EPUB content. */
+/** legacy _ensure_book_epub_css: lazy sync, preserving imported EPUB content. */
 export function ensureBookEpubCss(meta: Metadata, library = getLibrary(), indexed?: IndexedCssSource): void {
   const path = epubPath(library.base, meta.book_id);
   if (!existsSync(path)) return;

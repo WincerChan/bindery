@@ -1,0 +1,169 @@
+{
+  "lookup": [
+    {
+      "source": "douban",
+      "title": "The Three-Body Problem",
+      "author": "Cixin Liu",
+      "language": "zh-CN",
+      "description": "A sci-fi classic.",
+      "publisher": "Chongqing Press",
+      "tags": [
+        "Sci-Fi",
+        "Space"
+      ],
+      "published": "2008-01-01",
+      "isbn": "9787536692930",
+      "cover_url": null
+    },
+    {
+      "source": "douban",
+      "title": "示例书",
+      "author": null,
+      "language": null,
+      "description": null,
+      "publisher": null,
+      "tags": [
+        "小说",
+        "悬疑"
+      ],
+      "published": null,
+      "isbn": null,
+      "cover_url": null
+    },
+    {
+      "source": "douban",
+      "title": "示例书",
+      "author": null,
+      "language": null,
+      "description": null,
+      "publisher": null,
+      "tags": [
+        "小说",
+        "文学",
+        "悬疑"
+      ],
+      "published": null,
+      "isbn": null,
+      "cover_url": null
+    },
+    {
+      "source": "douban",
+      "title": null,
+      "author": null,
+      "language": null,
+      "description": "完整简介第一段。\n\n完整简介第二段。\n换行继续。",
+      "publisher": null,
+      "tags": [],
+      "published": null,
+      "isbn": null,
+      "cover_url": null
+    },
+    {
+      "source": "douban",
+      "title": null,
+      "author": null,
+      "language": null,
+      "description": null,
+      "publisher": null,
+      "tags": [],
+      "published": null,
+      "isbn": null,
+      "cover_url": "https://img3.doubanio.com/view/subject/l/public/s7654321.jpg"
+    },
+    {
+      "source": "douban",
+      "title": null,
+      "author": null,
+      "language": null,
+      "description": null,
+      "publisher": null,
+      "tags": [],
+      "published": null,
+      "isbn": null,
+      "cover_url": "https://img9.doubanio.com/view/subject/l/public/s1234567.jpg"
+    },
+    {
+      "source": "douban",
+      "title": null,
+      "author": null,
+      "language": null,
+      "description": null,
+      "publisher": "Random House Children's Books",
+      "tags": [],
+      "published": "2010-01",
+      "isbn": null,
+      "cover_url": null
+    },
+    {
+      "source": "amazon",
+      "title": "Dune",
+      "author": "Frank Herbert",
+      "language": "en",
+      "description": "Epic science fiction novel.",
+      "publisher": null,
+      "tags": [
+        "science fiction",
+        "desert"
+      ],
+      "published": "1965-08-01",
+      "isbn": "9780441172719",
+      "cover_url": null
+    },
+    {
+      "source": "amazon",
+      "title": "Pirates Past Noon (Magic Tree House, No. 4)",
+      "author": "Mary Pope Osborne, Sal Murdocca",
+      "language": "English",
+      "description": "Jack and Annie are in deep trouble when the Magic Tree House whisks them back to the days of desert islands, secret maps, hidden gold, and ruthless pirates.",
+      "publisher": "Random House Children's Books",
+      "tags": [],
+      "published": "1994-03-08",
+      "isbn": "978-0679824251",
+      "cover_url": null
+    }
+  ],
+  "scores": [
+    {
+      "title": 4,
+      "author": 8
+    },
+    {
+      "title": 3,
+      "author": 8
+    },
+    {
+      "title": 3,
+      "author": 7
+    },
+    {
+      "title": 2,
+      "author": 6
+    },
+    {
+      "title": 0,
+      "author": -1
+    },
+    {
+      "title": 0,
+      "author": -4
+    },
+    {
+      "title": 4,
+      "author": 0
+    }
+  ],
+  "css": [
+    null,
+    null,
+    null,
+    "CSS 花括号不匹配",
+    "CSS 花括号不匹配",
+    "CSS 字符串未闭合",
+    "CSS 注释未闭合",
+    "CSS 过长（超过 200000 字符）",
+    "CSS 包含非法字符",
+    null,
+    null,
+    null
+  ]
+}

@@ -1,6 +1,6 @@
 import { buildRules, DEFAULT_RULE_CONFIG } from "./parsing";
 import type { RuleConfig, RuleSet } from "./parsing";
-import { strip } from "./python";
+import { strip } from "./text";
 export interface RuleTemplate {
   rule_id: string;
   name: string;
@@ -79,7 +79,7 @@ export function validateRuleTemplateJson(
       : {}),
   };
 }
-// Loading deliberately uses Python's `or` defaults; validation preserves explicit empty arrays.
+// Loading deliberately uses the legacy implementation's `or` defaults; validation preserves explicit empty arrays.
 export function ruleTemplateFromData(
   data: Record<string, unknown>,
   filePath: string,

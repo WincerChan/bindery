@@ -8,7 +8,7 @@ export function connect(path = writableDatabasePath()): DatabaseSync {
   mkdirSync(dirname(path), {
     recursive: true
   });
-  // sqlite3.connect() defaults in Python. In particular, do not enable WAL or
+  // sqlite3.connect() defaults in legacy. In particular, do not enable WAL or
   // Node's default foreign-key enforcement, and preserve double-quoted literals.
   return new DatabaseSync(path, {
     enableForeignKeyConstraints: false,

@@ -3,9 +3,9 @@ import { extname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Book, BookData, Metadata } from "../core/models";
 import { bookFromDict, bookToDict, metadataFromDict } from "../core/models";
-import { strip } from "../core/python";
+import { strip } from "../core/text";
 import { BinderyDatabase, nowIso } from "./db";
-import { pythonJson, readTags } from "./db/encoding";
+import { compatJson, readTags } from "./db/encoding";
 import type { Row, Value } from "./db/connection";
 import { libraryPath } from "./paths";
 export const META_FILE = "meta.json",
@@ -82,7 +82,7 @@ function metadataValues(meta: Metadata): Value[] {
     status: meta.status || "synced",
     created_at: meta.created_at || "",
     updated_at: meta.updated_at || "",
-    tags_json: pythonJson(meta.tags),
+    tags_json: compatJson(meta.tags),
     archived: Number(Boolean(meta.archived)),
     read: Number(Boolean(meta.read))
   };
@@ -114,7 +114,7 @@ export function saveBook(book: Book, base: string, id: string): void {
   mkdirSync(path, {
     recursive: true
   });
-  writeFileSync(join(path, BOOK_FILE), pythonJson(bookToDict(book), 2), "utf8");
+  writeFileSync(join(path, BOOK_FILE), compatJson(bookToDict(book), 2), "utf8");
 }
 export function loadBook(base: string, id: string): Book {
   return bookFromDict(readJson(join(bookDir(base, id), BOOK_FILE)) as BookData);
@@ -292,7 +292,7 @@ export class LibraryStorage {
     this.ensure();
     this.db.run("UPDATE books SET archived = ? WHERE book_id = ?", 1, id);
   }
-  // Python's restore_view: preserve files, reject destination collisions, update timestamp.
+  // the legacy implementation's restore_view: preserve files, reject destination collisions, update timestamp.
   restoreBook(id: string, updatedAt = nowIso()): void {
     const src = archiveBookDir(this.base, id),
       dest = bookDir(this.base, id);

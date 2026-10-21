@@ -30,7 +30,7 @@ export function requireAuth(request: Request, library = getLibrary()): LibrarySt
 }
 
 export function requireBook(bookId: string, library = getLibrary()) {
-  // Match Python's public route boundary before passing IDs to filesystem APIs.
+  // Match the legacy implementation's public route boundary before passing IDs to filesystem APIs.
   if (!/^[a-f0-9]{32}$/.test(bookId) || !library.ensureBookExists(bookId)) {
     missingEntity("book");
   }
@@ -95,7 +95,7 @@ export function redirectWithToast(target: string, message: string, kind: ToastKi
   return redirect(withToast(target, message, kind));
 }
 export function setToastHeader(response: Response, message: string, kind: ToastKind = "success"): void {
-  // Python json.dumps defaults to ensure_ascii=True; Fetch headers are ByteString.
+  // legacy json.dumps defaults to ensure_ascii=True; Fetch headers are ByteString.
   const payload = JSON.stringify({ "bindery:toast": { message, kind } })
     .replace(/[\u007f-\uffff]/g, char => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
   response.headers.set("HX-Trigger", payload);

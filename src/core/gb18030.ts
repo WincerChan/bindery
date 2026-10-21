@@ -1,7 +1,7 @@
-// Python's gb18030 codec uses the original GB18030 mappings. WHATWG/ICU
+// the legacy implementation's gb18030 codec uses the original GB18030 mappings. WHATWG/ICU
 // TextDecoder uses later revisions. These 20 two-byte mappings and one
 // four-byte mapping are the complete differences in Node 24's ICU decoder.
-// Also reject 0x80: WHATWG accepts it as Euro, whereas Python rejects it.
+// Also reject 0x80: WHATWG accepts it as Euro, whereas legacy rejects it.
 const legacyPairs: Record<number, number> = {
   0xa3a0: 0xe5e5,
   0xa6d9: 0xe78d,
@@ -29,7 +29,7 @@ export function decodeGb18030(data: Uint8Array): string {
   const chunks: string[] = [];
   let start = 0;
   const invalid = () => {
-    throw new TypeError("Invalid Python gb18030 sequence");
+    throw new TypeError("Invalid legacy gb18030 sequence");
   };
   for (let i = 0; i < data.length;) {
     const lead = data[i];

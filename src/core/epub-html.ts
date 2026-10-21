@@ -1,4 +1,4 @@
-import { strip } from "./python";
+import { strip } from "./text";
 export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")

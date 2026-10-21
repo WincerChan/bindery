@@ -1,4 +1,4 @@
-import { strip, rstrip } from "./python";
+import { strip, rstrip } from "./text";
 export interface ThemeTemplate {
   theme_id: string;
   name: string;

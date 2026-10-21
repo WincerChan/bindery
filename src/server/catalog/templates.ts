@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { DEFAULT_RULE_CONFIG, parseBook } from "../../core/parsing";
 import { RuleTemplateError, validateRuleTemplateJson } from "../../core/rules";
-import { strip } from "../../core/python";
+import { strip } from "../../core/text";
 import { getRule, getTheme, loadRuleTemplates, loadThemeTemplates, templateDirectory } from "../templates";
 import { HttpError, requireEntity, missingEntity } from "../http";
 import type { LibraryStorage } from "../storage";

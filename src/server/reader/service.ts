@@ -45,7 +45,7 @@ export function loadReader(bookId: string, rawSection: string, returnTo: unknown
     return_to: readerReturnTo(returnTo),
   };
 }
-// Python int() accepts booleans, truncates numbers, and rejects decimal strings.
+// legacy int() accepts booleans, truncates numbers, and rejects decimal strings.
 function decimalDigits(value: string): string {
   return value.replace(/\p{Decimal_Number}/gu, character => {
     const code = character.codePointAt(0)!;

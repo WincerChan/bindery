@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { strip } from "../../core/python";
+import { strip } from "../../core/text";
 import { writeArchive } from "../../core/archive";
 import { nowIso } from "../db";
 import { ensureBookEpubCss } from "../epub-css";

@@ -3,7 +3,7 @@ import { createReadStream, statSync } from "node:fs";
 import { Readable } from "node:stream";
 import { extname } from "node:path";
 import { guessMediaType } from "../core/epub";
-import { strip } from "../core/python";
+import { strip } from "../core/text";
 import type { Metadata } from "../core/models";
 import { coverPath, epubPath } from "./storage";
 import { coverCacheHeaders, HttpError, requireBook } from "./http";

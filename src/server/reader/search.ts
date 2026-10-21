@@ -6,7 +6,7 @@ import { readBookArchive } from "./service";
 import { unescapeSearchHtml } from "./entities";
 import { bigIntegerParameter, integerParameter } from "./parameters";
 
-// Python re's Unicode whitespace also includes U+001C–001F and U+0085, excludes FEFF.
+// legacy re's Unicode whitespace also includes U+001C–001F and U+0085, excludes FEFF.
 export const normalizeSearchText = (value: string): string => value.replace(/[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/gu, " ").replace(/^ +| +$/g, "");
 export function extractSearchText(content: Uint8Array): string {
   const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(content)
@@ -23,7 +23,7 @@ export function searchDocuments(documents: Iterable<EpubSectionDocument>, query:
     const text = extractSearchText(section.content);
     if (!text) continue;
     indexed_sections++;
-    // Python indexes Unicode code points, including astral characters.
+    // legacy indexes Unicode code points, including astral characters.
     const textLower = text.toLowerCase(), atUnits = textLower.indexOf(lower);
     if (atUnits < 0 || ++matches <= offset) continue;
     const at = Array.from(textLower.slice(0, atUnits)).length;
@@ -56,7 +56,7 @@ export function searchBook(request: Request, bookId: string, library: LibrarySto
   }
   const result = searchDocuments(spine(), query, limit, offset);
   if (rawOffset > Number.MAX_SAFE_INTEGER) {
-    // Preserve Python's unbounded offset on the wire; no EPUB can have 2^53 sections.
+    // Preserve the legacy implementation's unbounded offset on the wire; no EPUB can have 2^53 sections.
     const { next_offset: _next, ...details } = result;
     const payload = JSON.stringify({ query, ...details, limit });
     return new Response(`${payload.slice(0, -1)},"offset":${rawOffset},"next_offset":${rawOffset + BigInt(result.hits.length)}}`, { headers: { "Content-Type": "application/json" } });

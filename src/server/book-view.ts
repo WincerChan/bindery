@@ -1,6 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import type { Metadata, Wish } from "../core/models";
-import { strip } from "../core/python";
+import { strip } from "../core/text";
 import { bookDir, coverPath, sourcePath } from "./storage";
 import { getLibrary } from "./runtime";
 

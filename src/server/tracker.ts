@@ -1,5 +1,5 @@
 import type { Metadata, Wish } from "../core/models";
-import { strip } from "../core/python";
+import { strip } from "../core/text";
 import { nowIso } from "./db";
 import { wishIdentity } from "./db/encoding";
 import { newBookId, type LibraryStorage } from "./storage";

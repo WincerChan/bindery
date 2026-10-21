@@ -345,7 +345,7 @@ describe("book detail, editing and tracker state", () => {
       );
     },
   );
-  it("retains tag order and duplicates as Python does", () => {
+  it("retains tag order and duplicates as legacy does", () => {
     expect(parseTags("a， b,a,, ")).toEqual(["a", "b", "a"]);
   });
 });
@@ -547,7 +547,7 @@ describe("cover persistence, EPUB and remote request headers", () => {
     await downloadCoverFromUrl(url, fake);
     expect(Object.keys(fake.mock.calls[0][1]?.headers || {})).toEqual([]);
   });
-  it("keeps Python remote error messages for HTTP, network and empty bodies", async () => {
+  it("keeps legacy remote error messages for HTTP, network and empty bodies", async () => {
     await expect(
       downloadCoverFromUrl(
         "https://img.doubanio.com/one.jpg",

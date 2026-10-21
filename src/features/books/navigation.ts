@@ -4,7 +4,7 @@ export const quoteComponent = (value: string) =>
     /[!'()*]/g,
     (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
   );
-/** Python's return navigation drops fragments and URI path parameters. */
+/** the legacy implementation's return navigation drops fragments and URI path parameters. */
 export function safeInternalTarget(target: unknown, fallback = "/"): string {
   const raw =
     typeof target === "string" ? target.trim().replace(/[\t\r\n]/g, "") : "";

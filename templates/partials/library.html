@@ -1,9 +1,0 @@
-{% for book in books %}
-  {% include "partials/book_card.html" %}
-{% else %}
-  <div class="col-span-full text-center py-16">
-    <h2 class="section-title">书库还是空的</h2>
-    <p class="text-ink-3 text-[12.5px] mt-2 mb-5">上传 TXT 或 EPUB，开始整理你的书库。</p>
-    <a href="/ingest" class="btn btn-primary">入库第一本书</a>
-  </div>
-{% endfor %}

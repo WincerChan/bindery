@@ -18,7 +18,7 @@ afterEach(() => { fixtures.forEach(value => value.cleanup()); fixtures = []; vi.
 const encode = (text: string) => new TextEncoder().encode(text);
 const document = (index: number, text: string, media_type = "application/xhtml+xml"): EpubSectionDocument => ({ index, title: String.fromCharCode(65 + index), item_path: `Text/${index}.xhtml`, content: encode(text), media_type });
 
-describe("reader preview and progress (Python route assertions)", () => {
+describe("reader preview and progress (legacy route assertions)", () => {
   it("redirects preview/ to section zero with resume, safe return_to and no-store headers", () => {
     const { library, id } = fixture();
     const response = previewRedirect(readerRequest(`/book/${id}/preview?return_to=%2Fjobs%3Ftab%3Dsuccess%23ignored`), id, library);
@@ -53,7 +53,7 @@ describe("reader preview and progress (Python route assertions)", () => {
     [{ section: null, page: [], page_count: {} }, { section: 0, page: 0, page_count: 0 }],
     [{ section: " +2 ", page: -1, page_count: "-9" }, { section: 2, page: 0, page_count: 0 }],
     [{}, { section: 0, page: 0, page_count: 0 }],
-  ])("uses Python int/default semantics for %j", async (payload, expected) => {
+  ])("uses legacy int/default semantics for %j", async (payload, expected) => {
     const { library, id } = fixture();
     expect(await (await saveProgress(readerRequest("/", { method: "POST", body: JSON.stringify(payload) }), id, library)).json()).toMatchObject(expected);
   });
@@ -125,7 +125,7 @@ describe("reader search runtime", () => {
     const text = "甲".repeat(40) + "keyword" + "乙".repeat(80);
     expect(searchDocuments([document(0, `<p>${text}</p>`)], "keyword", 10).hits[0]).toEqual({ index: 0, title: "A", offset: 40, snippet: "..." + "甲".repeat(30) + "keyword" + "乙".repeat(70) + "..." });
   });
-  it("preserves Python's unbounded nonnegative search offset as an exact JSON number", async () => {
+  it("preserves the legacy implementation's unbounded nonnegative search offset as an exact JSON number", async () => {
     const { library, id } = fixture(), offset = "9007199254740993123456789";
     const result = await searchBook(readerRequest(`/?q=beta&offset=${offset}`), id, library).text();
     expect(result).toContain(`"offset":${offset}`); expect(result).toContain(`"next_offset":${offset}`);

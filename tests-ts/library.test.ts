@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); rmSync(fixture.root, { recursive: true, force: true }); });
 
-describe("library filters, sorting and pagination (Python library_filters)", () => {
+describe("library filters, sorting and pagination (legacy library_filters)", () => {
   it("uses 24 books by default, accepts custom page sizes and clamps to the final page", () => {
     const { library } = fixture;
     for (let index = 0; index < 25; index++) library.saveMetadata(metadataFromDict({ book_id: index.toString(16).padStart(32, "0"), title: `书-${index}`, updated_at: `2026-02-06T00:00:${String(index).padStart(2, "0")}+00:00` }));
@@ -97,7 +97,7 @@ describe("library filters, sorting and pagination (Python library_filters)", () 
 });
 
 describe("return navigation and responsive sizing", () => {
-  it("matches Python normalized return URLs, including whitespace and encoded Chinese", () => {
+  it("matches legacy normalized return URLs, including whitespace and encoded Chinese", () => {
     expect(libraryReturnTo({ sort: "unexpected", q: "abc", page: 0, read_filter: "unexpected" })).toBe("/?sort=updated&q=abc&page=1&read_filter=all&per_page=24");
     const back = libraryReturnTo({ sort: " CREATED ", q: "长安 & 作者", page: 2, read_filter: " UNREAD ", per_page: 20 });
     const href = bookHref(a, back, true);
@@ -120,7 +120,7 @@ describe("return navigation and responsive sizing", () => {
   });
 });
 
-describe("bulk file/data operations (Python bulk_actions)", () => {
+describe("bulk file/data operations (legacy bulk_actions)", () => {
   it("deduplicates valid IDs, ignores malformed/nonexistent books, preserves bytes when archiving", () => {
     const { library } = fixture; createBook(library, a); createBook(library, b);
     const bytes = readFileSync(epubPath(library.base, a));

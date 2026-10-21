@@ -1,9 +1,6 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import fixtures from "./fixtures/books/lookup.json";
 import {
   fetchText,
@@ -25,29 +22,17 @@ import {
   formatCssText,
   MAX_CSS_LENGTH,
 } from "../src/features/books/css";
-const root = mkdtempSync(join(tmpdir(), "bindery-books-lookup-"));
-afterAll(() => rmSync(root, { recursive: true, force: true }));
-const exec = promisify(execFile);
-async function python(mode: string, input?: unknown) {
-  if (input) writeFileSync(join(root, "input.json"), JSON.stringify(input));
-  const { stdout } = await exec("uv", [
-    "run",
-    "--no-sync",
-    "python",
-    resolve("tests-ts/fixtures/books/reference.py"),
-    mode,
-    root,
-  ]);
-  return JSON.parse(stdout);
-}
+const references = JSON.parse(
+  readFileSync(resolve("tests-ts/fixtures/parity/metadata/reference.json"), "utf8"),
+) as { lookup: unknown[]; scores: unknown[]; css: (string | null)[] };
 const parsed = fixtures.map((row) =>
   (row.source === "douban" ? parseDoubanSubjectHtml : parseAmazonProductHtml)(
     row.html,
   ),
 );
-describe("offline metadata parsing and Python parity", () => {
+describe("offline metadata parsing and legacy parity", () => {
   it("matches every original Douban/Amazon HTML fixture field", async () => {
-    expect(parsed).toEqual(await python("lookup"));
+    expect(parsed).toEqual(references.lookup);
   });
   it.each(fixtures.map((row, i) => [row.name, parsed[i]] as const))(
     "ports %s",
@@ -106,7 +91,7 @@ describe("offline metadata parsing and Python parity", () => {
   });
 });
 describe("source selection, matching and transport", () => {
-  it("matches Python title/author scoring including token ordering and multi-author names", async () => {
+  it("matches legacy title/author scoring including token ordering and multi-author names", async () => {
     const cases = [
       { title: "三体", query: "三体", author: "刘慈欣", expected: "刘慈欣" },
       {
@@ -136,7 +121,7 @@ describe("source selection, matching and transport", () => {
         title: titleMatchScore(c.title, c.query),
         author: authorMatchScore(c.author, c.expected),
       })),
-    ).toEqual(await python("scores", cases));
+    ).toEqual(references.scores);
   });
   it("selects matching author before title similarity and requests only Douban", async () => {
     const calls: string[] = [],
@@ -291,8 +276,8 @@ const cssCases = [
   "😀".repeat(100_001),
 ];
 describe("book CSS validation and formatting", () => {
-  it("matches Python validation messages including Unicode character counts", async () => {
-    expect(cssCases.map(validateCss)).toEqual(await python("css", cssCases));
+  it("matches legacy validation messages including Unicode character counts", async () => {
+    expect(cssCases.map(validateCss)).toEqual(references.css);
   });
   it.each(cssCases.slice(0, 10).map((raw, i) => [i, raw] as const))(
     "validates case %i",

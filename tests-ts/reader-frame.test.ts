@@ -5,13 +5,13 @@ import { ReaderFrames, type ReaderLocation } from "../src/features/reader/frame"
 import { backgroundOptions, brightBgColors, defaultSettings, dimBgColors, normalizeSettings, readerFonts, storageKey, type ReaderData, type ReaderSettings } from "../src/features/reader/model";
 import { clientDocument } from "./support/client-dom";
 
-const template = readFileSync("templates/preview.html", "utf8");
+const template = readFileSync("tests-ts/fixtures/parity/reader/preview-template.html", "utf8");
 const data: ReaderData = {
   book: { book_id: "id", title: "book", author: null, cover_url: null },
   sections: [{ title: "one", item_path: "one.xhtml" }, { title: "two", item_path: "two.xhtml" }],
   section_index: 0, initial_progress: null, return_to: "/",
 };
-interface PythonReader extends ReaderSettings {
+interface ReferenceReader extends ReaderSettings {
   init(): void;
   _persist(): void;
   applyToFrame(options: { frameKey: string; primeOnly: boolean }): void;
@@ -19,7 +19,7 @@ interface PythonReader extends ReaderSettings {
   _computeTailPad(maxLeft: number, step: number): number;
 }
 /** Execute the reference template's actual reader JS, with inert Alpine/browser hooks. */
-function pythonReader(raw: unknown = null) {
+function referenceReader(raw: unknown = null) {
   const values: Record<string, unknown> = {
     "book.book_id|tojson": "id", "book.title|tojson": "book", "initial_progress|tojson": null,
     "sections_payload|tojson": data.sections, section_index: 0, toc_count: 2, "return_to|tojson": "/",
@@ -39,7 +39,7 @@ function pythonReader(raw: unknown = null) {
     setInterval: () => 1, requestAnimationFrame: () => 1,
   };
   const result = runInNewContext(source + "; ({ reader: binderyReader(), reference });", context) as {
-    reader: PythonReader; reference: { storageKey: string; fonts: Record<string, string>; brightBgColors: Record<string, string>; dimBgColors: Record<string, string> };
+    reader: ReferenceReader; reference: { storageKey: string; fonts: Record<string, string>; brightBgColors: Record<string, string>; dimBgColors: Record<string, string> };
   };
   Object.assign(result.reader, {
     $watch() {}, _updateTimeNow() {}, _sectionIndexFromLocation: () => null, _bindFrameLoad() {},
@@ -51,9 +51,9 @@ function pythonReader(raw: unknown = null) {
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
-describe("reader settings against the Python template", () => {
+describe("reader settings against the legacy template", () => {
   it("keeps the storage key, first-use defaults, ordered labels, palettes and fonts", () => {
-    const py = pythonReader();
+    const py = referenceReader();
     expect(storageKey).toBe(py.reference.storageKey);
     expect(defaultSettings).toEqual(py.settings());
     expect(brightBgColors).toEqual(py.reference.brightBgColors);
@@ -74,17 +74,17 @@ describe("reader settings against the Python template", () => {
     { fontSize: -1, lineHeight: 1.11, styleMode: "bad", fontFamily: "bad", textAlignMode: "bad" },
     ...backgroundOptions.map(option => ({ ...defaultSettings, readerBg: option.value })),
   ])("loads saved settings using the reference clamp/fallback rules: %j", raw => {
-    expect(normalizeSettings(raw)).toEqual(pythonReader(raw).settings());
+    expect(normalizeSettings(raw)).toEqual(referenceReader(raw).settings());
   });
   it("rejects malformed values and preserves the existing TS kai font setting", () => {
     for (const raw of [null, [], "custom", 17]) expect(normalizeSettings(raw)).toEqual(defaultSettings);
     expect(normalizeSettings({ fontFamily: "kai" }).fontFamily).toBe("kai");
     expect(normalizeSettings({ fontFamily: ["sans"], readerBg: "invalid", textAlignMode: "left;color:red" })).toMatchObject({ fontFamily: "serif", readerBg: "book", textAlignMode: "justify" });
   });
-  it("retains numeric zero padding instead of reproducing Python's truthiness bug", () => {
+  it("retains numeric zero padding instead of reproducing the legacy implementation's truthiness bug", () => {
     const saved = { ...defaultSettings, styleMode: "custom", pagePaddingX: 0, pagePaddingY: 0 };
     expect(normalizeSettings(saved)).toEqual(saved);
-    expect(pythonReader(saved).settings()).toMatchObject({ pagePaddingX: 10, pagePaddingY: 12 });
+    expect(referenceReader(saved).settings()).toMatchObject({ pagePaddingX: 10, pagePaddingY: 12 });
     expect(normalizeSettings({ fontSize: 0 }).fontSize).toBe(11);
   });
 });
@@ -178,7 +178,7 @@ function resolvedDeclarations(css: string, selector: string, vars: CSSStyleDecla
 
 describe("iframe style and pagination parity", () => {
   it("keeps author margins/padding and matches reference heights, media and break rules", () => {
-    const f = frameFixture(), py = pythonReader();
+    const f = frameFixture(), py = referenceReader();
     Object.assign(py.reader, { getFrame: () => ({ contentDocument: f.doc }) });
     py.reader.applyToFrame({ frameKey: "a", primeOnly: true });
     const referenceCSS = f.doc.getElementById("bindery-reader-style")!.textContent!;
@@ -201,7 +201,7 @@ describe("iframe style and pagination parity", () => {
     for (const { value: readerBg } of backgroundOptions) for (const styleMode of ["book", "custom"] as const) {
       const settings = { ...defaultSettings, brightnessMode, readerBg, styleMode };
       f.frames.configure(settings);
-      const py = pythonReader(), reference = frameFixture();
+      const py = referenceReader(), reference = frameFixture();
       Object.assign(py.reader, settings);
       const bg = (brightnessMode === "dim" ? py.reference.dimBgColors : py.reference.brightBgColors)[readerBg];
       py.reader._updateFrameVars(reference.doc, styleMode === "custom" ? settings.pagePaddingX : 0, styleMode === "custom" ? settings.pagePaddingY : 0, readerFonts.serif, settings.fontSize, settings.lineHeight, bg, brightnessMode === "dim" ? "#e5e7eb" : "#111827");
@@ -215,7 +215,7 @@ describe("iframe style and pagination parity", () => {
     f.frames.destroy();
   });
   it.each(["book", "custom"] as const)("matches reference CSS declarations in %s mode except the documented integer column width", styleMode => {
-    const f = frameFixture(), py = pythonReader();
+    const f = frameFixture(), py = referenceReader();
     const settings: ReaderSettings = { ...defaultSettings, styleMode, brightnessMode: "dim", readerBg: "paper", textAlignMode: "left" };
     f.frames.configure(settings);
     const actualCSS = f.css();
@@ -277,7 +277,7 @@ describe("iframe style and pagination parity", () => {
     f.frames.destroy();
   });
   it.each([0, .4, .5, .6, 9, 569.5, 569.6])("matches the reference tail epsilon with remainder %j", remainder => {
-    const f = frameFixture(598, 5.98, 8), py = pythonReader();
+    const f = frameFixture(598, 5.98, 8), py = referenceReader();
     f.viewportBox.rawRight = f.width() * 2 + remainder;
     f.frames.configure(defaultSettings);
     expect(parseFloat(f.vars.getPropertyValue("--bindery-page-tail-pad"))).toBeCloseTo(py.reader._computeTailPad(f.width() + remainder, f.width()), 9);

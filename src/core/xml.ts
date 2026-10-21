@@ -60,7 +60,7 @@ const escapeAttr = (s: string) =>
     .replace(/\r/g, "&#13;")
     .replace(/\n/g, "&#10;")
     .replace(/\t/g, "&#09;");
-// Match Python ElementTree's namespace allocation, attribute order, empty tags and whitespace.
+// Match legacy ElementTree's namespace allocation, attribute order, empty tags and whitespace.
 // This is serialization behavior, not parity-test normalization.
 export function serializeElementTree(root: Element): Uint8Array {
   const namespaces = new Map<string, string>(),

@@ -4,7 +4,7 @@ declare global { interface Window { binderyToast?: typeof showToast } }
 export function showToast(message: string, kind: ToastKind = "success"): void {
   if (typeof document !== "undefined") document.body.dispatchEvent(new CustomEvent("bindery:toast", { detail: { message, kind } }));
 }
-/** Bridge also accepts Python/HTMX's detail.value envelope. No shared SSR state. */
+/** Bridge also accepts legacy/HTMX's detail.value envelope. No shared SSR state. */
 export function installToastBridge(target: Window, receive: (toast: ToastMessage) => void): () => void {
   const previous = target.binderyToast;
   const listener = (event: Event) => {

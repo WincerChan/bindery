@@ -11,7 +11,7 @@ export interface ReaderData {
   return_to: string;
 }
 
-/** Remove fragments as in Python, and reject browser-normalized external paths. */
+/** Remove fragments as in legacy, and reject browser-normalized external paths. */
 export function readerReturnTo(value: unknown, fallback = "/"): string {
   if (typeof value !== "string") return fallback;
   const raw = value.trim();
@@ -97,10 +97,10 @@ export function normalizeSettings(raw: unknown): ReaderSettings {
   for (const key of Object.keys(choices) as (keyof typeof choices)[]) {
     if (typeof value[key] === "string" && choices[key].includes(value[key])) Object.assign(result, { [key]: value[key] });
   }
-  // Python distinguishes first-use defaults (17/9/11) from missing or invalid
+  // legacy distinguishes first-use defaults (17/9/11) from missing or invalid
   // fields in an existing saved object (18/10/12). Preserve both loading paths.
   for (const [key, min, max, fallback] of [["fontSize", 11, 28, 18], ["pagePaddingX", -1, 48, 10], ["pagePaddingY", -1, 48, 12]] as const) {
-    // Python's `value || ""` loses valid numeric zero padding on reload. Keep
+    // the legacy implementation's `value || ""` loses valid numeric zero padding on reload. Keep
     // zero so existing TS settings round-trip and the zero-margin control works.
     const number = Number.parseInt(String(value[key] ?? ""), 10);
     result[key] = Number.isNaN(number) ? fallback : Math.max(min, Math.min(max, number));

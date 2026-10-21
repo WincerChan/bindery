@@ -9,7 +9,7 @@ export function databasePath(env: NodeJS.ProcessEnv = process.env, cwd = process
   return resolve(libraryPath(env, cwd), "bindery.db");
 }
 
-// Keep path inspection read-only. Only a writable connection performs Python's
+// Keep path inspection read-only. Only a writable connection performs the legacy implementation's
 // one-time relocation of the old repository-root database.
 export function writableDatabasePath(env: NodeJS.ProcessEnv = process.env, cwd = process.cwd(), root = projectRoot): string {
   const target = databasePath(env, cwd);
@@ -31,7 +31,7 @@ export function writableDatabasePath(env: NodeJS.ProcessEnv = process.env, cwd =
             preserveTimestamps: true
           });
           unlinkSync(legacy);
-        } catch {/* Python also leaves an inaccessible legacy database in place. */}
+        } catch {/* legacy also leaves an inaccessible legacy database in place. */}
       }
     }
   }

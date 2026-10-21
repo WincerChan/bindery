@@ -1,13 +1,7 @@
-__pycache__/
-*.pyc
-.venv/
-.uv/
-.uv-cache/
-.bindery-user-templates/
+# Local data
 /library/
 bindery.db
-bindery.egg-info/
-.DS_Store
+.bindery-user-templates/
 
 # Node / TanStack Start
 node_modules/
@@ -19,3 +13,6 @@ dist/
 
 # Local secrets
 .env
+
+# OS
+.DS_Store

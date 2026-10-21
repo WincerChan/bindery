@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { Metadata, Wish } from "../../core/models";
-import { strip } from "../../core/python";
+import { strip } from "../../core/text";
 import { BinderyDatabase, nowIso, transaction } from "../db";
 import type { DatabaseSync } from "node:sqlite";
 import { wishIdentity } from "../db/encoding";
@@ -35,7 +35,7 @@ export function trackerUrl(search: Record<string, string>, page = 1, path = "/tr
 export function safeTrackerNext(raw: string): string {
   const value = strip(raw);
   if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\") || /[\x00-\x1f\x7f]/.test(value)) return "/tracker";
-  // Python drops fragments and path parameters. Reject browser backslash redirects as well.
+  // legacy drops fragments and path parameters. Reject browser backslash redirects as well.
   const target = value.split("#", 1)[0]!;
   const q = target.indexOf("?");
   let path = q < 0 ? target : target.slice(0, q);

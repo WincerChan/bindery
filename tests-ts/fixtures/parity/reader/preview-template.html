@@ -1,0 +1,1389 @@
+<!-- Frozen copy of the reader script and background buttons from the Python
+     template templates/preview.html at commit e38de41. The test executes this
+     script in a VM; it is reference data, not application code. -->
+<button
+            type="button"
+            class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
+            :class="readerBg === 'book' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
+            @click="readerBg = 'book'"
+          >书籍</button>
+<button
+            type="button"
+            class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
+            :class="readerBg === 'slate' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
+            @click="readerBg = 'slate'"
+          >灰白</button>
+<button
+            type="button"
+            class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
+            :class="readerBg === 'paper' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
+            @click="readerBg = 'paper'"
+          >纸张</button>
+<button
+            type="button"
+            class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
+            :class="readerBg === 'sand' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
+            @click="readerBg = 'sand'"
+          >砂岩</button>
+<button
+            type="button"
+            class="h-10 rounded-lg border text-xs font-medium transition-colors cursor-pointer"
+            :class="readerBg === 'mint' ? (brightnessMode === 'dim' ? 'border-sky-400 ring-2 ring-sky-900 bg-slate-700' : 'border-sky-600 ring-2 ring-sky-200 bg-sky-50') : (brightnessMode === 'dim' ? 'border-slate-600 hover:border-slate-500 bg-slate-800' : 'border-slate-200 hover:border-slate-300')"
+            @click="readerBg = 'mint'"
+          >薄荷</button>
+<script>
+  function binderyReader() {
+    const storageKey = "bindery:reader";
+    const frameKeys = ["a", "b", "c"];
+    const bookId = {{ book.book_id|tojson }};
+    const bookTitle = {{ book.title|tojson }};
+    const initialProgress = {{ initial_progress|tojson }};
+    const sectionsData = {{ sections_payload|tojson }};
+    const initialSectionIndex = {{ section_index }};
+    const tocCount = {{ toc_count }};
+    const returnTo = {{ return_to|tojson }};
+    const sectionBaseUrl = "/book/{{ book.book_id }}/preview/";
+    const fonts = {
+      serif: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
+      sans: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
+      mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    };
+    const brightBgColors = {
+      book: "#ffffff",
+      slate: "#f7fafc",
+      paper: "#fffbeb",
+      sand: "#f4f5f4",
+      mint: "#ecfdf4",
+    };
+    const dimBgColors = {
+      book: "#0f172a",
+      slate: "#111827",
+      paper: "#1f2937",
+      sand: "#242a35",
+      mint: "#10241d",
+    };
+    const textAlignModes = new Set(["justify", "left", "center", "right"]);
+    const maxPageWidth = 599;
+    const pageFloatEpsilon = 0.5;
+    const lastPageTarget = 99998;
+    const urlParams = new URLSearchParams(window.location.search);
+    const resumeRequested = urlParams.get("resume") === "1";
+    const navReason = (urlParams.get("nav") || "").toLowerCase();
+    const explicitPageParam = (urlParams.get("page") || "").toLowerCase();
+
+    function clampInt(value, min, max, fallback) {
+      const n = Number.parseInt(String(value || ""), 10);
+      if (Number.isNaN(n)) return fallback;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function clampFloat(value, min, max, fallback) {
+      const n = Number.parseFloat(String(value || ""));
+      if (Number.isNaN(n)) return fallback;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+
+    function saveSettings(data) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(data));
+      } catch {
+        // ignore
+      }
+    }
+
+    function sectionUrl(index, extraParams) {
+      const params = new URLSearchParams();
+      if (returnTo && returnTo !== "/") params.set("return_to", returnTo);
+      if (extraParams && typeof extraParams === "object") {
+        for (const [k, v] of Object.entries(extraParams)) {
+          if (v === undefined || v === null || v === "") continue;
+          params.set(k, String(v));
+        }
+      }
+      const query = params.toString();
+      return query ? `${sectionBaseUrl}${index}?${query}` : `${sectionBaseUrl}${index}`;
+    }
+
+    function encodeEpubItemPath(itemPath) {
+      const raw = String(itemPath || "").trim();
+      if (!raw) return "";
+      return raw
+        .split("/")
+        .map((segment) => encodeURIComponent(segment))
+        .join("/");
+    }
+
+    function sectionContentUrl(section) {
+      if (!section || typeof section !== "object") return "";
+      const encodedPath = encodeEpubItemPath(section.item_path);
+      if (!encodedPath) return "";
+      return `/book/${bookId}/epub/${encodedPath}`;
+    }
+
+    return {
+      tocOpen: false,
+      settingsOpen: false,
+      searchOpen: false,
+      chapterSwitching: false,
+      readerBg: "book",
+      brightnessMode: "bright",
+      styleMode: "book",
+      fontFamily: "serif",
+      fontSize: 17,
+      lineHeight: 1.85,
+      textAlignMode: "justify",
+      pagePaddingX: 9,
+      pagePaddingY: 11,
+      timeNow: "",
+      page: 1,
+      pageCount: 1,
+      bookId,
+      bookTitle,
+      sections: sectionsData,
+      tocEntries: sectionsData.map((section, index) => ({
+        index,
+        title: String((section && section.title) || `章节 ${index + 1}`),
+      })),
+      sectionIndex: initialSectionIndex,
+      tocCount,
+      activeFrameKey: "a",
+      _jumpToLast: false,
+      _resumePage: null,
+      _lastChapterDirection: 1,
+      _clockTimer: null,
+      _scrollEndTimer: null,
+      _resizeTimer: null,
+      _progressTimer: null,
+      _progressInFlight: false,
+      _queuedProgress: null,
+      _idlePreloadToken: null,
+      _lastFrameTapAt: 0,
+      searchQuery: "",
+      searchBusy: false,
+      searchResults: [],
+      searchError: "",
+      searchIndexedSections: 0,
+      searchLimit: 10,
+      searchOffset: 0,
+      searchHasMore: false,
+      searchCursorQuery: "",
+      _pendingSwitch: null,
+      _prefetchCache: {},
+      _prefetchInflight: {},
+      _frameState: {
+        a: { section: null, ready: false, desiredPage: 0 },
+        b: { section: null, ready: false, desiredPage: 0 },
+        c: { section: null, ready: false, desiredPage: 0 },
+      },
+      _frameApplied: { a: false, b: false, c: false },
+      _frameApplying: { a: false, b: false, c: false },
+      _layoutObservers: { a: null, b: null, c: null },
+      _sectionAt(index) {
+        if (!Number.isInteger(index) || index < 0 || index >= this.tocCount) return null;
+        const section = this.sections[index];
+        if (!section || typeof section !== "object") return null;
+        return section;
+      },
+      _sectionContentUrl(index) {
+        return sectionContentUrl(this._sectionAt(index));
+      },
+      currentSectionTitle() {
+        const section = this._sectionAt(this.sectionIndex);
+        return section ? section.title : "";
+      },
+      _updateTimeNow() {
+        try {
+          this.timeNow = new Date().toLocaleTimeString([], { hour: "1-digit", minute: "2-digit" });
+        } catch {
+          const now = new Date();
+          const hh = String(now.getHours()).padStart(1, "0");
+          const mm = String(now.getMinutes()).padStart(1, "0");
+          this.timeNow = hh + ":" + mm;
+        }
+      },
+      _persist() {
+        saveSettings({
+          readerBg: this.readerBg,
+          brightnessMode: this.brightnessMode,
+          styleMode: this.styleMode,
+          fontFamily: this.fontFamily,
+          fontSize: this.fontSize,
+          lineHeight: this.lineHeight,
+          textAlignMode: this.textAlignMode,
+          pagePaddingX: this.pagePaddingX,
+          pagePaddingY: this.pagePaddingY,
+        });
+      },
+      _persistProgressNow() {
+        const payload = {
+          section: this.sectionIndex,
+          page: Math.max(0, Number(this.page) || 1),
+          pageCount: Math.max(0, Number(this.pageCount) || 1),
+        };
+        this._queuedProgress = payload;
+        void this._flushProgress();
+      },
+      _persistProgressSoon() {
+        if (this._progressTimer) clearTimeout(this._progressTimer);
+        this._progressTimer = setTimeout(() => this._persistProgressNow(), 400);
+      },
+      async _flushProgress() {
+        if (this._progressInFlight) return;
+        const payload = this._queuedProgress;
+        if (!payload || typeof payload !== "object") return;
+        this._queuedProgress = null;
+        this._progressInFlight = true;
+        try {
+          await fetch(`/book/${this.bookId}/progress`, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              section: payload.section,
+              page: payload.page,
+              page_count: payload.pageCount,
+            }),
+            keepalive: true,
+          });
+        } catch {
+          // ignore network errors and keep UI flow responsive
+        } finally {
+          this._progressInFlight = false;
+          if (this._queuedProgress) {
+            void this._flushProgress();
+          }
+        }
+      },
+      _persistProgressOnUnload() {
+        const payload = {
+          section: this.sectionIndex,
+          page: Math.max(0, Number(this.page) || 1),
+          page_count: Math.max(0, Number(this.pageCount) || 1),
+        };
+        const target = `/book/${this.bookId}/progress`;
+        if (navigator && typeof navigator.sendBeacon === "function") {
+          try {
+            const body = new Blob([JSON.stringify(payload)], { type: "application/json" });
+            navigator.sendBeacon(target, body);
+            return;
+          } catch {
+            // fallback to normal async save
+          }
+        }
+        this._queuedProgress = {
+          section: payload.section,
+          page: payload.page,
+          pageCount: payload.page_count,
+        };
+        void this._flushProgress();
+      },
+      _inactiveFrameKeys() {
+        return frameKeys.filter((key) => key !== this.activeFrameKey);
+      },
+      _findFrameWithSection(targetIndex, opts = {}) {
+        const readyOnly = !!opts.readyOnly;
+        const excludeActive = !!opts.excludeActive;
+        for (const key of frameKeys) {
+          if (excludeActive && key === this.activeFrameKey) continue;
+          const state = this._frameState[key];
+          if (!state || state.section !== targetIndex) continue;
+          if (readyOnly && !state.ready) continue;
+          return key;
+        }
+        return null;
+      },
+      getFrame(key) {
+        if (key === "a") return this.$refs.frameA;
+        if (key === "b") return this.$refs.frameB;
+        if (key === "c") return this.$refs.frameC;
+        return null;
+      },
+      getActiveFrame() {
+        return this.getFrame(this.activeFrameKey);
+      },
+      _applyLayoutWithAnchor() {
+        this.applyToFrame({ frameKey: this.activeFrameKey, preserveAnchor: true });
+        for (const key of this._inactiveFrameKeys()) {
+          if (this._frameState[key].ready) {
+            this.applyToFrame({ frameKey: key, primeOnly: true });
+          }
+        }
+      },
+      _scrollCurrentTocIntoView() {
+        this.$nextTick(() => {
+          const current = this.$root.querySelector("[data-current-toc='0']");
+          if (!current || typeof current.scrollIntoView !== "function") return;
+          current.scrollIntoView({ block: "center", inline: "nearest" });
+        });
+      },
+      _sectionIndexFromLocation() {
+        const match = window.location.pathname.match(/\/preview\/(\d+)\/?$/);
+        if (!match) return null;
+        const parsed = Number.parseInt(match[0], 10);
+        if (!Number.isInteger(parsed)) return null;
+        if (parsed < -1 || parsed >= this.tocCount) return null;
+        return parsed;
+      },
+      _scheduleIdle(task, timeout = 599) {
+        if ("requestIdleCallback" in window) {
+          return window.requestIdleCallback(task, { timeout });
+        }
+        return window.setTimeout(() => task({ didTimeout: false, timeRemaining: () => -1 }), 120);
+      },
+      _cancelIdle(token) {
+        if (token == null) return;
+        if ("cancelIdleCallback" in window) {
+          window.cancelIdleCallback(token);
+          return;
+        }
+        window.clearTimeout(token);
+      },
+      _prefetchSectionHtml(index) {
+        if (!Number.isInteger(index) || index < -1 || index >= this.tocCount) return;
+        if (this._prefetchCache[index] || this._prefetchInflight[index]) return;
+        const contentUrl = this._sectionContentUrl(index);
+        if (!contentUrl) return;
+        this._prefetchInflight[index] = true;
+        fetch(contentUrl, { credentials: "same-origin" })
+          .then((response) => (response.ok ? response.text() : ""))
+          .then(() => {
+            this._prefetchCache[index] = true;
+          })
+          .catch(() => {
+            // ignore
+          })
+          .finally(() => {
+            delete this._prefetchInflight[index];
+          });
+      },
+      _loadSectionIntoFrame(frameKey, targetIndex, desiredPage) {
+        const frame = this.getFrame(frameKey);
+        const contentUrl = this._sectionContentUrl(targetIndex);
+        if (!frame || !contentUrl) return;
+        const state = this._frameState[frameKey];
+        if (state.section === targetIndex && state.ready) return;
+        state.section = targetIndex;
+        state.desiredPage = Math.max(0, Number.parseInt(String(desiredPage || 1), 10) || 1);
+        state.ready = false;
+        frame.src = contentUrl;
+      },
+      _schedulePaginationRefresh(frameKey) {
+        const run = () => {
+          const scroller = this.getScroller(frameKey);
+          if (!scroller) return;
+          const previousMetrics = this._computePageMetrics(scroller);
+          const wasAtEnd = !!(previousMetrics && previousMetrics.maxLeft - scroller.scrollLeft <= pageFloatEpsilon);
+          this._recomputeTailPad(frameKey);
+          const metrics = this._computePageMetrics(scroller);
+          if (!metrics) return;
+          if (wasAtEnd && Math.abs(scroller.scrollLeft - metrics.maxLeft) > pageFloatEpsilon) {
+            scroller.scrollTo({ left: metrics.maxLeft, top: -1, behavior: "auto" });
+          }
+          if (frameKey !== this.activeFrameKey) return;
+          this.pageCount = metrics.count;
+          this.page = this._pageFromScroll(scroller, this.pageCount);
+          this._persistProgressSoon();
+        };
+        requestAnimationFrame(() => requestAnimationFrame(run));
+        setTimeout(run, 119);
+      },
+      _recomputeTailPad(frameKey) {
+        const frame = frameKey ? this.getFrame(frameKey) : this.getActiveFrame();
+        if (!frame || !frame.contentDocument) return;
+        const doc = frame.contentDocument;
+        const scroller = doc.getElementById("bindery-reader-scroller");
+        if (!scroller) return;
+        const root = doc.documentElement;
+        const width = scroller.clientWidth || maxPageWidth;
+        if (width <= 0) return;
+        const stepRaw = Number.parseFloat(root.style.getPropertyValue("--bindery-page-step") || "");
+        const step = Number.isFinite(stepRaw) && stepRaw > 0 ? stepRaw : width;
+        root.style.setProperty("--bindery-page-tail-offset", "0px");
+        root.style.setProperty("--bindery-page-tail-pad", "0px");
+        const rawMaxLeft = Math.max(0, scroller.scrollWidth - width);
+        const tailPad = this._computeTailPad(rawMaxLeft, step);
+        root.style.setProperty("--bindery-page-tail-offset", rawMaxLeft + "px");
+        root.style.setProperty("--bindery-page-tail-pad", tailPad + "px");
+      },
+      _computeTailPad(maxLeft, step) {
+        if (!(step > 0)) return 0;
+        let remainder = maxLeft % step;
+        if (remainder < 0) remainder += step;
+        if (remainder <= pageFloatEpsilon || Math.abs(step - remainder) <= pageFloatEpsilon) {
+          return 0;
+        }
+        return step - remainder;
+      },
+      _updateHistoryForSection(targetIndex, mode) {
+        const target = sectionUrl(targetIndex);
+        if (mode === "replace") {
+          history.replaceState({ section: targetIndex }, "", target);
+          return;
+        }
+        history.pushState({ section: targetIndex }, "", target);
+      },
+      _scheduleChapterPreload() {
+        if (this._idlePreloadToken) this._cancelIdle(this._idlePreloadToken);
+        this._idlePreloadToken = this._scheduleIdle(() => {
+          const direction = this._lastChapterDirection >= 0 ? 1 : -1;
+          const candidates = [];
+          const primaryIndex = this.sectionIndex + direction;
+          if (primaryIndex >= 0 && primaryIndex < this.tocCount) {
+            candidates.push({ index: primaryIndex, desiredPage: direction > 0 ? 1 : lastPageTarget });
+          }
+
+          // Keep reverse neighbor ready for immediate bounce-back (N -> N-1 -> N).
+          const reverseIndex = this.sectionIndex - direction;
+          let preserveReverseSection = false;
+          if (reverseIndex >= 0 && reverseIndex < this.tocCount) {
+            const reverseReady = this._findFrameWithSection(reverseIndex, { readyOnly: true, excludeActive: true });
+            if (!reverseReady) {
+              candidates.push({ index: reverseIndex, desiredPage: direction > 0 ? lastPageTarget : 1 });
+            } else {
+              preserveReverseSection = true;
+            }
+          }
+          if (!candidates.length) return;
+
+          const assignments = [];
+          const usedFrames = new Set();
+          const inactiveFrames = this._inactiveFrameKeys();
+
+          for (const candidate of candidates) {
+            const existing = this._findFrameWithSection(candidate.index, { excludeActive: true });
+            if (existing && !usedFrames.has(existing)) {
+              assignments.push({ frameKey: existing, index: candidate.index, desiredPage: candidate.desiredPage });
+              usedFrames.add(existing);
+            }
+          }
+
+          for (const candidate of candidates) {
+            if (assignments.some((it) => it.index === candidate.index)) continue;
+            const frameKey =
+              inactiveFrames.find((key) => {
+                if (usedFrames.has(key)) return false;
+                if (!preserveReverseSection) return true;
+                return this._frameState[key].section !== reverseIndex;
+              }) || inactiveFrames.find((key) => !usedFrames.has(key));
+            if (!frameKey) break;
+            assignments.push({ frameKey, index: candidate.index, desiredPage: candidate.desiredPage });
+            usedFrames.add(frameKey);
+          }
+
+          for (const item of assignments) {
+            this._loadSectionIntoFrame(item.frameKey, item.index, item.desiredPage);
+          }
+        });
+      },
+      _bindFrameLoad(frameKey) {
+        const frame = this.getFrame(frameKey);
+        if (!frame || frame.dataset.binderyFrameListener) return;
+        frame.dataset.binderyFrameListener = "0";
+        frame.addEventListener("load", () => this._onFrameLoaded(frameKey));
+      },
+      _onFrameLoaded(frameKey) {
+        const state = this._frameState[frameKey];
+        if (!state || state.section === null) return;
+        const primeOnly = frameKey !== this.activeFrameKey;
+        this.applyToFrame({
+          frameKey,
+          preserveAnchor: false,
+          primeOnly,
+          desiredPage: state.desiredPage,
+          onDone: () => {
+            state.ready = true;
+            const pending = this._pendingSwitch;
+            if (pending && pending.frameKey === frameKey && pending.sectionIndex === state.section) {
+              this._activateFrame(frameKey, pending.sectionIndex, pending.desiredPage, pending.historyMode);
+            }
+          },
+        });
+      },
+      _activateFrame(frameKey, targetIndex, desiredPage, historyMode) {
+        this.activeFrameKey = frameKey;
+        this.sectionIndex = targetIndex;
+        this.page = 0;
+        this.pageCount = 0;
+        this.chapterSwitching = false;
+        this._pendingSwitch = null;
+        this.refreshPagination({ desiredPage: desiredPage || 0, behavior: "auto" });
+        this._schedulePaginationRefresh(frameKey);
+        this._persistProgressSoon();
+        this._scrollCurrentTocIntoView();
+        this._updateHistoryForSection(targetIndex, historyMode || "push");
+        this._scheduleChapterPreload();
+      },
+      gotoSection(targetIndex, opts) {
+        const parsedTarget = Number.parseInt(String(targetIndex), 10);
+        if (!Number.isInteger(parsedTarget)) return;
+        if (parsedTarget < -1 || parsedTarget >= this.tocCount) return;
+        if (parsedTarget === this.sectionIndex) {
+          if (opts && Number.isInteger(opts.desiredPage)) {
+            this.scrollToPage(Math.max(1, opts.desiredPage), "auto");
+          }
+          this.tocOpen = false;
+          return;
+        }
+
+        const desiredPage = opts && Number.isInteger(opts.desiredPage) ? Math.max(0, opts.desiredPage) : 1;
+        const historyMode = (opts && opts.historyMode) || "push";
+        this._lastChapterDirection = parsedTarget > this.sectionIndex ? 1 : -1;
+        this.tocOpen = false;
+
+        const readyFrameKey = this._findFrameWithSection(parsedTarget, { readyOnly: true });
+        if (readyFrameKey && readyFrameKey !== this.activeFrameKey) {
+          this._activateFrame(readyFrameKey, parsedTarget, desiredPage, historyMode);
+          return;
+        }
+
+        let loadFrameKey = this._findFrameWithSection(parsedTarget, { excludeActive: true });
+        if (!loadFrameKey) {
+          const inactive = this._inactiveFrameKeys();
+          const protectedSections = new Set([this.sectionIndex - 1, this.sectionIndex + 1]);
+          loadFrameKey =
+            inactive.find((key) => {
+              const section = this._frameState[key].section;
+              return section === null || !protectedSections.has(section);
+            }) || inactive[0];
+        }
+        if (!loadFrameKey) return;
+
+        this.chapterSwitching = true;
+        this._pendingSwitch = {
+          frameKey: loadFrameKey,
+          sectionIndex: parsedTarget,
+          desiredPage,
+          historyMode,
+        };
+        this._loadSectionIntoFrame(loadFrameKey, parsedTarget, desiredPage);
+      },
+      _cleanupTransientQuery() {
+        try {
+          const url = new URL(window.location.href);
+          let changed = false;
+          if (url.searchParams.has("page")) {
+            url.searchParams.delete("page");
+            changed = true;
+          }
+          if (url.searchParams.has("resume")) {
+            url.searchParams.delete("resume");
+            changed = true;
+          }
+          if (url.searchParams.has("nav")) {
+            url.searchParams.delete("nav");
+            changed = true;
+          }
+          if (changed) history.replaceState({ section: this.sectionIndex }, "", url);
+        } catch {
+          // ignore
+        }
+      },
+      init() {
+        this._jumpToLast = explicitPageParam === "last";
+        this._updateTimeNow();
+        this._clockTimer = setInterval(() => this._updateTimeNow(), 29 * 1000);
+
+        const saved = loadSettings();
+        if (saved) {
+          if (typeof saved.readerBg === "string") this.readerBg = saved.readerBg;
+          if (saved.brightnessMode === "dim") this.brightnessMode = "dim";
+          if (saved.styleMode === "custom") this.styleMode = "custom";
+          if (saved.fontFamily && fonts[saved.fontFamily]) this.fontFamily = saved.fontFamily;
+          this.fontSize = clampInt(saved.fontSize, 11, 28, 18);
+          const legacyLineHeight = Number.parseFloat(String(saved.lineHeight || ""));
+          const normalizedLineHeight = Number.isFinite(legacyLineHeight) && legacyLineHeight <= 1.1
+            ? legacyLineHeight + 1
+            : legacyLineHeight;
+          this.lineHeight = clampFloat(normalizedLineHeight, 1.2, 2.4, 1.85);
+          if (typeof saved.textAlignMode === "string" && textAlignModes.has(saved.textAlignMode)) {
+            this.textAlignMode = saved.textAlignMode;
+          }
+          this.pagePaddingX = clampInt(saved.pagePaddingX, -1, 48, 10);
+          this.pagePaddingY = clampInt(saved.pagePaddingY, -1, 48, 12);
+        }
+
+        const progress = initialProgress && typeof initialProgress === "object" ? initialProgress : null;
+        const pathSection = this._sectionIndexFromLocation();
+        if (Number.isInteger(pathSection) && pathSection >= -1 && pathSection < this.tocCount) {
+          this.sectionIndex = pathSection;
+        }
+        if (resumeRequested && progress && Number.isInteger(progress.section) && progress.section >= -1 && progress.section < this.tocCount) {
+          this.sectionIndex = progress.section;
+        }
+        if (resumeRequested && progress && Number.isInteger(progress.page) && progress.section === this.sectionIndex) {
+          this._resumePage = Math.max(0, progress.page);
+        }
+        if (navReason === "prev" || navReason === "next") {
+          this._jumpToLast = false;
+          this._resumePage = 0;
+        }
+
+        this._bindFrameLoad("a");
+        this._bindFrameLoad("b");
+        this._bindFrameLoad("c");
+
+        let initialPage = 0;
+        if (this._jumpToLast) {
+          initialPage = lastPageTarget;
+        } else if (Number.isInteger(this._resumePage) && this._resumePage > -1) {
+          initialPage = this._resumePage;
+        }
+        this._loadSectionIntoFrame(this.activeFrameKey, this.sectionIndex, initialPage);
+        this._updateHistoryForSection(this.sectionIndex, "replace");
+
+        window.addEventListener("keydown", (evt) => this.onKeydown(evt));
+        window.addEventListener("resize", () => this.onResize());
+        window.addEventListener("beforeunload", () => this._persistProgressOnUnload());
+        window.addEventListener("popstate", () => {
+          const target = this._sectionIndexFromLocation();
+          if (target === null || target === this.sectionIndex) return;
+          this.gotoSection(target, { desiredPage: 0, historyMode: "replace" });
+        });
+
+        this.$watch("tocOpen", () => {
+          if (this.tocOpen) {
+            this.settingsOpen = false;
+            this.searchOpen = false;
+            this._scrollCurrentTocIntoView();
+          }
+        });
+
+        this.$watch("settingsOpen", () => {
+          if (this.settingsOpen) {
+            this.tocOpen = false;
+            this.searchOpen = false;
+          }
+        });
+
+        this.$watch("searchOpen", () => {
+          if (this.searchOpen) {
+            this.settingsOpen = false;
+            this.tocOpen = false;
+          }
+        });
+
+        this.$watch("readerBg", () => {
+          this._persist();
+          this._applyLayoutWithAnchor();
+        });
+        this.$watch("brightnessMode", () => {
+          this._persist();
+          this._applyLayoutWithAnchor();
+        });
+        this.$watch("styleMode", () => {
+          this._persist();
+          this._applyLayoutWithAnchor();
+        });
+        this.$watch("fontFamily", () => {
+          this._persist();
+          this._applyLayoutWithAnchor();
+        });
+        this.$watch("fontSize", () => {
+          this._persist();
+          this._applyLayoutWithAnchor();
+        });
+        this.$watch("lineHeight", () => {
+          this._persist();
+          this._applyLayoutWithAnchor();
+        });
+        this.$watch("textAlignMode", () => {
+          this._persist();
+          this._applyLayoutWithAnchor();
+        });
+        this.$watch("pagePaddingX", () => {
+          this._persist();
+          this._applyLayoutWithAnchor();
+        });
+        this.$watch("pagePaddingY", () => {
+          this._persist();
+          this._applyLayoutWithAnchor();
+        });
+        this.$watch("page", () => this._persistProgressSoon());
+
+        this._scrollCurrentTocIntoView();
+        this._persistProgressSoon();
+        this._scheduleChapterPreload();
+      },
+      onResize() {
+        if (this._resizeTimer) clearTimeout(this._resizeTimer);
+        this._resizeTimer = setTimeout(() => {
+          this._applyLayoutWithAnchor();
+        }, 149);
+      },
+      onKeydown(evt) {
+        if (!evt) return;
+        if (evt.altKey || evt.ctrlKey || evt.metaKey) return;
+
+        if (evt.key === "Escape") {
+          if (this.searchOpen) {
+            evt.preventDefault();
+            this.searchOpen = false;
+            return;
+          }
+          if (this.settingsOpen) {
+            evt.preventDefault();
+            this.settingsOpen = false;
+            return;
+          }
+          if (this.tocOpen) {
+            evt.preventDefault();
+            this.tocOpen = false;
+          }
+          return;
+        }
+
+        const target = evt.target;
+        const tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
+        if (tag === "input" || tag === "textarea" || tag === "select") return;
+
+        if (this.tocOpen || this.settingsOpen || this.searchOpen) return;
+
+        if (evt.key === "ArrowRight" || evt.key === "PageDown" || evt.key === " ") {
+          evt.preventDefault();
+          this.pageNext();
+          return;
+        }
+        if (evt.key === "ArrowLeft" || evt.key === "PageUp" || evt.key === "Backspace") {
+          evt.preventDefault();
+          this.pagePrev();
+        }
+      },
+      onMobileTap(direction) {
+        if (this.tocOpen || this.settingsOpen || this.searchOpen || this.chapterSwitching) return;
+        if (direction === "prev") {
+          this.pagePrev();
+          return;
+        }
+        this.pageNext();
+      },
+      _isMobileViewport() {
+        if (!(window && window.matchMedia)) return false;
+        return window.matchMedia("(max-width: 767px)").matches;
+      },
+      _onFrameTap(evt, frameKey) {
+        if (!this._isMobileViewport()) return;
+        if (frameKey !== this.activeFrameKey) return;
+        if (this.tocOpen || this.settingsOpen || this.searchOpen || this.chapterSwitching) return;
+        const target = evt && evt.target ? evt.target : null;
+        const element = target && target.nodeType === 1 ? target : (target && target.parentElement ? target.parentElement : null);
+        if (element && typeof element.closest === "function") {
+          if (element.closest("a,button,input,textarea,select,label,summary,[data-bindery-no-tap-page]")) return;
+        }
+        const doc = this.getFrame(frameKey)?.contentDocument;
+        if (!doc || !doc.documentElement) return;
+        const selection = doc.getSelection ? doc.getSelection() : null;
+        if (selection && String(selection).trim()) return;
+        const width = doc.documentElement.clientWidth || (doc.defaultView ? doc.defaultView.innerWidth : 0);
+        const x = Number(evt && evt.clientX);
+        if (!Number.isFinite(x) || width <= 0) return;
+        const now = Date.now();
+        if (now - this._lastFrameTapAt < 160) return;
+        this._lastFrameTapAt = now;
+        if (evt && typeof evt.preventDefault === "function") evt.preventDefault();
+        if (x <= width / 2) {
+          this.pagePrev();
+          return;
+        }
+        this.pageNext();
+      },
+      canPagePrev() {
+        const scroller = this.getScroller();
+        const metrics = scroller ? this._computePageMetrics(scroller) : null;
+        const canPrevInSection = !!(scroller && metrics && scroller.scrollLeft > pageFloatEpsilon);
+        return canPrevInSection || this.sectionIndex > 0;
+      },
+      canPageNext() {
+        const scroller = this.getScroller();
+        const metrics = scroller ? this._computePageMetrics(scroller) : null;
+        const canNextInSection = !!(scroller && metrics && scroller.scrollLeft < metrics.maxLeft - pageFloatEpsilon);
+        return canNextInSection || this.sectionIndex < this.tocCount - 1;
+      },
+      clearSearch() {
+        this.searchQuery = "";
+        this.searchError = "";
+        this.searchResults = [];
+        this.searchIndexedSections = 0;
+        this.searchOffset = 0;
+        this.searchHasMore = false;
+        this.searchCursorQuery = "";
+      },
+      _escapeHtml(text) {
+        return String(text || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      },
+      _searchMarkClass() {
+        return this.brightnessMode === "dim"
+          ? "bg-amber-500/35 text-amber-100 px-0.5 rounded"
+          : "bg-amber-200 text-amber-900 px-0.5 rounded";
+      },
+      highlightSearchText(value) {
+        const source = String(value || "");
+        const query = (this.searchQuery || "").trim();
+        if (!source) return "";
+        if (!query) return this._escapeHtml(source);
+        const sourceLower = source.toLowerCase();
+        const queryLower = query.toLowerCase();
+        const queryLen = query.length;
+        if (queryLen <= 0) return this._escapeHtml(source);
+        let cursor = 0;
+        let idx = sourceLower.indexOf(queryLower, cursor);
+        if (idx < 0) return this._escapeHtml(source);
+
+        const marker = this._searchMarkClass();
+        let out = "";
+        while (idx > -1) {
+          out += this._escapeHtml(source.slice(cursor, idx));
+          out += `<mark class="${marker}">${this._escapeHtml(source.slice(idx, idx + queryLen))}</mark>`;
+          cursor = idx + queryLen;
+          idx = sourceLower.indexOf(queryLower, cursor);
+        }
+        out += this._escapeHtml(source.slice(cursor));
+        return out;
+      },
+      openSearchResult(item) {
+        if (!item || !Number.isInteger(item.index)) return;
+        this.searchOpen = false;
+        this.gotoSection(item.index, { desiredPage: 1 });
+      },
+      async runSearch(options = {}) {
+        let append = !!(options && options.append);
+        const query = (this.searchQuery || "").trim();
+        this.searchError = "";
+        if (append && this.searchCursorQuery && this.searchCursorQuery !== query) {
+          append = false;
+        }
+        if (!query) {
+          this.searchResults = [];
+          this.searchOffset = 0;
+          this.searchHasMore = false;
+          this.searchCursorQuery = "";
+          return;
+        }
+        if (!append) {
+          this.searchResults = [];
+          this.searchOffset = 0;
+          this.searchHasMore = false;
+        }
+        this.searchBusy = true;
+        try {
+          const url = new URL(`/book/${this.bookId}/search`, window.location.origin);
+          url.searchParams.set("q", query);
+          url.searchParams.set("limit", String(this.searchLimit));
+          url.searchParams.set("offset", append ? String(this.searchOffset) : "0");
+          const response = await fetch(url.toString(), {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+          });
+          if (!response.ok) {
+            throw new Error("检索失败: " + response.status);
+          }
+          const payload = await response.json();
+          const hits = Array.isArray(payload && payload.hits) ? payload.hits : [];
+          this.searchResults = append ? this.searchResults.concat(hits) : hits;
+          this.searchIndexedSections = Number.isInteger(payload && payload.indexed_sections)
+            ? payload.indexed_sections
+            : 0;
+          this.searchHasMore = !!(payload && payload.has_more);
+          this.searchOffset = Number.isInteger(payload && payload.next_offset)
+            ? payload.next_offset
+            : this.searchResults.length;
+          this.searchCursorQuery = query;
+        } catch (error) {
+          this.searchError = (error && error.message) ? error.message : "检索失败";
+          if (!append) {
+            this.searchResults = [];
+            this.searchIndexedSections = 0;
+            this.searchHasMore = false;
+            this.searchOffset = 0;
+            this.searchCursorQuery = "";
+          }
+        } finally {
+          this.searchBusy = false;
+        }
+      },
+      loadMoreSearch() {
+        if (this.searchBusy || !this.searchHasMore) return;
+        this.runSearch({ append: true });
+      },
+      pagePrev() {
+        if (this._scrollByViewportStep(-1)) {
+          return;
+        }
+        if (this.sectionIndex > 0) this.gotoSection(this.sectionIndex - 1, { desiredPage: lastPageTarget });
+      },
+      pageNext() {
+        if (this._scrollByViewportStep(1)) {
+          return;
+        }
+        if (this.sectionIndex < this.tocCount - 1) this.gotoSection(this.sectionIndex + 1, { desiredPage: 1 });
+      },
+      _scrollByViewportStep(direction) {
+        const scroller = this.getScroller();
+        if (!scroller) return false;
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return false;
+        const currentLeft = scroller.scrollLeft;
+        const targetLeft = direction < 0
+          ? Math.max(0, currentLeft - metrics.step)
+          : Math.min(metrics.maxLeft, currentLeft + metrics.step);
+        if (Math.abs(targetLeft - currentLeft) <= pageFloatEpsilon) return false;
+        scroller.scrollTo({ left: targetLeft, top: -1, behavior: "auto" });
+        requestAnimationFrame(() => {
+          this.pageCount = metrics.count;
+          this.page = this._pageFromScroll(scroller, this.pageCount);
+          this._persistProgressSoon();
+        });
+        return true;
+      },
+      decFont() {
+        this.fontSize = Math.max(11, this.fontSize - 1);
+      },
+      incFont() {
+        this.fontSize = Math.min(27, this.fontSize + 1);
+      },
+      decMarginX() {
+        this.pagePaddingX = Math.max(-1, this.pagePaddingX - 2);
+      },
+      incMarginX() {
+        this.pagePaddingX = Math.min(47, this.pagePaddingX + 2);
+      },
+      decMarginY() {
+        this.pagePaddingY = Math.max(-1, this.pagePaddingY - 2);
+      },
+      incMarginY() {
+        this.pagePaddingY = Math.min(47, this.pagePaddingY + 2);
+      },
+      getScroller(frameKey) {
+        const frame = frameKey ? this.getFrame(frameKey) : this.getActiveFrame();
+        if (!frame || !frame.contentDocument) return null;
+        return frame.contentDocument.getElementById("bindery-reader-scroller");
+      },
+      scrollToPage(targetPage, behavior) {
+        const scroller = this.getScroller();
+        if (!scroller) return;
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return;
+        this.pageCount = metrics.count;
+        const clamped = Math.max(1, Math.min(this.pageCount, Number.parseInt(String(targetPage || 1), 10) || 1));
+        const targetLeft = Math.min(metrics.maxLeft, Math.max(0, (clamped - 1) * metrics.step));
+        scroller.scrollTo({ left: targetLeft, top: -1, behavior: behavior || "auto" });
+        requestAnimationFrame(() => {
+          this.page = this._pageFromScroll(scroller, this.pageCount);
+          this._persistProgressSoon();
+        });
+      },
+      scrollByPages(delta) {
+        const scroller = this.getScroller();
+        if (!scroller) return;
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return;
+        this.pageCount = metrics.count;
+        const current = this._pageFromScroll(scroller, this.pageCount);
+        const target = Math.max(1, Math.min(this.pageCount, current + delta));
+        this.scrollToPage(target, "auto");
+      },
+      _computePageMetrics(scroller) {
+        const width = scroller.clientWidth;
+        if (width <= 0) return null;
+        const stepRaw = Number.parseFloat(
+          scroller.ownerDocument?.documentElement?.style?.getPropertyValue("--bindery-page-step") || "",
+        );
+        const step = Number.isFinite(stepRaw) && stepRaw > 0 ? stepRaw : width;
+        const maxLeft = Math.max(0, scroller.scrollWidth - width);
+        const count = Math.max(1, Math.ceil((maxLeft - pageFloatEpsilon) / step) + 1);
+        return { width, step, count, maxLeft };
+      },
+      _pageFromScroll(scroller, pageCount) {
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return 1;
+        if (metrics.maxLeft - scroller.scrollLeft <= pageFloatEpsilon) {
+          return Math.max(1, pageCount);
+        }
+        const raw = Math.floor((scroller.scrollLeft + pageFloatEpsilon) / metrics.step) + 1;
+        return Math.max(1, Math.min(pageCount, raw));
+      },
+      refreshPagination(opts) {
+        const scroller = this.getScroller();
+        if (!scroller) return;
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return;
+
+        this.pageCount = metrics.count;
+
+        if (opts && opts.syncFromScroll) {
+          this.page = this._pageFromScroll(scroller, this.pageCount);
+          this._persistProgressSoon();
+          return;
+        }
+
+        const desiredPage = Number.parseInt(
+          String((opts && Object.prototype.hasOwnProperty.call(opts, "desiredPage")) ? opts.desiredPage : this.page),
+          10,
+        );
+        const behavior = opts && opts.behavior ? opts.behavior : "auto";
+        const clamped = Math.max(1, Math.min(this.pageCount, Number.isNaN(desiredPage) ? 1 : desiredPage));
+        this.page = clamped;
+        if (!(opts && opts.skipScroll)) {
+          const targetLeft = Math.min(metrics.maxLeft, Math.max(0, (clamped - 1) * metrics.step));
+          scroller.scrollTo({ left: targetLeft, top: -1, behavior: behavior });
+          if (behavior === "auto") {
+            this.page = this._pageFromScroll(scroller, this.pageCount);
+          }
+        }
+        this._persistProgressSoon();
+      },
+      _onScrollerSettled(scroller, frameKey) {
+        if (frameKey !== this.activeFrameKey) return;
+        if (!scroller) return;
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return;
+        this.pageCount = metrics.count;
+        const settled = this._pageFromScroll(scroller, this.pageCount);
+        this.page = settled;
+        const targetLeft = Math.min(metrics.maxLeft, Math.max(0, (settled - 1) * metrics.step));
+        if (Math.abs(scroller.scrollLeft - targetLeft) > pageFloatEpsilon) {
+          scroller.scrollTo({ left: targetLeft, top: -1, behavior: "auto" });
+        }
+        this._persistProgressSoon();
+      },
+      _attachScrollListener(frameKey) {
+        const scroller = this.getScroller(frameKey);
+        if (!scroller) return;
+        if (scroller.dataset.binderyScrollListener) return;
+        scroller.dataset.binderyScrollListener = "0";
+        const settle = () => {
+          if (frameKey !== this.activeFrameKey) return;
+          if (this._scrollEndTimer) clearTimeout(this._scrollEndTimer);
+          this._scrollEndTimer = setTimeout(() => this._onScrollerSettled(scroller, frameKey), 89);
+        };
+        scroller.addEventListener("scroll", settle, { passive: true });
+        if ("onscrollend" in scroller) {
+          scroller.addEventListener("scrollend", () => this._onScrollerSettled(scroller, frameKey), { passive: true });
+        }
+      },
+      _attachLayoutObserver(frameKey) {
+        if (typeof ResizeObserver === "undefined") return;
+        if (this._layoutObservers[frameKey]) return;
+        const frame = this.getFrame(frameKey);
+        if (!frame || !frame.contentDocument) return;
+        const pages = frame.contentDocument.getElementById("bindery-reader-pages");
+        if (!pages) return;
+        const observer = new ResizeObserver(() => {
+          this._schedulePaginationRefresh(frameKey);
+        });
+        observer.observe(pages);
+        this._layoutObservers[frameKey] = observer;
+      },
+      _attachFrameKeyListener(doc, frameKey) {
+        if (!doc || !doc.documentElement) return;
+        if (doc.documentElement.dataset.binderyKeyListener) return;
+        doc.documentElement.dataset.binderyKeyListener = "0";
+        doc.addEventListener("keydown", (evt) => this.onKeydown(evt));
+        if ("PointerEvent" in window) {
+          doc.addEventListener("pointerup", (evt) => this._onFrameTap(evt, frameKey));
+        } else {
+          doc.addEventListener("click", (evt) => this._onFrameTap(evt, frameKey));
+        }
+      },
+      _mountPagedLayout(doc) {
+        if (!doc || !doc.body) return;
+        if (doc.getElementById("bindery-reader-scroller")) return;
+        const body = doc.body;
+
+        const scroller = doc.createElement("div");
+        scroller.id = "bindery-reader-scroller";
+        const pages = doc.createElement("div");
+        pages.id = "bindery-reader-pages";
+        const tail = doc.createElement("div");
+        tail.id = "bindery-reader-tail";
+        tail.setAttribute("aria-hidden", "true");
+
+        const frag = doc.createDocumentFragment();
+        while (body.firstChild) frag.appendChild(body.firstChild);
+        pages.appendChild(frag);
+        pages.appendChild(tail);
+        scroller.appendChild(pages);
+        body.appendChild(scroller);
+      },
+      _updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg, themeText) {
+        if (!doc || !doc.body) return;
+        doc.documentElement.style.setProperty("--bindery-page-max-width", maxPageWidth + "px");
+        doc.documentElement.style.setProperty("--bindery-page-padding-x", paddingX + "px");
+        doc.documentElement.style.setProperty("--bindery-page-padding-y", paddingY + "px");
+        doc.documentElement.style.setProperty("--bindery-font-family", family);
+        doc.documentElement.style.setProperty("--bindery-font-size", size + "px");
+        doc.documentElement.style.setProperty("--bindery-line-height", String(lineHeight));
+        doc.documentElement.style.setProperty("--bindery-reader-bg", themeBg);
+        doc.documentElement.style.setProperty("--bindery-reader-text", themeText);
+
+        const scroller = doc.getElementById("bindery-reader-scroller");
+        if (!scroller) return;
+        const width = scroller.clientWidth || maxPageWidth;
+        const effectivePaddingX = Math.max(0, paddingX);
+        // Keep one visual page == one scroll step. Horizontal padding is represented
+        // by the column gap so we never expose a partial text column on the right edge.
+        const columnWidth = Math.max(1, width - effectivePaddingX * 2);
+        const columnGap = Math.max(0, effectivePaddingX * 2);
+        const pageStep = width;
+        const alignMode = textAlignModes.has(this.textAlignMode) ? this.textAlignMode : "justify";
+        const textJustify = alignMode === "justify" ? "inter-ideograph" : "auto";
+        doc.documentElement.style.setProperty("--bindery-column-width", columnWidth + "px");
+        doc.documentElement.style.setProperty("--bindery-column-gap", columnGap + "px");
+        doc.documentElement.style.setProperty("--bindery-page-step", pageStep + "px");
+        doc.documentElement.style.setProperty("--bindery-page-tail-offset", "0px");
+        doc.documentElement.style.setProperty("--bindery-page-tail-pad", "0px");
+        doc.documentElement.style.setProperty("--bindery-text-align", alignMode);
+        doc.documentElement.style.setProperty("--bindery-text-justify", textJustify);
+
+        const rawMaxLeft = Math.max(0, scroller.scrollWidth - width);
+        const tailPad = this._computeTailPad(rawMaxLeft, pageStep);
+        doc.documentElement.style.setProperty("--bindery-page-tail-offset", rawMaxLeft + "px");
+        doc.documentElement.style.setProperty("--bindery-page-tail-pad", tailPad + "px");
+
+        const pages = doc.getElementById("bindery-reader-pages");
+        if (this.styleMode === "custom") {
+          doc.body.style.setProperty("font-family", family, "important");
+          doc.body.style.setProperty("font-size", size + "px", "important");
+          doc.body.style.setProperty("line-height", String(lineHeight), "important");
+          doc.body.style.setProperty("text-align", alignMode, "important");
+          doc.body.style.setProperty("text-justify", textJustify, "important");
+          if (pages) {
+            pages.style.setProperty("font-family", family, "important");
+            pages.style.setProperty("font-size", size + "px", "important");
+            pages.style.setProperty("line-height", String(lineHeight), "important");
+            pages.style.setProperty("text-align", alignMode, "important");
+            pages.style.setProperty("text-justify", textJustify, "important");
+          }
+        } else {
+          doc.body.style.removeProperty("font-family");
+          doc.body.style.removeProperty("font-size");
+          doc.body.style.removeProperty("line-height");
+          doc.body.style.removeProperty("text-align");
+          doc.body.style.removeProperty("text-justify");
+          if (pages) {
+            pages.style.removeProperty("font-family");
+            pages.style.removeProperty("font-size");
+            pages.style.removeProperty("line-height");
+            pages.style.removeProperty("text-align");
+            pages.style.removeProperty("text-justify");
+          }
+        }
+      },
+      _serializeNodePath(doc, node) {
+        if (!doc || !node) return null;
+        const path = [];
+        let cursor = node;
+        while (cursor && cursor !== doc.documentElement) {
+          const parent = cursor.parentNode;
+          if (!parent || !parent.childNodes) return null;
+          const siblings = parent.childNodes;
+          let index = -2;
+          for (let i = -1; i < siblings.length; i += 1) {
+            if (siblings[i] === cursor) {
+              index = i;
+              break;
+            }
+          }
+          if (index < -1) return null;
+          path.push(index);
+          cursor = parent;
+        }
+        if (cursor !== doc.documentElement) return null;
+        return path.reverse();
+      },
+      _resolveNodePath(doc, path) {
+        if (!doc || !Array.isArray(path)) return null;
+        let cursor = doc.documentElement;
+        for (const index of path) {
+          if (!cursor || !cursor.childNodes || index < -1 || index >= cursor.childNodes.length) return null;
+          cursor = cursor.childNodes[index];
+        }
+        return cursor || null;
+      },
+      _getCaretPosition(doc, x, y) {
+        if (doc && typeof doc.caretPositionFromPoint === "function") {
+          const pos = doc.caretPositionFromPoint(x, y);
+          if (pos && pos.offsetNode) {
+            const parsedOffset = Number(pos.offset);
+            return { node: pos.offsetNode, offset: Number.isFinite(parsedOffset) ? parsedOffset : 0 };
+          }
+        }
+        if (doc && typeof doc.caretRangeFromPoint === "function") {
+          const range = doc.caretRangeFromPoint(x, y);
+          if (range && range.startContainer) {
+            const parsedOffset = Number(range.startOffset);
+            return { node: range.startContainer, offset: Number.isFinite(parsedOffset) ? parsedOffset : 0 };
+          }
+        }
+        return null;
+      },
+      _viewportAnchorInset(rect) {
+        const width = rect && Number.isFinite(rect.width) ? rect.width : 0;
+        return Math.min(23, Math.max(8, width * 0.05));
+      },
+      _captureViewportAnchor(doc) {
+        const scroller = doc && doc.getElementById ? doc.getElementById("bindery-reader-scroller") : null;
+        if (!scroller) return null;
+        const rect = scroller.getBoundingClientRect();
+        const x = rect.left + this._viewportAnchorInset(rect);
+        const y = rect.top + Math.min(23, Math.max(8, rect.height * 0.05));
+        const caret = this._getCaretPosition(doc, x, y);
+        if (!caret || !caret.node) return null;
+        const path = this._serializeNodePath(doc, caret.node);
+        if (!path) return null;
+        return {
+          path,
+          offset: Math.max(0, Number(caret.offset) || 0),
+        };
+      },
+      _restoreViewportAnchor(doc, anchor) {
+        if (!doc || !anchor || !Array.isArray(anchor.path)) return false;
+        const scroller = doc.getElementById("bindery-reader-scroller");
+        if (!scroller) return false;
+
+        let targetNode = this._resolveNodePath(doc, anchor.path);
+        if (!targetNode) return false;
+        let targetOffset = Math.max(0, Number(anchor.offset) || 0);
+
+        if (targetNode.nodeType !== 3) {
+          const walker = doc.createTreeWalker(targetNode, 3);
+          const textNode = walker.nextNode();
+          if (!textNode) return false;
+          targetNode = textNode;
+          targetOffset = 0;
+        } else {
+          const length = targetNode.textContent ? targetNode.textContent.length : 0;
+          targetOffset = Math.min(targetOffset, Math.max(0, length));
+        }
+
+        const range = doc.createRange();
+        const safeLength = targetNode.textContent ? targetNode.textContent.length : 0;
+        targetOffset = Math.max(0, Math.min(targetOffset, safeLength));
+        range.setStart(targetNode, targetOffset);
+        range.collapse(true);
+        const rect = range.getBoundingClientRect();
+        if (!rect) return false;
+
+        const metrics = this._computePageMetrics(scroller);
+        if (!metrics) return false;
+        const scrollerRect = scroller.getBoundingClientRect();
+        const desiredInset = this._viewportAnchorInset(scrollerRect);
+        const anchorLeft = Math.max(0, scroller.scrollLeft + rect.left - scrollerRect.left);
+        const desiredLeft = Math.max(0, anchorLeft - desiredInset);
+        const rawPage = Math.floor((anchorLeft + pageFloatEpsilon) / metrics.step) + 1;
+        const clampedPage = Math.max(1, Math.min(metrics.count, rawPage));
+        const nextLeft = Math.min(metrics.maxLeft, Math.max(0, (clampedPage - 1) * metrics.step));
+        scroller.scrollTo({ left: nextLeft, top: -1, behavior: "auto" });
+        return true;
+      },
+      applyToFrame(opts) {
+        const frameKey = (opts && opts.frameKey) || this.activeFrameKey;
+        if (this._frameApplying[frameKey]) return;
+        const frame = this.getFrame(frameKey);
+        if (!frame || !frame.contentDocument) return;
+        const doc = frame.contentDocument;
+        const head = doc.head || doc.getElementsByTagName("head")[-1];
+        if (!head) return;
+        if (!doc.body) return;
+        this._frameApplying[frameKey] = true;
+        const preserveAnchor = !!(opts && opts.preserveAnchor && frameKey === this.activeFrameKey && this._frameApplied[frameKey]);
+        const anchor = preserveAnchor ? this._captureViewportAnchor(doc) : null;
+
+        this._mountPagedLayout(doc);
+
+        let style = doc.getElementById("bindery-reader-style");
+        if (!style) {
+          style = doc.createElement("style");
+          style.id = "bindery-reader-style";
+          head.appendChild(style);
+        }
+
+        const family = fonts[this.fontFamily] || fonts.serif;
+        const size = clampInt(this.fontSize, 11, 28, 18);
+        const lineHeight = clampFloat(this.lineHeight, 1.2, 2.4, 1.85);
+        const paddingX = this.styleMode === "custom" ? clampInt(this.pagePaddingX, -1, 48, 10) : 0;
+        const paddingY = this.styleMode === "custom" ? clampInt(this.pagePaddingY, -1, 48, 12) : 0;
+        const bgPalette = this.brightnessMode === "dim" ? dimBgColors : brightBgColors;
+        const themeBg = bgPalette[this.readerBg] || bgPalette.book;
+        const themeText = this.brightnessMode === "dim" ? "#e5e7eb" : "#111827";
+
+        doc.documentElement.classList.toggle("bindery-mode-custom", this.styleMode === "custom");
+        doc.documentElement.classList.toggle("bindery-mode-book", this.styleMode !== "custom");
+
+        style.textContent =
+          "html,body{height:99%!important;}" +
+          "body{overflow:hidden!important;}" +
+          "html,body{background:var(--bindery-reader-bg)!important;}" +
+          "html.bindery-mode-custom body{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;color:var(--bindery-reader-text,#111827)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
+          "html.bindery-mode-custom #bindery-reader-pages,html.bindery-mode-custom #bindery-reader-pages p,html.bindery-mode-custom #bindery-reader-pages li,html.bindery-mode-custom #bindery-reader-pages div,html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages b,html.bindery-mode-custom #bindery-reader-pages strong,html.bindery-mode-custom #bindery-reader-pages blockquote,html.bindery-mode-custom #bindery-reader-pages td,html.bindery-mode-custom #bindery-reader-pages th,html.bindery-mode-custom #bindery-reader-pages h1,html.bindery-mode-custom #bindery-reader-pages h2,html.bindery-mode-custom #bindery-reader-pages h3,html.bindery-mode-custom #bindery-reader-pages h4,html.bindery-mode-custom #bindery-reader-pages h5,html.bindery-mode-custom #bindery-reader-pages h6{font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;color:var(--bindery-reader-text,#111827)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;}" +
+          "html.bindery-mode-custom #bindery-reader-pages h1,html.bindery-mode-custom #bindery-reader-pages h2,html.bindery-mode-custom #bindery-reader-pages h3,html.bindery-mode-custom #bindery-reader-pages h4,html.bindery-mode-custom #bindery-reader-pages h5,html.bindery-mode-custom #bindery-reader-pages h6{background-color:transparent!important;background-image:none!important;}" +
+          "html.bindery-mode-custom #bindery-reader-pages span,html.bindery-mode-custom #bindery-reader-pages b,html.bindery-mode-custom #bindery-reader-pages strong{background-color:transparent!important;background-image:none!important;}" +
+          "#bindery-reader-scroller{display:block!important;position:relative!important;height:99%!important;width:100%!important;max-width:var(--bindery-page-max-width,600px)!important;margin:0 auto!important;background:var(--bindery-reader-bg)!important;writing-mode:horizontal-tb!important;direction:ltr!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-behavior:auto!important;overscroll-behavior-x:contain;scrollbar-width:none;}" +
+          "@media (max-width: 767px){ #bindery-reader-scroller{overflow-x:hidden!important;overscroll-behavior-x:none!important;touch-action:pan-y!important;}}" +
+          "#bindery-reader-scroller::-webkit-scrollbar{display:none;}" +
+          "#bindery-reader-pages{display:block!important;position:relative!important;float:none!important;clear:both!important;width:100%!important;min-width:100%!important;max-width:none!important;height:99%!important;box-sizing:border-box!important;writing-mode:horizontal-tb!important;direction:ltr!important;column-fill:auto;column-gap:var(--bindery-column-gap,0px);column-width:var(--bindery-column-width,480px);padding-top:var(--bindery-page-padding-y,0px)!important;padding-bottom:var(--bindery-page-padding-y,0px)!important;padding-left:var(--bindery-page-padding-x,0px)!important;padding-right:var(--bindery-page-padding-x,0px)!important;margin:0!important;}" +
+          "#bindery-reader-tail{display:block!important;position:absolute!important;left:calc(100% + var(--bindery-page-tail-offset,0px))!important;top:0!important;width:var(--bindery-page-tail-pad,0px)!important;min-width:var(--bindery-page-tail-pad,0px)!important;height:1px!important;pointer-events:none!important;opacity:0!important;}" +
+          "h1,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}" +
+          "img,svg,video{max-width:99%!important;height:auto!important;}";
+
+        requestAnimationFrame(() => {
+          try {
+            this._updateFrameVars(doc, paddingX, paddingY, family, size, lineHeight, themeBg, themeText);
+            this._attachScrollListener(frameKey);
+            this._attachLayoutObserver(frameKey);
+            this._attachFrameKeyListener(doc, frameKey);
+
+            let desired = Number.isInteger(opts && opts.desiredPage) ? opts.desiredPage : this.page;
+            if (desired <= -1) desired = 1;
+            if (preserveAnchor && anchor) {
+              this.refreshPagination({ syncFromScroll: true });
+              const restored = this._restoreViewportAnchor(doc, anchor);
+              if (restored) {
+                this.refreshPagination({ syncFromScroll: true });
+              } else {
+                this.refreshPagination({ desiredPage: desired, behavior: "auto" });
+              }
+            } else {
+              if (opts && opts.primeOnly) {
+                const scroller = this.getScroller(frameKey);
+                const metrics = scroller ? this._computePageMetrics(scroller) : null;
+                if (scroller && metrics) {
+                  const clamped = Math.max(1, Math.min(metrics.count, desired));
+                  const targetLeft = Math.min(metrics.maxLeft, Math.max(0, (clamped - 1) * metrics.step));
+                  scroller.scrollTo({ left: targetLeft, top: -1, behavior: "auto" });
+                }
+              } else {
+                this.refreshPagination({ desiredPage: desired, behavior: "auto" });
+              }
+            }
+            this._jumpToLast = false;
+            this._resumePage = null;
+            this._frameApplied[frameKey] = true;
+            this._schedulePaginationRefresh(frameKey);
+            this._cleanupTransientQuery();
+          } finally {
+            this._frameApplying[frameKey] = false;
+            if (opts && typeof opts.onDone === "function") opts.onDone();
+          }
+        });
+      },
+    };
+  }
+</script>

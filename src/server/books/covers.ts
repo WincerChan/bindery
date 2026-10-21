@@ -24,7 +24,7 @@ import { getRule } from "../templates";
 import { parseBookFile } from "../parsing";
 import { USER_AGENT, type Fetch } from "./metadata-lookup";
 
-// Python has no cover limits. Explicit bounds prevent unbounded form/remote allocations.
+// legacy has no cover limits. Explicit bounds prevent unbounded form/remote allocations.
 export const MAX_COVER_BYTES = 20 * 1024 * 1024;
 export function validateCover(data: Uint8Array): void {
   if (!data.length) throw new HttpError(400, "Empty cover");

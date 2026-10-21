@@ -24,14 +24,11 @@ const exec = promisify(execFile),
     "base64",
   );
 it.runIf(existsSync("dist/server/server.js"))(
-  "matches Python read/edit/cover/archive/restore/delete side effects through authenticated production fetch without sockets",
+  "matches legacy read/edit/cover/archive/restore/delete side effects through authenticated production fetch without sockets",
   async () => {
-    const tsRoot = join(root, "ts"),
-      pyRoot = join(root, "python");
+    const tsRoot = join(root, "ts");
     mkdirSync(tsRoot, { recursive: true });
-    mkdirSync(pyRoot, { recursive: true });
-    for (const dir of [tsRoot, pyRoot])
-      writeFileSync(join(dir, "png.hex"), png.toString("hex"));
+    writeFileSync(join(tsRoot, "png.hex"), png.toString("hex"));
     const db = new BinderyDatabase(join(tsRoot, "data.db")),
       library = new LibraryStorage(join(tsRoot, "library"), db);
     library.ensure();
@@ -53,31 +50,21 @@ it.runIf(existsSync("dist/server/server.js"))(
     saveBook(book, library.base, id);
     library.saveMetadata(meta);
     writeFileSync(epubPath(library.base, id), buildEpub(book, meta));
-    await Promise.all([
-      exec(
-        process.execPath,
-        [
-          resolve("tests-ts/fixtures/books/production.mjs"),
-          tsRoot,
-          `bindery_session=${signIn(db)}`,
-        ],
-        { timeout: 20000, killSignal: "SIGKILL", maxBuffer: 8 * 1024 * 1024 },
-      ),
-      exec(
-        "uv",
-        [
-          "run",
-          "--no-sync",
-          "python",
-          resolve("tests-ts/fixtures/books/reference.py"),
-          "flow",
-          pyRoot,
-        ],
-        { timeout: 20000, killSignal: "SIGKILL", maxBuffer: 8 * 1024 * 1024 },
-      ),
-    ]);
+    await exec(
+      process.execPath,
+      [
+        resolve("tests-ts/fixtures/books/production.mjs"),
+        tsRoot,
+        `bindery_session=${signIn(db)}`,
+      ],
+      { timeout: 20000, killSignal: "SIGKILL", maxBuffer: 8 * 1024 * 1024 },
+    );
     expect(
       JSON.parse(readFileSync(join(tsRoot, "result.json"), "utf8")),
-    ).toEqual(JSON.parse(readFileSync(join(pyRoot, "result.json"), "utf8")));
+    ).toEqual(
+      JSON.parse(
+        readFileSync(resolve("tests-ts/fixtures/parity/books-flow.json"), "utf8"),
+      ),
+    );
   },
 );

@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { validateCss } from "../src/core/css";
 import { readArchive } from "../src/core/archive";
 import { buildEpub, extractCover } from "../src/core/epub";
@@ -24,14 +23,12 @@ import { temporaryLibrary, createBook } from "./fixtures/library/support";
 let root: string, library: LibraryStorage;
 const id = "a".repeat(32), now = "2026-10-19T12:00:00+00:00";
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6X4D1kAAAAASUVORK5CYII=", "base64");
+const iso = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g;
+const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 const newPng = Buffer.concat([png, Buffer.from("new cover")]);
 const options = () => ({ cover_bytes: null as Uint8Array | null, cover_name: null as string | null, cover_url: "", strip_original_css: false });
 const form = (values: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(values)) f.set(k, v); return f; };
-async function oracle(mode: string, input: unknown) {
-  writeFileSync(join(root, "input.json"), JSON.stringify(input));
-  await promisify(execFile)("uv", ["run", "--no-sync", "python", resolve("tests-ts/fixtures/integration/reference.py"), root, mode], { env: { ...process.env, UV_CACHE_DIR: "/tmp/bindery-uv-cache" }, timeout: 20000 });
-  return JSON.parse(readFileSync(join(root, "reference.json"), "utf8"));
-}
+const reference = (mode: string) => JSON.parse(readFileSync(resolve("tests-ts/fixtures/parity/integration", `${mode}.json`), "utf8"));
 beforeEach(() => {
   ({ root, library } = temporaryLibrary());
   for (const name of ["BINDERY_RULES_DIR", "BINDERY_THEMES_DIR", "BINDERY_RULES_DIR_FILE", "BINDERY_THEMES_DIR_FILE"]) vi.stubEnv(name, "");
@@ -40,13 +37,13 @@ beforeEach(() => {
 afterEach(async () => { await stopJobWorker(library); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
 
 const cssCases = ["", " \u0085\u001c", " ".repeat(200001), "😀".repeat(200000), "😀".repeat(200001), "a".repeat(200001) + "\0", "\0", "/*", 'a{"x', "}", "a{", 'a{content:"} /* \\"";} /* { } */', "/* } */ a { content: '{'; }", '"x\\', "}/*", 'a{"unterminated/*', "/* ' } */ { }", "a { color: red; }", "\ufeff".repeat(200001)];
-describe("one Python CSS validator", () => {
-  it("matches every error branch, precedence, Python whitespace and Unicode boundary", async () => {
-    const expected = await oracle("css", cssCases);
+describe("one legacy CSS validator", () => {
+  it("matches every error branch, precedence, legacy whitespace and Unicode boundary", async () => {
+    const expected = reference("css");
     expect(cssCases.map(validateCss)).toEqual(expected);
     expect(new Set(expected)).toEqual(new Set([null, "CSS 过长（超过 200000 字符）", "CSS 包含非法字符", "CSS 注释未闭合", "CSS 字符串未闭合", "CSS 花括号不匹配"]));
   });
-  it("persists CSS using Python whitespace semantics in both edit and ingest", async () => {
+  it("persists CSS using legacy whitespace semantics in both edit and ingest", async () => {
     createBook(library, id, { source_type: "epub", theme_template: "__book__" });
     for (const [css, expected] of [["\u0085\u001c", null], ["\ufeff", "\ufeff"]] as const) {
       await saveBookEdit(id, form({ custom_css: css }), library);
@@ -70,15 +67,14 @@ function wish(extra: Partial<Wish> = {}): Wish {
 }
 const normalizedWishes = (wishes: Wish[]) => wishes.map(({ id: _, ...w }) => w).sort((a, b) => (a.library_book_id || a.title).localeCompare(b.library_book_id || b.title));
 describe("shared tracker consistency", () => {
-  it.each(["library", "detail", "edit", "reader"])("matches Python database effects through %s and is idempotent", async entry => {
+  it.each(["library", "detail", "edit", "reader"])("matches legacy database effects through %s and is idempotent", async entry => {
     vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(now));
     const meta = createBook(library, id, { source_type: "epub", theme_template: "__book__", custom_css: null, read: false, rating: 1 });
     library.db.createWish(wish({ library_book_id: "invalid legacy id" }));
     // Library listing only ensures visible books; an off-page fifth book stays unlinked.
     if (entry === "library") for (let n = 1; n <= 4; n++) createBook(library, n.toString().repeat(32), { created_at: `2025-01-0${n}T00:00:00+00:00` });
-    cpSync(library.base, join(root, "python"), { recursive: true });
     const invoke = () => entry === "library" ? libraryPage(library, { per_page: 4, sort: "created" }) : entry === "reader" ? loadReader(id, "0", "/", library) : loadBookPage(id, "/", library);
-    invoke(); const expected = await oracle("tracker", [[entry, id]]);
+    invoke(); const expected = reference(`tracker-${entry}`);
     expect(library.listBooks()).toEqual(expected.books);
     expect(normalizedWishes(library.db.listWishes())).toEqual(normalizedWishes(expected.wishes));
     const saved = library.loadMetadata(id); expect(saved).toMatchObject({ read: true, rating: 5, read_updated_at: now, updated_at: meta.updated_at, status: meta.status, epub_updated_at: meta.epub_updated_at });
@@ -88,8 +84,8 @@ describe("shared tracker consistency", () => {
   it("renames linked identities while preserving read/rating/notes, and only dates read changes", async () => {
     vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(now));
     const meta = createBook(library, id, { title: "新标题", author: "新作者", read: true, rating: 1, read_updated_at: "old-read" });
-    library.db.createWish(wish({ library_book_id: id, title: "旧标题", author: "旧作者" })); cpSync(library.base, join(root, "python"), { recursive: true });
-    ensureTrackerConsistencyForMeta(meta, library); const expected = await oracle("tracker", [["ensure", id]]);
+    library.db.createWish(wish({ library_book_id: id, title: "旧标题", author: "旧作者" }));
+    ensureTrackerConsistencyForMeta(meta, library); const expected = reference("tracker-ensure");
     expect(library.listBooks()).toEqual(expected.books); expect(normalizedWishes(library.db.listWishes())).toEqual(normalizedWishes(expected.wishes));
     expect(meta.read_updated_at).toBe("old-read");
   });
@@ -110,23 +106,20 @@ function seedEdit(kind: string, oldCover = true) {
 }
 function coverBytes() { return Buffer.from(extractCover(readFileSync(epubPath(library.base, id)))![0]); }
 describe("durable edit write-back via the real queue consumer", () => {
-  it.each(["epub", "txt", "txt-no-source"])("carries file/URL/strip options from B to C and matches Python: %s", async kind => {
+  it.each(["epub", "txt", "txt-no-source"])("carries file/URL/strip options from B to C and matches legacy: %s", async kind => {
     seedEdit(kind);
     const f = form({ title: "编辑标题", author: "作者", theme_template: "default", custom_css: "p {color:blue}", cover_url: "https://img.doubanio.com/unused.png", strip_original_css: "on" });
     f.set("cover_file", new File([newPng], "new.png")); expect(await saveBookEdit(id, f, library)).toMatchObject({ queued: true });
     const job = library.db.listJobs()[0]!; expect(job.log).toBeNull(); expect(loadEditWriteback(library, job.id).cover_bytes).toEqual(newPng);
-    cpSync(library.base, join(root, "python"), { recursive: true });
     const fetcher = vi.fn().mockRejectedValue(new Error("file takes precedence"));
     const restarted = new LibraryStorage(library.base, new BinderyDatabase(library.db.path)); recoverJobs(restarted); expect(await drainJobs(restarted, fetcher)).toBe(1); expect(fetcher).not.toHaveBeenCalled();
-    const expected = await oracle("edit", { job_id: job.id, book_id: id, ...options(), cover_bytes: newPng.toString("hex"), cover_name: "new.png", cover_url: "https://img.doubanio.com/unused.png", strip_original_css: true });
+    const expected = reference(`edit-${kind}`);
     const actual = library.loadMetadata(id); const normalize = (m: Metadata) => ({ ...m, updated_at: "TIME", epub_updated_at: "TIME" });
-    expect(normalize(actual)).toEqual(normalize(expected.meta)); expect(library.db.getJob(job.id)?.status).toBe("success");
+    expect(normalize(actual)).toEqual(normalize(expected.meta as Metadata)); expect(library.db.getJob(job.id)?.status).toBe("success");
     expect(coverBytes()).toEqual(newPng); expect(existsSync(queueDirectory(library, job.id))).toBe(false);
-    const members = readArchive(readFileSync(epubPath(library.base, id))), reference = readArchive(readFileSync(join(root, "python", id, "book.epub")));
-    expect(members.map(m => m.name)).toEqual(reference.map(m => m.name));
-    const normalizeXml = (data: Uint8Array) => Buffer.from(data).toString().replace(/(property="dcterms:modified">)[^<]*/g, "$1TIME");
-    for (let n = 0; n < members.length; n++) expect(normalizeXml(members[n].data), members[n].name).toEqual(normalizeXml(reference[n].data));
-    if (kind === "txt") expect(readFileSync(join(library.base, id, "book.json"))).toEqual(readFileSync(join(root, "python", id, "book.json")));
+    const members = readArchive(readFileSync(epubPath(library.base, id))).map(member => [member.name, digest(member.name.endsWith(".opf") ? Buffer.from(new TextDecoder().decode(member.data).replace(/(<(?:\w+:)?meta property="dcterms:modified">)[^<]+/g, "$1TIME")) : member.data)]);
+    expect(members).toEqual(expected.members);
+    if (kind === "txt") expect(readFileSync(join(library.base, id, "book.json"), "utf8").replace(iso, "TIME")).toBe(expected.book_json);
   });
   it("downloads a cover with Douban headers then refreshes the EPUB cover", async () => {
     seedEdit("epub"); const job = enqueueEditWriteback({ book_id: id, ...options(), cover_url: "https://img.doubanio.com/download.png" }, library).job;

@@ -1,6 +1,6 @@
 import type { Book, Metadata } from "./models";
 import * as templates from "./epub-templates";
-import { splitlines, strip } from "./python";
+import { splitlines, strip } from "./text";
 import { splitChapterTitle, injectBase, stripScripts } from "./epub-html";
 import {
   basename,
@@ -699,7 +699,7 @@ export function loadEpubItem(
         manifestFromOpf(path, root).find((i) => i.member_path === name)
           ?.media_type || media;
     } catch {
-      /* Python tolerates absent manifest for assets. */
+      /* legacy tolerates absent manifest for assets. */
     }
   }
   if (isDocumentMediaType(media)) {

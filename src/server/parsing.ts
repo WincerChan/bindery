@@ -2,7 +2,7 @@ import { closeSync, openSync, readSync } from "node:fs";
 import { parseBookFromLines, parseBookEventsFromLines } from "../core/parsing";
 import type { RuleSet } from "../core/parsing";
 import { decodeGb18030 } from "../core/gb18030";
-import { strip } from "../core/python";
+import { strip } from "../core/text";
 
 type Encoding = "utf8" | "gb18030" | "replacement";
 function* fileChunks(path: string): Generator<Uint8Array> {

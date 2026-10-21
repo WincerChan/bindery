@@ -1,9 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { metadataFromDict, type Metadata } from "../src/core/models";
 import { buildEpub, extractEpubMetadata } from "../src/core/epub";
 import { parseBook } from "../src/core/parsing";
@@ -75,7 +73,7 @@ describe("authenticated server boundaries", () => {
     expect(httpError(Object.assign(new Error("Book exists"), { status: 409 })).detail).toBe("书籍已存在");
     expect(httpError(Object.assign(new Error("Book not found"), { status: 404 })).detail).toBe("书籍不存在");
   });
-  it("provides redirect flashes and Python-compatible HTMX notification headers", () => {
+  it("provides redirect flashes and legacy-compatible HTMX notification headers", () => {
     const response = redirectWithToast("/jobs?tab=running", "已创建任务", "warning");
     expect(response.status).toBe(303);
     const url = new URL(response.headers.get("location")!, "http://localhost");
@@ -103,7 +101,7 @@ describe("book view models", () => {
     [{ epub_updated_at: "2", updated_at: "2" }, "已写回元数据", "ok"],
     [{ epub_updated_at: "1", updated_at: "2" }, "待写回", "pending"],
     [{}, "待写回", "pending"],
-  ] as const)("matches Python status rules: %j", (input, label, tone) => {
+  ] as const)("matches legacy status rules: %j", (input, label, tone) => {
     expect(statusView(metadataFromDict(input))).toEqual({ status_label: label, status_class: tone });
   });
   it("uses nanosecond cover versions, copies tags and detects regeneration", () => {
@@ -139,7 +137,7 @@ describe("book view models", () => {
 });
 
 describe("shared cover and EPUB downloads", () => {
-  it("ports Python cover/private edge headers and revalidation headers", async () => {
+  it("ports legacy cover/private edge headers and revalidation headers", async () => {
     const meta = fixture({ cover_file: "cover.png" });
     const bytes = Buffer.from("89504e470d0a1a0a", "hex");
     writeFileSync(join(bookDir(library.base, id), meta.cover_file!), bytes);
@@ -174,7 +172,7 @@ describe("shared cover and EPUB downloads", () => {
     ["乱世书", "姬叉", "乱世书-姬叉.epub"], ["乱世书", null, "乱世书-未知.epub"],
     ["  ", "  ", "book-未知.epub"], ["a/b : c", "x\r\ny", "a_b_c-x_y.epub"],
     ["🍃", "♥", "book-book.epub"], ["\u001c乱世书\u001f", "姬叉", "乱世书-姬叉.epub"],
-  ])("ports Python filename %j / %j", (title, author, expected) => {
+  ])("ports legacy filename %j / %j", (title, author, expected) => {
     expect(downloadFilename({ title: title!, author })).toBe(expected);
   });
   it("sets RFC 5987 UTF-8 attachment and streams EPUB only", async () => {
@@ -200,16 +198,16 @@ describe("shared cover and EPUB downloads", () => {
 });
 
 describe("lazy EPUB CSS synchronization", () => {
-  it.each(["txt-source", "txt-no-source", "epub-overlay", "epub-keep"])("matches real Python view/download/CSS behavior: %s", async mode => {
+  it.each(["txt-source", "txt-no-source", "epub-overlay", "epub-keep"])("matches real legacy view/download/CSS behavior: %s", async mode => {
     const imported = mode.startsWith("epub");
     const meta = fixture({ source_type: imported ? "epub" : "txt", theme_template: imported ? "__book__" : null, custom_css: mode === "epub-keep" ? null : "p { color: red; }", cover_file: "cover.png", tags: ["小说"] });
     writeFileSync(join(bookDir(library.base, id), "cover.png"), readFileSync("tests-ts/fixtures/cover 中文.png"));
     if (mode === "txt-source") writeFileSync(join(bookDir(library.base, id), "source.txt"), "第一章 新章\n新正文");
     const original = readFileSync(epubPath(library.base, id));
     const { read_updated_at: _unused, ...view } = bookView(meta, library);
-    const { stdout } = await promisify(execFile)("uv", ["run", "--no-sync", "python", "scripts/parity/foundation-reference.py", library.base, library.db.path, id], { maxBuffer: 8 * 1024 * 1024 });
-    const reference = JSON.parse(stdout);
-    expect(view).toEqual(reference.view);
+    const reference = JSON.parse(readFileSync(resolve("tests-ts/fixtures/parity/foundation", `${mode}.json`), "utf8"));
+    const normalizeView = (value: typeof view) => ({ ...value, path: "<library>/<id>", cover_url: value.cover_url?.replace(/\?v=\d+$/, "?v=<mtime>") });
+    expect(normalizeView(view)).toEqual(reference.view);
     expect(downloadFilename(meta)).toBe(reference.filename);
     expect(coverCacheHeaders()).toEqual(reference.headers);
     writeFileSync(epubPath(library.base, id), original); library.saveMetadata(meta);
@@ -225,7 +223,7 @@ describe("lazy EPUB CSS synchronization", () => {
     expect(bookEpubNeedsCssSync(readFileSync(epubPath(library.base, id)), meta)).toBe(true);
     ensureBookEpubCss(meta, library);
     const bytes = readFileSync(epubPath(library.base, id));
-    // Python's source-less fallback adds an overlay but still compares style.css.
+    // the legacy implementation's source-less fallback adds an overlay but still compares style.css.
     expect(bookEpubNeedsCssSync(bytes, meta)).toBe(!hasSource);
     expect(library.loadMetadata(id)).toMatchObject({ status: "synced", epub_updated_at: meta.updated_at });
     expect(meta.updated_at).not.toBe("");
@@ -265,7 +263,7 @@ describe("lazy EPUB CSS synchronization", () => {
 });
 
 describe("durable job submission", () => {
-  it("inserts Python-compatible jobs without running a worker and survives another storage instance", () => {
+  it("inserts legacy-compatible jobs without running a worker and survives another storage instance", () => {
     const result = enqueueJob({ book_id: id, rule_template: "default" }, library);
     expect(result.queued).toBe(true);
     expect(result.job).toMatchObject({ book_id: id, action: "regenerate", status: "running", stage: "排队中", message: "等待后台处理", log: null, rule_template: "default" });

@@ -176,7 +176,7 @@ export class ReaderFrames {
       ${value.styleMode === "custom" ? `html[data-bindery-style="custom"] body,html[data-bindery-style="custom"] #bindery-reader-pages,html[data-bindery-style="custom"] #bindery-reader-pages :is(p,li,div,span,b,strong,blockquote,td,th,h1,h2,h3,h4,h5,h6){font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;color:var(--bindery-reader-text,#111827)!important;}
       html[data-bindery-style="custom"] #bindery-reader-pages :is(h1,h2,h3,h4,h5,h6,span,b,strong){background-color:transparent!important;background-image:none!important;}` : ""}`;
     vars.setProperty("--bindery-page-max-width", "599px");
-    // Like Python, retain -1 in the variables: negative CSS padding computes to
+    // Like legacy, retain -1 in the variables: negative CSS padding computes to
     // its initial zero, while column sizing below uses nonnegative padding.
     vars.setProperty("--bindery-page-padding-x", `${x}px`);
     vars.setProperty("--bindery-page-padding-y", `${y}px`);
@@ -193,7 +193,7 @@ export class ReaderFrames {
         doc.body.style.setProperty(name, typography[index], "important");
         state.pages!.style.setProperty(name, typography[index], "important");
       } else {
-        // Python removes these inline properties when returning to book mode,
+        // legacy removes these inline properties when returning to book mode,
         // losing the book's original inline typography. Restore it instead.
         const original = state.bookTypography![index];
         if (original.value) doc.body.style.setProperty(name, original.value, original.priority);

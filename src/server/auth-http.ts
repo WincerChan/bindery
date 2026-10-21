@@ -1,7 +1,7 @@
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse, type AuthenticationResponseJSON, type RegistrationResponseJSON } from "@simplewebauthn/server";
 import { BinderyDatabase, nowIso, type Challenge, type Passkey } from "./db";
-import { awareTimestamp, pythonJson } from "./db/encoding";
-import { strip } from "../core/python";
+import { awareTimestamp, compatJson } from "./db/encoding";
+import { strip } from "../core/text";
 import { configuredHash, isAuthenticated, passwordIsFresh, safeNext, SESSION_COOKIE, signIn, signOut, verifyPassword, webauthnConfig, type WebauthnConfig } from "./auth";
 export const WEBAUTHN_COOKIE = "bindery_webauthn";
 const LOGIN_PATH = "/login/passkey",
@@ -263,7 +263,7 @@ export async function handleAuthRequest(request: Request, db: BinderyDatabase): 
           credential_id: info.credential.id,
           public_key: info.credential.publicKey,
           sign_count: info.credential.counter,
-          transports_json: pythonJson(transports),
+          transports_json: compatJson(transports),
           aaguid: info.aaguid,
           device_type: info.credentialDeviceType === "multiDevice" ? "multi_device" : "single_device",
           backed_up: info.credentialBackedUp,

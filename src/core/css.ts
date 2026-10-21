@@ -1,4 +1,4 @@
-import { strip } from "./python";
+import { strip } from "./text";
 
 export const MAX_CSS_LENGTH = 200_000;
 export function validateCss(raw: string): string | null {

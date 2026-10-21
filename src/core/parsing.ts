@@ -1,5 +1,5 @@
 import type { Book, Chapter, Volume } from "./models";
-import { compilePattern, strip } from "./python";
+import { compilePattern, strip } from "./text";
 import { decodeGb18030 } from "./gb18030";
 export interface RuleConfig {
   rule_id: string;
@@ -235,7 +235,7 @@ export function normalizeContentLine(line: string): string {
   return strip(line).replace(/\u3000/g, "");
 }
 function* textLines(text: string): Generator<string> {
-  // StringIO iterates on LF only; do not use JS/Python splitlines here.
+  // StringIO iterates on LF only; do not use JS/legacy splitlines here.
   let start = 0;
   for (let i = 0; i < text.length; i++)
     if (text[i] === "\n") {

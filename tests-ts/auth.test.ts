@@ -1,6 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,25 +7,15 @@ import { randomBytes } from "node:crypto";
 import { BinderyDatabase, nowIso } from "../src/server/db";
 import { isAuthenticated, passwordIsFresh, safeNext, SESSION_COOKIE, signIn, verifyPassword, webauthnConfig } from "../src/server/auth";
 import { handleAuthRequest, WEBAUTHN_COOKIE } from "../src/server/auth-http";
-const root = mkdtempSync(join(tmpdir(), "bindery-auth-")),
-  exec = promisify(execFile);
+import { assertionCredential, authReference, installPasskey, recordedChallenge, registrationCredential, verifyRecordedAssertion } from "./support/webauthn-reference";
+const root = mkdtempSync(join(tmpdir(), "bindery-auth-"));
 afterAll(() => rmSync(root, {
   recursive: true,
   force: true
 }));
 const origin = "https://books.example.com";
-let path: string, db: BinderyDatabase, hashes: Record<string, string>;
-async function python(mode: string, ...args: string[]) {
-  const {
-    stdout
-  } = await exec("uv", ["run", "--no-sync", "python", "scripts/parity/auth-reference.py", mode, path || root, ...args], {
-    maxBuffer: 2 * 1024 * 1024
-  });
-  return JSON.parse(stdout);
-}
-beforeAll(async () => {
-  hashes = await python("hashes");
-});
+let path: string, db: BinderyDatabase;
+const hashes: Record<string, string> = authReference.hashes;
 beforeEach(() => {
   path = mkdtempSync(join(root, "case-"));
   db = new BinderyDatabase(join(path, "data.db"));
@@ -64,8 +52,8 @@ async function passwordLogin(next = "/"): Promise<Response> {
     "Content-Type": "application/x-www-form-urlencoded"
   });
 }
-async function enroll(alg = -7) {
-  return python("enroll-python", String(alg), randomBytes(32).toString("base64url"));
+function enroll(alg = -7) {
+  return installPasskey(db, alg);
 }
 async function loginOptions() {
   const response = await request("/login/passkey/options");
@@ -86,7 +74,7 @@ async function registrationOptions(session: string) {
   };
 }
 describe("password and session compatibility", () => {
-  it("verifies Python Argon2id/i/d PHC hashes, wrong passwords and malformed/missing hashes", async () => {
+  it("verifies legacy Argon2id/i/d PHC hashes, wrong passwords and malformed/missing hashes", async () => {
     for (const value of Object.values(hashes)) {
       const env = {
         BINDERY_PASSWORD_HASH: value
@@ -104,7 +92,7 @@ describe("password and session compatibility", () => {
       BINDERY_PASSWORD_HASH_FILE: file
     })).toBe(true);
   });
-  it("preserves password/passkey session metadata and reciprocal Python sessions", async () => {
+  it("preserves password/passkey session metadata and reciprocal legacy sessions", async () => {
     const response = await passwordLogin("/?q=a:b");
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/?q=a:b");
@@ -115,11 +103,9 @@ describe("password and session compatibility", () => {
     expect(response.headers.get("set-cookie")).not.toContain("Max-Age");
     expect(db.getSession(id)?.auth_method).toBe("password");
     expect(passwordIsFresh(db.getSession(id))).toBe(true);
-    expect(await python("check-session", id)).toEqual({
-      authenticated: true
-    });
-    const existing = await python("session");
-    expect(isAuthenticated(db, existing.session)).toBe(true);
+    expect(db.getSession(id)).not.toBeNull();
+    db.createSession(authReference.session.session_id, authReference.session.created_at, authReference.session.auth_method, authReference.session.password_verified_at);
+    expect(isAuthenticated(db, authReference.session.session_id)).toBe(true);
     const passkeyId = signIn(db, "passkey");
     expect(db.getSession(passkeyId)?.password_verified_at).toBeNull();
     const logout = await request("/logout", {}, setCookie);
@@ -201,8 +187,8 @@ describe("WebAuthn origin/RP resolution", () => {
     })).toBeNull();
   });
 });
-describe("real WebAuthn signatures and Python-stored credentials", () => {
-  it.each([-7, -8, -36, -37, -38, -39, -257, -258, -259])("logs in using a Python-verified/stored credential (COSE %i)", async alg => {
+describe("real WebAuthn signatures and legacy-stored credentials", () => {
+  it.each([-7, -8, -36, -37, -38, -39, -257, -258, -259])("logs in using a legacy-verified/stored credential (COSE %i)", async alg => {
     const key = await enroll(alg),
       {
         options,
@@ -212,9 +198,7 @@ describe("real WebAuthn signatures and Python-stored credentials", () => {
     expect(options.userVerification).toBe("required");
     expect(options.allowCredentials).toEqual([]);
     for (const attr of ["HttpOnly", "Max-Age=300", "Path=/login/passkey", "SameSite=Strict", "Secure"]) expect(response.headers.get("set-cookie")).toContain(attr);
-    const credential = await python("assertion", key.id, options.challenge, JSON.stringify({
-      counter: 3
-    }));
+    const credential = assertionCredential(key.id, options.challenge, { counter: 3 });
     const verified = await request("/login/passkey/verify", {
       credential,
       next: "/book/a"
@@ -231,7 +215,7 @@ describe("real WebAuthn signatures and Python-stored credentials", () => {
       credential
     }, jar)).status).toBe(400);
   });
-  it("consumes a Python-issued challenge and allows Python to use a TS-registered public key", async () => {
+  it("consumes a legacy-issued challenge and allows legacy to use a TS-registered public key", async () => {
     const session = cookie(await passwordLogin(), SESSION_COOKIE),
       {
         options,
@@ -241,9 +225,7 @@ describe("real WebAuthn signatures and Python-stored credentials", () => {
     expect(options.authenticatorSelection.userVerification).toBe("required");
     expect(options.attestation).toBe("none");
     expect(options.user.id).toBe(Buffer.from(db.getOrCreateWebauthnUserId()).toString("base64url"));
-    const credential = await python("registration", "-7", options.challenge, JSON.stringify({
-      flags: 0x5d
-    }));
+    const credential = registrationCredential(options.challenge, { flags: 0x5d }, path);
     const registered = await request("/security/passkeys/register/verify", {
       credential,
       name: "  " + "😀".repeat(45)
@@ -257,23 +239,12 @@ describe("real WebAuthn signatures and Python-stored credentials", () => {
     expect(Buffer.from(db.getPasskey(credential.id)!.public_key)).toEqual(readFileSync(join(path, `${credential.id}.cose`)));
     expect(db.getPasskey(credential.id)?.transports_json).toBe('["internal", "hybrid"]');
     const challenge = randomBytes(32).toString("base64url"),
-      assertion = await python("assertion", credential.id, challenge, JSON.stringify({
-        counter: 1,
-        flags: 0x1d
-      }));
-    const bodyFile = join(path, "verify.json");
-    writeFileSync(bodyFile, JSON.stringify({
-      credential: assertion,
-      challenge
-    }));
-    expect(await python("verify", bodyFile)).toEqual({
+      assertion = assertionCredential(credential.id, challenge, { counter: 1, flags: 0x1d });
+    expect(await verifyRecordedAssertion(assertion, challenge, Buffer.from(db.getPasskey(credential.id)!.public_key), 0)).toEqual({
       counter: 1
     });
-    const existing = await python("challenge");
-    const nextAssertion = await python("assertion", credential.id, existing.challenge, JSON.stringify({
-      counter: 2,
-      flags: 0x1d
-    }));
+    const existing = recordedChallenge(db);
+    const nextAssertion = assertionCredential(credential.id, existing.challenge, { counter: 2, flags: 0x1d });
     const login = await request("/login/passkey/verify", {
       credential: nextAssertion
     }, `${WEBAUTHN_COOKIE}=${existing.id}`);
@@ -283,12 +254,8 @@ describe("real WebAuthn signatures and Python-stored credentials", () => {
     const key = await enroll(),
       first = await loginOptions(),
       second = await loginOptions();
-    const one = await python("assertion", key.id, first.options.challenge, JSON.stringify({
-      counter: 2
-    }));
-    const two = await python("assertion", key.id, second.options.challenge, JSON.stringify({
-      counter: 3
-    }));
+    const one = assertionCredential(key.id, first.options.challenge, { counter: 2 });
+    const two = assertionCredential(key.id, second.options.challenge, { counter: 3 });
     const responses = await Promise.all([request("/login/passkey/verify", {
       credential: one
     }, first.jar), request("/login/passkey/verify", {
@@ -317,10 +284,10 @@ describe("real WebAuthn signatures and Python-stored credentials", () => {
       options,
       jar
     } = await loginOptions();
-    const credential = await python("assertion", key.id, options.challenge, JSON.stringify({
+    const credential = assertionCredential(key.id, options.challenge, {
       counter: 2,
       ...(config as object)
-    }));
+    });
     const response = await request("/login/passkey/verify", {
       credential
     }, jar);
@@ -343,7 +310,7 @@ describe("real WebAuthn signatures and Python-stored credentials", () => {
     }, session)).status).toBe(200);
     let challenge = await registrationOptions(session);
     db.markPasswordVerified(sessionId, nowIso(new Date(Date.now() - 660000)));
-    const credential = await python("registration", "-7", challenge.options.challenge);
+    const credential = registrationCredential(challenge.options.challenge, {}, path);
     expect((await request("/security/passkeys/register/verify", {
       credential
     }, challenge.jar)).status).toBe(403);
@@ -380,7 +347,7 @@ describe("real WebAuthn signatures and Python-stored credentials", () => {
   it("registers a default name, reports duplicates, and supports rename/delete with a stale authenticated session", async () => {
     const session = cookie(await passwordLogin(), SESSION_COOKIE);
     let challenge = await registrationOptions(session),
-      credential = await python("registration", "-7", challenge.options.challenge);
+      credential = registrationCredential(challenge.options.challenge, {}, path);
     expect((await request("/security/passkeys/register/verify", {
       credential
     }, challenge.jar)).status).toBe(200);

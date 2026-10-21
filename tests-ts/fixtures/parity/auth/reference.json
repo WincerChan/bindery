@@ -1,0 +1,206 @@
+{
+  "hashes": {
+    "ID": "$argon2id$v=19$m=8192,t=1,p=4$s3I9ZzwnkArMBzk5qjcd3w$cWNNZgouj9skhtWVzwjG65yOE7nHwuCCKgjfhwi2pu8",
+    "I": "$argon2i$v=19$m=8192,t=1,p=4$/dtk0yOu0kt4ITMt+HEB0w$d5abM4ytXZtBE+tRcius/IyeG4ZDGDL3FWqM0lWu1LY",
+    "D": "$argon2d$v=19$m=8192,t=1,p=4$uDQsLgi43pVEZqQwYxLPLw$pzV6S+n81WPOWHGKURl8WYkvgCmUPlDPIlOOgXfubJc"
+  },
+  "challenge_fixture": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "passkeys": [
+    {
+      "alg": -7,
+      "credential_id": "5kUJXe3Vj0GurVh-uUGjBYygL4q0c7sX",
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgfwXeYEQ3iCwdLltk\nqM/94e3hyDzWm0gTnlYF4M/hDYGhRANCAAT7r1bw7+ADrpsKHM4na3lqFm5cC40e\n60HSDXgAPMkz9qexCxubKogfXbqW8AgoGctCTu+akqU7FkI8AHjSb8js\n-----END PRIVATE KEY-----\n",
+      "public_key_b64": "pQECAyYgASFYIPuvVvDv4AOumwoczidreWoWblwLjR7rQdINeAA8yTP2Ilggp7ELG5sqiB9dupbwCCgZy0JO75qSpTsWQjwAeNJvyOw=",
+      "passkey": {
+        "credential_id": "5kUJXe3Vj0GurVh-uUGjBYygL4q0c7sX",
+        "public_key": "pQECAyYgASFYIPuvVvDv4AOumwoczidreWoWblwLjR7rQdINeAA8yTP2Ilggp7ELG5sqiB9dupbwCCgZy0JO75qSpTsWQjwAeNJvyOw=",
+        "sign_count": 0,
+        "transports_json": "[\"internal\", \"hybrid\"]",
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "device_type": "single_device",
+        "backed_up": 0,
+        "name": "Python 通行密钥",
+        "created_at": "2026-10-19T00:00:00+00:00",
+        "last_used_at": null
+      }
+    },
+    {
+      "alg": -8,
+      "credential_id": "-GWWhr8aSgXRmGYPG2Ix9Ofwqi6CEfKE",
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEID54Oy9HCbfrTbAoDcoVdF8wUFskdk78ngRHKBQBHdWL\n-----END PRIVATE KEY-----\n",
+      "public_key_b64": "pAEBAycgBiFYIE3rFoS6jQxGhxGb0o+BVJgfEc+jTW+I/I0CPS1oFyW6",
+      "passkey": {
+        "credential_id": "-GWWhr8aSgXRmGYPG2Ix9Ofwqi6CEfKE",
+        "public_key": "pAEBAycgBiFYIE3rFoS6jQxGhxGb0o+BVJgfEc+jTW+I/I0CPS1oFyW6",
+        "sign_count": 0,
+        "transports_json": "[\"internal\", \"hybrid\"]",
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "device_type": "single_device",
+        "backed_up": 0,
+        "name": "Python 通行密钥",
+        "created_at": "2026-10-19T00:00:00+00:00",
+        "last_used_at": null
+      }
+    },
+    {
+      "alg": -36,
+      "credential_id": "a5HrAiZHu9dOuK306Hgy7CIcEm5j2p67",
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIHuAgEAMBAGByqGSM49AgEGBSuBBAAjBIHWMIHTAgEBBEIAXVm9VAyq3KQn7h/P\nc6cIPb/ve8ngh4EB41aIQiGX+Fkwrld4dxNKseiR2/w2Dl4vBEuZvJslrmdCKU3h\nvZgiM5yhgYkDgYYABAEYNHXPD/gLBl/qhk2VSINUue5AkRunE9kVzKnk46XXuze/\nrojDI5sD7nivvi2D5BCtMQTdZ8d/m2fFO2wKXyI5ngEr0HFVBMQmdA/bTwUNvkoO\nEyodtNg/GuEs6V/cGOK90yEsRn5Eqt/AGHF6nMzHAvEWE8+2hNsUMGEJkvGSIwCM\nhQ==\n-----END PRIVATE KEY-----\n",
+      "public_key_b64": "pQECAzgjIAMhWEIBGDR1zw/4CwZf6oZNlUiDVLnuQJEbpxPZFcyp5OOl17s3v66IwyObA+54r74tg+QQrTEE3WfHf5tnxTtsCl8iOZ4iWEIBK9BxVQTEJnQP208FDb5KDhMqHbTYPxrhLOlf3BjivdMhLEZ+RKrfwBhxepzMxwLxFhPPtoTbFDBhCZLxkiMAjIU=",
+      "passkey": {
+        "credential_id": "a5HrAiZHu9dOuK306Hgy7CIcEm5j2p67",
+        "public_key": "pQECAzgjIAMhWEIBGDR1zw/4CwZf6oZNlUiDVLnuQJEbpxPZFcyp5OOl17s3v66IwyObA+54r74tg+QQrTEE3WfHf5tnxTtsCl8iOZ4iWEIBK9BxVQTEJnQP208FDb5KDhMqHbTYPxrhLOlf3BjivdMhLEZ+RKrfwBhxepzMxwLxFhPPtoTbFDBhCZLxkiMAjIU=",
+        "sign_count": 0,
+        "transports_json": "[\"internal\", \"hybrid\"]",
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "device_type": "single_device",
+        "backed_up": 0,
+        "name": "Python 通行密钥",
+        "created_at": "2026-10-19T00:00:00+00:00",
+        "last_used_at": null
+      }
+    },
+    {
+      "alg": -37,
+      "credential_id": "YyFZqAceIlyYxXA8fzEcXMbxgzmbgAlQ",
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDBx3u+UzNk4C3L\nFolG3iqIzQfoQKb9Sm0NpoDoxm8k0s/OwaW+7ra7KMCcFHXyLyWWpfeCnhgyqf92\no5wA372oPXhuRIQQmnvENCm716FwlI4abtvmvSD2spkwkVnXC3pAF+kgIxlmPkn0\nZGRlDbRM8jbFHVAMp+jQwCT0G6NdsoKOYwsfGTPysCsMKc7URMX0Bb0yaCABKVKU\nwjr/p5JMje/SFsmQg2SFEPvh6PxESsEVr8i84Pz/FDz5terglUOiiDEouT6tmOhW\nSHV5J4v+WT2NPtG53e1A1abMF5gM1vOrIQWsbio/otB3VQDh5eqP/c09xpaJLhZO\n92eQm0GFAgMBAAECggEAJ0VHmSMgY72g2isHiAKnKREwHIvZq7RFFIKdVk88oABP\nF+4bqm2TP6u7GQZ2fq26VuTsm55xdfcIrCDtESpGs809Vk9xWjIMig8uNAC3mWqp\nv8aerwy+HPDF5ddXFyMe09Vkq9whHhzafPpJdEdKNlvR6LGPkvkGUCPYeVYOjgKw\nVdy/sf6RdbWZ+erMKAbEHcfDv8mkfFH4dk462LIxhvXmodkQwuNXkT24O4oSjTTd\nmBPyCSot5ln2gv/jkAyuSfb+X/z+DGhgpues9cMIBAGt7305UhRKZo9HxxVmSctk\nH8Kt9DvC9FxLoru5iPYRT0j6f6MualRBMs4nwC+icQKBgQDq/4C8GSkLrSLvo1ah\npZdk6mPieccBKNR0uGWRcnLNLymL/KxYGhSGER4poqDlJCK0r7Au3uUln2ZblsPV\nn/0b8h2G4XAivKm+ThfKT82pAy4YlJ4SVyIW1FkrizIOlYWqoa/H9co05Z01CVUL\n2tlf20q3BclRH6vm2E+yPpk/OQKBgQDTGPBoPWCbr0OM0RjVrXMx5l79M/s8M5Ry\n/siFmvLJn0cUpb69cf9zebdAqxSWAdG9N9WPawEwWKMKeMRLUdc5yRVHwUd4VmOm\nrXJyaF7kjSJCgbywtiw66CkNlO6R20iTGQ8PYNCOlcJ97ckiUe4cckq3mwBOUSRJ\ne8aCL9/IrQKBgQCLyFWEDZdLub4JO2iBmKU4QvANPBCy0N2nXDQWUzSUdlRJT5AY\ni9LfeHkvnOwFwPvf7I1pI+679VgGbOSqQpNlNxx3Kcvw7bYuW/dswRF9UkXuGyD3\nmdrOJ5uu+gpZgHlU6P5NfBe+ZUKg1J9BAPnCOgf0XD3GwocXNl4ZkYDIiQKBgDb0\nRhmM6Op+nOI6yPFPfy6dX1shPiU09E9ffooxhUTxvwpj/5zH4Y2JQSiHoQtQG+7b\nazAz1hJk8MTYHZnSC2qSq4SLj3SHYNfSTXn1K8bp6uJPbfS+6BLJv242uEimQmVw\n35fMR17nI8OutG7Hz2n+Yu8bXeAFhaHPpCTeG67dAoGAPXuDmkRJtWr2RjW2jbSV\nlWj8XVA7s4lsx7uQNuzR+y6HKtDYdUOzuW4QbIplshMxwS1CJlGvu54PcCdcFjGv\nUhcuIbqAcO5xXj3QLDeZiVYISfzyPOOrvrpjM+DwzUjF1jzn7hityTuZLf0toDG+\ngpNLe14B+CzDFo5Gs71udfM=\n-----END PRIVATE KEY-----\n",
+      "public_key_b64": "pAEDAzgkIFkBAMHHe75TM2TgLcsWiUbeKojNB+hApv1KbQ2mgOjGbyTSz87Bpb7utrsowJwUdfIvJZal94KeGDKp/3ajnADfvag9eG5EhBCae8Q0KbvXoXCUjhpu2+a9IPaymTCRWdcLekAX6SAjGWY+SfRkZGUNtEzyNsUdUAyn6NDAJPQbo12ygo5jCx8ZM/KwKwwpztRExfQFvTJoIAEpUpTCOv+nkkyN79IWyZCDZIUQ++Ho/ERKwRWvyLzg/P8UPPm16uCVQ6KIMSi5Pq2Y6FZIdXkni/5ZPY0+0bnd7UDVpswXmAzW86shBaxuKj+i0HdVAOHl6o/9zT3GlokuFk73Z5CbQYUhQwEAAQ==",
+      "passkey": {
+        "credential_id": "YyFZqAceIlyYxXA8fzEcXMbxgzmbgAlQ",
+        "public_key": "pAEDAzgkIFkBAMHHe75TM2TgLcsWiUbeKojNB+hApv1KbQ2mgOjGbyTSz87Bpb7utrsowJwUdfIvJZal94KeGDKp/3ajnADfvag9eG5EhBCae8Q0KbvXoXCUjhpu2+a9IPaymTCRWdcLekAX6SAjGWY+SfRkZGUNtEzyNsUdUAyn6NDAJPQbo12ygo5jCx8ZM/KwKwwpztRExfQFvTJoIAEpUpTCOv+nkkyN79IWyZCDZIUQ++Ho/ERKwRWvyLzg/P8UPPm16uCVQ6KIMSi5Pq2Y6FZIdXkni/5ZPY0+0bnd7UDVpswXmAzW86shBaxuKj+i0HdVAOHl6o/9zT3GlokuFk73Z5CbQYUhQwEAAQ==",
+        "sign_count": 0,
+        "transports_json": "[\"internal\", \"hybrid\"]",
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "device_type": "single_device",
+        "backed_up": 0,
+        "name": "Python 通行密钥",
+        "created_at": "2026-10-19T00:00:00+00:00",
+        "last_used_at": null
+      }
+    },
+    {
+      "alg": -38,
+      "credential_id": "dIx9_I5dqAVQVAT6GYw3r9nG6f5O6iE8",
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDPxjXkYyR+6I22\nGJX29+tFRE7FGVVJZYt4wVt1BTwrRlY5f/H7LqOhhHh6ry4P3/CunWqMivqnAjRd\n05DXysNn2iq3BHYR5ri1N64TQIWLhys52KwK3TJgul3cAt8h2apIXO906E9k64tl\n9iCoIIalHAuZCEZoV2ufaVMl1JRzdsW6zTMP7DYLSrItvRVDjeZ2bmk7uZBQ346d\n8Tw5cxcN0T/p93CUw7W00t3sa2a9qT52HJWc7oPxs9QaNiY1qgFhZTTNgHSMcaLc\nuAwPqQ2zmufhoJ2x4oCcFc8iuI8FXTJXsmTm3li7fhtrCcp6/PMELhPpvLN58L6k\nLbvawbfBAgMBAAECggEAAdA2kgIMYGYLP1Mx6x03HLhNvZAw4ZRzBAJwP95cK+qj\n49HkQslpkr40Mtoou0lMlXoMyxnnCc5J5qYbIup/Y8aMchMmLIYib1yzYoIxDi6H\nedRsfTZorz3eJgaBg/clUocK3RbeU0Sv32uXVa9NvIb4+hCXpHdLmnE36UYEhwjO\ntjGhRqFH8Ki0aqtDim9iH6vv/AHNKkOY7kSKEfTM04tpquLrKW2zJsztS69xgFr3\nUMLt6ff4zF3PNz+s1STfnuwseymL4Ix7HDWwtDGbDxY7xFoOv6uHxrTVmdzBNlJl\nCGUc0h5Ev0Fk+VXSWLeaCh1UrNY6eFtmp3w7xxGQAQKBgQDuDo0w4tO7wdBZIzST\nXxeQ0rluzq17tCK/RovU8y7movbN/LlAMciuZ1v9qQfb4nIa0aFAsGt2GH4U0uJY\nxdR+jbVugZIY3lmGH95Jy4OrcmHE/QkvEa7/KoLHvBAMBt3+c9PuaDsGAIxXuEXE\n0SGn7pMKiCNGM5qQm1AAKzBvwQKBgQDfb1aqqAq5rImS0jKXNALVV5dsnGPwN6Kx\nf37gP4NL/7guLkVXt0jtUKVsRs54v+ZYVzwv1aqryiPSPyNQ3hyHfenrNg60tIy4\nBHt4fvKf5Gp6JXFbav8X4Jua5sWSIrBVV72GfXqj1C7hw9ZOLnlz6bQG+G8XYrtF\nbfFg+ONIAQKBgCYx2X91dUlTsG0M0/utLyfCV5QqvvTxEv4jgH37QpQoo3arTMG6\n+xrYZI8PVr51157r8XZil+tLxLbsmvppS02+yNRhH6Kz0iNN66llaMvSP1OO0bFm\nofA4zuDjEKQNWgLgbKl8ubOd1OaiHzeT4lWCVr9C1n4F+4+mC7DrPQtBAoGBAKkJ\nRYr0eLDB3I7MIWQNADvA+Zk8s8rvfFFGwIkM49siSof9j45t5mlLwuqootntbGnX\nDXyu7GDtG66a/6/VacYDt22wRu3lTjSFh5fAivP2Tau9GgZsazL4RSCqiDwnrDnU\nmFjgI2FATHuWulIJjO7plr5TQ1Bw7Hb5V0zi3qgBAoGBAMYxtOO9YHk87a9lyIEp\nHrRd8VEPUsxToskQrewUhIW3Rp+gMIzs8y7apC0vQqmzgSXNzHB3/qxPt+OmxXNh\n5CXNkLthxRJ6abAKnoe9S4dByisQgd0OFrgCha2Nb0sW3b5Z/9VH8DE7tEymtONw\nPDC+EVjZ9nRP2p27SBURhdpk\n-----END PRIVATE KEY-----\n",
+      "public_key_b64": "pAEDAzglIFkBAM/GNeRjJH7ojbYYlfb360VETsUZVUlli3jBW3UFPCtGVjl/8fsuo6GEeHqvLg/f8K6daoyK+qcCNF3TkNfKw2faKrcEdhHmuLU3rhNAhYuHKznYrArdMmC6XdwC3yHZqkhc73ToT2Tri2X2IKgghqUcC5kIRmhXa59pUyXUlHN2xbrNMw/sNgtKsi29FUON5nZuaTu5kFDfjp3xPDlzFw3RP+n3cJTDtbTS3exrZr2pPnYclZzug/Gz1Bo2JjWqAWFlNM2AdIxxoty4DA+pDbOa5+GgnbHigJwVzyK4jwVdMleyZObeWLt+G2sJynr88wQuE+m8s3nwvqQtu9rBt8EhQwEAAQ==",
+      "passkey": {
+        "credential_id": "dIx9_I5dqAVQVAT6GYw3r9nG6f5O6iE8",
+        "public_key": "pAEDAzglIFkBAM/GNeRjJH7ojbYYlfb360VETsUZVUlli3jBW3UFPCtGVjl/8fsuo6GEeHqvLg/f8K6daoyK+qcCNF3TkNfKw2faKrcEdhHmuLU3rhNAhYuHKznYrArdMmC6XdwC3yHZqkhc73ToT2Tri2X2IKgghqUcC5kIRmhXa59pUyXUlHN2xbrNMw/sNgtKsi29FUON5nZuaTu5kFDfjp3xPDlzFw3RP+n3cJTDtbTS3exrZr2pPnYclZzug/Gz1Bo2JjWqAWFlNM2AdIxxoty4DA+pDbOa5+GgnbHigJwVzyK4jwVdMleyZObeWLt+G2sJynr88wQuE+m8s3nwvqQtu9rBt8EhQwEAAQ==",
+        "sign_count": 0,
+        "transports_json": "[\"internal\", \"hybrid\"]",
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "device_type": "single_device",
+        "backed_up": 0,
+        "name": "Python 通行密钥",
+        "created_at": "2026-10-19T00:00:00+00:00",
+        "last_used_at": null
+      }
+    },
+    {
+      "alg": -39,
+      "credential_id": "IiU6W8nVxMXQXL4Ij9nCegRPfJ1da1zv",
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDusDDwytKe7MLu\nASFuJg3mqTUepYDOGNfp/jxIYY1PDi1gUqRlOsFmrSL9TUMCo2/CVJeYVcY8TEFC\nL7AcSrbcy6kVfDLIE1PRla2ZCG0bLqhmU44TpfNwL+pcLvqk4drqKbsv02wADBNJ\ndpimxcE1g/R8bm9JBKj7U1C9Xk3a1atQjOlX2Nh4Of9F9P+TOjIqYxIwBZ9PK2cI\nyFR6LIovqnaUGERE24mM+TLq5X+idUTUdqdhg7dUEqTc1thnkqErW1ePTNQBsDQ6\nu47s4iXD6C20l95jDzJTt3jfP7F6HTCCfbthB6K3YaE4eGoTRPSP+7Pm+1YojXPl\nNymDBOcpAgMBAAECggEABNeTLpdWvX2dGLnyJStldcvx9WyzF7s+ShNrwqYj+ToW\n5pDWn+0Ytk4F2zChjuCk6ELSDneS/W8olcCk6HYFjqYdCIAMAa4Osb5BFs0qdXY1\nWVoRlEl2Dk0Sioszb3vbdouhLf+yfa/BBmj/AMcbO8ww/gM5g7gx+2M9zJGor6tC\n9mUqlj2cRnnINdB1reIpakzuaoELZdPa72qEQlLCxIfzY7rpxo8sd3BNHKOQ0okE\nK6bopurFC6MWEIuu/PVzYsqYSFXKbHTw8znfVYz8yCCvHT5DDvwK8wD71Tv1Rnxa\ngnhq/Jp/hc0g4FvLRoP/GhaZp10yk3Myl8oyj1I6vwKBgQD4NUNRpJs0JQ5P6db9\nswbsvs7+Wq6L/0GJxoyez3jSyXXqROzKt6kyP0UXTydPHDzb4Tmt7AV6l4sA2tB3\nhL1ymJkvsSCSf6CCRSDMlf5l/H1JJjt+j2qhpLvcT+ErMaz1sz00f5bf5+M4C6SV\nT/WnxHvZCd4X9wovJmHK4ba7HwKBgQD2Lmv3g3MSi5Pqvnq5Hug2yx1TlL76HL3p\nVl1GyWkVmRf4Gryou4P6kT0A84NfMvjT4Zqwg8HUrd7UHvTZflTf9vx8OEYawdKT\nyuRNkgm25juTBg6GSjyAsU5w55lZCy55OxiUjD0JOjxUq6/9hlBuw6l/BcWL3EFP\nh+ZX4xpctwKBgHZ8Tp+JuYFB8zwYv8WqEbMwPvXS6iHwfyO7AWPKXL4a58wmjPcU\nh5Nx+pRu96/fJfo84ODym4bzEqscyYlUd29eAzpuDsOAY2nsgATJ0YBz8Ibb1mjL\nI7b4QamhBDcvZoZ/wsbt5WMLej9F55JTckxdElYATOIZzuXFJ8fGygk3AoGBAIFG\niV3VwmTXtRpNYoa56zly2fidINiYpUXWG29jrvIvjb201KNKrRi0kjNgrPkd/DrP\nuvq8hdnYYC5F/1ADHjDqM1ZL+sxsQddocREnAkDwkBI52QC+FR2DfmydwhJXY9U3\nqkW/iwHAehQAgI+Cq9QunWBduIokZIuOEvDOCnbrAoGBANkeGVVjZWJKuO4HTo31\nooXuxTEfzPfFJo2jaJcXJqhLy4QuDCg157JNHQdzv5z02T5suBIPD7NKUepSPUKr\nNanM74DVN3SfPp2HiqIM2erSFZWviiAsSLKHCRcqiDLy7X8h72A0PTfIijw2bUQm\nrgzG/Aa0XvlLlcMEHSvu5p0k\n-----END PRIVATE KEY-----\n",
+      "public_key_b64": "pAEDAzgmIFkBAO6wMPDK0p7swu4BIW4mDeapNR6lgM4Y1+n+PEhhjU8OLWBSpGU6wWatIv1NQwKjb8JUl5hVxjxMQUIvsBxKttzLqRV8MsgTU9GVrZkIbRsuqGZTjhOl83Av6lwu+qTh2uopuy/TbAAME0l2mKbFwTWD9Hxub0kEqPtTUL1eTdrVq1CM6VfY2Hg5/0X0/5M6MipjEjAFn08rZwjIVHosii+qdpQYRETbiYz5Murlf6J1RNR2p2GDt1QSpNzW2GeSoStbV49M1AGwNDq7juziJcPoLbSX3mMPMlO3eN8/sXodMIJ9u2EHordhoTh4ahNE9I/7s+b7ViiNc+U3KYME5ykhQwEAAQ==",
+      "passkey": {
+        "credential_id": "IiU6W8nVxMXQXL4Ij9nCegRPfJ1da1zv",
+        "public_key": "pAEDAzgmIFkBAO6wMPDK0p7swu4BIW4mDeapNR6lgM4Y1+n+PEhhjU8OLWBSpGU6wWatIv1NQwKjb8JUl5hVxjxMQUIvsBxKttzLqRV8MsgTU9GVrZkIbRsuqGZTjhOl83Av6lwu+qTh2uopuy/TbAAME0l2mKbFwTWD9Hxub0kEqPtTUL1eTdrVq1CM6VfY2Hg5/0X0/5M6MipjEjAFn08rZwjIVHosii+qdpQYRETbiYz5Murlf6J1RNR2p2GDt1QSpNzW2GeSoStbV49M1AGwNDq7juziJcPoLbSX3mMPMlO3eN8/sXodMIJ9u2EHordhoTh4ahNE9I/7s+b7ViiNc+U3KYME5ykhQwEAAQ==",
+        "sign_count": 0,
+        "transports_json": "[\"internal\", \"hybrid\"]",
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "device_type": "single_device",
+        "backed_up": 0,
+        "name": "Python 通行密钥",
+        "created_at": "2026-10-19T00:00:00+00:00",
+        "last_used_at": null
+      }
+    },
+    {
+      "alg": -257,
+      "credential_id": "oooila_z8AMZ9Z_35N8c5C5l_vvbpIQc",
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC517gfUFLHlzvw\nh3pXcuvF7rh4NF1fWs42dFYGP7nxytx8TchR6Dox7ibTsO5ZoJnfJ+dCOB+ix6Zm\n0Sn/wNfL2E3ZdoB/KJo+UOkuEsHWekMIvWiinHoxvHDUBHcP2IOPjDRNA0yrNzBi\nV+Vbic9O1daNyZr2QS8s7hafFrfFKLdrUogENyLH+dvm/EhZvv95oDgwzC9yzTZ/\nifOX0Z2duxVsGc1H7pDTu+LjA5PkARi2ufKp3CR3ZsQV8psYw0GrhkoI4e99/OF/\nDXaqd5RxBK7IU8JtEI+bORSVFACGnXascbInn1YflICGp8VkaWqwdeYrLCg153Sc\nDI4uoA5pAgMBAAECggEAA2bxUjNufIRmfsIAKZsrOUmkO2EcB3uaVFFfZMhkX0qL\nLERhQyyY6iKVt+DgkCf6QSVSHLp5y8lTYMT5+5pcaPkp/a3nbsx/vF3PUv5ZaZN9\n6CpNgNKUAxaTyzHUuyfHysgyieliTS0at+Yrhvg4IRWVkq1q5pCtbClkpR9tmFCd\nRIEqniP6Mt4b8imeYCqvu2/Jr4b4qC1k7emPGRETHVHhZ5E0JZGmIBMrIcZKjem9\nJvI8Prv62x1pQUO3I7nYxwcHNAPG7zn9A6O/w450OheQ5+jHkr1Lur7zGNKJ0Cfk\njtJJ4IqaWHJqtFYUmSaRhwp6zDbcz/Nq1+vI6XD3IQKBgQDbjVL1qgFbSGGl5fa6\nlBdHMnj5hd9yaVs5sMXFM/0FVL+Gx7x/h2hQBAy69UiSiprBwGpAjlni8lHg78lX\nffTH+a3hj2Hcd3+4nlEsJfLLOefF5Gp9OLhL+hcccvaBrmUXMzdZOOn4h0QpFuX0\nWj+qiAnHpOiDO0t1tfBICLDi0QKBgQDYscozfmkhhglymUDCCsa8CgQr4GVPmIEP\nrfZE+y9m23ex95yvQsglPN72OUhZ6SdhHIeqpU2ISab44ElKjVA1VX6G3y3T+LBs\n+K8wXfUfTasgX68g7RrDwP6VA7u9Uqe15jCmUXQK9Cubt394VPhDJgUy6fvxnxMa\nuc6j4SVoGQKBgQCOPH6UfTEnzDrG2bcApVR3YbGSJjLe0naxZ16ZJdc0DvWOAfSS\nwkzIGfeNX79GgNlF0LyFWjPNnaOCEJbmQcnFjHIkAVorFJgAKUD5UxR6qOcJA7Qh\nsA9l2X4Dhk9BMJR5dUrUWNTrl+aGoDkWFynL9xou5x1jd5Spi9dBM7A1IQKBgClH\nFMFiXxxnr/0IfHF6JAlFzy2cfTAAWPVnqfXR82GghNh91nb8Pav6QG6e0s1twHab\nPKyg+Hfxr8DQ2KU+7fx64LNIaC5svQ7FAHoyK7Ne1C5Ci9W11NddOCGiqGyUBiZ8\nRuAnu/cqM/RhrAJ8DR6da3gbYkbQio8YvegxxzJhAoGAAZ9UYaNVyxjWrEMWAOnl\n7wrHmnTLPjqoZ/89UrtQPVXlNPGVNyzK+86BXFciwkCsjduULtWstTbcW5FrfUo3\n6jcb1OK+sBGDS2M1hIQicdMkEQRXRlkAyIU8c/H5nGBTQFk+wrzoYqlF80feX/2l\nt6wd6LjoVNtSUDShSH+CPss=\n-----END PRIVATE KEY-----\n",
+      "public_key_b64": "pAEDAzkBACBZAQC517gfUFLHlzvwh3pXcuvF7rh4NF1fWs42dFYGP7nxytx8TchR6Dox7ibTsO5ZoJnfJ+dCOB+ix6Zm0Sn/wNfL2E3ZdoB/KJo+UOkuEsHWekMIvWiinHoxvHDUBHcP2IOPjDRNA0yrNzBiV+Vbic9O1daNyZr2QS8s7hafFrfFKLdrUogENyLH+dvm/EhZvv95oDgwzC9yzTZ/ifOX0Z2duxVsGc1H7pDTu+LjA5PkARi2ufKp3CR3ZsQV8psYw0GrhkoI4e99/OF/DXaqd5RxBK7IU8JtEI+bORSVFACGnXascbInn1YflICGp8VkaWqwdeYrLCg153ScDI4uoA5pIUMBAAE=",
+      "passkey": {
+        "credential_id": "oooila_z8AMZ9Z_35N8c5C5l_vvbpIQc",
+        "public_key": "pAEDAzkBACBZAQC517gfUFLHlzvwh3pXcuvF7rh4NF1fWs42dFYGP7nxytx8TchR6Dox7ibTsO5ZoJnfJ+dCOB+ix6Zm0Sn/wNfL2E3ZdoB/KJo+UOkuEsHWekMIvWiinHoxvHDUBHcP2IOPjDRNA0yrNzBiV+Vbic9O1daNyZr2QS8s7hafFrfFKLdrUogENyLH+dvm/EhZvv95oDgwzC9yzTZ/ifOX0Z2duxVsGc1H7pDTu+LjA5PkARi2ufKp3CR3ZsQV8psYw0GrhkoI4e99/OF/DXaqd5RxBK7IU8JtEI+bORSVFACGnXascbInn1YflICGp8VkaWqwdeYrLCg153ScDI4uoA5pIUMBAAE=",
+        "sign_count": 0,
+        "transports_json": "[\"internal\", \"hybrid\"]",
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "device_type": "single_device",
+        "backed_up": 0,
+        "name": "Python 通行密钥",
+        "created_at": "2026-10-19T00:00:00+00:00",
+        "last_used_at": null
+      }
+    },
+    {
+      "alg": -258,
+      "credential_id": "qRbcdEEDRdiaVupoYm4oqH9zbhixx_bD",
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCdgw2CIaIn2cPu\ne3P/pam2XlJB6OkG//O3dycWrlxIlmujwZdXJieZ7el+aS9wQkJkXU75EHD+dRaj\n4oMTP170yWJFoE5kwo6lFrUtqBWSqzez8POGm8GPBasZJYUPXL4qQxPwoBn16I9J\n9DiXRvwym8J1Nm5dSYDwg8NEcnzcstE3MVYUSuMBwcitLCfh2pYRQc4Q/euz9Jn1\ncvFIVbGAehfW3BPr14pC4gm/TzbIKCI/Nc6NivDAx/RP9YFg0YcKByLk6CdgLKLC\ntoRRYcHCjGAAvdF/3oGvvO9SE0dVenrqW+AbZwiF/rmFiG9M0jxcCTirUsWSdtvt\n3LI1Ceh7AgMBAAECggEASJda1OPiQyJp2ZFcuu+i4PDkUQrhxj+UlzObOKk/z5Y/\nYld4g4oKizbpusAIRGDND0svd7q7kJHuzrW4OdklToQ3PaZtKqO9sNjfw/xogNFW\n2R+NZDaJRHxUx8CSa6uO2pRSbr2iaUH2M5uRrypgVYSSYImm4GhdO7tF9VgcMmuf\nv2mOWym83D3tt/eqBcMZSg/AW/1eWVB2Y6wRVuMvUUQwd8scNDqHzhTMZIDx5aZW\nvCUwrSCI1b9iT0UcoCV2UnjqxxNg7oonUaYITfawNuB4xtPeDAW4R2zISCSICReV\nFA65/AxryoSamqk9vou1xaRBDFVWtFUmGdyzaSPxjQKBgQDMqUi5LsxjkQ6pShQL\n1JY9E8wlw9l7nFRyX/am8lRegzmuf4VJ1iLb9q1rVdGSz1AJS+aS2cna4kRL9AJU\ncdJgGODR30vAEq51wfLTHOrEo/HEM8l15AkvErc+A3Sk9Pa8KrTYisw/sAfT7zky\nqCv+UoO4T5LraEpNS9cu/aRHfQKBgQDFBfu4KVARJPHGvk/pDJETIGnimbCgF/mG\nwPVdB6D+mZjMvvbGbcfNU6epXVIjnPbLL0ssv4M++6xuIP0HkeShqPRmcL+bnK6R\n3f1Dxf65O1TKtA9MoxhGaUKAMcpqKx69x/13PpJv6pHxvlVwEWC5nKhYDhcrg680\nTTJvukChVwKBgQCPDDePb91eLnJv8x4l0rYcBK1pLAXj9zWzJ83vjGtaECCODgWs\nwSZmVnmKD1bHZW3Mwadstxr2ibYw3GGQgmoHzvu81XVN0ADuv9wooQqa3PhMKeJD\nK1sb8tnvV1z9O1cF2FfFDuaKEVC3WnrBJHhzb1svxTasoZ1lf3/tEU30xQKBgFSH\n6qXq47VXWnxgrrxYbe383DEiq4skfiR4qU0Ott5FXC+MRyh/dVf86lRZ+6HX+HLY\nibJbQJ5HMIXXlXgn+iX57VH+Udcb9DIVQlJPoqgqcoi9lErXNtUO2D9UHXpLodbe\n9TqyF/X4eEF13gZFDnDUa83LzdkXmJYiAN+603vlAoGAKLKSqnEd1JUajj+H2oHy\n/YkjO3qzrLnLPWupLgtPjYrI2y+CPGXzSwiVDnNVlGBK8DLOsuhGRw10XZ3cSDUJ\n/nPy2pMWIkEpDdevomMsru2TkzGt45A3/9+UJyBv8xCvcSz7vbwe/GeEBq66yq/c\n3EaPE7DIqd4QjC2WStXiNRY=\n-----END PRIVATE KEY-----\n",
+      "public_key_b64": "pAEDAzkBASBZAQCdgw2CIaIn2cPue3P/pam2XlJB6OkG//O3dycWrlxIlmujwZdXJieZ7el+aS9wQkJkXU75EHD+dRaj4oMTP170yWJFoE5kwo6lFrUtqBWSqzez8POGm8GPBasZJYUPXL4qQxPwoBn16I9J9DiXRvwym8J1Nm5dSYDwg8NEcnzcstE3MVYUSuMBwcitLCfh2pYRQc4Q/euz9Jn1cvFIVbGAehfW3BPr14pC4gm/TzbIKCI/Nc6NivDAx/RP9YFg0YcKByLk6CdgLKLCtoRRYcHCjGAAvdF/3oGvvO9SE0dVenrqW+AbZwiF/rmFiG9M0jxcCTirUsWSdtvt3LI1Ceh7IUMBAAE=",
+      "passkey": {
+        "credential_id": "qRbcdEEDRdiaVupoYm4oqH9zbhixx_bD",
+        "public_key": "pAEDAzkBASBZAQCdgw2CIaIn2cPue3P/pam2XlJB6OkG//O3dycWrlxIlmujwZdXJieZ7el+aS9wQkJkXU75EHD+dRaj4oMTP170yWJFoE5kwo6lFrUtqBWSqzez8POGm8GPBasZJYUPXL4qQxPwoBn16I9J9DiXRvwym8J1Nm5dSYDwg8NEcnzcstE3MVYUSuMBwcitLCfh2pYRQc4Q/euz9Jn1cvFIVbGAehfW3BPr14pC4gm/TzbIKCI/Nc6NivDAx/RP9YFg0YcKByLk6CdgLKLCtoRRYcHCjGAAvdF/3oGvvO9SE0dVenrqW+AbZwiF/rmFiG9M0jxcCTirUsWSdtvt3LI1Ceh7IUMBAAE=",
+        "sign_count": 0,
+        "transports_json": "[\"internal\", \"hybrid\"]",
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "device_type": "single_device",
+        "backed_up": 0,
+        "name": "Python 通行密钥",
+        "created_at": "2026-10-19T00:00:00+00:00",
+        "last_used_at": null
+      }
+    },
+    {
+      "alg": -259,
+      "credential_id": "tBWKHYizpdpnXuR4F1nit457g5rIXbDV",
+      "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCsCdSmo6Px1QZg\n/DFzaIvj0CwU5nLZOmkRYprC5KlTuhjrgHlFiDOR9+Hg/KIvdCBGWIoFzwA1EN2K\nQ9/2HZHHw4V+LSmmQkc/ZzUYnYimP8jcqY1sAE2eP4s7wenFLCDX5B7f/h7nXxJj\nUbIO5muCUCbvrJsrItVeTqwC2en4/GJH1gw5m7mgJ2mvxbQqgKkZmR7/zQ7TfJjt\n4CVrEGCdjuvwRJ4gvQ4G3KBpN3ZuTGJUppgNZlXUsOf5kQPJxalf9VfB9okSzglF\niHNBJcHrjDfAVSfQo29ZfPWQ5pacFy9usFY4e4wZOrWGPn4lS+qSqo1DoNLVWXb0\nLJQfTf0pAgMBAAECggEADNU6ZThHcFCCRm2FgEz8A2E5ypDSoBja8cqrze4p4dab\nyYRmt2y0oRavJR3fOMA2MJ0l5Y9Gfg7dIbVUsVqND2xKqsnyZYYj46s+kxCcOv9+\ny5QDujrPD2cAyzM4rYYwSH5qHa4KbtqhB+LWEAW43wp8zwvOctIpPZzLeLZ53SJS\nIL5rdIk04okmouLZnHVkibrNWUq3EjOjES309zIlOCKXwxjXZmqYcv38k7NK7Dob\nK5c+Kdbz//VNypoEgjvR32s5ivtexOWUCUlF2F0oiOKjRMjiHjB4BGBSGDU6sFdF\nOQe9IJp8pBUCY7r/at95a5/qOGwsd2V1/nkN5HAMMQKBgQDS+NZMMdNoA92axETo\nET7+1kmDG9Nq9rsqK7JdXmkgK/MpEyB+KpYJIgWTdzNmH0c+GUyrQpVwguuTsQ39\n+MHhHEZBV4ypUg/B9RzRTu0dvsSxWF+Jkje57AXBOoF/5/fg3zyjnK7xEZ1du8kP\n5bV+MIVTuf+xSBI8hI67YsdhUQKBgQDQwbmTPw2ppT245dyBEUpA3MrXvzyatYdd\nIjsTLkX47eJHK7zdaO7yvozovL1lL+gGTPbLh1ed7c6VxBLtMOnNjdK8788ACuBB\nO8+m91iwN4gbk3YjF/+0hPDcHJC6e4re7O2XjnWeXvybBfxTUbScQRWpD319CEwj\nBm3x5iCoWQKBgQDCyHQyzR3+vvLvXZ6xFJsw9e/RWPONoleTy9xWUECHL4zFs58g\nXXlA3WSAjmGqO96u+vTKeiM3Seju512fyvhWOqCy235HJjjePsxog5JxEBzSEGHE\nxnck9UEq8jV2PlmiCPoXpSXv9O9yB1rPjqpO48V1VBk7OOt9bHXLlJu4wQKBgQDP\np5TYksUddoCSNxyDytYo9ThVKia34lDXZOCMsN/rwX3vu+Mv/1yJXOC/9lcTm3bb\nJZ3tUSDnuRFhStxk0t4Pmb8CMC2h5i+y1DM37B1tlJ+whpviRtIWGJOa8FNLHO9D\n1zx0IMKBGg1+i5K2srTNJbTNKdpzEFjkElY1ZOwhaQKBgGNw1526ThnnITm13QzN\nFPidzywR/oV9FwkENBR74VVd3YsBi6Ar1X8Vu9OEqXcKcxqCJC0BBA3EkHx9Y7ev\nWSGn5jbAtCxH0pkPMdmWTDvZHTxc2v8w+empIR1YzGp51W5xq7gA+voNkoIz8gE7\nzCqOUPK/TdY75uCN759hEkLY\n-----END PRIVATE KEY-----\n",
+      "public_key_b64": "pAEDAzkBAiBZAQCsCdSmo6Px1QZg/DFzaIvj0CwU5nLZOmkRYprC5KlTuhjrgHlFiDOR9+Hg/KIvdCBGWIoFzwA1EN2KQ9/2HZHHw4V+LSmmQkc/ZzUYnYimP8jcqY1sAE2eP4s7wenFLCDX5B7f/h7nXxJjUbIO5muCUCbvrJsrItVeTqwC2en4/GJH1gw5m7mgJ2mvxbQqgKkZmR7/zQ7TfJjt4CVrEGCdjuvwRJ4gvQ4G3KBpN3ZuTGJUppgNZlXUsOf5kQPJxalf9VfB9okSzglFiHNBJcHrjDfAVSfQo29ZfPWQ5pacFy9usFY4e4wZOrWGPn4lS+qSqo1DoNLVWXb0LJQfTf0pIUMBAAE=",
+      "passkey": {
+        "credential_id": "tBWKHYizpdpnXuR4F1nit457g5rIXbDV",
+        "public_key": "pAEDAzkBAiBZAQCsCdSmo6Px1QZg/DFzaIvj0CwU5nLZOmkRYprC5KlTuhjrgHlFiDOR9+Hg/KIvdCBGWIoFzwA1EN2KQ9/2HZHHw4V+LSmmQkc/ZzUYnYimP8jcqY1sAE2eP4s7wenFLCDX5B7f/h7nXxJjUbIO5muCUCbvrJsrItVeTqwC2en4/GJH1gw5m7mgJ2mvxbQqgKkZmR7/zQ7TfJjt4CVrEGCdjuvwRJ4gvQ4G3KBpN3ZuTGJUppgNZlXUsOf5kQPJxalf9VfB9okSzglFiHNBJcHrjDfAVSfQo29ZfPWQ5pacFy9usFY4e4wZOrWGPn4lS+qSqo1DoNLVWXb0LJQfTf0pIUMBAAE=",
+        "sign_count": 0,
+        "transports_json": "[\"internal\", \"hybrid\"]",
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "device_type": "single_device",
+        "backed_up": 0,
+        "name": "Python 通行密钥",
+        "created_at": "2026-10-19T00:00:00+00:00",
+        "last_used_at": null
+      }
+    }
+  ],
+  "registration": {
+    "alg": -7,
+    "credential_id": "lxiVsQb31nufhbRKZYf5QtQ5pzMBfMcs",
+    "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg30CZtE4y46zgn+kw\nHDyhgZiJjJr3QsRq4rO3a7d3oVOhRANCAASPkdXTbgGKbYHwiELhbf29x5TRdmpE\nGMhRP7TIeOl3qP1840Hpj7/jr3JscmwZQOQmH7ZeCIFHCoJvkrY64aoz\n-----END PRIVATE KEY-----\n",
+    "public_key_b64": "pQECAyYgASFYII+R1dNuAYptgfCIQuFt/b3HlNF2akQYyFE/tMh46XeoIlgg/XzjQemPv+OvcmxybBlA5CYftl4IgUcKgm+StjrhqjM=",
+    "credential": {
+      "id": "lxiVsQb31nufhbRKZYf5QtQ5pzMBfMcs",
+      "rawId": "lxiVsQb31nufhbRKZYf5QtQ5pzMBfMcs",
+      "type": "public-key",
+      "clientExtensionResults": {},
+      "response": {
+        "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiQUFFQ0F3UUZCZ2NJQ1FvTERBME9EeEFSRWhNVUZSWVhHQmthR3h3ZEhoOCIsIm9yaWdpbiI6Imh0dHBzOi8vYm9va3MuZXhhbXBsZS5jb20iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+        "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YViclPbnYKYuRQnfj6aIuNZ7_bc90Wrya0J36HLu8d49byRFAAAAAAAAAAAAAAAAAAAAAAAAAAAAGJcYlbEG99Z7n4W0SmWH-ULUOaczAXzHLKUBAgMmIAEhWCCPkdXTbgGKbYHwiELhbf29x5TRdmpEGMhRP7TIeOl3qCJYIP1840Hpj7_jr3JscmwZQOQmH7ZeCIFHCoJvkrY64aoz",
+        "transports": [
+          "internal",
+          "hybrid",
+          "bogus"
+        ]
+      }
+    }
+  },
+  "challenge": {
+    "id": "V3CqA1ftsJO-NK71ejYb_NJWeMrTsPA2Ah2H8caISH4",
+    "challenge_b64": "9hCm88GzTgnGH1j/uk2Nh6QLgObQqvOMiMTc8T+AaFEGuZI4GslgDDwZK7FkbnGGViW8X3z9zwnsdY485C+qng==",
+    "kind": "login",
+    "session_id": null
+  },
+  "session": {
+    "session_id": "myc73RAvzvDEptPXoZvJ87iFvD50NgNh4PSgmLNpgkk",
+    "created_at": "2026-10-21T06:04:59.575872+00:00",
+    "last_seen": "2026-10-21T06:04:59.575872+00:00",
+    "auth_method": "password",
+    "password_verified_at": "2026-10-21T06:04:59.575872+00:00"
+  }
+}

@@ -1,10 +1,8 @@
-import { afterAll, describe, expect, it } from "vitest";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { bookFromDict, bookToDict, metadataFromDict } from "../src/core/models";
 import type { BookData, Metadata } from "../src/core/models";
 import {
@@ -55,7 +53,7 @@ interface Inspection {
   loaded: {
     item_path: string;
     base: string;
-    content: string;
+    content_sha256: string;
     media_type: string;
   }[];
 }
@@ -104,31 +102,15 @@ interface Reference {
   epubs: Record<string, { name: string; sha256: string }[]>;
 }
 const fixtures = resolve("tests-ts/fixtures");
-const directory = mkdtempSync(resolve(tmpdir(), "bindery-parity-"));
-let reference: Reference;
-try {
-  const { stdout: summary } = await promisify(execFile)(
-    "uv",
-    ["run", "--no-sync", "python", "scripts/parity/reference.py", directory],
-    {
-      cwd: resolve("."),
-      env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
-      timeout: 180000,
-      encoding: "utf8",
-      maxBuffer: 4 * 1024 * 1024,
-    },
-  );
-  console.info("Python parity corpus:", summary.trim());
-  reference = JSON.parse(
-    readFileSync(resolve(directory, "reference.json"), "utf8"),
-  ) as Reference;
-} catch (error) {
-  rmSync(directory, { recursive: true, force: true });
-  throw error;
-}
-afterAll(() => rmSync(directory, { recursive: true, force: true }));
-const bytes = (file: string) =>
-  new Uint8Array(readFileSync(resolve(directory, file)));
+const inputs = resolve("tests-ts/fixtures/parity/core/inputs");
+const reference = JSON.parse(
+  gunzipSync(
+    readFileSync(
+      resolve("tests-ts/fixtures/parity/core/reference.json.gz"),
+    ),
+  ).toString("utf8"),
+) as Reference;
+const bytes = (file: string) => new Uint8Array(readFileSync(resolve(inputs, file)));
 const coverAsset = (name: string | null | undefined) =>
   name
     ? { name, data: new Uint8Array(readFileSync(resolve(fixtures, name))) }
@@ -145,17 +127,13 @@ function normalized(data: Uint8Array, name: string): Uint8Array {
   return new Uint8Array(Buffer.from(text, "latin1"));
 }
 function compareEpub(actual: Uint8Array, expectedFile: string): void {
-  const expected = bytes(expectedFile),
-    members = readArchive(actual),
-    referenceMembers = readArchive(expected);
+  const members = readArchive(actual),
+    expectedMembers = reference.epubs[expectedFile];
   expect(members.map((m) => m.name)).toEqual(
-    referenceMembers.map((m) => m.name),
-  );
-  expect(members.map((m) => m.name)).toEqual(
-    reference.epubs[expectedFile].map((m) => m.name),
+    expectedMembers.map((m) => m.name),
   );
   expect(members[0]?.name).toBe("mimetype");
-  for (const zip of [actual, expected]) {
+  for (const zip of [actual]) {
     const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
     expect(view.getUint32(0, true)).toBe(0x04034b50);
     expect(view.getUint16(8, true)).toBe(0);
@@ -167,22 +145,11 @@ function compareEpub(actual: Uint8Array, expectedFile: string): void {
     "application/epub+zip",
   );
   for (let i = 0; i < members.length; i++) {
-    const a = normalized(members[i].data, members[i].name),
-      b = normalized(referenceMembers[i].data, members[i].name);
-    // Compare all bytes; a short text diff is much more useful than a Uint8Array dump.
-    if (Buffer.compare(a, b) !== 0)
-      expect(
-        Buffer.from(a).toString("utf8"),
-        `${expectedFile}: ${members[i].name}`,
-      ).toBe(Buffer.from(b).toString("utf8"));
-    expect(
-      Buffer.compare(a, b),
-      `${expectedFile}: ${members[i].name} bytes`,
-    ).toBe(0);
+    const a = normalized(members[i].data, members[i].name);
     expect(
       createHash("sha256").update(a).digest("hex"),
-      `${expectedFile}: ${members[i].name} Python digest`,
-    ).toBe(reference.epubs[expectedFile][i].sha256);
+      `${expectedFile}: ${members[i].name} legacy digest`,
+    ).toBe(expectedMembers[i].sha256);
   }
 }
 function compareInspection(data: Uint8Array, expected: Inspection): void {
@@ -206,11 +173,13 @@ function compareInspection(data: Uint8Array, expected: Inspection): void {
     expect(base).toBe(entry.base);
     const [content, media] = loadEpubItem(data, entry.item_path, base);
     expect(media).toBe(entry.media_type);
-    expect(Buffer.from(content).toString("base64")).toBe(entry.content);
+    expect(createHash("sha256").update(content).digest("hex")).toBe(
+      entry.content_sha256,
+    );
   }
 }
 
-describe("Python rules and theme parity", () => {
+describe("legacy rules and theme parity", () => {
   for (const filename of readdirSync("bindery-templates/rules").filter((f) =>
     f.endsWith(".json"),
   ))

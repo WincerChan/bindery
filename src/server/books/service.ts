@@ -7,7 +7,7 @@ import { nowIso } from "../db";
 import type { LibraryStorage } from "../storage";
 import { loadRuleTemplates, loadThemeTemplates } from "../templates";
 import { enqueueEditWriteback } from "../jobs";
-import { strip } from "../../core/python";
+import { strip } from "../../core/text";
 import { validateCss } from "../../core/css";
 import { bookNavigation } from "../../features/books/navigation";
 import {

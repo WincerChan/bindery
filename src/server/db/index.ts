@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import type { Job, Wish } from "../../core/models";
-import { strip } from "../../core/python";
+import { strip } from "../../core/text";
 import { Connection, transaction, type Row, type Value } from "./connection";
-import { nowIso, pythonJson, pythonString, readTags, wishIdentity } from "./encoding";
+import { nowIso, compatJson, compatString, readTags, wishIdentity } from "./encoding";
 import { initSchema } from "./init";
 export { connect, transaction } from "./connection";
 export { nowIso } from "./encoding";
@@ -101,7 +101,7 @@ export class BinderyDatabase extends Connection {
   }
   createWish(wish: Wish): void {
     const identity = wishIdentity(wish.title, wish.author);
-    this.run(`INSERT INTO wishlist(${WISH_COLUMNS.join(", ")}) VALUES (${WISH_COLUMNS.map(() => "?").join(", ")})`, wish.id, wish.title, strip(wish.library_book_id || "").toLowerCase() || null, wish.author, ...identity, wish.rating, Number(Boolean(wish.read)), wish.read_status, pythonJson(wish.tags), wish.comment, wish.book_status, wish.created_at, wish.updated_at);
+    this.run(`INSERT INTO wishlist(${WISH_COLUMNS.join(", ")}) VALUES (${WISH_COLUMNS.map(() => "?").join(", ")})`, wish.id, wish.title, strip(wish.library_book_id || "").toLowerCase() || null, wish.author, ...identity, wish.rating, Number(Boolean(wish.read)), wish.read_status, compatJson(wish.tags), wish.comment, wish.book_status, wish.created_at, wish.updated_at);
   }
   private wish(sql: string, ...params: Value[]): Wish | null {
     const row = this.get(sql, ...params);
@@ -129,7 +129,7 @@ export class BinderyDatabase extends Connection {
       ...input
     };
     if ("tags" in fields) {
-      fields.tags_json = pythonJson(Array.isArray(fields.tags) ? fields.tags.map(pythonString).filter(s => strip(s)) : []);
+      fields.tags_json = compatJson(Array.isArray(fields.tags) ? fields.tags.map(compatString).filter(s => strip(s)) : []);
       delete fields.tags;
     }
     if ("read" in fields) fields.read = Number(Boolean(fields.read));

@@ -25,7 +25,7 @@ import {
 } from "./xml";
 import type { Element } from "./xml";
 import { patchDocHtmlBinderyCss, stripWebpRefsFromHtml } from "./epub-html";
-import { strip } from "./python";
+import { strip } from "./text";
 const encode = (text: string) => new TextEncoder().encode(text);
 function applyMetadata(
   root: Element,

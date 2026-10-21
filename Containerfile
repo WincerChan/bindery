@@ -1,58 +1,49 @@
-FROM python:3.12-slim
+# syntax=docker/dockerfile:1
 
-# 保持你的环境变量配置
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
-
-# 安装基础工具（这一步没问题）
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# 安装 uv（保持原样，或者用 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv 更快）
-RUN pip install --no-cache-dir uv
-
+FROM node:24-slim AS dependencies
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
 WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
-# --- 🚀 优化开始 ---
+FROM dependencies AS build
+COPY . .
+RUN pnpm build
 
-# 1. 先只拷贝依赖定义文件
-COPY pyproject.toml uv.lock ./
+FROM node:24-slim AS production-dependencies
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
 
-# 2. 安装依赖，但不安装项目本身 (--no-install-project)
-# 这样只要 lock 文件不变，这一层就会被 Docker 完美缓存，构建速度秒级。
-RUN uv sync --frozen --no-dev --no-install-project
-
-# 3. 把 .venv/bin 加入 PATH
-# 这一步是关键！这样做之后，你就可以直接运行 uvicorn 了，不需要 uv run
-ENV PATH="/app/.venv/bin:$PATH"
-
-# 4. 现在才拷贝源代码
-COPY bindery ./bindery
-COPY README.md ./
-
-# 5. 最后安装项目本身 (如果有必要的话，比如 bindery 是一个包)
-# 如果 bindery 不是安装包，这一步甚至可以省略，取决于你的 import 方式
-RUN uv sync --frozen --no-dev
-
-# --- 优化结束 ---
-
-COPY templates ./templates
-COPY static ./static
-COPY bindery-templates ./bindery-templates
-
-RUN useradd --create-home --uid 10001 app \
-    && mkdir -p /data/library /data/templates \
-    && chown -R app:app /app /data
-
-ENV BINDERY_LIBRARY_DIR=/data/library \
+FROM node:24-slim AS runtime
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=5670 \
+    BINDERY_LIBRARY_DIR=/data/library \
     BINDERY_TEMPLATE_DIR=/data/templates
 
-USER app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid app --create-home app \
+    && mkdir -p /data/library /data/templates \
+    && chown -R app:app /data \
+    && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-v1.22.22
 
+WORKDIR /app
+COPY --from=production-dependencies /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/bindery-templates ./bindery-templates
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/scripts/start.mjs /app/scripts/load-env.mjs /app/scripts/production-handler.mjs ./scripts/
+
+USER app
 EXPOSE 5670
 VOLUME ["/data"]
-
-CMD ["uvicorn", "bindery.web:app", "--host", "0.0.0.0", "--port", "5670", "--proxy-headers"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["node", "-e", "fetch('http://127.0.0.1:5670/login').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+CMD ["node", "scripts/start.mjs"]

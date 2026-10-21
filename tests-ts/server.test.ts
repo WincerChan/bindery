@@ -9,7 +9,7 @@ import { loadRuleTemplates, loadThemeTemplates } from "../src/server/templates";
 const dir = mkdtempSync(resolve(tmpdir(), "bindery-server-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 describe("read-only existing SQLite library", () => {
-  it("resolves Python environment precedence and paths", () => {
+  it("resolves legacy environment precedence and paths", () => {
     expect(databasePath({}, "/tmp")).toBe(resolve("library/bindery.db"));
     expect(databasePath({ BINDERY_LIBRARY_DIR: "books" }, "/tmp")).toBe(
       "/tmp/books/bindery.db",
@@ -24,7 +24,7 @@ describe("read-only existing SQLite library", () => {
       "/mnt/books/bindery.db",
     );
   });
-  it("supports _FILE values and strips only CR/LF like Python", () => {
+  it("supports _FILE values and strips only CR/LF like legacy", () => {
     const path = resolve(dir, "db-path");
     writeFileSync(path, " relative.db \r\n");
     expect(readEnv("BINDERY_DB_PATH", { BINDERY_DB_PATH_FILE: path })).toBe(

@@ -99,5 +99,5 @@ describe("theme CSS validation", () => {
     const before = themeEditor("default").raw, result = saveTheme("default", css);
     expect(result).toMatchObject({ raw: css, saved: false, error: `主题 CSS 校验失败：${error}` }); expect(themeEditor("default").raw).toBe(before);
   });
-  it("counts Unicode code points like Python, rather than UTF-16 units", () => expect(validateThemeCss("😀".repeat(100_001))).toBeNull());
+  it("counts Unicode code points like legacy, rather than UTF-16 units", () => expect(validateThemeCss("😀".repeat(100_001))).toBeNull());
 });

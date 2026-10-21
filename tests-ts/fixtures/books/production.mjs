@@ -36,7 +36,7 @@ globalThis.fetch = async (url, init) => {
         `<script type="application/ld+json">{"@type":"Book","name":"线上书","author":{"name":"作者"},"description":"线上简介","image":"https://img.test/cover.jpg"}</script>`,
       );
 };
-// Python's flow oracle pauses its worker. Hold the real consumer lock so this
+// the legacy implementation's flow oracle pauses its worker. Hold the real consumer lock so this
 // probe observes the same pending metadata and does not race archive/delete.
 const consumerLock = join(root, "library", ".ingest-queue", ".consumer");
 mkdirSync(consumerLock, { recursive: true });
@@ -290,7 +290,7 @@ try {
   assert.equal((await request(base + "/restore", {})).status, 409);
   const { rmSync } = await import("node:fs");
   rmSync(join(root, "library", id), { recursive: true });
-  // Explicit next keeps the legacy Python flow comparable; defaults are tested separately.
+  // Explicit next keeps the legacy legacy flow comparable; defaults are tested separately.
   response = await request(base + "/restore", { next: "/" });
   out.restore = {
     status: response.status,

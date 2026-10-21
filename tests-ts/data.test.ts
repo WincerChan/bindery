@@ -1,6 +1,4 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,21 +12,7 @@ afterAll(() => rmSync(root, {
   recursive: true,
   force: true
 }));
-const runPython = promisify(execFile);
-async function python(mode: string, path: string, steps?: Step[]) {
-  const args = ["run", "--no-sync", "python", "scripts/parity/data-reference.py", mode, path];
-  if (steps) {
-    const file = join(path, "steps.json");
-    writeFileSync(file, JSON.stringify(steps));
-    args.push(file);
-  }
-  const {
-    stdout
-  } = await runPython("uv", args, {
-    maxBuffer: 16 * 1024 * 1024
-  });
-  return JSON.parse(stdout);
-}
+const reference = (name: string) => JSON.parse(readFileSync(resolve("tests-ts/fixtures/parity/data", `${name}.json`), "utf8"));
 function fixture(name: string) {
   const path = join(root, name);
   mkdirSync(path, {
@@ -163,20 +147,18 @@ function runSteps(db: BinderyDatabase, lib: LibraryStorage, steps: Step[]): unkn
   });
 }
 const date = "2026-10-19T12:30:00.123456+00:00";
-describe("Python-compatible writable data layer", () => {
+describe("frozen legacy-reference writable data layer", () => {
   it("matches every sqlite_master DDL byte, defaults, indexes and connection pragmas", async () => {
-    const ts = fixture("schema-ts"),
-      py = fixture("schema-py");
+    const ts = fixture("schema-ts");
     ts.db.init();
     ts.db.init();
-    expect(snapshot(ts.db, ts.lib.base)).toEqual(await python("init", py.path));
-    expect(ts.db.get('SELECT "Python literal" AS s')).toEqual({
-      s: "Python literal"
+    expect(snapshot(ts.db, ts.lib.base)).toEqual(reference("init-schema-py"));
+    expect(ts.db.get('SELECT "legacy literal" AS s')).toEqual({
+      s: "legacy literal"
     });
   });
   it("ports storage, metadata, book.json, jobs, sessions, progress and wishes without changing persisted encodings", async () => {
-    const ts = fixture("crud-ts"),
-      py = fixture("crud-py");
+    const ts = fixture("crud-ts");
     ts.db.init();
     const book = {
       title: "书,名:😀",
@@ -365,50 +347,44 @@ describe("Python-compatible writable data layer", () => {
       results: runSteps(ts.db, ts.lib, steps),
       snapshot: snapshot(ts.db, ts.lib.base)
     };
-    expect(actual).toEqual(await python("run", py.path, steps));
+    expect(actual).toEqual(reference("run-crud-py"));
   });
   it("migrates old sessions and wishlist columns and deterministically deduplicates old wishes", async () => {
-    const ts = fixture("legacy-ts"),
-      py = fixture("legacy-py");
+    const ts = fixture("legacy-ts");
     const legacy = `CREATE TABLE sessions(session_id TEXT PRIMARY KEY, created_at TEXT NOT NULL, last_seen TEXT NOT NULL);
       INSERT INTO sessions VALUES ('legacy', 'then', 'then');
       CREATE TABLE wishlist(id TEXT PRIMARY KEY, title TEXT NOT NULL, author TEXT, rating INTEGER, read INTEGER NOT NULL DEFAULT 0, book_status TEXT NOT NULL DEFAULT 'completed', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       INSERT INTO wishlist VALUES ('a','《书 名》','作 者',NULL,1,'completed','1','1'), ('b','书名','作者',5,0,'ongoing','2','2');`;
-    for (const f of [ts, py]) {
-      const conn = connect(f.db.path);
-      conn.exec(legacy);
-      conn.close();
-    }
+    const conn = connect(ts.db.path);
+    conn.exec(legacy);
+    conn.close();
     ts.db.init();
     ts.db.init();
-    expect(snapshot(ts.db, ts.lib.base)).toEqual(await python("init", py.path));
+    expect(snapshot(ts.db, ts.lib.base)).toEqual(reference("init-legacy-py"));
     expect(ts.db.getSession("legacy")?.password_verified_at).toBeNull();
     expect(ts.db.listWishes().map(w => w.id)).toEqual(["b"]);
   });
   it("migrates active/archive meta.json, preserves DB precedence and invalid files, and reads late legacy metadata", async () => {
-    const ts = fixture("meta-ts"),
-      py = fixture("meta-py");
-    for (const f of [ts, py]) {
-      for (const [folder, data] of [["a", {
-        title: "旧书",
-        tags: ["中", "文"]
-      }], ["archive/b", {
-        title: "归档",
-        archived: false
-      }], ["bad", "{"], ["db-wins", {
-        title: "obsolete"
-      }]] as const) {
-        mkdirSync(join(f.lib.base, folder), {
-          recursive: true
-        });
-        writeFileSync(join(f.lib.base, folder, "meta.json"), typeof data === "string" ? data : JSON.stringify(data));
-        writeFileSync(join(f.lib.base, folder, "book.json"), "{}");
-      }
-      f.db.init();
-      f.db.run("INSERT INTO books(book_id,title) VALUES ('db-wins','current')");
+    const ts = fixture("meta-ts");
+    for (const [folder, data] of [["a", {
+      title: "旧书",
+      tags: ["中", "文"]
+    }], ["archive/b", {
+      title: "归档",
+      archived: false
+    }], ["bad", "{"], ["db-wins", {
+      title: "obsolete"
+    }]] as const) {
+      mkdirSync(join(ts.lib.base, folder), {
+        recursive: true
+      });
+      writeFileSync(join(ts.lib.base, folder, "meta.json"), typeof data === "string" ? data : JSON.stringify(data));
+      writeFileSync(join(ts.lib.base, folder, "book.json"), "{}");
     }
+    ts.db.init();
+    ts.db.run("INSERT INTO books(book_id,title) VALUES ('db-wins','current')");
     ts.lib.ensure();
-    expect(snapshot(ts.db, ts.lib.base)).toEqual(await python("migrate", py.path));
+    expect(snapshot(ts.db, ts.lib.base)).toEqual(reference("migrate-meta-py"));
     mkdirSync(join(ts.lib.base, "late"));
     writeFileSync(join(ts.lib.base, "late/meta.json"), '{"title":"晚到"}');
     expect(ts.lib.loadMetadata("late").title).toBe("晚到");
@@ -416,26 +392,19 @@ describe("Python-compatible writable data layer", () => {
     expect(() => ts.lib.loadMetadata("missing")).toThrow(/Metadata not found/);
   });
   it("deduplicates linked wishes by updated/created/id and converts blank links to NULL", async () => {
-    const ts = fixture("linked-ts"),
-      py = fixture("linked-py");
+    const ts = fixture("linked-ts");
     const seed = `DROP INDEX idx_wishlist_library_book_unique;
       INSERT INTO wishlist(id,title,library_book_id,created_at,updated_at) VALUES
       ('a','old','book','1','2'), ('b','keep','book','2','2'), ('c','blank','   ','1','1');`;
     ts.db.init();
     ts.db.withConnection(conn => conn.exec(seed));
     ts.db.init();
-    await python("init", py.path);
-    await python("run", py.path, [{
-      op: "sql",
-      args: [seed]
-    }]);
-    expect(snapshot(ts.db, ts.lib.base)).toEqual(await python("init", py.path));
+    expect(snapshot(ts.db, ts.lib.base)).toEqual(reference("init-linked-py"));
     expect(ts.db.getWishByLibraryBookId("book")?.id).toBe("b");
     expect(ts.db.getWish("c")?.library_book_id).toBeNull();
   });
   it("seeds unread tracking once, includes archived/orphan rows, and preserves SQL pagination totals", async () => {
-    const ts = fixture("seed-ts"),
-      py = fixture("seed-py");
+    const ts = fixture("seed-ts");
     const steps: Step[] = [...["a", "b", "c"].map((id, i): Step => ({
       op: "save_metadata",
       args: [metadataFromDict({
@@ -467,7 +436,7 @@ describe("Python-compatible writable data layer", () => {
       results: runSteps(ts.db, ts.lib, steps),
       snapshot: snapshot(ts.db, ts.lib.base)
     };
-    const expected = await python("run", py.path, steps);
+    const expected = reference("run-seed-py");
     // Only the random UUID primary keys generated by SQLite's seeding differ.
     for (const result of [actual, expected]) {
       const wishes = result.snapshot.tables.wishlist as Record<string, unknown>[];
@@ -477,35 +446,31 @@ describe("Python-compatible writable data layer", () => {
     expect(actual).toEqual(expected);
     expect(actual.snapshot.tables.wishlist).toHaveLength(4);
   });
-  it("opens and updates the same database in Python → TS → Python → TS order", async () => {
+  it("reads and rewrites rows exactly like a frozen legacy reference database", () => {
     const f = fixture("alternating");
-    await python("init", f.path);
+    f.db.init();
     f.lib.saveMetadata(metadataFromDict({
       book_id: "a",
       title: "TS",
       tags: ["中", "文"],
       created_at: date
     }));
-    const result = await python("run", f.path, [{
-      op: "load_metadata",
-      args: ["a"]
-    }, {
-      op: "save_metadata",
-      args: [{
-        book_id: "a",
-        title: "Python",
-        tags: ["after", "TS"],
-        created_at: date
-      }]
-    }]);
-    expect(result.results[0].title).toBe("TS");
+    const result = reference("run-alternating");
+    expect(f.lib.loadMetadata("a").title).toBe(result.results[0].title);
+    expect(f.lib.loadMetadata("a").tags).toEqual(result.results[0].tags);
+    // Apply the exact metadata row legacy wrote back in the recorded run.
+    f.lib.saveMetadata(metadataFromDict({
+      book_id: "a",
+      title: "Python",
+      tags: ["after", "TS"],
+      created_at: date
+    }));
     expect(f.lib.loadMetadata("a").title).toBe("Python");
     f.db.init();
-    expect(snapshot(f.db, f.lib.base)).toEqual(await python("snapshot", f.path));
+    expect(snapshot(f.db, f.lib.base)).toEqual(reference("snapshot-alternating"));
   });
   it("matches malformed/heterogeneous tags and legacy read-status decoding", async () => {
-    const ts = fixture("decoding-ts"),
-      py = fixture("decoding-py");
+    const ts = fixture("decoding-ts");
     ts.db.init();
     const steps: Step[] = [{
       op: "save_metadata",
@@ -554,21 +519,26 @@ describe("Python-compatible writable data layer", () => {
     expect({
       results: runSteps(ts.db, ts.lib, fullSteps),
       snapshot: snapshot(ts.db, ts.lib.base)
-    }).toEqual(await python("run", py.path, fullSteps));
+    }).toEqual(reference("run-decoding-py"));
   });
-  it("retains rows and schema when opening a read-only backup of the existing database", async () => {
-    if (!existsSync(resolve("library/bindery.db"))) return;
-    const f = fixture("existing-backup"),
-      py = fixture("existing-backup-py");
-    await python("copy-existing", f.path);
-    cpSync(f.db.path, py.db.path);
+  it("keeps every existing row when a local library database is migrated in place", () => {
+    const source = resolve("library/bindery.db");
+    if (!existsSync(source)) return;
+    const f = fixture("existing-backup");
+    cpSync(source, f.db.path);
+    const counts = () => {
+      const value = snapshot(f.db, f.lib.base);
+      return Object.fromEntries(Object.entries(value.tables).map(([table, rows]) => [table, (rows as unknown[]).length]));
+    };
+    const before = counts();
+    f.db.init();
+    const once = counts();
+    expect(once).toEqual(before);
     const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)])) : value;
     const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
+    const stable = digest(snapshot(f.db, f.lib.base));
     f.db.init();
-    const expected = await python("init", py.path);
-    expect(digest(snapshot(f.db, f.lib.base))).toBe(digest(expected));
-    await python("init", f.path);
-    expect(digest(snapshot(f.db, f.lib.base))).toBe(digest(expected));
+    expect(digest(snapshot(f.db, f.lib.base))).toBe(stable);
   });
   it("ports file layout, cover sniffing, archive replacement and collision-safe restore", () => {
     const f = fixture("files");

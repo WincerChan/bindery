@@ -1,7 +1,7 @@
 import { openSync, readSync, closeSync, writeSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { metadataFromDict, type Book, type Job, type Metadata, type Volume } from "../../core/models";
-import { strip } from "../../core/python";
+import { strip } from "../../core/text";
 import { bookFromDict } from "../../core/models";
 import { buildEpub, writeEpubFromSectionStream, extractCover, extractEpubMetadata, stripWebpAssetsAndRefs, updateEpubMetadata, type StreamBuildSection } from "../../core/epub";
 import type { ParsedBookSection } from "../../core/parsing";

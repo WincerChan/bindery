@@ -6,7 +6,7 @@ import { ReaderFrames } from "./frame";
 import { ProgressWriter } from "./progress";
 
 type Panel = "toc" | "search" | "settings";
-// Python's controls have narrower limits than its persisted-settings validator.
+// the legacy implementation's controls have narrower limits than its persisted-settings validator.
 const backgrounds = [{ value: "book", label: "书籍" }, { value: "slate", label: "灰白" }, { value: "paper", label: "纸张" }, { value: "sand", label: "砂岩" }, { value: "mint", label: "薄荷" }] as const;
 const lineHeights = [1.55, 1.65, 1.75, 1.85, 1.95, 2.05];
 
@@ -72,7 +72,7 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
         event.preventDefault(); controller?.turn(-1);
       } else controller?.key(event);
     };
-    // Backspace is also a Python shortcut inside the sandboxed chapter document.
+    // Backspace is also a legacy shortcut inside the sandboxed chapter document.
     const removeFrameKeys = [a, b, c].map(frame => {
       let chapter: Document | null = null;
       const backspace = (event: KeyboardEvent) => { if (event.key === "Backspace") key(event); };

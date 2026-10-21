@@ -138,7 +138,7 @@ it("switches mutually exclusive popovers and closes by toggle, outside pointer, 
   documentListeners.get("focusin")!({ target: button("设置") } as unknown as Event); mounted!.flush(); expect(search.open).toBe(false);
 });
 
-it("persists background, brightness and every custom control with Python's steps and bounds", () => {
+it("persists background, brightness and every custom control with the legacy implementation's steps and bounds", () => {
   mount(); click("设置"); expect(all(css("reader-settings"), "select")).toHaveLength(0);
   click("纸张"); click("暗色"); click("自定义");
   expect(all(root, "article")[0].getAttribute("data-background")).toBe("paper");

@@ -8,7 +8,7 @@ function columns(conn: DatabaseSync, table: string): Set<string> {
 }
 export function initSchema(conn: DatabaseSync): void {
   initKindleSchema(conn);
-  // Python executes CREATE TABLE IF NOT EXISTS (never rebuilds existing tables).
+  // legacy executes CREATE TABLE IF NOT EXISTS (never rebuilds existing tables).
   for (const sql of BASE_TABLES) conn.exec(sql);
   const sessionColumns = columns(conn, "sessions");
   if (!sessionColumns.has("auth_method")) conn.exec("ALTER TABLE sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password'");

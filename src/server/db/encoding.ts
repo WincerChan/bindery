@@ -1,7 +1,7 @@
-import { strip } from "../../core/python";
+import { strip } from "../../core/text";
 
-// Python's json.dumps(..., ensure_ascii=False) uses spaces after both separators.
-export function pythonJson(value: unknown, indent?: number): string {
+// the legacy implementation's json.dumps(..., ensure_ascii=False) uses spaces after both separators.
+export function compatJson(value: unknown, indent?: number): string {
   const json = JSON.stringify(value, null, indent);
   if (indent) return json;
   let result = "",
@@ -15,16 +15,16 @@ export function pythonJson(value: unknown, indent?: number): string {
   }
   return result;
 }
-export function pythonString(value: unknown): string {
+export function compatString(value: unknown): string {
   if (value === null) return "None";
   if (value === true) return "True";
   if (value === false) return "False";
-  if (Array.isArray(value)) return `[${value.map(pythonRepr).join(", ")}]`;
-  if (value && typeof value === "object") return `{${Object.entries(value).map(([k, v]) => `${pythonRepr(k)}: ${pythonRepr(v)}`).join(", ")}}`;
+  if (Array.isArray(value)) return `[${value.map(compatRepr).join(", ")}]`;
+  if (value && typeof value === "object") return `{${Object.entries(value).map(([k, v]) => `${compatRepr(k)}: ${compatRepr(v)}`).join(", ")}}`;
   return String(value);
 }
-function pythonRepr(value: unknown): string {
-  if (typeof value !== "string") return pythonString(value);
+function compatRepr(value: unknown): string {
+  if (typeof value !== "string") return compatString(value);
   const quote = value.includes("'") && !value.includes('"') ? '"' : "'";
   let result = quote;
   for (const char of value) {
@@ -39,7 +39,7 @@ function pythonRepr(value: unknown): string {
 export function readTags(raw: unknown): string[] {
   try {
     const tags: unknown = JSON.parse(typeof raw === "string" && raw ? raw : "[]");
-    return Array.isArray(tags) ? tags.map(pythonString).filter(tag => strip(tag)) : [];
+    return Array.isArray(tags) ? tags.map(compatString).filter(tag => strip(tag)) : [];
   } catch {
     return [];
   }

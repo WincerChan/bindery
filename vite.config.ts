@@ -18,7 +18,7 @@ export default defineConfig({
   environments: {
     ssr: {
       build: {
-        // Keep src/server and dist/server at the same depth for Python path defaults.
+        // Keep src/server and dist/server at the same depth for legacy path defaults.
         rollupOptions: { output: { chunkFileNames: "[name]-[hash].js" } },
       },
     },
