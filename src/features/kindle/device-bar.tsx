@@ -14,8 +14,7 @@ export function KindleDeviceBar() {
   return <section aria-label="当前设备" class="kindle-device-bar" data-kindle-device-bar>
     <div class="kindle-device-identity">
       <h1 class="page-title">{k.ready() && k.state().device ? k.state().device!.identity.name : "设备"}</h1>
-      <p class={`kindle-status ${k.ready() && k.state().status === "granted" ? "is-connected" : ""}`} role="status"><span aria-hidden="true" class={`kindle-dot ${k.ready() && k.state().status === "granted" ? "connected" : ""}`} />{status()}<Show when={k.ready() && k.state().checkedAt !== null}><span>· {k.state().status === "disconnected" ? "最后成功识别：" : ""}{ago()}</span></Show></p>
-      <p class="kindle-device-meta kindle-mono">{k.ready() && k.state().device ? `${modelLabel(k.state().device!.identity.model)} · 固件 ${k.state().device!.firmware || "未读取"} · 由 .bindery/device.json 识别` : "通过 USB 连接设备并选择 Kindle 根目录"}</p>
+      <p class="page-description kindle-status" role="status"><span aria-hidden="true" class={`kindle-dot ${k.ready() && k.state().status === "granted" ? "connected" : ""}`} />{status()}<Show when={k.ready() && k.state().checkedAt !== null}> · {k.state().status === "disconnected" ? "最后成功识别：" : ""}{ago()}</Show> · {k.ready() && k.state().device ? `${modelLabel(k.state().device!.identity.model)} · 固件 ${k.state().device!.firmware || "未读取"} · 由 .bindery/device.json 识别` : "通过 USB 连接设备并选择 Kindle 根目录"}</p>
       <Show when={k.ready() && !k.supported()}><p class="kindle-small">请在 Windows 的 Edge 或 Chrome 桌面版中通过 HTTPS 或 localhost 打开。</p></Show>
       <Show when={k.ready() && k.state().status === "denied"}><p class="kindle-small">点击授权重试，或在地址栏的站点设置中恢复文件访问权限，再重新选择 Kindle 目录。</p></Show>
       <Show when={k.ready() && k.state().message}><p class="kindle-small">{k.state().message}</p></Show>

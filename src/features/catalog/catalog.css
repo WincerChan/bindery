@@ -1,4 +1,4 @@
-.catalog-page h1,.catalog-page h2,.catalog-page h3,.catalog-editor h2,.catalog-editor h3{margin:0 0 12px;font-weight:650}
+.catalog-page h2,.catalog-page h3,.catalog-editor h2,.catalog-editor h3{margin:0 0 12px;font-weight:650}
 .catalog-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px}
 .catalog-heading h1{font-size:28px}.catalog-heading h2{font-size:20px}.catalog-heading small,.catalog-template-list small{font-size:12px;color:var(--color-ink-3)}
 .catalog-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}.catalog-actions [aria-current=page]{border-color:var(--color-accent);color:var(--color-accent)}

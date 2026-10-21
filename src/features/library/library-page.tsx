@@ -142,10 +142,10 @@ export function LibraryPage(props: {
     finally { setBusy(false); }
   }
   return <div class="library-page" ref={page}>
-    <PageHeader title="书库" actions={<Link href="/ingest" class="btn btn-primary">+ 入库</Link>} />
+    <PageHeader title="书库" description={<>{archived() ? "已归档" : "共"} <span data-library-count>{props.data.total_books}</span> 册{!archived() && props.data.read_filter === "unread" ? " · 仅看未读" : ""}</>} actions={<Link href="/ingest" class="btn btn-primary">+ 入库</Link>} />
     <nav class="library-shelves" aria-label="书架">
-      <Link href={libraryReturnTo({ ...props.data, scope: "active", read_filter: "all", page: 1 })} aria-current={archived() ? undefined : "page"}>在库<Show when={!archived()}> <span data-library-count>{props.data.total_books}</span></Show></Link>
-      <Link data-scope-toggle href={libraryReturnTo({ ...props.data, scope: "archived", read_filter: "all", page: 1 })} aria-current={archived() ? "page" : undefined}>已归档<Show when={archived()}> <span data-library-count>{props.data.total_books}</span></Show></Link>
+      <Link href={libraryReturnTo({ ...props.data, scope: "active", read_filter: "all", page: 1 })} aria-current={archived() ? undefined : "page"}>在库</Link>
+      <Link data-scope-toggle href={libraryReturnTo({ ...props.data, scope: "archived", read_filter: "all", page: 1 })} aria-current={archived() ? "page" : undefined}>已归档</Link>
     </nav>
     <form id="library-controls" class="library-controls" action="/" method="get" hidden={selecting()} onSubmit={event => { event.preventDefault(); void search({}); }}>
       <TextField class="library-search search-field" label="搜索书名、作者" labelHidden type="search" name="q" placeholder="搜索书名、作者" value={query()} onInput={event => { setQuery(event.currentTarget.value); clearTimeout(timer); timer = setTimeout(() => void search({}), 400); }} />

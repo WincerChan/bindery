@@ -139,9 +139,9 @@ it("keeps the device identity hierarchy and the complete books toolbar/table in 
   const bar = elements(root, "section", "data-kindle-device-bar")[0]!;
   expect(elements(bar, "h1").map(node => node.textContent)).toEqual(["设备"]);
   const identity = withClass(bar, "kindle-device-identity");
-  expect(Array.from(identity.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["h1", "p", "p"]);
+  expect(Array.from(identity.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["h1", "p"]);
   expect(withClass(bar, "kindle-status").getAttribute("role")).toBe("status");
-  expect(withClass(bar, "kindle-device-meta").className).toContain("kindle-mono");
+  expect(withClass(bar, "kindle-status").className).toContain("page-description");
   expect(bar.textContent).not.toContain("我的 Paperwhite");
 
   const toolbar = withClass(root, "kindle-books-toolbar");

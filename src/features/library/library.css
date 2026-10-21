@@ -2,7 +2,6 @@
 .library-shelves { display: flex; gap: 24px; border-bottom: 1px solid var(--color-line); }
 .library-shelves a { padding: 10px 0; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--color-ink-3); text-decoration: none; }
 .library-shelves a[aria-current="page"] { border-bottom-color: var(--color-ink); color: var(--color-ink); font-weight: 600; }
-.library-shelves [data-library-count] { color: var(--color-ink-3); font-weight: 400; }
 .library-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; padding: 16px 0; margin-bottom: 16px; }
 .library-controls .library-search { flex: 0 1 420px; min-width: 200px; }
 .library-tools { display: flex; align-items: center; gap: 16px; margin-left: auto; }
