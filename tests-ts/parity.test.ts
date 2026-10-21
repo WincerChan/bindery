@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { bookFromDict, bookToDict, metadataFromDict } from "../src/core/models";
 import type { BookData, Metadata } from "../src/core/models";
@@ -110,7 +110,103 @@ const reference = JSON.parse(
     ),
   ).toString("utf8"),
 ) as Reference;
-const bytes = (file: string) => new Uint8Array(readFileSync(resolve(inputs, file)));
+
+interface LocalCache {
+  version: number;
+  source: {
+    bindery_db_sha256: string;
+    books: { path: string; size: number; sha256: string }[];
+  };
+  library_copies: number;
+  patches: { input: string; inspection: any; variants: any[] }[];
+  epubs: Record<string, { names: any; sha256: string[] }>;
+  blobs: Record<string, any>;
+}
+const localRoot = resolve(process.env.BINDERY_LOCAL_PARITY_DIR || ".parity-local");
+const libraryRoot = resolve("library");
+const libraryExists = existsSync(libraryRoot);
+const digestBytes = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+function localEpubs(): { path: string; size: number }[] {
+  if (!libraryExists) return [];
+  return readdirSync(libraryRoot, { recursive: true, withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith(".epub"))
+    .map(entry => {
+      const path = join(entry.parentPath, entry.name);
+      return { path: path.slice(libraryRoot.length + 1), size: statSync(path).size };
+    })
+    .sort((a, b) => a.size - b.size || a.path.localeCompare(b.path));
+}
+const localBooks = localEpubs();
+let localSourceBooks: string[] = [];
+let localSkipReason: string | null = null;
+if (libraryExists) {
+  const cachePath = join(localRoot, "core", "reference.json.gz");
+  let cache: LocalCache | null = null;
+  if (!existsSync(cachePath)) localSkipReason = `Local Python reference missing: ${cachePath}`;
+  else {
+    try { cache = JSON.parse(gunzipSync(readFileSync(cachePath)).toString("utf8")) as LocalCache; }
+    catch (error) { localSkipReason = `Cannot read local Python reference ${cachePath}: ${String(error)}`; }
+  }
+  if (cache) {
+    const dbPath = join(libraryRoot, "bindery.db");
+    const dbDigest = existsSync(dbPath) ? digestBytes(readFileSync(dbPath)) : "";
+    const recorded = cache.source.books;
+    const booksMatch = localBooks.length >= recorded.length && recorded.every((book, index) => {
+      const current = localBooks[index];
+      return current.path === book.path && current.size === book.size && digestBytes(readFileSync(join(libraryRoot, book.path))) === book.sha256;
+    });
+    if (cache.version !== 1) localSkipReason = `Unsupported local Python reference version in ${cachePath}`;
+    else if (cache.patches.length !== recorded.length) localSkipReason = `Local Python reference in ${cachePath} is incomplete`;
+    else if (dbDigest !== cache.source.bindery_db_sha256) localSkipReason = `Local library/bindery.db changed since ${cachePath} was recorded`;
+    else if (!booksMatch) localSkipReason = `Local library EPUB selection changed since ${cachePath} was recorded`;
+    else {
+      const deref = (value: unknown) => value && typeof value === "object" && "$blob" in value ? cache!.blobs[String((value as { $blob: string }).$blob)] : value;
+      const expandInspection = (inspection: any): Inspection => ({
+        ...inspection,
+        sections: deref(inspection.sections),
+        documents: deref(inspection.documents),
+        cover: deref(inspection.cover),
+      });
+      const patches = cache.patches.map(patch => ({
+        ...patch,
+        inspection: expandInspection(patch.inspection),
+        variants: patch.variants.map(variant => ({ ...variant, inspection: expandInspection(variant.inspection) })),
+      }));
+      const epubs = Object.fromEntries(Object.entries(cache.epubs).map(([file, value]) => {
+        const names = deref(value.names) as string[];
+        return [file, names.map((name, index) => ({ name, sha256: value.sha256[index] }))];
+      }));
+      reference.patches.push(...patches);
+      Object.assign(reference.epubs, epubs);
+      reference.library_copies = cache.library_copies;
+      localSourceBooks = recorded.map(book => join(libraryRoot, book.path));
+    }
+  }
+  if (localSkipReason) {
+    console.warn(`[parity] Skipping local library EPUB comparisons: ${localSkipReason}`);
+    const variants = ["metadata", "css", "clear-overlay", "strip-css", "replace-css", "cover", "combined", "repeat-css", "strip-webp", "normalize"];
+    const placeholder = () => ({
+      metadata: {} as Inspection["metadata"],
+      sections: [],
+      documents: [],
+      cover: null,
+      loaded: [],
+    });
+    reference.patches.push(...[0, 1].map(index => ({
+      input: `input-library-${index}.epub`,
+      inspection: placeholder(),
+      variants: variants.map(kind => ({ kind, file: `input-library-${index}-${kind}.epub`, inspection: placeholder() })),
+    })));
+  }
+}
+const bytes = (file: string) => {
+  if (file.startsWith("input-library-")) {
+    const index = Number(/^input-library-(\d+)\.epub$/.exec(file)?.[1]);
+    if (!localSourceBooks[index]) throw new Error(`Missing local library source for ${file}`);
+    return new Uint8Array(readFileSync(localSourceBooks[index]));
+  }
+  return new Uint8Array(readFileSync(resolve(inputs, file)));
+};
 const coverAsset = (name: string | null | undefined) =>
   name
     ? { name, data: new Uint8Array(readFileSync(resolve(fixtures, name))) }
@@ -261,11 +357,17 @@ for (const fixture of reference.cases)
       });
   });
 for (const patch of reference.patches)
-  describe(`EPUB ${patch.input}`, () => {
-    it("reads original metadata, cover, TOC, spine documents and preview", () =>
+  describe(`EPUB ${patch.input}${patch.input.startsWith("input-library-") && localSkipReason ? ` (skipped: ${localSkipReason})` : ""}`, () => {
+    const local = patch.input.startsWith("input-library-");
+    const run = (name: string, fn: () => void) =>
+      it(name, (ctx) => {
+        if (local && localSkipReason) { console.warn(`[parity] ${localSkipReason}`); ctx.skip(localSkipReason); return; }
+        fn();
+      });
+    run("reads original metadata, cover, TOC, spine documents and preview", () =>
       compareInspection(bytes(patch.input), patch.inspection));
     for (const variant of patch.variants)
-      it(variant.kind, () => {
+      run(variant.kind, () => {
         const input = bytes(patch.input);
         let actual: Uint8Array;
         if (variant.kind === "strip-webp" || variant.kind === "normalize") {

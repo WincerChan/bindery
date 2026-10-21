@@ -14,9 +14,9 @@
 - `auth.test.ts`：保存 Python `py_webauthn` 验证过的 9 个 COSE 算法的 passkey 行、私钥、注册密钥、Argon2 哈希、Python 生成的 session/challenge。测试用 Node `crypto` 复现 Python 参考脚本的 WebAuthn 消息；`auth/reference.json` 约 24 KB。
 - `reader-frame.test.ts`：`templates/preview.html` 被删除前，把其中的 `<script>` 与背景按钮提取为 `reader/preview-template.html`（约 63 KB），测试仍在 VM 中执行这段参考 JS。
 
-固定数据目录：`tests-ts/fixtures/parity/`，实际文件内容合计 **374,874 字节（约 366 KiB；`du` 528K）**。来源提交、生成日期（2026-10-21）、Python 环境、逐项生成命令、规范化规则与体积都写在 `tests-ts/fixtures/parity/README.md`。
+固定数据目录：`tests-ts/fixtures/parity/`，实际文件内容合计 **416,359 字节（约 407 KiB；`du` 572K）**（含评审后补回的 `data/alternating-replay.json`）。来源提交、生成日期（2026-10-21）、Python 环境、逐项生成命令、规范化规则与体积都写在 `tests-ts/fixtures/parity/README.md`。
 
-没有把真实书库内容提交进仓库。核心 parity 中原来从 `library/` 动态发现的两本书对应的 patch 用例没有进入固定数据（`input-library-*` 被移除，`library_copies=0`）；`data.test.ts` 的本地真实数据库备份用例改为不依赖 Python 的原地迁移/幂等检查。
+没有把真实书库内容提交进仓库。评审后已用 `.parity-local/` 私有缓存补回核心 parity 中两本最小本地 EPUB 的 patch/inspection 用例，以及 `data.test.ts` 的真实数据库备份用例；缓存内容、生成命令和三种 library 情况见下文。
 
 ### 2. 删除 Python 实现
 
@@ -157,13 +157,64 @@ GET /book/.../download: 200 application/epub+zip
 
 验证后已停止并删除容器；`podman ps -a` 中无残留容器。
 
+## 评审后补回：交替读写与本地书库对照
+
+补回提交：`:white_check_mark: test(parity): restore interleaved and local-library legacy checks`。
+
+### 1. Python → TS → Python → TS 交替读写
+
+新增 `tests-ts/fixtures/parity/data/alternating-replay.json`（41,272 字节），由基线 `e38de41` 的真实 Python 运行原用例的三个步骤生成：
+
+1. `data-reference.py init ROOT`：记录执行前/后的 `databaseState`（SQL dump）与 `fileState`；
+2. TS 写入 `{ title: "TS", tags: ["中","文"] }` 后，`data-reference.py run ROOT steps.json`：记录输入步骤、执行前/后状态和结果；
+3. TS `BinderyDatabase.init()` 后，`data-reference.py snapshot ROOT`：记录执行前/后状态和结果。
+
+测试 `opens and updates the same database in Python → TS → Python → TS order` 现在对每个步骤：
+
+- 先断言当前 TS 数据库/文件状态等于录制的 Python 执行前状态；
+- 断言步骤参数等于录制的输入；
+- 恢复录制的 Python 执行后状态；
+- 继续原有 TS 断言（`result.results[0].title === "TS"`、TS 读回 `"Python"`、最终 `snapshot` 与 Python 一致）。
+
+`databaseState`/`fileState`/`restoreDatabase`/`restoreFiles` 在 `tests-ts/support/legacy-state.ts`。没有用 TS 输出反填参照。
+
+### 2. 真实书库数据库备份
+
+缓存：`$BINDERY_LOCAL_PARITY_DIR/data/existing-backup.json`，默认 `/workspaces/bindery/.parity-local/data/existing-backup.json`（本次 86,819 字节）。由基线 Python 分别对：
+
+- 原始 `library/bindery.db` 副本执行 `data-reference.py init`；
+- 同一副本先由当前 TS `BinderyDatabase.init()` 初始化，再执行 Python `init`；
+
+录制执行前/后的 SQL 状态、文件状态和 Python `snapshot` 结果。测试用源数据库 SHA-256 校验缓存；运行时把 `library/bindery.db` 复制到临时 fixture，先 `f.db.init()`，再用录制的 Python 原始状态比较，最后重放“TS 初始化后 Python init”步骤并比较。断言与基线一致。缓存中不复制数据库。
+
+### 3. 核心 parity 的本地两个最小 EPUB
+
+缓存：`$BINDERY_LOCAL_PARITY_DIR/core/reference.json.gz`，默认 `/workspaces/bindery/.parity-local/core/reference.json.gz`（本次 1,529,187 字节）。由基线 `e38de41` 的 `scripts/parity/reference.py` 在临时视图中挂载只读 `/workspaces/bindery/library` 生成；提取 `input-library-*` 的 2 个 patch、20 个 variant、`epubs` 成员摘要，并记录：
+
+- `library/bindery.db` 的 SHA-256；
+- 按大小/相对路径排序的两个最小 EPUB 的相对路径、大小、SHA-256。
+
+缓存只保存 Python 输出与指纹，不复制书或数据库。测试在 `library/` 存在时选择同样的两个最小 EPUB；指纹匹配时追加 22 个本地用例（2 个 inspection + 20 个 variant），断言强度与基线一致；缓存缺失、不可读或指纹不匹配时用 `ctx.skip(reason)` 跳过这 22 个用例并输出清楚的 `console.warn`/测试名原因，绝不让整个文件失败。没有 `library/` 时不创建这些用例，行为与基线一致。
+
+缓存生成、提取和三种 library 情况见 `scripts/parity-local.md`。`.parity-local/` 已加入 `.gitignore` 与 `.dockerignore`。
+
+### 补回后的验证结果
+
+| 情况 | 测试结果 |
+| --- | --- |
+| 无 `library/` | 68 个测试文件，1247 项通过 |
+| `library -> /workspaces/bindery/library` + `BINDERY_LOCAL_PARITY_DIR=/workspaces/bindery/.parity-local` | 68 个测试文件，1276 项通过（含 7 项既有本地库 archive-writer、22 项核心本地 EPUB、1 项真实数据库备份） |
+| `library -> /tmp/.../lib-probe2`（`bindery.db` 不同）+ 同一缓存 | 68 个测试文件，1253 项通过、23 项跳过（22 项核心本地 EPUB + 1 项真实数据库备份），无失败 |
+
+无 `library/` 时与基线的 1247 项测试名单逐项对比：68 个文件、每文件项数、总项数完全一致；161 个名称有措辞差异（前一次全局 `Python→legacy` 改名），将 legacy/Python 词形归一后仍有 31 处描述措辞不同，没有删除、新增或跳过用例。有真实 `library/` 时额外出现基线已有的 7 项 `archive-writer` 本地 EPUB 用例，以及本次补回的 23 项。
+
 ## 未完成或无法验证
 
 - GitHub Actions 没有在本环境实际执行（无仓库 runner）；工作流只做了静态编写和依赖关系检查。
 - 没有在真实 Kindle / Windows Chrome/Edge 上重复实机验收；本阶段只验证服务端数据与容器页面。
 - Podman 默认 OCI 格式忽略 HEALTHCHECK 元数据；未额外用 Docker 构建验证 HEALTHCHECK。
-- `data.test.ts` 的“真实书库数据库备份”用例：原用例依赖本地 `library/bindery.db` 和 Python 快照；由于不能提交真实书库内容，改为 TS 原地迁移后行数不丢失、二次 `init` 快照稳定。它不再与 Python 快照逐字节比较。
-- 核心 parity 中从真实书库动态发现的两本书对应 patch 用例未纳入固定数据；外部 EPUB、合成书与所有模板/主题变体仍完整对照。
+- `data.test.ts` 的真实书库数据库备份用例已恢复，但依赖本地 `.parity-local` 缓存；缓存缺失或书库变化时按设计跳过。
+- 核心 parity 的 22 个本地书库 patch/variant 用例已恢复，但依赖本地 `.parity-local` 缓存；外部 EPUB、合成书与所有模板/主题变体继续使用提交内的固定数据。
 - `auth.test.ts` 中“Python 验证 TS 注册公钥”这一步改为用 `@simplewebauthn/server` 的独立 verify 调用验证冻结私钥签出的断言；冻结的 COSE/公钥与 passkey 行本身来自 Python `py_webauthn`。
 - 未验证真实反向代理（Nginx/Caddy）后的 passkey；代码层面确认 WebAuthn origin/RP 与 Cookie `Secure` 来自 `BINDERY_PUBLIC_ORIGIN`，不依赖 `--proxy-headers` 或 `X-Forwarded-*`。
 

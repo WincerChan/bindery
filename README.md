@@ -29,6 +29,8 @@ pnpm start      # 运行 dist 生产构建，默认 0.0.0.0:3000
 
 `pnpm start` 默认读取工作目录的 `.env`（真实环境变量优先）。生产容器使用 `PORT=5670`（见下方 Containerfile）。
 
+依赖真实书库的两组历史对照（真实数据库备份、两个最小本地 EPUB 的 patch/inspection）使用 gitignored 的 `.parity-local/` 缓存；生成方法与无缓存时的跳过行为见 `scripts/parity-local.md`。
+
 主要源码目录：
 
 - `src/core/`：解析、规则、主题、EPUB、ZIP 等纯 TS 核心。

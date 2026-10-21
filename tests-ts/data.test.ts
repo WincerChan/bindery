@@ -1,18 +1,29 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { BinderyDatabase, connect } from "../src/server/db";
 import { LibraryStorage, bookDir, loadBook, saveBook, saveCoverBytes, writeSourceFile } from "../src/server/storage";
 import { bookFromDict, bookToDict, metadataFromDict, type Job, type Wish } from "../src/core/models";
 import { writableDatabasePath } from "../src/server/database";
+import { databaseState, fileState, restoreDatabase, restoreFiles, type FileState } from "./support/legacy-state";
 const root = mkdtempSync(join(tmpdir(), "bindery-data-"));
 afterAll(() => rmSync(root, {
   recursive: true,
   force: true
 }));
 const reference = (name: string) => JSON.parse(readFileSync(resolve("tests-ts/fixtures/parity/data", `${name}.json`), "utf8"));
+interface RecordedState { sql: string; files: FileState }
+interface RecordedStep { mode: string; input: unknown; before: RecordedState; after: RecordedState; value: unknown }
+const alternatingReplay = reference("alternating-replay") as { steps: RecordedStep[] };
+function replayState(path: string, step: RecordedStep, input?: unknown): unknown {
+  if (input !== undefined) expect(step.input).toEqual(input);
+  expect({ sql: databaseState(join(path, "data.db")), files: fileState(join(path, "library")) }).toEqual(step.before);
+  restoreDatabase(join(path, "data.db"), step.after.sql);
+  restoreFiles(join(path, "library"), step.after.files);
+  return step.value;
+}
 function fixture(name: string) {
   const path = join(root, name);
   mkdirSync(path, {
@@ -446,28 +457,32 @@ describe("frozen legacy-reference writable data layer", () => {
     expect(actual).toEqual(expected);
     expect(actual.snapshot.tables.wishlist).toHaveLength(4);
   });
-  it("reads and rewrites rows exactly like a frozen legacy reference database", () => {
+  it("opens and updates the same database in Python → TS → Python → TS order", () => {
     const f = fixture("alternating");
-    f.db.init();
+    replayState(f.path, alternatingReplay.steps[0]);
     f.lib.saveMetadata(metadataFromDict({
       book_id: "a",
       title: "TS",
       tags: ["中", "文"],
       created_at: date
     }));
-    const result = reference("run-alternating");
-    expect(f.lib.loadMetadata("a").title).toBe(result.results[0].title);
-    expect(f.lib.loadMetadata("a").tags).toEqual(result.results[0].tags);
-    // Apply the exact metadata row legacy wrote back in the recorded run.
-    f.lib.saveMetadata(metadataFromDict({
-      book_id: "a",
-      title: "Python",
-      tags: ["after", "TS"],
-      created_at: date
-    }));
+    const steps = [{
+      op: "load_metadata",
+      args: ["a"]
+    }, {
+      op: "save_metadata",
+      args: [{
+        book_id: "a",
+        title: "Python",
+        tags: ["after", "TS"],
+        created_at: date
+      }]
+    }];
+    const result = replayState(f.path, alternatingReplay.steps[1], steps) as { results: { title: string }[] };
+    expect(result.results[0].title).toBe("TS");
     expect(f.lib.loadMetadata("a").title).toBe("Python");
     f.db.init();
-    expect(snapshot(f.db, f.lib.base)).toEqual(reference("snapshot-alternating"));
+    expect(snapshot(f.db, f.lib.base)).toEqual(replayState(f.path, alternatingReplay.steps[2]));
   });
   it("matches malformed/heterogeneous tags and legacy read-status decoding", async () => {
     const ts = fixture("decoding-ts");
@@ -521,24 +536,33 @@ describe("frozen legacy-reference writable data layer", () => {
       snapshot: snapshot(ts.db, ts.lib.base)
     }).toEqual(reference("run-decoding-py"));
   });
-  it("keeps every existing row when a local library database is migrated in place", () => {
+  it("retains rows and schema when opening a read-only backup of the existing database", (ctx) => {
     const source = resolve("library/bindery.db");
     if (!existsSync(source)) return;
-    const f = fixture("existing-backup");
-    cpSync(source, f.db.path);
-    const counts = () => {
-      const value = snapshot(f.db, f.lib.base);
-      return Object.fromEntries(Object.entries(value.tables).map(([table, rows]) => [table, (rows as unknown[]).length]));
-    };
-    const before = counts();
+    const localRoot = resolve(process.env.BINDERY_LOCAL_PARITY_DIR || ".parity-local");
+    const cachePath = join(localRoot, "data", "existing-backup.json");
+    let reason: string | null = null;
+    let recorded: { init_raw: RecordedStep; init_after_ts: RecordedStep } | null = null;
+    if (!existsSync(cachePath)) reason = `Local Python reference missing: ${cachePath}`;
+    else {
+      try {
+        const cache = JSON.parse(readFileSync(cachePath, "utf8")) as { source?: { bindery_db_sha256?: string }; init_raw: RecordedStep; init_after_ts: RecordedStep };
+        const digest = createHash("sha256").update(readFileSync(source)).digest("hex");
+        if (digest !== cache.source?.bindery_db_sha256) reason = `Local library/bindery.db changed since ${cachePath} was recorded`;
+        else recorded = cache;
+      } catch (error) { reason = `Cannot read local Python reference ${cachePath}: ${String(error)}`; }
+    }
+    if (reason || !recorded) { console.warn(`[data parity] ${reason}; skipping real-library database check`); ctx.skip(reason || "Local reference unavailable"); return; }
+    const f = fixture("existing-backup"), py = fixture("existing-backup-py");
+    copyFileSync(source, f.db.path);
+    copyFileSync(f.db.path, py.db.path);
     f.db.init();
-    const once = counts();
-    expect(once).toEqual(before);
+    const expected = replayState(py.path, recorded.init_raw);
     const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)])) : value;
     const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
-    const stable = digest(snapshot(f.db, f.lib.base));
-    f.db.init();
-    expect(digest(snapshot(f.db, f.lib.base))).toBe(stable);
+    expect(digest(snapshot(f.db, f.lib.base))).toBe(digest(expected));
+    const final = replayState(f.path, recorded.init_after_ts);
+    expect(digest(snapshot(f.db, f.lib.base))).toBe(digest(final));
   });
   it("ports file layout, cover sniffing, archive replacement and collision-safe restore", () => {
     const f = fixture("files");

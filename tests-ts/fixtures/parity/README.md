@@ -33,7 +33,7 @@ scripts were also removed with the Python implementation.
 | `foundation/*.json` | Build each TS fixture, then `python scripts/parity/foundation-reference.py BASE DB ID`. The absolute temp path becomes `<library>/<id>` and the cover mtime becomes `<mtime>`. |
 | `books-flow.json` | `python tests-ts/fixtures/books/reference.py flow ROOT`. |
 | `metadata/reference.json` | `python tests-ts/fixtures/books/reference.py {lookup,scores,css} ROOT` with the same fixtures/cases as the tests. |
-| `data/*.json` | The unchanged Python data oracle (`scripts/parity/data-reference.py MODE PATH [steps.json]`) was run from the real `data.test.ts` setup. Random wish ids from the seeding case are normalized by the test before comparison. The real-library backup case was not captured because real library content must not be committed. |
+| `data/*.json` | The unchanged Python data oracle (`scripts/parity/data-reference.py MODE PATH [steps.json]`) was run from the real `data.test.ts` setup. Random wish ids from the seeding case are normalized by the test before comparison. `data/alternating-replay.json` records the Python → TS → Python → TS state transitions, inputs and results for the interleaved database test. |
 | `auth/reference.json` | `python scripts/parity/auth-reference.py {hashes,enroll-python,registration,challenge,session} ROOT ...` with fixed challenges. Tests reproduce the oracle's WebAuthn messages from the stored keys for the dynamic challenges they generate. |
 | `reader/preview-template.html` | The button markup and `<script>` block extracted from `templates/preview.html` at the same commit, kept so the reader settings/clamp test can still execute the legacy reference JS. |
 
@@ -54,7 +54,11 @@ are not normalized.
 
 ## Size
 
-The whole directory is about 375 KB of file content (~528 KB on disk),
+The whole directory is about 406 KB of file content (~572 KB on disk),
 dominated by the 11 small input EPUBs (~28 KB total), the recorded data-layer
-snapshots (~152 KB), the legacy reader template script (~63 KB) and the
-gzipped core reference (32 KB). No output EPUB binaries are committed.
+snapshots plus `alternating-replay.json` (~193 KB), the legacy reader template
+script (~63 KB) and the gzipped core reference (32 KB). No output EPUB binaries
+are committed.
+
+Real-library-only references are not committed. They live in the gitignored
+`.parity-local/` cache; see `scripts/parity-local.md`.
