@@ -346,7 +346,7 @@ it("replaces rule test TOCs across nonempty and empty results", () => {
   mounted.update({ volumes: 0, chapters: 1, toc: ["丙"] });
   expect(elements(mounted.root, "li").map(el => el.textContent)).toEqual(["丙"]);
   mounted.update(null); expect(elements(mounted.root, "li")).toHaveLength(0);
-  expect(mounted.root.textContent).toContain("尚未运行测试");
+  expect(mounted.root.textContent).toContain("粘贴一段文本后");
 });
 
 it("replaces ingest previews, duplicate fragments, TOCs and hidden upload tokens", () => {

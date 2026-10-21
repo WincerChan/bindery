@@ -34,7 +34,7 @@ try {
   assert.match(ruleId, /^custom-[a-f0-9]{8}$/);
   const ruleSaved = await request(`/rules/${ruleId}/editor`, { config_json: JSON.stringify({ id: ruleId, name: "规则", chapter_patterns: ["^第.*章.*$"], volume_patterns: [], special_headings: [] }) }); assert.equal(ruleSaved.status, 200); assert.match(await ruleSaved.text(), /已保存/);
   const ruleBad = await request(`/rules/${ruleId}/editor`, { config_json: "{bad" }); assert.equal(ruleBad.status, 200); assert.match(await ruleBad.text(), /JSON 解析失败/);
-  const preview = await request("/rules/test", { sample: "第一章 开始\n正文", rule_template: ruleId }); assert.equal(preview.status, 200); assert.match(await preview.text(), /目录预览/);
+  const preview = await request("/rules/test", { sample: "第一章 开始\n正文", rule_template: ruleId }); assert.equal(preview.status, 200); assert.match(await preview.text(), /识别出/);
   const jsonPreview = await request("/rules/test", { sample: "第一章 开始\n正文", rule_template: ruleId }, "application/json"); assert.equal((await jsonPreview.json()).chapters, 1);
   const defaultDelete = await request("/rules/default/delete", {}); assert.equal(defaultDelete.status, 400); assert.deepEqual(await defaultDelete.json(), { detail: "默认模板不可删除" });
   assert.equal((await request(`/rules/${ruleId}/delete`, {})).status, 303);

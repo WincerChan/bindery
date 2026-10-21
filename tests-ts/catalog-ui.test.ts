@@ -20,7 +20,7 @@ beforeAll(async () => {
 describe("catalog UI SSR and accessible controls", () => {
   it("renders rule editing, saved-template testing, JSON formatting and protected default deletion", () => {
     const html = ui.editor(editor, "rules");
-    for (const expected of ['id="rule-editor"', 'action="/rules/default/editor"', 'name="config_json"', "格式化 JSON", 'action="/rules/test"', 'name="sample"', 'name="rule_template"', 'action="/rules/default/delete"', "使用当前已保存模板运行", "尚未运行测试。", "disabled"]) expect(html).toContain(expected);
+    for (const expected of ['id="rule-editor"', 'action="/rules/default/editor"', 'name="config_json"', "格式化", 'action="/rules/test"', 'name="sample"', 'name="rule_template"', "用已保存的规则，输入后自动运行", "粘贴一段文本后", "disabled"]) expect(html).toContain(expected); expect(html).not.toContain('action="/rules/default/delete"');
     expect(html).toContain("&lt;script>"); expect(html).not.toContain("<script>");
     expect(html).toMatch(/<label[^>]*for=/); expect(html).toMatch(/<button[^>]*type="submit"/);
   });
@@ -33,12 +33,12 @@ describe("catalog UI SSR and accessible controls", () => {
   it("renders template navigation, creation and the shared batch-rebuild form", () => {
     const data = { rules: [{ ...editor }], themes: [{ ...editor, name: "默认样式" }], tab: "parsing", ruleId: "default", themeId: "default", error: "引用错误", editor };
     const html = ui.rules(data), themeHtml = ui.rules({ ...data, tab: "themes" });
-    for (const expected of ['action="/rules/new"', 'action="/books/regenerate"', 'name="scope" value="parsing"', 'name="template_id" value="default"', 'aria-current="page"', "引用错误", "结构", "样式"]) expect(html).toContain(expected);
+    for (const expected of ['action="/rules/new"', 'action="/books/regenerate"', 'name="scope" value="parsing"', 'name="template_id" value="default"', 'aria-current="page"', "引用错误", "切章规则", "主题"]) expect(html).toContain(expected);
     expect(themeHtml).toContain('action="/themes/new"'); expect(themeHtml).toContain('name="scope" value="themes"');
   });
   it("renders escaped TOC counts and empty results", () => {
-    expect(ui.preview(null)).toContain("尚未运行测试。");
-    const html = ui.preview({ volumes: 1, chapters: 2, toc: ["<img src=x>", "第二章"] }); expect(html).toContain("卷数量"); expect(html).toContain("章数量"); expect(html).toContain("&lt;img"); expect(html).toContain("第二章");
+    expect(ui.preview(null)).toContain("粘贴一段文本后");
+    const html = ui.preview({ volumes: 1, chapters: 2, toc: ["<img src=x>", "第二章"] }); expect(html).toContain("识别出"); expect(html).toContain("卷 · "); expect(html).toContain("&lt;img"); expect(html).toContain("第二章");
   });
   it("renders tracker filtering, export, detail return URL, edit/delete and pagination", () => {
     const html = ui.tracker(tracker);
