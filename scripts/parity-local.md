@@ -21,9 +21,13 @@ instead.
   oracle, sorted by size and then relative path.
 - If `library/` does not exist, the local checks are not created (same as the
   pre-cutover behavior when no library was present).
-- If `library/` exists but the cache is missing, unreadable, or its
-  `bindery.db`/two-EPUB fingerprints do not match the current files, the local
-  cases are **skipped with a reason**; the rest of the test file still runs.
+- If `library/` exists but the cache is missing, unreadable, or the two selected
+  EPUBs no longer match their recorded fingerprints, the local EPUB cases are
+  **skipped with a reason**; the rest of the test file still runs. The live
+  `bindery.db` is not part of this check (it changes on every login).
+- The database backup check uses the private snapshot
+  `.parity-local/data/bindery.db`, never the live database; it is skipped only
+  if the snapshot or its reference is missing or they do not match.
 - If fingerprints match, the full baseline assertions run, including all 20
   local EPUB variants per selected book (inspection + `metadata`, `css`,
   `clear-overlay`, `strip-css`, `replace-css`, `cover`, `combined`,
@@ -32,7 +36,16 @@ instead.
 ## Generating the core cache
 
 Run this against the pre-cutover commit `e38de41` (the baseline worktree
-`/workspaces/bindery-p5-base`). The Python code is the real oracle; the source
+`/workspaces/bindery-p5-base`).
+Create that worktree first if it is gone, and remove it afterwards:
+
+```bash
+git worktree add --detach /workspaces/bindery-p5-base e38de41
+# ... generate ...
+git worktree remove /workspaces/bindery-p5-base
+```
+
+The Python interpreter is `/workspaces/bindery/.venv/bin/python` (keep `.venv/`). The Python code is the real oracle; the source
 library is mounted read-only through a temporary view. Nothing is written to
 `/workspaces/bindery/library`.
 
@@ -102,8 +115,7 @@ const cache = {
   version: 1,
   source_commit: "e38de41d9d80ba1c32fe22236053bad3f49d8c14",
   source: {
-    bindery_db_sha256: crypto.createHash("sha256").update(fs.readFileSync(path.join(libraryRoot, "bindery.db"))).digest("hex"),
-    books,
+    books, // only the selected EPUBs gate these cases
   },
   library_copies: ref.library_copies,
   patches, epubs, blobs: Object.fromEntries(blobs),
@@ -134,7 +146,8 @@ import { databaseState, fileState } from "../../support/legacy-state";
 
 const PY = "/workspaces/bindery/.venv/bin/python";
 const SCRIPT = "/workspaces/bindery-p5-base/scripts/parity/data-reference.py";
-const SOURCE = "/workspaces/bindery/library/bindery.db";
+const cache = resolve(process.env.BINDERY_LOCAL_PARITY_DIR || ".parity-local", "data");
+const SOURCE = join(cache, "bindery.db"); // snapshot taken first, see below
 
 it("record existing database replay", () => {
   const sourceHash = createHash("sha256").update(readFileSync(SOURCE)).digest("hex");
@@ -152,7 +165,6 @@ it("record existing database replay", () => {
       return { before, after: state(), value };
     } finally { rmSync(root, { recursive: true, force: true }); }
   };
-  const cache = resolve(process.env.BINDERY_LOCAL_PARITY_DIR || ".parity-local", "data");
   mkdirSync(cache, { recursive: true });
   writeFileSync(join(cache, "existing-backup.json"), JSON.stringify({
     version: 1,
@@ -164,9 +176,10 @@ it("record existing database replay", () => {
 });
 ```
 
-Run it once:
+First take a consistent snapshot of the live database (SQLite online backup, safe while the app is running), then run the harness once:
 
 ```bash
+node -e 'const { DatabaseSync, backup } = require("node:sqlite"); const src = new DatabaseSync("library/bindery.db", { readOnly: true, timeout: 5000 }); backup(src, ".parity-local/data/bindery.db").then(() => src.close())'
 BINDERY_LOCAL_PARITY_DIR=/workspaces/bindery/.parity-local \
   pnpm vitest run tests-ts/fixtures/parity/generate-existing.test.ts
 
@@ -174,9 +187,11 @@ rm tests-ts/fixtures/parity/generate-existing.test.ts
 ```
 
 The resulting file stores the raw Python SQL dump before/after each init,
-the same for the TS-initialized copy, and the Python `init` snapshot value. It
-does not copy the library database. The test recomputes the source SHA-256 and
-copies `library/bindery.db` into its own temporary fixture tree.
+the same for the TS-initialized copy, and the Python `init` snapshot value.
+The live `library/bindery.db` changes on every login, so the test never reads it:
+it runs against `.parity-local/data/bindery.db`, checks that snapshot against the
+recorded SHA-256, and copies it into its own temporary fixture tree. The snapshot
+is private and gitignored with the rest of `.parity-local/`.
 
 ## Generating `alternating-replay.json`
 
@@ -209,7 +224,7 @@ ln -s /workspaces/bindery/library library
 BINDERY_LOCAL_PARITY_DIR=/workspaces/bindery/.parity-local pnpm test
 rm library
 
-# different library copy (different bindery.db) -> skip, not fail
+# different library copy (different EPUBs) -> local EPUB cases skip, not fail
 ln -s /tmp/.../lib-probe2 library
 BINDERY_LOCAL_PARITY_DIR=/workspaces/bindery/.parity-local pnpm test
 rm library

@@ -148,8 +148,6 @@ if (libraryExists) {
     catch (error) { localSkipReason = `Cannot read local Python reference ${cachePath}: ${String(error)}`; }
   }
   if (cache) {
-    const dbPath = join(libraryRoot, "bindery.db");
-    const dbDigest = existsSync(dbPath) ? digestBytes(readFileSync(dbPath)) : "";
     const recorded = cache.source.books;
     const booksMatch = localBooks.length >= recorded.length && recorded.every((book, index) => {
       const current = localBooks[index];
@@ -157,7 +155,7 @@ if (libraryExists) {
     });
     if (cache.version !== 1) localSkipReason = `Unsupported local Python reference version in ${cachePath}`;
     else if (cache.patches.length !== recorded.length) localSkipReason = `Local Python reference in ${cachePath} is incomplete`;
-    else if (dbDigest !== cache.source.bindery_db_sha256) localSkipReason = `Local library/bindery.db changed since ${cachePath} was recorded`;
+    // Only the two selected EPUBs feed these cases; bindery.db changes on every login and is not an input.
     else if (!booksMatch) localSkipReason = `Local library EPUB selection changed since ${cachePath} was recorded`;
     else {
       const deref = (value: unknown) => value && typeof value === "object" && "$blob" in value ? cache!.blobs[String((value as { $blob: string }).$blob)] : value;

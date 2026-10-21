@@ -537,18 +537,20 @@ describe("frozen legacy-reference writable data layer", () => {
     }).toEqual(reference("run-decoding-py"));
   });
   it("retains rows and schema when opening a read-only backup of the existing database", (ctx) => {
-    const source = resolve("library/bindery.db");
-    if (!existsSync(source)) return;
+    // The live library database changes on every login, so the check runs against the private
+    // snapshot that was taken together with the Python reference (see scripts/parity-local.md).
     const localRoot = resolve(process.env.BINDERY_LOCAL_PARITY_DIR || ".parity-local");
-    const cachePath = join(localRoot, "data", "existing-backup.json");
+    const cachePath = join(localRoot, "data", "existing-backup.json"), source = join(localRoot, "data", "bindery.db");
+    if (!existsSync(cachePath) && !existsSync(resolve("library/bindery.db"))) return;
     let reason: string | null = null;
     let recorded: { init_raw: RecordedStep; init_after_ts: RecordedStep } | null = null;
     if (!existsSync(cachePath)) reason = `Local Python reference missing: ${cachePath}`;
+    else if (!existsSync(source)) reason = `Local database snapshot missing: ${source}`;
     else {
       try {
         const cache = JSON.parse(readFileSync(cachePath, "utf8")) as { source?: { bindery_db_sha256?: string }; init_raw: RecordedStep; init_after_ts: RecordedStep };
         const digest = createHash("sha256").update(readFileSync(source)).digest("hex");
-        if (digest !== cache.source?.bindery_db_sha256) reason = `Local library/bindery.db changed since ${cachePath} was recorded`;
+        if (digest !== cache.source?.bindery_db_sha256) reason = `Local database snapshot ${source} does not match ${cachePath}`;
         else recorded = cache;
       } catch (error) { reason = `Cannot read local Python reference ${cachePath}: ${String(error)}`; }
     }
