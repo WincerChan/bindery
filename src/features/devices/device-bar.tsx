@@ -45,7 +45,7 @@ export function DeviceBar() {
             void k.switchDevice(id).finally(() => { select.value = currentId(); });
           }}>
             <option value="">{k.remembered().length ? "当前设备" : "尚未记住设备"}</option>
-            <For each={k.remembered()}>{saved => <option value={saved.id}>{saved.identity.name} · {modelShortName(saved.identity.kind, saved.identity.model)} · {savedStatus(saved)}</option>}</For>
+            <For each={k.remembered()}>{saved => <option value={saved.id}>{[saved.identity.name, modelShortName(saved.identity.kind, saved.identity.model)].filter((part, index, parts) => parts.indexOf(part) === index).join(" · ")} · {savedStatus(saved)}</option>}</For>
           </select>
         </label>
       </Show>
