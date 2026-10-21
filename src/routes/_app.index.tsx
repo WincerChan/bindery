@@ -1,9 +1,11 @@
+import { LibrarySkeleton } from "../ui/skeleton";
 import { createFileRoute, useRouter } from "@tanstack/solid-router";
 import { LibraryPage } from "../features/library/library-page";
 import { loadLibrary, regenerateSelection } from "../features/library/functions";
 import { libraryQueryInput } from "../features/library/search";
 import "../features/library/library.css";
 export const Route = createFileRoute("/_app/")({
+  pendingComponent: LibrarySkeleton,
   server: { handlers: { GET: async ({ request, params, next }) => {
     if (!libraryQueryInput(Object.fromEntries(new URL(request.url).searchParams)).invalid) return next();
     const { authenticatedRoute, HttpError } = await import("../server/http");

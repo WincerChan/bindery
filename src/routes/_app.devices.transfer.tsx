@@ -1,9 +1,11 @@
+import { DeviceBodySkeleton } from "../ui/skeleton";
 import { createFileRoute } from "@tanstack/solid-router";
 import { loadLibrary } from "../features/library/functions";
 import { listKindleProfiles } from "../server/kindle/functions";
 import { loadDeviceLibrary } from "../features/devices/library";
 import { DeviceTransferPage } from "../features/devices/transfer";
 export const Route = createFileRoute("/_app/devices/transfer")({
+  pendingComponent: DeviceBodySkeleton,
   loader: () => loadDeviceLibrary(page => loadLibrary({ data: { page, per_page: 96 } })),
   component: Transfer,
 });

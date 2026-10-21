@@ -1,3 +1,4 @@
+import { EditorSkeleton } from "../ui/skeleton";
 import { loadOrNotFound } from "../shared/not-found";
 import { NotFoundPage } from "../shared/not-found-page";
 import { createFileRoute } from "@tanstack/solid-router";
@@ -16,6 +17,7 @@ const loadEditor = createServerFn({ method: "GET" }).middleware([authenticated])
     return catalog.themeEditor(data);
   });
 export const Route = createFileRoute("/_app/themes/$theme_id/editor")({
+  pendingComponent: EditorSkeleton,
   loader: ({ params }) => loadOrNotFound(() => loadEditor({ data: params.theme_id })),
   server: { handlers: { POST: authenticatedRoute<{ theme_id: string }>(async context => (await import("../server/catalog/http")).saveEditorHandler("themes")(context)) } },
   head: () => ({ meta: [{ title: "主题编辑 · Bindery" }] }),

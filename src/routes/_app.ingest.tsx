@@ -1,3 +1,4 @@
+import { IngestSkeleton } from "../ui/skeleton";
 import { createFileRoute } from "@tanstack/solid-router";
 import { createServerFn } from "@tanstack/solid-start";
 import { authenticated } from "../server/functions";
@@ -11,6 +12,7 @@ const loadIngest = createServerFn({ method: "GET" }).middleware([authenticated])
   return { options: ingestOptions(), jobs: jobsPayload(context.library, data.tab, data.page) };
 });
 export const Route = createFileRoute("/_app/ingest")({
+  pendingComponent: IngestSkeleton,
   validateSearch: (search: Record<string, unknown>) => search,
   loaderDeps: ({ search }) => search,
   loader: ({ location }) => loadIngest({ data: Object.fromEntries(new URLSearchParams(location.searchStr)) }), head: () => ({ meta: [{ title: "入库 · Bindery" }] }),

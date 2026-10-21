@@ -1,3 +1,4 @@
+import { BookSkeleton } from "../ui/skeleton";
 import { loadOrNotFound } from "../shared/not-found";
 import { NotFoundPage } from "../shared/not-found-page";
 import { Show } from "solid-js";
@@ -14,6 +15,7 @@ const loadBook = createServerFn({ method: "GET" })
     return loadBookPage(data.id, data.return_to, context.library);
   });
 export const Route = createFileRoute("/_app/book/$book_id")({
+  pendingComponent: BookSkeleton,
   validateSearch: (search: Record<string, unknown>) => ({
     return_to:
       typeof search.return_to === "string" ? search.return_to : undefined,

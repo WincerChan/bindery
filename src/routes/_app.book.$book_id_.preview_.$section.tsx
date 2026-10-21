@@ -1,3 +1,4 @@
+import { ReaderSkeleton } from "../ui/skeleton";
 import { loadOrNotFound } from "../shared/not-found";
 import { NotFoundPage } from "../shared/not-found-page";
 import { createFileRoute } from "@tanstack/solid-router";
@@ -13,6 +14,7 @@ const getReader = createServerFn({ method: "GET" }).middleware([authenticated])
   .validator((input: { bookId: string; section: string; returnTo: string }) => ({ bookId: typeof input?.bookId === "string" ? input.bookId : "", section: typeof input?.section === "string" ? input.section : "", returnTo: typeof input?.returnTo === "string" ? input.returnTo : "/" }))
   .handler(async ({ data, context }) => (await import("../server/reader/service")).loadReader(data.bookId, data.section, data.returnTo, context.library));
 export const Route = createFileRoute("/_app/book/$book_id_/preview_/$section")({
+  pendingComponent: ReaderSkeleton,
   server: { handlers: { GET: async ({ request, params, next }) => {
     const { bigIntegerParameter } = await import("../server/reader/parameters");
     if (bigIntegerParameter(params.section) !== null) return next();

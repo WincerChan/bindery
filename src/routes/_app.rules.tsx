@@ -1,3 +1,4 @@
+import { EditorSkeleton } from "../ui/skeleton";
 import { createFileRoute } from "@tanstack/solid-router";
 import { createServerFn } from "@tanstack/solid-start";
 import { authenticated } from "../server/functions";
@@ -8,6 +9,7 @@ const loadCatalog = createServerFn({ method: "GET" }).middleware([authenticated]
   .validator((input: Record<string, string>) => input)
   .handler(async ({ data }) => (await import("../server/catalog/templates")).catalogPage(data));
 export const Route = createFileRoute("/_app/rules")({
+  pendingComponent: EditorSkeleton,
   validateSearch: (search: Record<string, unknown>) => Object.fromEntries(Object.entries(search).map(([key, value]) => [key, String(value ?? "")])),
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => loadCatalog({ data: deps }),

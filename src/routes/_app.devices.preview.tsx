@@ -1,3 +1,4 @@
+import { DeviceBodySkeleton } from "../ui/skeleton";
 import { createFileRoute, useBlocker } from "@tanstack/solid-router";
 import { createServerFn } from "@tanstack/solid-start";
 import { createSignal, Show } from "solid-js";
@@ -18,6 +19,7 @@ const profileApi: ProfileApi = {
   delete: (deviceId, id) => deleteKindleProfile({ data: { deviceId, id } }),
 };
 export const Route = createFileRoute("/_app/devices/preview")({
+  pendingComponent: DeviceBodySkeleton,
   validateSearch: (search: Record<string, unknown>): { book?: string; font?: string } => ({
     ...(typeof search.book === "string" ? { book: search.book } : {}),
     ...(typeof search.font === "string" ? { font: search.font.slice(0, 200) } : {}),

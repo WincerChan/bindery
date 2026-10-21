@@ -1,3 +1,4 @@
+import { EditorSkeleton } from "../ui/skeleton";
 import { loadOrNotFound } from "../shared/not-found";
 import { NotFoundPage } from "../shared/not-found-page";
 import { createFileRoute } from "@tanstack/solid-router";
@@ -16,6 +17,7 @@ const loadEditor = createServerFn({ method: "GET" }).middleware([authenticated])
     return catalog.ruleEditor(data);
   });
 export const Route = createFileRoute("/_app/rules_/$rule_id/editor")({
+  pendingComponent: EditorSkeleton,
   loader: ({ params }) => loadOrNotFound(() => loadEditor({ data: params.rule_id })),
   server: { handlers: { POST: authenticatedRoute<{ rule_id: string }>(async context => (await import("../server/catalog/http")).saveEditorHandler("rules")(context)) } },
   head: () => ({ meta: [{ title: "规则编辑 · Bindery" }] }),
