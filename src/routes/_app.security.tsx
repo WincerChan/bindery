@@ -4,6 +4,7 @@ import { createSignal, For, onSettled, Show } from "solid-js";
 import { authenticated } from "../server/functions";
 import { browserSupportsWebAuthn, deletePasskey, passkeyMessage, PasskeyRequestError, postJson, registerPasskey } from "../client/passkeys";
 import { showToast } from "../client/toast";
+import { PageHeader } from "../ui";
 const getSecurityData = createServerFn({
   method: "GET"
 }).middleware([authenticated]).handler(async () => (await import("../server/auth-views")).securityData());
@@ -83,7 +84,7 @@ function Security() {
     finally { setBusy(false); }
   }
   return <div class="security-page">
-    <p class="eyebrow">ACCOUNT SECURITY</p><h1>安全</h1><p class="muted">通行密钥保存在设备或密码管理器中，用指纹、面容或设备密码即可登录。</p>
+    <PageHeader title="安全" description="通行密钥保存在设备或密码管理器中，用指纹、面容或设备密码即可登录。" />
     <Show when={message()}><p role="status" class="notice">{message()}</p></Show>
     <Show when={!data().passkey_configured}><p class="notice">通行密钥不可用：未配置有效的 BINDERY_PUBLIC_ORIGIN。本地开发请用 http://localhost:端口 访问。</p></Show>
     <Show when={data().passkey_configured && !supported()}><p class="muted">当前浏览器不支持通行密钥。</p></Show>

@@ -1,5 +1,5 @@
 import { createSignal, For, onCleanup, Show, untrack } from "solid-js";
-import { Button, ConfirmDialog, Dialog, EmptyState, Pagination, Select, Tag, Textarea, TextField } from "../../ui";
+import { Button, ConfirmDialog, Dialog, EmptyState, Pagination, Select, Tag, Textarea, TextField, PageHeader } from "../../ui";
 import type { DuplicateData, TrackerItem, TrackerPageData } from "../../server/catalog/tracker";
 import { isRedirect } from "@tanstack/solid-router";
 import { Link } from "../../shared/spa-link";
@@ -67,8 +67,7 @@ export function TrackerPage(props: { data: TrackerPageData }) {
       setDeleting(null); await mutation.router.navigate({ href: result.target }); await mutation.router.invalidate();
     }, "已删除追踪", true);
   }
-  return <div class="catalog-page catalog-tracker"><div class="catalog-heading"><h1>追踪</h1><div class="catalog-actions"><a class="btn btn-secondary" href={props.data.export_url}>导出 CSV</a><Button onClick={() => setActive({})}>添加书籍</Button></div></div>
-    <p class="muted">共 {props.data.stats.total} 本 · 未读 {props.data.stats.unread} · 在读 {props.data.stats.reading} · 已读 {props.data.stats.read} · 已入库 {props.data.stats.in_library}<Show when={filtered()}><span class="catalog-tracker-matched"> · 筛选出 {props.data.stats.filtered} 本</span></Show></p>
+  return <div class="catalog-page catalog-tracker"><PageHeader title="追踪" description={<>共 {props.data.stats.total} 本 · 未读 {props.data.stats.unread} · 在读 {props.data.stats.reading} · 已读 {props.data.stats.read} · 已入库 {props.data.stats.in_library}<Show when={filtered()}><span class="catalog-tracker-matched"> · 筛选出 {props.data.stats.filtered} 本</span></Show></>} actions={<><a class="btn btn-secondary" href={props.data.export_url}>导出 CSV</a><Button onClick={() => setActive({})}>添加书籍</Button></>} />
     <Show when={props.data.duplicate_notice}><div class="catalog-tracker-notice" role="status"><p>已存在追踪条目：{props.data.duplicate_notice?.title}</p><Button variant="secondary" onClick={() => setActive({ wish: props.data.duplicate_notice! })}>点此前往编辑该条目。</Button></div></Show>
     <form ref={filterForm} action="/tracker" method="get" class="catalog-tracker-filter" onSubmit={event => { event.preventDefault(); applyFilters(); }}>
       <TextField class="search-field catalog-tracker-search" name="q" label="搜索书名、作者、标签" labelHidden type="search" value={props.data.filters.q} placeholder="搜索书名、作者、标签" onInput={() => { clearTimeout(searchTimer); searchTimer = setTimeout(applyFilters, 400); }} />

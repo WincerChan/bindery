@@ -5,3 +5,4 @@ export type { CoverProps } from "./cover";
 export { Dialog, ConfirmDialog } from "./dialog";
 export { EmptyState } from "./empty-state";
 export { Pagination } from "./pagination";
+export { PageHeader } from "./page-header";

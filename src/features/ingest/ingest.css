@@ -1,6 +1,4 @@
 .ingest-page { min-width: 0; }
-.ingest-page .page-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 24px; margin-bottom: 32px; border-bottom: 1px solid var(--color-line); }
-.ingest-page .page-head > .btn { flex-shrink: 0; }
 .ingest-layout { display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 48px; align-items: start; }
 .ingest-files, .ingest-settings { min-width: 0; }
 .ingest-settings { border-left: 1px solid var(--color-line); padding-left: 32px; }

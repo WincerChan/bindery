@@ -1,5 +1,5 @@
 import { createSignal, For, onCleanup, Show, untrack } from "solid-js";
-import { Button, Select, Textarea, TextField } from "../../ui";
+import { Button, Select, Textarea, TextField, PageHeader } from "../../ui";
 import { useMutation } from "../../shared/client-mutation";
 import { flashFromUrl } from "../../shared/notifications";
 import { showToast } from "../../client/toast";
@@ -84,9 +84,7 @@ export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; e
     } catch (e) { setError(e instanceof Error ? e.message : "入库失败，请稍后重试。"); }
     finally { setSubmitting(false); }
   }
-  return <div class="ingest-page"><div class="page-head"><div><h1>入库</h1><p class="muted">TXT 按切章规则生成 EPUB；EPUB 直接入库。</p></div>
-    <Show when={props.jobs}>{jobs => <RecentJobs data={jobs()} open={!!props.jobsOpen} onOpen={() => props.openJobs?.()} onClose={() => props.closeJobs?.()} />}</Show>
-  </div>
+  return <div class="ingest-page"><PageHeader title="入库" description="TXT 按切章规则生成 EPUB；EPUB 直接入库。" actions={<Show when={props.jobs}>{jobs => <RecentJobs data={jobs()} open={!!props.jobsOpen} onOpen={() => props.openJobs?.()} onClose={() => props.closeJobs?.()} />}</Show>} />
     <form ref={form} action="/ingest" method="post" enctype="multipart/form-data" onSubmit={submit} class="ingest-layout">
       <input type="hidden" name="dedupe_mode" value={duplicates() ? "normalize" : "keep"} />
       <div class="ingest-files">

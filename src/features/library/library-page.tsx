@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
-import { BookCover, Button, Checkbox, ConfirmDialog, EmptyState, GeneratedCover, Pagination, Tag, TextField } from "../../ui";
+import { BookCover, Button, Checkbox, ConfirmDialog, EmptyState, GeneratedCover, PageHeader, Pagination, Tag, TextField } from "../../ui";
 import { showToast } from "../../client/toast";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
@@ -142,7 +142,7 @@ export function LibraryPage(props: {
     finally { setBusy(false); }
   }
   return <div class="library-page" ref={page}>
-    <div class="library-heading"><h1>书库</h1><Link href="/ingest" class="btn btn-primary">+ 入库</Link></div>
+    <PageHeader title="书库" actions={<Link href="/ingest" class="btn btn-primary">+ 入库</Link>} />
     <nav class="library-shelves" aria-label="书架">
       <Link href={libraryReturnTo({ ...props.data, scope: "active", read_filter: "all", page: 1 })} aria-current={archived() ? undefined : "page"}>在库<Show when={!archived()}> <span data-library-count>{props.data.total_books}</span></Show></Link>
       <Link data-scope-toggle href={libraryReturnTo({ ...props.data, scope: "archived", read_filter: "all", page: 1 })} aria-current={archived() ? "page" : undefined}>已归档<Show when={archived()}> <span data-library-count>{props.data.total_books}</span></Show></Link>

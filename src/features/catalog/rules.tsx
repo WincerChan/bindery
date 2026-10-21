@@ -1,5 +1,5 @@
 import { For, Show } from "solid-js";
-import { Button } from "../../ui";
+import { Button, PageHeader } from "../../ui";
 import type { catalogPage } from "../../server/catalog/templates";
 import { Editor } from "./editors";
 import { Link } from "../../shared/spa-link";
@@ -17,7 +17,7 @@ export function RulesPage(props: { data: ReturnType<typeof catalogPage> }) {
       await mutation.router.navigate({ href: result.target }); await mutation.router.invalidate();
     }, rebuild ? "已创建批量重建任务" : "已新建模板");
   }
-  return <div class="catalog-page"><div class="catalog-heading"><h1>规则与主题</h1><p class="muted">{props.data.rules.length} 规则 / {props.data.themes.length} 主题</p></div>
+  return <div class="catalog-page"><PageHeader title="规则与主题" description={`${props.data.rules.length} 规则 / ${props.data.themes.length} 主题`} />
     <Show when={props.data.error}><p role="alert" class="notice">{props.data.error}</p></Show>
     <nav class="catalog-actions" aria-label="模板类型"><Link class="btn btn-secondary" aria-current={!themes() ? "page" : undefined} href={`/rules?tab=parsing&rule_id=${encodeURIComponent(props.data.ruleId)}`}>结构</Link><Link class="btn btn-secondary" aria-current={themes() ? "page" : undefined} href={`/rules?tab=themes&theme_id=${encodeURIComponent(props.data.themeId)}`}>样式</Link></nav>
     <div class="catalog-layout"><aside aria-label={themes() ? "输出主题" : "切章规则"}><h2>{themes() ? "输出主题" : "切章规则"}</h2>
