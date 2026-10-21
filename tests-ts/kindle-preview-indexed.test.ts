@@ -21,7 +21,7 @@ afterEach(() => { cleanups.splice(0).forEach(cleanup => cleanup()); readerArchiv
 function fixture(data: Uint8Array) {
   const fixture = readerFixture(); cleanups.push(fixture.cleanup);
   const file = epubPath(fixture.library.base, fixture.id); writeFileSync(file, data);
-  const prefix = (mode: string) => `/kindle/content/${fixture.id}/${mode}/epub/`;
+  const prefix = (mode: string) => `/devices/content/${fixture.id}/${mode}/epub/`;
   const get = (path: string, mode: string, method = "GET") => {
     const url = prefix(mode) + encodeEpubPath(path);
     // Match the router contract: exactly one decode before invoking the service.

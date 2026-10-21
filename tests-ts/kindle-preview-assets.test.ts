@@ -12,7 +12,7 @@ it("serves the transformed preview document and CSS, retains the cover, isolates
   const fixture = readerFixture(); cleanups.push(fixture.cleanup);
   const path = epubPath(fixture.library.base, fixture.id), original = assetEpub(); writeFileSync(path, original);
   const get = (item: string, mode = "11", method = "GET") => {
-    const url = `http://localhost/kindle/content/${fixture.id}/${mode}/epub/${item}`;
+    const url = `http://localhost/devices/content/${fixture.id}/${mode}/epub/${item}`;
     return kindlePreviewResource(new Request(url, { method }), fixture.id, mode, item, fixture.library);
   };
   const chapter = get("EPUB/Text/chapter.xhtml"), html = await chapter.text();
@@ -20,7 +20,7 @@ it("serves the transformed preview document and CSS, retains the cover, isolates
   expect(chapter.headers.get("Cache-Control")).toBe("no-store");
   expect(html).not.toMatch(/font-family|@font-face|<img|<image|<picture|<svg|background:/);
   expect(html).toContain("Text survives &amp; stays valid");
-  expect(html).toContain(`/kindle/content/${fixture.id}/11/epub/EPUB/Styles/book.css`);
+  expect(html).toContain(`/devices/content/${fixture.id}/11/epub/EPUB/Styles/book.css`);
   expect(await get("EPUB/Styles/book.css").text()).not.toMatch(/font-family|@font-face|art.png/);
   expect(await get("EPUB/Text/cover.xhtml").text()).toContain("<image");
   expect(new Uint8Array(await get("EPUB/Images/cover.png").arrayBuffer())).toEqual(assetCover);
@@ -36,5 +36,5 @@ it("serves the transformed preview document and CSS, retains the cover, isolates
 
 it("encodes preview member URLs with stable asset modes and preserves the original URL when disabled", () => {
   expect(previewContentUrl("book", "Text/第 一.xhtml", {})).toBe("/book/book/epub/Text/%E7%AC%AC%20%E4%B8%80.xhtml");
-  expect(previewContentUrl("book", "Text/ch.xhtml", { stripFonts: true })).toBe("/kindle/content/book/10/epub/Text/ch.xhtml");
+  expect(previewContentUrl("book", "Text/ch.xhtml", { stripFonts: true })).toBe("/devices/content/book/10/epub/Text/ch.xhtml");
 });

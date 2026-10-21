@@ -84,7 +84,7 @@ try {
   assert.match(html, /aria-label="主导航"/);
   assert.match(html, /aria-label="手机导航"/);
   const nav = html.match(/aria-label="主导航"[^>]*>([\s\S]*?)<\/nav>/)[1];
-  assert.deepEqual([...nav.matchAll(/<a\b[^>]*class="nav-link[^>]*>/g)].map(m => /href="([^"]+)"/.exec(m[0])[1]), ["/", "/ingest", "/tracker", "/kindle"]);
+  assert.deepEqual([...nav.matchAll(/<a\b[^>]*class="nav-link[^>]*>/g)].map(m => /href="([^"]+)"/.exec(m[0])[1]), ["/", "/ingest", "/tracker", "/devices"]);
   const settings = nav.match(/role="menu"[\s\S]*?<\/div>/)[0];
   assert.deepEqual([...settings.matchAll(/href="([^"]+)"/g)].map(m => m[1]), ["/rules", "/security"]); assert.match(settings, /action="\/logout"/);
   const mobile = html.match(/aria-label="手机导航"[^>]*>([\s\S]*?)<\/nav>/)[1];
@@ -151,9 +151,18 @@ try {
   const missing = await get(`/book/${"f".repeat(32)}/cover`, cookie);
   assert.equal(missing.status, 404);
   assert.deepEqual(await missing.json(), { detail: "书籍不存在" });
-  const kindle = await get("/kindle", cookie);
-  assert.equal(kindle.status, 200);
-  assert.match(await kindle.text(), /排版与预览/);
+  const devicesPage = await get("/devices", cookie);
+  assert.equal(devicesPage.status, 200);
+  assert.match(await devicesPage.text(), /排版与预览/);
+  for (const [legacy, target] of [["/kindle", "/devices"], ["/kindle/preview?book=a", "/devices/preview?book=a"], ["/kindle/transfer", "/devices/transfer"]]) {
+    const response = await get(legacy, cookie);
+    assert.ok([302, 303, 307, 308].includes(response.status), `${legacy} status ${response.status}`);
+    assert.equal(response.headers.get("location"), target, legacy);
+    await response.text();
+  }
+  const legacyAsset = await get("/kindle/content/a/11/epub/x.xhtml", cookie);
+  assert.equal(legacyAsset.status, 302);
+  assert.equal(legacyAsset.headers.get("location"), "/devices/content/a/11/epub/x.xhtml");
   const hidden = await get("/.vite/manifest.json", cookie);
   assert.equal(hidden.status, 404);
   await hidden.text();
@@ -170,7 +179,7 @@ try {
   await stopped;
   assert.equal((await get("/login")).status, 503);
   assert.equal((await get(assets[0])).status, 503);
-  console.log("Production auth/layout SSR, protected RPC, cover/download routes, Kindle placeholder and public assets: PASS (no sockets)");
+  console.log("Production auth/layout SSR, protected RPC, cover/download routes, device pages/redirects and public assets: PASS (no sockets)");
 } finally {
   if (db?.isOpen) db.close();
   try { await handler?.shutdown(); }

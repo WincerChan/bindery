@@ -103,3 +103,10 @@ export class FakeFile implements KindleFile {
 export async function fakeKindle() {
   const fs = new FakeFileSystem(); await fs.mkdir("documents"); await fs.mkdir("system/thumbnails"); await fs.mkdir("fonts"); await fs.write("system/version.txt", "Kindle 5.16.2.1.1"); fs.operations = []; return fs;
 }
+
+/** Kobo root with `.kobo/version`; the last comma field is the product ID. */
+export async function fakeKobo(productId = "N418") {
+  const fs = new FakeFileSystem(); await fs.mkdir(".kobo"); await fs.mkdir("fonts");
+  await fs.write(".kobo/version", `4.38.23171,4.38.23171,4.38.23171,4.38.23171,${productId}`);
+  fs.operations = []; return fs;
+}

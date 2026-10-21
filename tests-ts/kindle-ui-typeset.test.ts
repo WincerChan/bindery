@@ -63,7 +63,7 @@ function globals() {
     return styles.get(this);
   } });
   vi.stubGlobal("document", page); vi.stubGlobal("self", globalThis);
-  vi.stubGlobal("window", Object.assign(new EventTarget(), { confirm: vi.fn(() => true), location: new URL("http://bindery.local/kindle/preview"), matchMedia: vi.fn(() => Object.assign(new EventTarget(), { matches: false })) }));
+  vi.stubGlobal("window", Object.assign(new EventTarget(), { confirm: vi.fn(() => true), location: new URL("http://bindery.local/devices/preview"), matchMedia: vi.fn(() => Object.assign(new EventTarget(), { matches: false })) }));
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
 }
 beforeEach(globals);
@@ -80,8 +80,8 @@ beforeAll(async () => {
     import { KindleDeviceBar } from ${JSON.stringify(resolve("src/features/kindle/device-bar.tsx"))};
     import { KindleTabs } from ${JSON.stringify(resolve("src/features/kindle/tabs.tsx"))};
     import { KindleDeviceManager } from ${JSON.stringify(resolve("src/client/kindle/device.ts"))};
-    import { Route as PreviewRoute } from ${JSON.stringify(resolve("src/routes/_app.kindle.preview.tsx"))};
-    import { Route as FontsRoute } from ${JSON.stringify(resolve("src/routes/_app.kindle.fonts.tsx"))};
+    import { Route as PreviewRoute } from ${JSON.stringify(resolve("src/routes/_app.devices.preview.tsx"))};
+    import { Route as FontsRoute } from ${JSON.stringify(resolve("src/routes/_app.devices.fonts.tsx"))};
     export const manager = repo => new KindleDeviceManager(repo);
     function view(kind, props) { return kind === "fonts" ? <FontsPage manager={props.manager} onPreview={props.onPreview} /> : <TypesetPage {...props} />; }
     export function markup(kind, props) { return renderToString(() => <Loading>{view(kind, props)}</Loading>); }
@@ -90,9 +90,9 @@ beforeAll(async () => {
       let context;
       function Capture() { context = useKindle(); return null; }
       const root = createRootRoute();
-      const layout = createRoute({ getParentRoute: () => root, path: '/kindle', component: () => <KindleProvider manager={props.manager} queue={{ snapshot: () => [], subscribe: () => () => {} }}><Capture /><div class="kindle-page"><KindleDeviceBar /><KindleTabs /><Outlet /></div></KindleProvider> });
+      const layout = createRoute({ getParentRoute: () => root, path: '/devices', component: () => <KindleProvider manager={props.manager} queue={{ snapshot: () => [], subscribe: () => () => {} }}><Capture /><div class="kindle-page"><KindleDeviceBar /><KindleTabs /><Outlet /></div></KindleProvider> });
       const page = (kind === 'fonts' ? FontsRoute : PreviewRoute).update({ getParentRoute: () => layout, path: kind, loader: async () => props.data });
-      return { router: createRouter({ routeTree: root.addChildren([layout.addChildren([page])]), history: createMemoryHistory({ initialEntries: ['/kindle/' + kind] }), isServer, origin: 'http://bindery.local' }), context: () => context };
+      return { router: createRouter({ routeTree: root.addChildren([layout.addChildren([page])]), history: createMemoryHistory({ initialEntries: ['/devices/' + kind] }), isServer, origin: 'http://bindery.local' }), context: () => context };
     }
     export async function routedMarkup(kind, props) { const { router } = routes(kind, props); await router.load(); return renderToString(() => <Loading><RouterProvider router={router} /></Loading>); }
     export async function routedMount(root, kind, props) { const { router, context } = routes(kind, props); await router.load(); return { dispose: hydrate(() => <Loading><RouterProvider router={router} /></Loading>, root), flush, context }; }
@@ -426,7 +426,7 @@ it("hydrates neutral fonts markup, scans after mount, clears after unplug and re
   expect(elements(mounted.root, "tr", "data-font-family")).toHaveLength(1);
   expect(mounted.root.textContent).toContain("Light"); expect(mounted.root.textContent).toContain("手动安装");
   const sample = elements(mounted.root, "iframe")[0]!; expect(sample.getAttribute("sandbox")).toBe("allow-same-origin");
-  expect(elements(mounted.root, "a").find(a => a.getAttribute("aria-label") === "用 Book 预览")!.getAttribute("href")).toBe("/kindle/preview?font=Book");
+  expect(elements(mounted.root, "a").find(a => a.getAttribute("aria-label") === "用 Book 预览")!.getAttribute("href")).toBe("/devices/preview?font=Book");
   const actions = withClass(elements(mounted.root, "tr", "data-font-family")[0]!, "kt-row-actions");
   expect(elements(actions, "svg")).toHaveLength(2);
   expect(button(actions, "从设备删除 Book").className).toContain("btn-icon");
@@ -439,7 +439,7 @@ it("navigates the preview action within the SPA while retaining a real font-spec
   const { manager } = await paired(["Book-Regular.ttf"]), onPreview = vi.fn();
   const mounted = mount("fonts", manager, { onPreview }); await settle();
   const link = elements(mounted.root, "a").find(anchor => anchor.getAttribute("aria-label") === "用 Book 预览")!;
-  expect(link.getAttribute("href")).toBe("/kindle/preview?font=Book"); fire(link, "click");
+  expect(link.getAttribute("href")).toBe("/devices/preview?font=Book"); fire(link, "click");
   expect(onPreview).toHaveBeenCalledWith("Book");
 });
 
@@ -587,10 +587,10 @@ it("updates preview asset modes live and includes both toggles in dirty, reset, 
   expect(toggle("去掉书籍自带字体").hasAttribute("aria-describedby")).toBe(false);
   expect(toggle("去掉所有图片").hasAttribute("aria-describedby")).toBe(false);
   const frame = elements(mounted.root, "iframe")[0]!;
-  change("去掉书籍自带字体", true); expect(frame.getAttribute("src")).toContain(`/kindle/content/a/10/epub/`); expect(onDirty).toHaveBeenLastCalledWith(true);
-  change("去掉所有图片", true); expect(frame.getAttribute("src")).toContain(`/kindle/content/a/11/epub/`);
+  change("去掉书籍自带字体", true); expect(frame.getAttribute("src")).toContain(`/devices/content/a/10/epub/`); expect(onDirty).toHaveBeenLastCalledWith(true);
+  change("去掉所有图片", true); expect(frame.getAttribute("src")).toContain(`/devices/content/a/11/epub/`);
   fire(button(mounted.root, "重置"), "click"); ui.flush(); expect(onDirty).toHaveBeenLastCalledWith(false); expect(frame.getAttribute("src")).toContain("/book/a/epub/");
-  change("去掉所有图片", true); expect(frame.getAttribute("src")).toContain(`/kindle/content/a/01/epub/`);
+  change("去掉所有图片", true); expect(frame.getAttribute("src")).toContain(`/devices/content/a/01/epub/`);
   change("去掉书籍自带字体", true);
   fire(button(mounted.root, "保存方案"), "click"); await settle();
   expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "custom", deviceId: id, settings: expect.objectContaining({ stripFonts: true, stripImages: true }) }));

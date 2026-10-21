@@ -292,7 +292,7 @@ it("renders only four mobile tabs and all three desktop settings menu entries", 
   const dock = css(node, "nav", "tab-bar")[0]!, menu = css(node, "div", "settings-dropdown")[0]!;
   expect(elements(dock, "a").map(el => el.textContent)).toEqual(["书库", "入库", "追踪"]);
   expect(elements(dock, "button").map(el => el.textContent)).toEqual(["设置"]);
-  expect(elements(dock, "a").some(el => el.getAttribute("href") === "/kindle")).toBe(false);
+  expect(elements(dock, "a").some(el => el.getAttribute("href") === "/devices")).toBe(false);
   expect(elements(menu, "a").map(el => el.textContent)).toEqual(["规则与主题", "安全与通行密钥"]);
   expect(elements(menu, "form")[0]!.getAttribute("action")).toBe("/logout"); expect(elements(menu, "button")[0]!.textContent).toBe("退出登录");
   expect(css(node, "dialog", "more-sheet")[0]!.textContent).not.toContain("设备");
@@ -432,23 +432,23 @@ it("uses actual Router Links across Kindle tabs without replacing the provider o
   const filter = elements(node, "form").find(form => form.getAttribute("method") === "get")!;
   expect(filter.getAttribute("action")).toBe("/tracker"); fire(filter, "submit");
   await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe("/tracker?q=%E4%B8%AD%E6%96%87&read_filter=unread"); });
-  await mounted.navigate("/kindle"); await settle(); mounted.flush();
+  await mounted.navigate("/devices"); await settle(); mounted.flush();
   const provider = mounted.context(); expect(provider).toBeDefined(); expect(mounted.mounts()).toBe(1);
   const click = (text: string, modified = false) => { const preventDefault = vi.fn(); fire(elements(node, "a").find(a => a.textContent === text)!, "click", { button: 0, ctrlKey: modified, preventDefault }); return preventDefault; };
-  expect(click("字体", true)).not.toHaveBeenCalled(); await settle(); expect(mounted.href()).toBe("/kindle");
-  for (const [text, href] of [["传书", "/kindle/transfer"], ["字体", "/kindle/fonts"], ["排版与预览", "/kindle/preview"]]) {
+  expect(click("字体", true)).not.toHaveBeenCalled(); await settle(); expect(mounted.href()).toBe("/devices");
+  for (const [text, href] of [["传书", "/devices/transfer"], ["字体", "/devices/fonts"], ["排版与预览", "/devices/preview"]]) {
     expect(click(text!)).toHaveBeenCalledOnce();
     await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe(href); });
     expect(mounted.context()).toBe(provider); expect(mounted.mounts()).toBe(1); expect(mounted.cleanups()).toBe(0);
     expect(elements(node, "div", "data-spa-shell")[0]).toBe(shell); expect(signal?.aborted).toBe(false); expect(stop).not.toHaveBeenCalled();
   }
   const queryLink = elements(node, "a").find(a => a.textContent === "查询与锚点")!;
-  expect(queryLink.getAttribute("href")).toBe("/kindle/transfer?book=a#queue");
+  expect(queryLink.getAttribute("href")).toBe("/devices/transfer?book=a#queue");
   for (const modifier of [{ button: 1 }, { metaKey: true }, { shiftKey: true }, { altKey: true }]) {
     const preventDefault = vi.fn(); fire(queryLink, "click", { button: 0, ...modifier, preventDefault }); expect(preventDefault).not.toHaveBeenCalled();
   }
-  click("查询与锚点"); await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe("/kindle/transfer?book=a#queue"); });
-  click("本页锚点"); await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe("/kindle/transfer?book=a#license"); });
+  click("查询与锚点"); await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe("/devices/transfer?book=a#queue"); });
+  click("本页锚点"); await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe("/devices/transfer?book=a#license"); });
   expect(mounted.context()).toBe(provider); expect(mounted.cleanups()).toBe(0); expect(signal?.aborted).toBe(false);
   finish({ filename: "book.kfx", size: 1 });
   await vi.waitFor(() => expect(queue.snapshot().find(item => item.id === queued)?.state).toBe("完成"));

@@ -78,7 +78,7 @@ describe("navigation and global flash messages", () => {
     expect(navActive("/archive", "/")).toBe(false);
     expect(settings.map(item => item.label)).toEqual(["规则与主题", "安全与通行密钥"]);
     for (const path of ["/rules", "/rules/x/editor", "/themes/x/editor"]) expect(navActive(path, "/rules")).toBe(true);
-    for (const path of ["/kindle", "/kindle/connect", "/kindle/fonts"]) expect(navActive(path, "/kindle")).toBe(true);
+    for (const path of ["/devices", "/devices/connect", "/devices/fonts"]) expect(navActive(path, "/devices")).toBe(true);
     expect(navActive("/security", "/security")).toBe(true); expect(navActive("/ingest", "/rules")).toBe(false);
   });
   it("normalizes toast kinds and consumes query flashes while preserving other state", () => {

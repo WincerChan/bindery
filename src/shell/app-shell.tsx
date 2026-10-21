@@ -58,7 +58,7 @@ export function AppShell() {
       </div></nav>
     </div></header></Show>
     <main id="app-content" tabindex={-1} class={readerLayout() ? "reader-main" : "wrap app-main"}><Outlet /></main>
-    <Show when={!readerLayout()}><nav class="tab-bar" aria-label="手机导航"><For each={navigation.filter(item => item.href !== "/kindle")}>{item =>
+    <Show when={!readerLayout()}><nav class="tab-bar" aria-label="手机导航"><For each={navigation.filter(item => item.href !== "/devices")}>{item =>
       <Link href={item.href} class={`tab ${!moreOpen() && active(item.href) ? "active" : ""}`} aria-current={active(item.href) ? "page" : undefined}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d={item.icon} stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" /></svg>{item.label}</Link>
     }</For><button type="button" class={`tab ${moreOpen() || settingsActive() ? "active" : ""}`} aria-label="设置" aria-expanded={moreOpen() ? "true" : "false"} aria-controls="more-sheet" onClick={() => setMoreOpen(true)}><Gear />设置</button></nav>
     <Dialog id="more-sheet" open={moreOpen()} title="设置" closeLabel="关闭设置" class="more-sheet" onClose={() => setMoreOpen(false)}>

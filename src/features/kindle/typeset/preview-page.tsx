@@ -88,7 +88,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
   const deviceId = createMemo(() => state()?.device?.identity.id);
   createEffect(deviceId, () => {
     const identity = state()?.device?.identity;
-    if (identity && !dirty() && !busy()) setTarget({ id: identity.id, model: identity.model, name: identity.name });
+    if (identity && identity.kind === "kindle" && !dirty() && !busy()) setTarget({ id: identity.id, model: identity.model as KindleModel, name: identity.name });
   });
   const targetId = createMemo(() => target()?.id ?? "");
   createEffect(targetId, id => { void loadProfiles(id); });
@@ -119,7 +119,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
     if (busy() || !confirmDiscard()) return;
     const known = remembered().find(device => device.id === id), current = state()?.device?.identity;
     const identity = known?.identity ?? (current?.id === id ? current : null);
-    setTarget(identity ? { id: identity.id, model: identity.model, name: identity.name } : null);
+    setTarget(identity && identity.kind === "kindle" ? { id: identity.id, model: identity.model as KindleModel, name: identity.name } : null);
   }
   function reset() { if (confirmDiscard()) selectProfile(JSON.parse(baseline()) as TypesettingProfile); }
   function openSaveAs() { setSaveName(draft().builtIn ? "我的排版" : draft().name); setSaveAs(true); }
@@ -152,10 +152,10 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
     finally { if (!disposed && request === chapterRequest) setChapterLoading(false); }
   }
   const availableTargets = () => {
-    const items = remembered().map(device => device.identity);
+    const items = remembered().map(device => device.identity).filter(identity => identity.kind === "kindle");
     const identity = state()?.device?.identity;
-    if (identity && !items.some(item => item.id === identity.id)) items.unshift(identity);
-    const selected = target(); if (selected && !items.some(item => item.id === selected.id)) items.push({ ...selected, created_at: "" });
+    if (identity && identity.kind === "kindle" && !items.some(item => item.id === identity.id)) items.unshift(identity);
+    const selected = target(); if (selected && !items.some(item => item.id === selected.id)) items.push({ id: selected.id, kind: "kindle", model: selected.model, name: selected.name, created_at: "" });
     return items;
   };
   return <section class="kt-page" aria-label="排版与预览">

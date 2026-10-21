@@ -151,8 +151,8 @@ export async function spaNavigation(node: HTMLElement, initial: Cases["detail"],
     const data = detail.useLoaderData(); return <BookDetail page={data()} />;
   } });
   const tracking = createRoute({ getParentRoute: () => root, path: "/tracker", validateSearch: (search: Record<string, unknown>) => search, component: () => <TrackerPage data={tracker} /> });
-  function Capture() { const k = useKindle(); context = k; mounts++; onCleanup(() => { cleanups++; }); return <><p data-queue-state>{k.items().map(item => item.state).join(",")}</p><Link href="/kindle/transfer?book=a#queue">查询与锚点</Link><Link href="#license">本页锚点</Link></>; }
-  const kindle = createRoute({ getParentRoute: () => root, path: "/kindle", component: () => <KindleProvider manager={manager} queue={queue}><Capture /><KindleTabs /><Outlet /></KindleProvider> });
+  function Capture() { const k = useKindle(); context = k; mounts++; onCleanup(() => { cleanups++; }); return <><p data-queue-state>{k.items().map(item => item.state).join(",")}</p><Link href="/devices/transfer?book=a#queue">查询与锚点</Link><Link href="#license">本页锚点</Link></>; }
+  const kindle = createRoute({ getParentRoute: () => root, path: "/devices", component: () => <KindleProvider manager={manager} queue={queue}><Capture /><KindleTabs /><Outlet /></KindleProvider> });
   const children = ["/", "transfer", "preview", "fonts", "connect"].map(path => createRoute({ getParentRoute: () => kindle, path, component: () => <p data-kindle-page>{path}</p> }));
   const router = createRouter({ routeTree: root.addChildren([detail, tracking, kindle.addChildren(children)]), history: createMemoryHistory({ initialEntries: [`/book/${initial.book.book_id}`] }), isServer: false, origin: "http://bindery.local" });
   await router.load();

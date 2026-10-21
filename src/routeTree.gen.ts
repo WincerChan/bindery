@@ -14,6 +14,7 @@ import { Route as LibraryRouteImport } from './routes/library'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppArchiveRouteImport } from './routes/_app.archive'
+import { Route as AppDevicesRouteImport } from './routes/_app.devices'
 import { Route as AppIngestRouteImport } from './routes/_app.ingest'
 import { Route as AppJobsRouteImport } from './routes/_app.jobs'
 import { Route as AppKindleRouteImport } from './routes/_app.kindle'
@@ -36,6 +37,11 @@ import { Route as TrackerExportRouteImport } from './routes/tracker.export'
 import { Route as WishlistDuplicateCheckRouteImport } from './routes/wishlist.duplicate-check'
 import { Route as WishlistExportRouteImport } from './routes/wishlist.export'
 import { Route as AppBookBook_idRouteImport } from './routes/_app.book.$book_id'
+import { Route as AppDevicesIndexRouteImport } from './routes/_app.devices.index'
+import { Route as AppDevicesConnectRouteImport } from './routes/_app.devices.connect'
+import { Route as AppDevicesFontsRouteImport } from './routes/_app.devices.fonts'
+import { Route as AppDevicesPreviewRouteImport } from './routes/_app.devices.preview'
+import { Route as AppDevicesTransferRouteImport } from './routes/_app.devices.transfer'
 import { Route as AppKindleIndexRouteImport } from './routes/_app.kindle.index'
 import { Route as AppKindleConnectRouteImport } from './routes/_app.kindle.connect'
 import { Route as AppKindleFontsRouteImport } from './routes/_app.kindle.fonts'
@@ -67,6 +73,7 @@ import { Route as BookBook_idCoverUrlRouteImport } from './routes/book.$book_id.
 import { Route as BookBook_idEpubSplatRouteImport } from './routes/book.$book_id.epub.$'
 import { Route as BookBook_idMetadataFetchRouteImport } from './routes/book.$book_id.metadata.fetch'
 import { Route as AppBookBook_idPreviewSectionRouteImport } from './routes/_app.book.$book_id_.preview_.$section'
+import { Route as DevicesContentBook_idModeEpubSplatRouteImport } from './routes/devices.content.$book_id.$mode.epub.$'
 import { Route as KindleContentBook_idModeEpubSplatRouteImport } from './routes/kindle.content.$book_id.$mode.epub.$'
 
 const AppRoute = AppRouteImport.update({
@@ -91,6 +98,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppArchiveRoute = AppArchiveRouteImport.update({
   id: '/archive',
   path: '/archive',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDevicesRoute = AppDevicesRouteImport.update({
+  id: '/devices',
+  path: '/devices',
   getParentRoute: () => AppRoute,
 } as any)
 const AppIngestRoute = AppIngestRouteImport.update({
@@ -202,6 +214,31 @@ const AppBookBook_idRoute = AppBookBook_idRouteImport.update({
   id: '/book/$book_id',
   path: '/book/$book_id',
   getParentRoute: () => AppRoute,
+} as any)
+const AppDevicesIndexRoute = AppDevicesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppDevicesRoute,
+} as any)
+const AppDevicesConnectRoute = AppDevicesConnectRouteImport.update({
+  id: '/connect',
+  path: '/connect',
+  getParentRoute: () => AppDevicesRoute,
+} as any)
+const AppDevicesFontsRoute = AppDevicesFontsRouteImport.update({
+  id: '/fonts',
+  path: '/fonts',
+  getParentRoute: () => AppDevicesRoute,
+} as any)
+const AppDevicesPreviewRoute = AppDevicesPreviewRouteImport.update({
+  id: '/preview',
+  path: '/preview',
+  getParentRoute: () => AppDevicesRoute,
+} as any)
+const AppDevicesTransferRoute = AppDevicesTransferRouteImport.update({
+  id: '/transfer',
+  path: '/transfer',
+  getParentRoute: () => AppDevicesRoute,
 } as any)
 const AppKindleIndexRoute = AppKindleIndexRouteImport.update({
   id: '/',
@@ -360,6 +397,12 @@ const AppBookBook_idPreviewSectionRoute =
     path: '/book/$book_id/preview/$section',
     getParentRoute: () => AppRoute,
   } as any)
+const DevicesContentBook_idModeEpubSplatRoute =
+  DevicesContentBook_idModeEpubSplatRouteImport.update({
+    id: '/devices/content/$book_id/$mode/epub/$',
+    path: '/devices/content/$book_id/$mode/epub/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const KindleContentBook_idModeEpubSplatRoute =
   KindleContentBook_idModeEpubSplatRouteImport.update({
     id: '/kindle/content/$book_id/$mode/epub/$',
@@ -372,6 +415,7 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/archive': typeof AppArchiveRoute
+  '/devices': typeof AppDevicesRouteWithChildren
   '/ingest': typeof AppIngestRoute
   '/jobs': typeof AppJobsRoute
   '/kindle': typeof AppKindleRouteWithChildren
@@ -394,6 +438,10 @@ export interface FileRoutesByFullPath {
   '/wishlist/duplicate-check': typeof WishlistDuplicateCheckRoute
   '/wishlist/export': typeof WishlistExportRoute
   '/book/$book_id': typeof AppBookBook_idRoute
+  '/devices/connect': typeof AppDevicesConnectRoute
+  '/devices/fonts': typeof AppDevicesFontsRoute
+  '/devices/preview': typeof AppDevicesPreviewRoute
+  '/devices/transfer': typeof AppDevicesTransferRoute
   '/kindle/connect': typeof AppKindleConnectRoute
   '/kindle/fonts': typeof AppKindleFontsRoute
   '/kindle/preview': typeof AppKindlePreviewRoute
@@ -414,6 +462,7 @@ export interface FileRoutesByFullPath {
   '/tracker/$wish_id/update': typeof TrackerWish_idUpdateRoute
   '/wishlist/$wish_id/delete': typeof WishlistWish_idDeleteRoute
   '/wishlist/$wish_id/update': typeof WishlistWish_idUpdateRoute
+  '/devices/': typeof AppDevicesIndexRoute
   '/kindle/': typeof AppKindleIndexRoute
   '/book/$book_id/edit': typeof AppBookBook_idEditRoute
   '/book/$book_id/preview': typeof AppBookBook_idPreviewRoute
@@ -425,6 +474,7 @@ export interface FileRoutesByFullPath {
   '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
   '/book/$book_id/metadata/fetch': typeof BookBook_idMetadataFetchRoute
   '/book/$book_id/preview/$section': typeof AppBookBook_idPreviewSectionRoute
+  '/devices/content/$book_id/$mode/epub/$': typeof DevicesContentBook_idModeEpubSplatRoute
   '/kindle/content/$book_id/$mode/epub/$': typeof KindleContentBook_idModeEpubSplatRoute
 }
 export interface FileRoutesByTo {
@@ -453,6 +503,10 @@ export interface FileRoutesByTo {
   '/wishlist/export': typeof WishlistExportRoute
   '/': typeof AppIndexRoute
   '/book/$book_id': typeof AppBookBook_idRoute
+  '/devices/connect': typeof AppDevicesConnectRoute
+  '/devices/fonts': typeof AppDevicesFontsRoute
+  '/devices/preview': typeof AppDevicesPreviewRoute
+  '/devices/transfer': typeof AppDevicesTransferRoute
   '/kindle/connect': typeof AppKindleConnectRoute
   '/kindle/fonts': typeof AppKindleFontsRoute
   '/kindle/preview': typeof AppKindlePreviewRoute
@@ -473,6 +527,7 @@ export interface FileRoutesByTo {
   '/tracker/$wish_id/update': typeof TrackerWish_idUpdateRoute
   '/wishlist/$wish_id/delete': typeof WishlistWish_idDeleteRoute
   '/wishlist/$wish_id/update': typeof WishlistWish_idUpdateRoute
+  '/devices': typeof AppDevicesIndexRoute
   '/kindle': typeof AppKindleIndexRoute
   '/book/$book_id/edit': typeof AppBookBook_idEditRoute
   '/book/$book_id/preview': typeof AppBookBook_idPreviewRoute
@@ -484,6 +539,7 @@ export interface FileRoutesByTo {
   '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
   '/book/$book_id/metadata/fetch': typeof BookBook_idMetadataFetchRoute
   '/book/$book_id/preview/$section': typeof AppBookBook_idPreviewSectionRoute
+  '/devices/content/$book_id/$mode/epub/$': typeof DevicesContentBook_idModeEpubSplatRoute
   '/kindle/content/$book_id/$mode/epub/$': typeof KindleContentBook_idModeEpubSplatRoute
 }
 export interface FileRoutesById {
@@ -492,6 +548,7 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/_app/archive': typeof AppArchiveRoute
+  '/_app/devices': typeof AppDevicesRouteWithChildren
   '/_app/ingest': typeof AppIngestRoute
   '/_app/jobs': typeof AppJobsRoute
   '/_app/kindle': typeof AppKindleRouteWithChildren
@@ -515,6 +572,10 @@ export interface FileRoutesById {
   '/wishlist/export': typeof WishlistExportRoute
   '/_app/': typeof AppIndexRoute
   '/_app/book/$book_id': typeof AppBookBook_idRoute
+  '/_app/devices/connect': typeof AppDevicesConnectRoute
+  '/_app/devices/fonts': typeof AppDevicesFontsRoute
+  '/_app/devices/preview': typeof AppDevicesPreviewRoute
+  '/_app/devices/transfer': typeof AppDevicesTransferRoute
   '/_app/kindle/connect': typeof AppKindleConnectRoute
   '/_app/kindle/fonts': typeof AppKindleFontsRoute
   '/_app/kindle/preview': typeof AppKindlePreviewRoute
@@ -535,6 +596,7 @@ export interface FileRoutesById {
   '/tracker/$wish_id/update': typeof TrackerWish_idUpdateRoute
   '/wishlist/$wish_id/delete': typeof WishlistWish_idDeleteRoute
   '/wishlist/$wish_id/update': typeof WishlistWish_idUpdateRoute
+  '/_app/devices/': typeof AppDevicesIndexRoute
   '/_app/kindle/': typeof AppKindleIndexRoute
   '/_app/book/$book_id_/edit': typeof AppBookBook_idEditRoute
   '/_app/book/$book_id_/preview': typeof AppBookBook_idPreviewRoute
@@ -546,6 +608,7 @@ export interface FileRoutesById {
   '/book/$book_id/epub/$': typeof BookBook_idEpubSplatRoute
   '/book/$book_id/metadata/fetch': typeof BookBook_idMetadataFetchRoute
   '/_app/book/$book_id_/preview_/$section': typeof AppBookBook_idPreviewSectionRoute
+  '/devices/content/$book_id/$mode/epub/$': typeof DevicesContentBook_idModeEpubSplatRoute
   '/kindle/content/$book_id/$mode/epub/$': typeof KindleContentBook_idModeEpubSplatRoute
 }
 export interface FileRouteTypes {
@@ -555,6 +618,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/archive'
+    | '/devices'
     | '/ingest'
     | '/jobs'
     | '/kindle'
@@ -577,6 +641,10 @@ export interface FileRouteTypes {
     | '/wishlist/duplicate-check'
     | '/wishlist/export'
     | '/book/$book_id'
+    | '/devices/connect'
+    | '/devices/fonts'
+    | '/devices/preview'
+    | '/devices/transfer'
     | '/kindle/connect'
     | '/kindle/fonts'
     | '/kindle/preview'
@@ -597,6 +665,7 @@ export interface FileRouteTypes {
     | '/tracker/$wish_id/update'
     | '/wishlist/$wish_id/delete'
     | '/wishlist/$wish_id/update'
+    | '/devices/'
     | '/kindle/'
     | '/book/$book_id/edit'
     | '/book/$book_id/preview'
@@ -608,6 +677,7 @@ export interface FileRouteTypes {
     | '/book/$book_id/epub/$'
     | '/book/$book_id/metadata/fetch'
     | '/book/$book_id/preview/$section'
+    | '/devices/content/$book_id/$mode/epub/$'
     | '/kindle/content/$book_id/$mode/epub/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -636,6 +706,10 @@ export interface FileRouteTypes {
     | '/wishlist/export'
     | '/'
     | '/book/$book_id'
+    | '/devices/connect'
+    | '/devices/fonts'
+    | '/devices/preview'
+    | '/devices/transfer'
     | '/kindle/connect'
     | '/kindle/fonts'
     | '/kindle/preview'
@@ -656,6 +730,7 @@ export interface FileRouteTypes {
     | '/tracker/$wish_id/update'
     | '/wishlist/$wish_id/delete'
     | '/wishlist/$wish_id/update'
+    | '/devices'
     | '/kindle'
     | '/book/$book_id/edit'
     | '/book/$book_id/preview'
@@ -667,6 +742,7 @@ export interface FileRouteTypes {
     | '/book/$book_id/epub/$'
     | '/book/$book_id/metadata/fetch'
     | '/book/$book_id/preview/$section'
+    | '/devices/content/$book_id/$mode/epub/$'
     | '/kindle/content/$book_id/$mode/epub/$'
   id:
     | '__root__'
@@ -674,6 +750,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/_app/archive'
+    | '/_app/devices'
     | '/_app/ingest'
     | '/_app/jobs'
     | '/_app/kindle'
@@ -697,6 +774,10 @@ export interface FileRouteTypes {
     | '/wishlist/export'
     | '/_app/'
     | '/_app/book/$book_id'
+    | '/_app/devices/connect'
+    | '/_app/devices/fonts'
+    | '/_app/devices/preview'
+    | '/_app/devices/transfer'
     | '/_app/kindle/connect'
     | '/_app/kindle/fonts'
     | '/_app/kindle/preview'
@@ -717,6 +798,7 @@ export interface FileRouteTypes {
     | '/tracker/$wish_id/update'
     | '/wishlist/$wish_id/delete'
     | '/wishlist/$wish_id/update'
+    | '/_app/devices/'
     | '/_app/kindle/'
     | '/_app/book/$book_id_/edit'
     | '/_app/book/$book_id_/preview'
@@ -728,6 +810,7 @@ export interface FileRouteTypes {
     | '/book/$book_id/epub/$'
     | '/book/$book_id/metadata/fetch'
     | '/_app/book/$book_id_/preview_/$section'
+    | '/devices/content/$book_id/$mode/epub/$'
     | '/kindle/content/$book_id/$mode/epub/$'
   fileRoutesById: FileRoutesById
 }
@@ -767,6 +850,7 @@ export interface RootRouteChildren {
   WishlistWish_idUpdateRoute: typeof WishlistWish_idUpdateRoute
   BookBook_idEpubSplatRoute: typeof BookBook_idEpubSplatRoute
   BookBook_idMetadataFetchRoute: typeof BookBook_idMetadataFetchRoute
+  DevicesContentBook_idModeEpubSplatRoute: typeof DevicesContentBook_idModeEpubSplatRoute
   KindleContentBook_idModeEpubSplatRoute: typeof KindleContentBook_idModeEpubSplatRoute
 }
 
@@ -805,6 +889,13 @@ declare module '@tanstack/solid-router' {
       path: '/archive'
       fullPath: '/archive'
       preLoaderRoute: typeof AppArchiveRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/devices': {
+      id: '/_app/devices'
+      path: '/devices'
+      fullPath: '/devices'
+      preLoaderRoute: typeof AppDevicesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/ingest': {
@@ -960,6 +1051,41 @@ declare module '@tanstack/solid-router' {
       fullPath: '/book/$book_id'
       preLoaderRoute: typeof AppBookBook_idRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/devices/': {
+      id: '/_app/devices/'
+      path: '/'
+      fullPath: '/devices/'
+      preLoaderRoute: typeof AppDevicesIndexRouteImport
+      parentRoute: typeof AppDevicesRoute
+    }
+    '/_app/devices/connect': {
+      id: '/_app/devices/connect'
+      path: '/connect'
+      fullPath: '/devices/connect'
+      preLoaderRoute: typeof AppDevicesConnectRouteImport
+      parentRoute: typeof AppDevicesRoute
+    }
+    '/_app/devices/fonts': {
+      id: '/_app/devices/fonts'
+      path: '/fonts'
+      fullPath: '/devices/fonts'
+      preLoaderRoute: typeof AppDevicesFontsRouteImport
+      parentRoute: typeof AppDevicesRoute
+    }
+    '/_app/devices/preview': {
+      id: '/_app/devices/preview'
+      path: '/preview'
+      fullPath: '/devices/preview'
+      preLoaderRoute: typeof AppDevicesPreviewRouteImport
+      parentRoute: typeof AppDevicesRoute
+    }
+    '/_app/devices/transfer': {
+      id: '/_app/devices/transfer'
+      path: '/transfer'
+      fullPath: '/devices/transfer'
+      preLoaderRoute: typeof AppDevicesTransferRouteImport
+      parentRoute: typeof AppDevicesRoute
     }
     '/_app/kindle/': {
       id: '/_app/kindle/'
@@ -1178,6 +1304,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AppBookBook_idPreviewSectionRouteImport
       parentRoute: typeof AppRoute
     }
+    '/devices/content/$book_id/$mode/epub/$': {
+      id: '/devices/content/$book_id/$mode/epub/$'
+      path: '/devices/content/$book_id/$mode/epub/$'
+      fullPath: '/devices/content/$book_id/$mode/epub/$'
+      preLoaderRoute: typeof DevicesContentBook_idModeEpubSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/kindle/content/$book_id/$mode/epub/$': {
       id: '/kindle/content/$book_id/$mode/epub/$'
       path: '/kindle/content/$book_id/$mode/epub/$'
@@ -1187,6 +1320,26 @@ declare module '@tanstack/solid-router' {
     }
   }
 }
+
+interface AppDevicesRouteChildren {
+  AppDevicesConnectRoute: typeof AppDevicesConnectRoute
+  AppDevicesFontsRoute: typeof AppDevicesFontsRoute
+  AppDevicesPreviewRoute: typeof AppDevicesPreviewRoute
+  AppDevicesTransferRoute: typeof AppDevicesTransferRoute
+  AppDevicesIndexRoute: typeof AppDevicesIndexRoute
+}
+
+const AppDevicesRouteChildren: AppDevicesRouteChildren = {
+  AppDevicesConnectRoute: AppDevicesConnectRoute,
+  AppDevicesFontsRoute: AppDevicesFontsRoute,
+  AppDevicesPreviewRoute: AppDevicesPreviewRoute,
+  AppDevicesTransferRoute: AppDevicesTransferRoute,
+  AppDevicesIndexRoute: AppDevicesIndexRoute,
+}
+
+const AppDevicesRouteWithChildren = AppDevicesRoute._addFileChildren(
+  AppDevicesRouteChildren,
+)
 
 interface AppKindleRouteChildren {
   AppKindleConnectRoute: typeof AppKindleConnectRoute
@@ -1210,6 +1363,7 @@ const AppKindleRouteWithChildren = AppKindleRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppArchiveRoute: typeof AppArchiveRoute
+  AppDevicesRoute: typeof AppDevicesRouteWithChildren
   AppIngestRoute: typeof AppIngestRoute
   AppJobsRoute: typeof AppJobsRoute
   AppKindleRoute: typeof AppKindleRouteWithChildren
@@ -1228,6 +1382,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppArchiveRoute: AppArchiveRoute,
+  AppDevicesRoute: AppDevicesRouteWithChildren,
   AppIngestRoute: AppIngestRoute,
   AppJobsRoute: AppJobsRoute,
   AppKindleRoute: AppKindleRouteWithChildren,
@@ -1297,6 +1452,8 @@ const rootRouteChildren: RootRouteChildren = {
   WishlistWish_idUpdateRoute: WishlistWish_idUpdateRoute,
   BookBook_idEpubSplatRoute: BookBook_idEpubSplatRoute,
   BookBook_idMetadataFetchRoute: BookBook_idMetadataFetchRoute,
+  DevicesContentBook_idModeEpubSplatRoute:
+    DevicesContentBook_idModeEpubSplatRoute,
   KindleContentBook_idModeEpubSplatRoute:
     KindleContentBook_idModeEpubSplatRoute,
 }

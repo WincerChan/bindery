@@ -1,9 +1,3 @@
-import { createFileRoute } from "@tanstack/solid-router";
-import { loadLibrary } from "../features/library/functions";
-import { loadKindleLibrary } from "../features/kindle/devices/library";
-import { KindleBooksPage } from "../features/kindle/devices/books";
-export const Route = createFileRoute("/_app/kindle/")({
-  loader: () => loadKindleLibrary(page => loadLibrary({ data: { page, per_page: 96 } })),
-  component: Books,
-});
-function Books() { const books = Route.useLoaderData(); return <KindleBooksPage books={books()} />; }
+import { createFileRoute, redirect } from "@tanstack/solid-router";
+import { legacyKindleRedirect } from "../features/devices/redirects";
+export const Route = createFileRoute("/_app/kindle/")({ beforeLoad: ({ location }) => { throw redirect(legacyKindleRedirect(location.href)); } });

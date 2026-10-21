@@ -29,7 +29,7 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       const get = (path, auth = true, method = "GET") => handler(new Request("http://localhost" + path, { method, headers: { Cookie: auth ? "bindery_session=" + session : "" } }));
       const book = JSON.parse(readFileSync(join(root, "typeset-paths.json"), "utf8"));
       const encodePath = path => path.split("/").map(part => encodeURIComponent(part).replace(/[!'()*~]/g, ch => "%" + ch.charCodeAt(0).toString(16).toUpperCase())).join("/");
-      for (const page of ["/kindle/preview?book=" + bookId, "/kindle/fonts"]) {
+      for (const page of ["/devices/preview?book=" + bookId, "/devices/fonts"]) {
         assert.equal((await get(page, false)).status, 303);
         const response = await get(page); assert.equal(response.status, 200); const html = await response.text();
         assert.match(html, /检测中/); assert.doesNotMatch(html, /allow-scripts|srcdoc=/); assert.ok(!html.includes(root));
@@ -65,11 +65,11 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       const result = async response => { assert.equal(response.status, 200); const payload = await response.json(); assert.ok(!payload.error, JSON.stringify(payload)); return payload.result; };
       const preview = await result(await rpc("getPreview", "GET", bookId)); assert.equal(preview.bookId, bookId); assert.ok(preview.sections.length > 0);
       assert.deepEqual(preview.sections.map(section => section.item_path), book.paths);
-      const assetPath = "/kindle/content/" + bookId + "/11/epub/" + encodePath(preview.sections[0].item_path);
+      const assetPath = "/devices/content/" + bookId + "/11/epub/" + encodePath(preview.sections[0].item_path);
       assert.equal((await get(assetPath, false)).status, 303);
-      const asset = await get(assetPath); assert.equal(asset.status, 200); assert.ok((await asset.text()).includes('<base href="http://localhost/kindle/content/'));
+      const asset = await get(assetPath); assert.equal(asset.status, 200); assert.ok((await asset.text()).includes('<base href="http://localhost/devices/content/'));
       for (const mode of ["00", "01", "10", "11"]) {
-        const prefix = "/kindle/content/" + bookId + "/" + mode + "/epub/";
+        const prefix = "/devices/content/" + bookId + "/" + mode + "/epub/";
         for (const member of [...book.paths, book.css, book.importedCss, book.image, book.font, ...["%2e%2e", "%2F", "#", "?", "a:b", "::|"].map(name => "OEBPS/Images/" + name)]) {
           const response = await get(prefix + encodePath(member));
           const removed = (mode[0] === "1" && member === book.font) || (mode[1] === "1" && member === book.image);

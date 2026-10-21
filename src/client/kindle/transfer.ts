@@ -4,36 +4,26 @@ import { readKfxIdentity } from "../boko/kfx";
 import { extractCover } from "../../core/epub";
 import { applyTypesettingProfile } from "./epub";
 import { assertWindowsWritePath, directoryEntries, entryName, entryOperation, optionalDirectory, optionalEntry, type KindleDirectory } from "./fs";
-import { assertDevice } from "./identity";
-import type { PairedDevice } from "./identity";
+import { assertDevice } from "../devices/identity";
+import type { PairedDevice } from "../devices/identity";
+import type { TransferOptions as DeviceTransferOptions } from "../devices/queue";
 import { manifestBytes, readManifest, thumbnailName, type ManifestBook } from "./manifest";
 import { defaultProfile, DEFAULT_PROFILE_ID, profileSettings, type TypesettingProfile } from "./profiles";
-import { applyDevicePatches, withDeviceLock, type DevicePatch } from "./transaction";
+import { applyDevicePatchesFor, withDeviceLock, type DevicePatch } from "./transaction";
 import { makeThumbnail } from "./thumbnail";
 import { listFonts } from "./fonts";
 import { PROGRESS_INTERVAL_MS, TransferProgressReporter, type TransferProgress } from "./progress";
 
 export type { TransferState, TransferPhase, TransferProgress } from "./progress";
-export interface TransferOptions { overwrite?: boolean; signal?: AbortSignal; progress?: (progress: TransferProgress) => void }
+export interface TransferOptions extends DeviceTransferOptions {}
 export interface TransferDependencies {
   converter: EpubConverter;
   fetch: typeof fetch;
   profile: (deviceId: string, profileId: string) => Promise<TypesettingProfile>;
   thumbnail: (bytes: Uint8Array) => Promise<Uint8Array<ArrayBuffer>>;
 }
-// X:\documents\<stem>.sdr\<stem><32 hex>.yjr.bad_file = 63 + 2*stem.length.
-// Keep that worst case <= 240 UTF-16 units (20 units below MAX_PATH), suffix included.
-export const BOOK_STEM_BUDGET = 88;
-function fitStem(name: string, budget: number): string {
-  while (name.length > budget || new TextEncoder().encode(name).length > 180) name = Array.from(name).slice(0, -1).join("");
-  return name.replace(/[. ]+$/g, "");
-}
-export function safeBookStem(title: string): string {
-  let name = title.normalize("NFC").replace(/[<>:"/\\|?*\x00-\x1f\x7f]/g, "_").trim().replace(/[. ]+$/g, "");
-  if (!name || name === "." || name === "..") name = "book";
-  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)) name = `_${name}`;
-  return fitStem(name, BOOK_STEM_BUDGET);
-}
+import { BOOK_STEM_BUDGET, fitStem, safeBookStem } from "../devices/paths";
+export { BOOK_STEM_BUDGET, fitStem, safeBookStem };
 export function assertBookFilename(filename: string) {
   const stem = filename.replace(/\.kfx$/i, "");
   assertWindowsWritePath(`documents/${filename}`);
@@ -150,7 +140,7 @@ export class KindleTransferService {
       if (thumbnail && thumb) patches.push({ path: ["system", "thumbnails", thumb], data: thumbnail });
       if (existing?.thumbnail && existing.thumbnail !== thumb && !nextBooks.some(b => b.thumbnail === existing.thumbnail)) patches.push({ path: ["system", "thumbnails", existing.thumbnail], data: null });
       patches.push({ path: [".bindery", "manifest.json"], data: manifestBytes({ version: 1, books: nextBooks }) });
-      await applyDevicePatches(device.root, patches, options.signal, (patch, value) => {
+      await applyDevicePatchesFor(device.root, "kindle", patches, options.signal, (patch, value) => {
         if (patch === patches[0]) {
           progress.report({ state: "写入", phase: value.committing ? "finalize" : "write", message: value.committing ? "正在完成写入" : "正在写入 Kindle", loaded: value.loaded, total: value.total }, value.committing || value.loaded === value.total);
         } else {

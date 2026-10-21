@@ -1,0 +1,138 @@
+{
+  "generator": {
+    "tool": "kepubify",
+    "version": "4.0.4",
+    "sha256": "37d7628d26c5c906f607f24b36f781f306075e7073a6fe7820a751bb60431fc5",
+    "date": "2026-10-21"
+  },
+  "normalization": "Member order is sorted by name. ZIP metadata, timestamps, compression and comments are ignored. Text member bytes are stored verbatim; other members store SHA-256.",
+  "inputs": [
+    {
+      "input": "input-dummy.epub",
+      "inputSha256": "b724d3f73c098976b672cbe5b1893aec15f58dba24f57861b0c228cdeace9679",
+      "dummyTitlepage": true,
+      "members": [
+        {
+          "name": "META-INF/container.xml",
+          "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\"><rootfiles><rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\"/></rootfiles></container>"
+        },
+        {
+          "name": "mimetype",
+          "sha256": "e468e350d1143eb648f60c7b0bd6031101ec0544a361ca74ecef256ac901f48b",
+          "size": 20
+        },
+        {
+          "name": "OEBPS/content.opf",
+          "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" version=\"2.0\" unique-identifier=\"id\">\n    <metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n        <dc:identifier id=\"id\">fixture</dc:identifier>\n        <dc:title>KEPUB fixture</dc:title>\n        <meta name=\"cover\" content=\"cover-image\"/>\n    </metadata>\n    <manifest>\n        <item id=\"cover\" href=\"Text/cover.xhtml\" media-type=\"application/xhtml+xml\"/>\n        <item id=\"start\" href=\"Text/start.xhtml\" media-type=\"application/xhtml+xml\"/>\n        <item id=\"cover-image\" href=\"Images/cover.png\" media-type=\"image/png\" properties=\"cover-image\"/>\n        <item id=\"kepubify-titlepage-dummy\" href=\"kepubify-titlepage-dummy.xhtml\" media-type=\"application/xhtml+xml\"/>\n    </manifest>\n    <spine>\n        <itemref idref=\"kepubify-titlepage-dummy\"/>\n        <itemref idref=\"cover\" linear=\"no\"/>\n        <itemref idref=\"start\"/>\n    </spine>\n    <guide>\n        <reference type=\"text\" title=\"Start\" href=\"Text/mixed.xhtml\"/>\n    </guide>\n</package>\n"
+        },
+        {
+          "name": "OEBPS/Images/cover.png",
+          "sha256": "3fa405a8301ace34d11cf44a816080b8f0e49a48fbd048b8aef1543a8c58bdb6",
+          "size": 5
+        },
+        {
+          "name": "OEBPS/kepubify-titlepage-dummy.xhtml",
+          "text": "<!DOCTYPE html><html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"en\"><head><title></title></head><body><p style=\"text-align: center; margin: 4em 0; font-size: .7em; font-style: italic;\">Page intentionally left blank by kepubify.</p></body></html>"
+        },
+        {
+          "name": "OEBPS/Text/cover.xhtml",
+          "text": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Cover</title><style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0;}</style></head><body><div id=\"book-columns\"><div id=\"book-inner\"><span class=\"koboSpan\" id=\"kobo.1.1\"><img src=\"../Images/cover.png\"/></span></div></div></body></html>"
+        },
+        {
+          "name": "OEBPS/Text/start.xhtml",
+          "text": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Start</title><style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0;}</style></head><body><div id=\"book-columns\"><div id=\"book-inner\"><div><span class=\"koboSpan\" id=\"kobo.0.1\">Short text.</span></div></div></div></body></html>"
+        }
+      ]
+    },
+    {
+      "input": "input-mixed.epub",
+      "inputSha256": "27fe0f7bccfdffcb4a423256584a00c714dd1c03d3e2524cebb48e851965bdcc",
+      "dummyTitlepage": true,
+      "members": [
+        {
+          "name": "META-INF/container.xml",
+          "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\"><rootfiles><rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\"/></rootfiles></container>"
+        },
+        {
+          "name": "mimetype",
+          "sha256": "e468e350d1143eb648f60c7b0bd6031101ec0544a361ca74ecef256ac901f48b",
+          "size": 20
+        },
+        {
+          "name": "OEBPS/content.opf",
+          "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" version=\"2.0\" unique-identifier=\"id\">\n    <metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n        <dc:identifier id=\"id\">fixture</dc:identifier>\n        <dc:title>KEPUB fixture</dc:title>\n        <meta name=\"cover\" content=\"pixel\"/>\n    </metadata>\n    <manifest>\n        <item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>\n        <item id=\"mixed\" href=\"Text/mixed.xhtml\" media-type=\"application/xhtml+xml\"/>\n        <item id=\"spans\" href=\"Text/spans.xhtml\" media-type=\"application/xhtml+xml\"/>\n        <item id=\"divs\" href=\"Text/divs.xhtml\" media-type=\"application/xhtml+xml\"/>\n        <item id=\"empty\" href=\"Text/empty.xhtml\" media-type=\"application/xhtml+xml\"/>\n        <item id=\"special\" href=\"Text/第 1 章 &amp; notes.xhtml\" media-type=\"application/xhtml+xml\"/>\n        <item id=\"pixel\" href=\"Images/pixel.png\" media-type=\"image/png\" properties=\"cover-image\"/>\n        <item id=\"css\" href=\"Styles/book.css\" media-type=\"text/css\"/>\n        <item id=\"kepubify-titlepage-dummy\" href=\"kepubify-titlepage-dummy.xhtml\" media-type=\"application/xhtml+xml\"/>\n    </manifest>\n    <spine>\n        <itemref idref=\"kepubify-titlepage-dummy\"/>\n        <itemref idref=\"mixed\"/>\n        <itemref idref=\"spans\"/>\n        <itemref idref=\"divs\"/>\n        <itemref idref=\"empty\"/>\n        <itemref idref=\"special\"/>\n    </spine>\n    <guide>\n        <reference type=\"text\" title=\"Start\" href=\"Text/mixed.xhtml\"/>\n    </guide>\n</package>\n"
+        },
+        {
+          "name": "OEBPS/Images/pixel.png",
+          "sha256": "ccca2c5e9bb7a64ba48f9219ddda198cb4acf767d17da3157fae74e733a9ac48",
+          "size": 14
+        },
+        {
+          "name": "OEBPS/kepubify-titlepage-dummy.xhtml",
+          "text": "<!DOCTYPE html><html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"en\"><head><title></title></head><body><p style=\"text-align: center; margin: 4em 0; font-size: .7em; font-style: italic;\">Page intentionally left blank by kepubify.</p></body></html>"
+        },
+        {
+          "name": "OEBPS/Styles/book.css",
+          "text": "p { color: black; }"
+        },
+        {
+          "name": "OEBPS/Text/divs.xhtml",
+          "text": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Divs</title><style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0;}</style></head><body><div id=\"book-columns\"><div id=\"book-inner\"><p><span class=\"koboSpan\" id=\"kobo.1.1\">Wrapped once. </span><span class=\"koboSpan\" id=\"kobo.1.2\">Two sentences.</span></p></div></div></body></html>"
+        },
+        {
+          "name": "OEBPS/Text/empty.xhtml",
+          "text": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Empty</title><style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0;}</style></head><body><div id=\"book-columns\"><div id=\"book-inner\"><!-- empty --></div></div></body></html>"
+        },
+        {
+          "name": "OEBPS/Text/mixed.xhtml",
+          "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\"><html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"zh-CN\"><head>\n<meta http-equiv=\"Content-Type\" content=\"application/xhtml+xml; charset=utf-8\"/>\n<title>Mixed</title>\n<style type=\"text/css\">p > a { color: red; }</style>\n<script type=\"text/javascript\">if (a < b && c > d) { x = \"&\"; }</script>\n<style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0;}</style></head>\n<body class=\"main\"><div id=\"book-columns\"><div id=\"book-inner\">\n<p id=\"first\"><span class=\"koboSpan\" id=\"kobo.1.1\">中文句子。第二句！English sentence. </span><span class=\"koboSpan\" id=\"kobo.1.2\">Next&#160;part &amp; &#160; &lt;tag&gt; “引号” — dash</span></p>\n<p><span class=\"koboSpan\" id=\"kobo.2.1\">Sentence </span><b><span class=\"koboSpan\" id=\"kobo.2.2\">bold 1. </span></b><span class=\"koboSpan\" id=\"kobo.2.3\">plain </span><i><span class=\"koboSpan\" id=\"kobo.2.4\">italic </span><span><span class=\"koboSpan\" id=\"kobo.2.5\">nested 2. </span><span class=\"koboSpan\" id=\"kobo.2.6\">Se</span></span><span class=\"koboSpan\" id=\"kobo.2.7\">nt</span></i><span class=\"koboSpan\" id=\"kobo.2.8\">ence </span><a href=\"notes.xhtml#n1\" id=\"ref1\"><span class=\"koboSpan\" id=\"kobo.2.9\">footnote 3. </span><span class=\"koboSpan\" id=\"kobo.2.10\">Another</span></a><span class=\"koboSpan\" id=\"kobo.2.11\">.</span></p>\n<p><span class=\"koboSpan\" id=\"kobo.3.1\">Line one</span><br/><span class=\"koboSpan\" id=\"kobo.3.2\">line two</span><br/><span class=\"koboSpan\" id=\"kobo.3.3\">line three</span></p>\n<pre>  pre text\n &amp; stays raw</pre>\n<p><code><span class=\"koboSpan\" id=\"kobo.4.1\">a&lt;b</span></code></p>\n<p><span class=\"koboSpan\" id=\"kobo.5.1\"><img src=\"../Images/pixel.png\" alt=\"a&amp;b\"/></span><span class=\"koboSpan\" id=\"kobo.5.2\"> after image. </span><span class=\"koboSpan\" id=\"kobo.5.3\">Final.</span></p>\n<table><tbody><tr><td><span class=\"koboSpan\" id=\"kobo.6.1\">Cell one.</span></td><td><p><span class=\"koboSpan\" id=\"kobo.7.1\">Cell two. </span><span class=\"koboSpan\" id=\"kobo.7.2\">Second sentence.</span></p></td></tr></tbody></table>\n<p><span class=\"koboSpan\" id=\"kobo.8.1\">Entities: © — 中 &amp;unknown; &amp;amp;</span></p>\n<p><a></a><span class=\"koboSpan\" id=\"kobo.9.1\">self closing link. </span><span></span><span class=\"koboSpan\" id=\"kobo.9.2\">empty span.</span></p>\n<p><span class=\"koboSpan\" id=\"kobo.10.1\">a</span></p><p><span class=\"koboSpan\" id=\"kobo.11.1\">b</span></p><span class=\"koboSpan\" id=\"kobo.11.2\">c</span><p></p><div><span><span class=\"koboSpan\" id=\"kobo.12.1\">d</span></span></div><span class=\"koboSpan\" id=\"kobo.12.2\">e\n</span><svg viewBox=\"0 0 10 10\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><title>svg title</title><text x=\"0\" y=\"5\">SVG text.</text></svg>\n<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>x</mi><mo>=</mo><mn>1</mn></math>\n</div></div></body></html>"
+        },
+        {
+          "name": "OEBPS/Text/spans.xhtml",
+          "text": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Existing</title><style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0;}</style></head><body><div id=\"book-columns\"><div id=\"book-inner\"><p><span class=\"koboSpan\" id=\"kobo.1.1\">Already spanned.</span> Not again.</p></div></div></body></html>"
+        },
+        {
+          "name": "OEBPS/Text/第 1 章 & notes.xhtml",
+          "text": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Special</title><style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0;}</style></head><body><div id=\"book-columns\"><div id=\"book-inner\"><p><span class=\"koboSpan\" id=\"kobo.1.1\">特殊 路径 &amp; notes. </span><span class=\"koboSpan\" id=\"kobo.1.2\">Second sentence.</span></p></div></div></body></html>"
+        },
+        {
+          "name": "OEBPS/toc.ncx",
+          "text": "<?xml version=\"1.0\"?><ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\"><navMap><navPoint id=\"a\"><navLabel><text>Start</text></navLabel><content src=\"Text/mixed.xhtml\"/></navPoint></navMap></ncx>"
+        }
+      ]
+    },
+    {
+      "input": "input-titlepage.epub",
+      "inputSha256": "0d3d61a15f027be0ccdcbb013ab65b50fdff3b5e38116314dcb31eddf7a71cde",
+      "dummyTitlepage": false,
+      "members": [
+        {
+          "name": "META-INF/container.xml",
+          "text": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\"><rootfiles><rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\"/></rootfiles></container>"
+        },
+        {
+          "name": "mimetype",
+          "sha256": "e468e350d1143eb648f60c7b0bd6031101ec0544a361ca74ecef256ac901f48b",
+          "size": 20
+        },
+        {
+          "name": "OEBPS/content.opf",
+          "text": "﻿<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" version=\"3.0\" unique-identifier=\"id\">\n    <metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n        <dc:identifier id=\"id\">title</dc:identifier>\n        <dc:title>Title</dc:title>\n        <meta name=\"cover\" content=\"cover-image\"/>\n    </metadata>\n    <manifest>\n        <item id=\"cover\" href=\"Text/cover.xhtml\" media-type=\"application/xhtml+xml\"/>\n        <item id=\"chapter\" href=\"Text/chapter.xhtml\" media-type=\"application/xhtml+xml\"/>\n        <item id=\"cover-image\" href=\"Images/cover.png\" media-type=\"image/png\" properties=\"cover-image\"/>\n    </manifest>\n    <spine>\n        <itemref idref=\"cover\"/>\n        <itemref idref=\"chapter\"/>\n    </spine>\n</package>\n"
+        },
+        {
+          "name": "OEBPS/Images/cover.png",
+          "sha256": "3fa405a8301ace34d11cf44a816080b8f0e49a48fbd048b8aef1543a8c58bdb6",
+          "size": 5
+        },
+        {
+          "name": "OEBPS/Text/chapter.xhtml",
+          "text": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Chapter</title><style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0;}</style></head><body><div id=\"book-columns\"><div id=\"book-inner\"><h1><span class=\"koboSpan\" id=\"kobo.1.1\">Chapter</span></h1><p><span class=\"koboSpan\" id=\"kobo.2.1\">One. </span><span class=\"koboSpan\" id=\"kobo.2.2\">Two?</span></p></div></div></body></html>"
+        },
+        {
+          "name": "OEBPS/Text/cover.xhtml",
+          "text": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Cover</title><style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0;}</style></head><body><div id=\"book-columns\"><div id=\"book-inner\"><span class=\"koboSpan\" id=\"kobo.1.1\"><img src=\"../Images/cover.png\" alt=\"cover\"/></span></div></div></body></html>"
+        }
+      ]
+    }
+  ]
+}

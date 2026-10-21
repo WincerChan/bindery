@@ -9,7 +9,7 @@ export interface PreviewData { books: PreviewBook[]; bookId: string; sections: P
 export function previewContentUrl(bookId: string, path: string, options: EpubStripOptions): string {
   const member = encodeEpubPath(path);
   return options.stripFonts || options.stripImages
-    ? `/kindle/content/${bookId}/${options.stripFonts ? 1 : 0}${options.stripImages ? 1 : 0}/epub/${member}`
+    ? `/devices/content/${bookId}/${options.stripFonts ? 1 : 0}${options.stripImages ? 1 : 0}/epub/${member}`
     : `/book/${bookId}/epub/${member}`;
 }
 export function screenFor(model: KindleModel) { return KINDLE_MODELS[model === "other" ? "KPW3" : model]; }

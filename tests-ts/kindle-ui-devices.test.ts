@@ -17,7 +17,8 @@ import type { KindleContextValue } from "../src/features/kindle/context";
 import type { KindleLibraryBook } from "../src/features/kindle/devices/library";
 import { loadKindleLibrary } from "../src/features/kindle/devices/library";
 import type { LibraryPageData } from "../src/server/library/queries";
-import { fakeKindle } from "./support/fake-fs";
+import { fakeKindle, fakeKobo } from "./support/fake-fs";
+import { detectDevice, pairDetectedDevice } from "../src/client/devices/identity";
 import { clientDocument, elements, fire } from "./support/client-dom";
 
 type Page = "books" | "connect" | "transfer";
@@ -110,6 +111,13 @@ const saved = (d: PairedDevice): RememberedDevice => ({ id: d.identity.id, ident
 const record = (id: string, filename: string, profile = "default"): ManifestBook => ({ book_id: id, filename, content_id: `id_${id}`, cde_content_type: "EBOK", profile_id: profile, profile_name: profile === "default" ? "默认" : "宽边距", transferred_at: "2026-10-19T03:04:05Z", size: 4, thumbnail: null });
 function input(manager = new KindleDeviceManager(repository()), books = [book("a", "书库甲"), book("b", "书库乙", true)]): Input {
   return { manager, books, queue: new TransferQueue({ transferBook: async () => { throw new Error("测试队列尚未接入转换服务"); } }), loadProfiles: async id => [defaultProfile(id)] };
+}
+async function connectedKobo(files: string[] = []) {
+  const fs = await fakeKobo("N418");
+  for (const filename of files) await fs.write(filename, "BOOK");
+  const detection = await detectDevice(fs.root), device = await pairDetectedDevice(fs.root, detection, detection.model, "我的 Libra 2");
+  const repo = repository([saved(device)]), manager = new KindleDeviceManager(repo, async () => fs.root);
+  return { fs, device, repo, manager, input: input(manager) };
 }
 async function connected(records: ManifestBook[] = []) {
   const fs = await fakeKindle();
@@ -268,10 +276,10 @@ it("carries streaming Content-Length through the real queue into download rows a
 it("renders the connection title, four numbered steps and remembered-device sidebar in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = server.markup("connect", input());
   const connection = withClass(root, "kindle-connect"), steps = withClass(connection, "kindle-steps");
-  expect(elements(connection, "h1").map(node => node.textContent)).toEqual(["连接你的 Kindle"]);
+  expect(elements(connection, "h1").map(node => node.textContent)).toEqual(["连接你的设备"]);
   expect(steps.tagName).toBe("ol"); expect(elements(steps, "li")).toHaveLength(4);
   expect(elements(steps, "input").filter(node => node.getAttribute("type") === "radio").map(node => node.getAttribute("value"))).toEqual(["KPW3", "KO3", "other"]);
-  const picker = button(connection, "选择 Kindle 目录"); expect(picker.hasAttribute("disabled")).toBe(true);
+  const picker = button(connection, "选择设备目录"); expect(picker.hasAttribute("disabled")).toBe(true);
   const nodes = elements(connection, "*"); expect(nodes.indexOf(steps)).toBeLessThan(nodes.indexOf(picker));
   expect(elements(connection, "aside")[0]!.getAttribute("aria-label")).toBe("记住的设备");
   expect(elements(connection, "h2")[0]!.textContent).toBe("记住的设备");
@@ -296,15 +304,15 @@ it.each(["books", "connect", "transfer"] as const)("hydrates neutral SSR for %s,
 
 it("shows unsupported-browser guidance only after hydration", async () => {
   globals(false); const m = mount("connect", input());
-  await settle(m); expect(text(m)).toContain("此浏览器不支持 Kindle 磁盘访问"); expect(text(m)).toContain("Edge 或 Chrome");
-  expect(button(m.root, "选择 Kindle 目录").hasAttribute("disabled")).toBe(true);
+  await settle(m); expect(text(m)).toContain("此浏览器不支持设备磁盘访问"); expect(text(m)).toContain("Edge 或 Chrome");
+  expect(button(m.root, "选择设备目录").hasAttribute("disabled")).toBe(true);
 });
 
 it("pairs a selected root with the chosen model/name and forgets only the browser record", async () => {
   const fs = await fakeKindle(), manager = new KindleDeviceManager(repository(), async () => fs.root), m = mount("connect", input(manager));
   await settle(m);
   const ko3 = elements(m.root, "input").find(el => el.getAttribute("value") === "KO3")!; fire(ko3, "change"); m.flush();
-  fire(button(m.root, "选择 Kindle 目录"), "click"); await settle(m); expect(text(m)).toContain("完成首次配对");
+  fire(button(m.root, "选择设备目录"), "click"); await settle(m); expect(text(m)).toContain("完成首次配对");
   const name = field(m.root, "显示名称"); name.value = "我的 Oasis"; fire(name, "input"); m.flush();
   fire(elements(m.root, "form")[0]!, "submit"); await settle(m);
   expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ model: "KO3", name: "我的 Oasis" }); expect(text(m)).toContain("1264×1680");
@@ -323,8 +331,8 @@ it("requests remembered-device permission directly in the click before restoring
 
 it("reports invalid directory selection and ignores user cancellation", async () => {
   let fail = true; const manager = new KindleDeviceManager(repository(), async () => { if (fail) throw new Error("请选择 Kindle 磁盘根目录"); throw new DOMException("cancel", "AbortError"); });
-  const m = mount("connect", input(manager)); await settle(m); fire(button(m.root, "选择 Kindle 目录"), "click"); await settle(m);
-  expect(text(m)).toContain("请选择 Kindle 磁盘根目录"); fail = false; fire(button(m.root, "选择 Kindle 目录"), "click"); await settle(m); expect(m.context().error()).toBe("");
+  const m = mount("connect", input(manager)); await settle(m); fire(button(m.root, "选择设备目录"), "click"); await settle(m);
+  expect(text(m)).toContain("请选择 Kindle 磁盘根目录"); fail = false; fire(button(m.root, "选择设备目录"), "click"); await settle(m); expect(m.context().error()).toBe("");
 });
 
 it("filters device books using library metadata and filename fallback, including the empty state", async () => {
@@ -354,7 +362,7 @@ it("clears old inventory and selection when switching devices and prevents delet
 
 it("enqueues a retransmission with the recorded profile and overwrite enabled", async () => {
   const c = await connected([record("a", "a.kfx", "wide")]); const transfer = vi.fn(async () => { throw new Error("profile was removed"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
-  const m = mount("books", c.input); await settle(m); const href = elements(m.root, "a").find(a => a.getAttribute("aria-label") === "预览 书库甲")?.getAttribute("href"); expect(href).toBe("/kindle/preview?book=a");
+  const m = mount("books", c.input); await settle(m); const href = elements(m.root, "a").find(a => a.getAttribute("aria-label") === "预览 书库甲")?.getAttribute("href"); expect(href).toBe("/devices/preview?book=a");
   const row = elements(m.root, "tr", "data-device-book")[0]!, actions = withClass(row, "kindle-row-actions");
   expect(Array.from(actions.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).getAttribute("aria-label")))
     .toEqual(["预览 书库甲", "重新传入 书库甲", "从设备删除 书库甲"]);
@@ -431,7 +439,7 @@ it("reports precisely which sidecar paths could not be removed after successful 
   fire(button(m.root, "从设备删除 书库甲"), "click"); m.flush(); fire(button(m.root, "确认删除"), "click"); await settle(m);
   const report = elements(m.root, "details", "data-delete-report")[0]!;
   expect(report.textContent).toContain("书籍文件已删除"); expect(report.textContent).toContain("documents/a.sdr/blocked"); expect(report.textContent).not.toContain("documents/a.sdr/after");
-  expect(report.textContent).toContain("Kindle 本机"); expect(report.textContent).toContain("支持长路径的工具"); expect(report.textContent).toContain("NotFoundError");
+  expect(report.textContent).toContain("设备本机"); expect(report.textContent).toContain("支持长路径的工具"); expect(report.textContent).toContain("NotFoundError");
   expect(m.context().state().status).toBe("granted"); expect(text(m)).toContain("已删除 1 本设备书籍"); expect((elements(m.root, "dialog")[0] as HTMLDialogElement).open).toBe(false);
   expect(JSON.parse(await c.fs.text(".bindery/manifest.json")).books).toEqual([]);
   for (const path of ["documents/a.kfx", "documents/a.sdr/after", `system/thumbnails/${r.thumbnail}`]) await expect(c.fs.bytes(path)).rejects.toMatchObject({ name: "NotFoundError" });
@@ -462,4 +470,35 @@ it("loads device thumbnails and revokes their object URLs when leaving the books
 it("loads every library query page and deduplicates records before exposing the picker", async () => {
   const load = vi.fn(async (page: number) => ({ books: page === 1 ? [book("a"), book("b")] : [book("b"), book("c")], total_pages: 2 }) as LibraryPageData);
   expect((await loadKindleLibrary(load)).map(b => b.book_id)).toEqual(["a", "b", "c"]); expect(load.mock.calls).toEqual([[1], [2]]);
+});
+
+it("renders Kobo transfer controls without Kindle-only settings or licenses", async () => {
+  const c = await connectedKobo(); const m = mount("transfer", c.input); await settle(m);
+  expect(text(m)).toContain("我的 Libra 2"); expect(text(m)).toContain("Kobo");
+  expect(text(m)).toContain("去掉书籍自带字体"); expect(text(m)).toContain("去掉所有图片（保留封面）");
+  expect(text(m)).not.toContain("排版方案"); expect(text(m)).not.toContain("boko"); expect(text(m)).not.toContain("GPL-3.0");
+  expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(2);
+  expect(elements(m.root, "option").some(node => node.textContent === "默认（只用书籍自带样式）")).toBe(false);
+});
+
+it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs", async () => {
+  const c = await connectedKobo(["Bindery/书库甲.kepub.epub", "Other/外部.epub"]); const m = mount("books", c.input); await settle(m);
+  expect(elements(m.root, "tr", "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["Bindery/书库甲.kepub.epub", "Other/外部.epub"]);
+  expect(text(m)).toContain("来自 Bindery"); expect(text(m)).toContain("其他");
+  expect(button(m.root, "从设备删除 书库甲").hasAttribute("disabled")).toBe(false);
+  expect(button(m.root, "从设备删除 外部").hasAttribute("disabled")).toBe(true);
+  expect(text(m)).toContain("读取 Bindery/ 与设备上的 EPUB / KEPUB");
+  fire(button(m.root, "从设备删除 书库甲"), "click"); m.flush(); expect(text(m)).toContain("设备下次连接或重启时会更新书架");
+  fire(button(m.root, "确认删除"), "click"); await settle(m);
+  await expect(c.fs.bytes("Bindery/书库甲.kepub.epub")).rejects.toMatchObject({ name: "NotFoundError" });
+  expect(await c.fs.text("Other/外部.epub")).toBe("BOOK");
+});
+
+it("detects a Kobo with an unknown product ID and still permits pairing", async () => {
+  const fs = await fakeKobo("N999"), manager = new KindleDeviceManager(repository(), async () => fs.root), m = mount("connect", input(manager)); await settle(m);
+  fire(button(m.root, "选择设备目录"), "click"); await settle(m);
+  expect(text(m)).toContain("已识别：Kobo · Kobo（未知型号）"); expect(text(m)).toContain("产品 ID N999");
+  const name = field(m.root, "显示名称"); name.value = "未知 Kobo"; fire(name, "input"); m.flush();
+  fire(elements(m.root, "form")[0]!, "submit"); await settle(m);
+  expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ kind: "kobo", model: "unknown", name: "未知 Kobo" });
 });

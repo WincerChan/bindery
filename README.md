@@ -1,6 +1,6 @@
 # Bindery
 
-本地 TXT / EPUB 书库服务：分章转换 TXT、写回 EPUB 元数据与样式、在线抓取书目、阅读预览、愿望单与 Kindle（KFX）传输。实现为 TanStack Start + Solid 的 PWA，服务端运行在 Node 24，数据库使用 Node 内置的 `node:sqlite`。
+本地 TXT / EPUB 书库服务：分章转换 TXT、写回 EPUB 元数据与样式、在线抓取书目、阅读预览、愿望单，以及 Kindle（KFX）/ Kobo（KEPUB）设备传输。实现为 TanStack Start + Solid 的 PWA，服务端运行在 Node 24，数据库使用 Node 内置的 `node:sqlite`。
 
 ## 功能概览
 
@@ -10,7 +10,7 @@
 - 规则与主题模板编辑、预览；元数据从豆瓣/Amazon 抓取。
 - 阅读器章节预览、站内搜索、阅读进度。
 - 愿望单/追踪、重复检测、CSV 导出。
-- 浏览器端把 EPUB 转成 KFX，并通过 File System Access API 写入 USB 大容量存储模式的 Kindle。
+- 浏览器端把 EPUB 转成 KFX 或 KEPUB，并通过 File System Access API 写入 USB 大容量存储模式的 Kindle / Kobo。
 - 可安装 PWA（应用外壳与 KFX 所需 WASM 缓存；离线不提供书库读写）。
 
 ## 开发
@@ -36,7 +36,7 @@ pnpm start      # 运行 dist 生产构建，默认 0.0.0.0:3000
 - `src/core/`：解析、规则、主题、EPUB、ZIP 等纯 TS 核心。
 - `src/server/`：数据库、存储、认证、任务队列、元数据抓取。
 - `src/routes/`、`src/features/`：TanStack 文件路由与 Solid UI。
-- `src/client/`：浏览器端 boko WASM、Kindle 设备、PWA。
+- `src/client/`：浏览器端 boko WASM、KFX/KEPUB 转换、Kindle/Kobo 设备、PWA。
 - `bindery-templates/`：默认规则/主题种子，运行时复制到用户模板目录。
 
 ## 环境变量
@@ -78,7 +78,7 @@ node --input-type=module -e "import('@node-rs/argon2').then(async ({ hash }) => 
 - 日常书库与阅读：现代浏览器即可。
 - 通行密钥：支持 WebAuthn 的浏览器；需要 HTTPS 或 `http://localhost`。
 - PWA 安装：支持 Service Worker 的现代浏览器。
-- Kindle 设备管理：需要桌面版 Chrome 或 Edge（File System Access API，`showDirectoryPicker`）。Windows 是主要验证平台；浏览器把 Kindle 的 USB 大容量存储设备当作目录读写。不支持该 API 的浏览器会明确提示，仍可以下载 EPUB/KFX。
+- 设备管理：支持 Kindle（KFX、`documents/`、封面缩略图、排版方案）与 Kobo（KEPUB、`Bindery/`、`fonts/`），需要桌面版 Chrome 或 Edge（File System Access API，`showDirectoryPicker`）。Windows 是主要验证平台；浏览器把设备的 USB 大容量存储分区当作目录读写。不支持该 API 的浏览器会明确提示，仍可以下载 EPUB/KFX。Kobo 第一期不含排版预览，等真机校准。
 
 ## 容器构建与运行
 
@@ -144,5 +144,5 @@ systemctl --user start bindery
 
 - 数据无需迁移：新实现直接使用旧书库目录、`book.json` 与同一 SQLite 文件/表结构；旧版本写在应用根目录的 `bindery.db` 会在首次以默认路径打开时移动或复制到书库目录。
 - 认证无需迁移：已有 `BINDERY_PASSWORD_HASH` 与已注册 passkey 继续可用。
-- 路由保持：`/`、`/book/{id}`、`/book/{id}/download`、`/ingest`、`/rules`、`/wishlist`、`/tracker`、`/kindle` 等主要 URL 不变。
+- 路由保持：`/`、`/book/{id}`、`/book/{id}/download`、`/ingest`、`/rules`、`/wishlist`、`/tracker`、`/devices` 等主要 URL 不变；旧 `/kindle*` 地址会重定向到 `/devices*`。
 - 旧 Python 实现、`pyproject.toml`/`uv.lock`、Jinja 模板和 Python 测试已在阶段 5 删除；约束与冻结的对照数据见 `tests-ts/fixtures/parity/README.md` 和 `docs/phase-5-cutover-report.md`。

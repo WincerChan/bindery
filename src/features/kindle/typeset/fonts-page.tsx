@@ -45,6 +45,7 @@ function FontInstallQueueProgress(props: { progress: FontInstallProgress; active
 
 export function FontsPage(props: { manager: KindleDeviceManager | null; onPreview?: (family: string) => unknown }) {
   const manager = props.manager, context = useOptionalKindle();
+  const kind = () => context?.kind() ?? "kindle";
   const { state } = usePageDevice(manager);
   const shared = context?.manager === manager ? context : null;
   const [families, setFamilies] = createSignal<FontFamily[]>([]);
@@ -102,7 +103,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
         if (!disposed && installation === operation) setInstallProgress(progress);
       } });
       if (disposed || key !== connectionKey()) return;
-      setPending(null); setNotice(`已安装 ${batch.files.length} 个字体文件。请重启 Kindle 或重新插拔后查看。`);
+      setPending(null); setNotice(`已安装 ${batch.files.length} 个字体文件。请重启设备或重新插拔后查看。`);
       await scan();
       if (!disposed && key === connectionKey()) await shared?.refreshInventory();
     } catch (error) { if (!disposed) setError(operation.interruption || errorMessage(error)); }
@@ -112,7 +113,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     }
   }
   async function remove() {
-    const family = deleting(), current = device(); if (!family || !current) throw new Error("请先连接并授权 Kindle");
+    const family = deleting(), current = device(); if (!family || !current) throw new Error("请先连接并授权设备");
     const key = connectionKey(); setUpdating(true);
     try {
       await deleteFontFamily(current, family.name);
@@ -126,12 +127,12 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     onDragOver={event => { event.preventDefault(); if (device() && !busy()) setDragging(true); }}
     onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
     onDrop={event => { event.preventDefault(); setDragging(false); if (event.dataTransfer) void choose(Array.from(event.dataTransfer.files)); }}>
-    <div class="kt-heading"><div><h2>字体</h2><p class="muted">Kindle 根目录下的 <span class="kindle-mono">fonts/</span> · {families().length} 个家族 · {families().reduce((sum, family) => sum + family.fonts.length, 0)} 个字体文件 · <span class="kindle-mono">{fileSize(totalSize())}</span> · 已忽略 macOS 的 ._* 文件和 Readme.txt</p></div>
+    <div class="kt-heading"><div><h2>字体</h2><p class="muted">设备根目录下的 <span class="kindle-mono">fonts/</span> · {families().length} 个家族 · {families().reduce((sum, family) => sum + family.fonts.length, 0)} 个字体文件 · <span class="kindle-mono">{fileSize(totalSize())}</span> · 已忽略 macOS 的 ._* 文件和 Readme.txt</p></div>
       <div class="kt-actions"><Button variant="secondary" disabled={!device() || busy()} onClick={scan}>重新扫描</Button><Button disabled={!device() || busy()} onClick={() => input.click()}>添加字体</Button></div>
     </div>
     <input ref={input} type="file" multiple accept=".ttf,.otf" hidden aria-label="选择 TTF 或 OTF 字体文件" onChange={event => { void choose(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
     <Show when={!state()}><p role="status">检测中…</p></Show>
-    <Show when={state() && !device()}><p class="notice">请连接并授权 Kindle 后查看或管理字体。<Link href="/kindle/connect">连接设备</Link></p></Show>
+    <Show when={state() && !device()}><p class="notice">请连接并授权设备后查看或管理字体。<Link href="/devices/connect">连接设备</Link></p></Show>
     <Show when={busy()}><p role="status">正在读取或更新设备字体…</p></Show>
     <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
     <Show when={notice()}><p role="status" class="notice">{notice()}</p></Show>
@@ -145,13 +146,13 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
         <td><Show when={device()}>{current => <FontSample device={current()} family={family} />}</Show></td>
         <td><div class="kt-coverage"><For each={["R", "B", "I", "BI"]}>{code => <span class={family.coverage.includes(code) ? "" : "is-missing"} title={`${({ R: "常规", B: "粗体", I: "斜体", BI: "粗斜体" } as Record<string, string>)[code]}${family.coverage.includes(code) ? "" : "（缺失）"}`}>{code}</span>}</For></div>
           <small>{family.coverage.filter(code => !["R", "B", "I", "BI"].includes(code)).join("、")}</small>
-          <small class={["R", "B", "I", "BI"].every(code => family.coverage.includes(code)) ? "" : "kt-font-warning"}>{["R", "B", "I", "BI"].every(code => family.coverage.includes(code)) ? "四种样式齐全" : "缺少的粗体 / 斜体可能由 Kindle 模拟"}</small></td>
-        <td>{fileSize(family.size)}</td><td><div class="kt-row-actions"><Link class="btn btn-icon" aria-label={`用 ${family.name} 预览`} title={`用 ${family.name} 预览`} href={`/kindle/preview?font=${encodeURIComponent(family.name)}`} onClick={event => {
+          <small class={["R", "B", "I", "BI"].every(code => family.coverage.includes(code)) ? "" : "kt-font-warning"}>{["R", "B", "I", "BI"].every(code => family.coverage.includes(code)) ? "四种样式齐全" : "缺少的粗体 / 斜体可能由设备模拟"}</small></td>
+        <td>{fileSize(family.size)}</td><td><div class="kt-row-actions"><Show when={kind() === "kindle"}><Link class="btn btn-icon" aria-label={`用 ${family.name} 预览`} title={`用 ${family.name} 预览`} href={`/devices/preview?font=${encodeURIComponent(family.name)}`} onClick={event => {
           if (props.onPreview && !event.defaultPrevented && !event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); props.onPreview(family.name); }
-        }}><KindleIcon name="eye" /></Link><Button variant="icon" aria-label={`从设备删除 ${family.name}`} title={`从设备删除 ${family.name}`} disabled={busy() || !device()} onClick={() => setDeleting(family)}><KindleIcon name="trash" /></Button></div></td></tr>}</For>
+        }}><KindleIcon name="eye" /></Link></Show><Button variant="icon" aria-label={`从设备删除 ${family.name}`} title={`从设备删除 ${family.name}`} disabled={busy() || !device()} onClick={() => setDeleting(family)}><KindleIcon name="trash" /></Button></div></td></tr>}</For>
     </tbody></table></section>
     <Show when={device() && !busy() && families().length === 0 && !error()}><p class="muted">设备 fonts/ 目录中还没有可用字体。</p></Show>
-    <section class="kt-font-help" aria-label="添加字体"><div><h2>添加字体</h2><p>把 TTF / OTF 文件拖到这个页面上，或点击「添加字体」。请一起添加同一家族的常规、粗体、斜体与粗斜体文件。</p><p>R 常规 · B 粗体 · I 斜体 · BI 粗斜体。缺少的粗体和斜体可能由 Kindle 模拟，效果会与真实字形不同。</p></div><p><KindleIcon name="warning" />增删字体后，需要在 Kindle 上重启或重新插拔，字体列表才会更新。</p></section>
+    <section class="kt-font-help" aria-label="添加字体"><div><h2>添加字体</h2><p>把 TTF / OTF 文件拖到这个页面上，或点击「添加字体」。请一起添加同一家族的常规、粗体、斜体与粗斜体文件。</p><p>R 常规 · B 粗体 · I 斜体 · BI 粗斜体。缺少的粗体和斜体可能由设备模拟，效果会与真实字形不同。</p></div><p><KindleIcon name="warning" />增删字体后，需要重启设备或重新插拔，字体列表才会更新。</p></section>
     <ConfirmDialog open={Boolean(deleting())} title="从设备删除字体？" danger confirmLabel="删除整个家族" onClose={() => { if (!busy()) setDeleting(null); }} onConfirm={remove}>
       <p>将删除 {deleting()?.name} 的全部 {deleting()?.fonts.length} 个文件。使用此字体的排版方案不会自动改写。</p>
     </ConfirmDialog>

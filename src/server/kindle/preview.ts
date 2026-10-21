@@ -33,5 +33,5 @@ export function kindlePreviewResource(request: Request, bookId: string, mode: st
   if (!content) throw new HttpError(404, "资源不存在");
   let media = guessMediaType(path);
   if (media === "application/octet-stream") media = archive.mediaType(path) || media;
-  return epubMemberResponse(request, `/kindle/content/${bookId}/${mode}/epub/`, path, archive, content, media, { "Cache-Control": "no-store" });
+  return epubMemberResponse(request, `/devices/content/${bookId}/${mode}/epub/`, path, archive, content, media, { "Cache-Control": "no-store" });
 }

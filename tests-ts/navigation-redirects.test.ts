@@ -45,4 +45,12 @@ describe("merged navigation compatibility", () => {
   ])("redirects client navigation through the actual route beforeLoad: %s", async (entry, expected) => {
     expect(await probe.navigate(entry)).toBe(expected);
   });
+  it.each([
+    ["/kindle", "/devices"],
+    ["/kindle/", "/devices"],
+    ["/kindle/preview?book=a", "/devices/preview?book=a"],
+  ])("redirects legacy device client navigation through beforeLoad: %s", async (entry, expected) => {
+    expect(await probe.navigateDevice(entry)).toBe(expected);
+    expect(probe.legacyDeviceTarget(entry)).toBe(entry === "/kindle/" ? "/devices/" : expected);
+  });
 });

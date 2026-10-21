@@ -13,7 +13,7 @@ const navigate = (path: string): PwaRequest => ({ ...request(path), url: new URL
 const precache = ["manifest.json", "offline.html", "favicon.svg", "icons/icon-192.png"];
 
 describe("PWA cache privacy boundary", () => {
-  it.each(["/", "/?q=私人书籍", "/login?next=/", "/book/a/preview/0", "/kindle"])("uses the network with a public offline fallback for navigation %s", path => {
+  it.each(["/", "/?q=私人书籍", "/login?next=/", "/book/a/preview/0", "/devices"])("uses the network with a public offline fallback for navigation %s", path => {
     expect(requestStrategy(navigate(path), scope, precache)).toBe("network-first");
   });
   it.each([

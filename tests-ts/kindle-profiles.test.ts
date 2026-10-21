@@ -32,7 +32,7 @@ async function invoke(fn: unknown, input: unknown) {
   return rpc.middlewares[0].options.server({ next: ({ context }) => rpc.execute({ context, data: rpc.validate(input) }) });
 }
 const root = mkdtempSync(join(tmpdir(), "bindery-kindle-profiles-")); let sequence = 0;
-beforeEach(() => { const path = join(root, String(sequence++)); scope.library = new LibraryStorage(join(path, "library"), new BinderyDatabase(join(path, "data.db"))); scope.library.ensure(); scope.request = new Request("http://localhost/kindle"); });
+beforeEach(() => { const path = join(root, String(sequence++)); scope.library = new LibraryStorage(join(path, "library"), new BinderyDatabase(join(path, "data.db"))); scope.library.ensure(); scope.request = new Request("http://localhost/devices"); });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 const input = (deviceId = "device-a") => ({ deviceId, name: "正文", settings: { ...EMPTY_SETTINGS, marginX: 0.5, marginXUnit: "em" as const, marginY: 0.75, paragraphSpacing: 0.25, lineHeight: 1.5, textIndent: 2, justify: true, fontFamily: "Book Serif", customCss: "h1 { text-align: center; }" } });
 
@@ -115,7 +115,7 @@ describe("Kindle typesetting profiles", () => {
   });
   it("checks real authentication before all four RPC handlers and persists authenticated changes", async () => {
     for (const fn of [listKindleProfiles, createKindleProfile, updateKindleProfile, deleteKindleProfile]) await expect(invoke(fn, input())).rejects.toMatchObject({ options: { href: "/login?next=%2F" } });
-    scope.request = new Request("http://localhost/kindle", { headers: { Cookie: `bindery_session=${signIn(scope.library!.db)}` } });
+    scope.request = new Request("http://localhost/devices", { headers: { Cookie: `bindery_session=${signIn(scope.library!.db)}` } });
     const created = await invoke(createKindleProfile, input()) as { id: string }; expect(await invoke(listKindleProfiles, "device-a")).toHaveLength(2);
     await invoke(updateKindleProfile, { ...input(), name: "RPC update", id: created.id }); expect((await invoke(listKindleProfiles, "device-a") as Array<{ name: string }>)[1].name).toBe("RPC update");
     await invoke(deleteKindleProfile, { deviceId: "device-a", id: created.id }); expect(await invoke(listKindleProfiles, "device-a")).toHaveLength(1);
