@@ -1,12 +1,16 @@
 .library-page [hidden] { display: none !important; }
-.library-heading { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+.library-heading { display: flex; align-items: center; gap: 16px; }
 .library-heading h1 { margin: 0; }
-.library-heading > span { color: var(--color-ink-3); font-size: 13px; }
 .library-heading > .btn { margin-left: auto; }
-.library-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
-.library-controls .library-search { flex: 1; min-width: 200px; }
-.library-controls > .chip, .library-view-toggle .chip { min-height: 40px; }
-.library-view-toggle { display: flex; gap: 4px; margin-left: auto; }
+.library-shelves { display: flex; gap: 24px; margin-top: 16px; border-bottom: 1px solid var(--color-line); }
+.library-shelves a { padding: 10px 0; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--color-ink-3); text-decoration: none; }
+.library-shelves a[aria-current="page"] { border-bottom-color: var(--color-ink); color: var(--color-ink); font-weight: 600; }
+.library-shelves [data-library-count] { color: var(--color-ink-3); font-weight: 400; }
+.library-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; padding: 16px 0; margin-bottom: 16px; }
+.library-controls .library-search { flex: 0 1 420px; min-width: 200px; }
+.library-tools { display: flex; align-items: center; gap: 16px; margin-left: auto; }
+.library-select-toggle { gap: 6px; padding-inline: 4px; }
+.library-select-toggle svg { width: 16px; height: 16px; }
 .library-collection { display: grid; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 28px 20px; }
 .library-collection > .empty-state { grid-column: 1 / -1; }
 .library-book { min-width: 0; position: relative; }
@@ -26,7 +30,10 @@
 .library-selection .checkbox { min-width: 24px; min-height: 40px; }
 .library-collection[data-view="grid"] .library-selection { position: absolute; z-index: 2; right: 8px; top: 4px; }
 .library-collection[data-view="grid"] .is-selected .library-cover { outline: 2px solid var(--color-accent); outline-offset: 3px; }
-.library-bulk { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 12px 0; margin-bottom: 24px; border-block: 1px solid var(--color-line); font-size: 13px; }
+.library-bulk { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; min-height: 52px; padding: 6px 16px; margin: 16px 0; border-radius: 6px; background: var(--color-line-soft); font-size: 14px; }
+.library-bulk .btn-quiet, .library-bulk .btn-quiet-danger { padding-inline: 4px; }
+.library-bulk-divider { width: 1px; height: 20px; background: var(--color-control-line); }
+.library-bulk-done { margin-left: auto; }
 .library-pager { display: flex; justify-content: space-between; padding-top: 24px; margin-top: 24px; border-top: 1px solid var(--color-line); font: 12px var(--font-mono); color: var(--color-ink-3); }
 .library-collection[data-view="list"] { display: block; }
 .library-collection[data-view="list"] .library-book { display: grid; grid-template-columns: 72px minmax(0,1fr) 140px 48px 90px auto; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--color-line-soft); }
@@ -46,13 +53,12 @@
   .library-collection[data-view="list"].is-selecting .library-list-head { grid-template-columns: minmax(0,1fr) 48px 90px; padding-left: 112px; }
 }
 @media (max-width: 767px) {
-  .library-heading { margin-bottom: 20px; }
   .library-heading h1 { font-size: 28px; }
-  .library-controls { gap: 8px; }
-  .library-controls .library-search { flex-basis: calc(100% - 76px); min-width: 0; order: -2; }
-  .library-controls > .btn { order: -1; }
-  .library-controls > .field:not(.library-search) { max-width: 130px; }
+  .library-controls { gap: 4px 12px; padding: 12px 0; }
+  .library-controls .library-search { flex: 1 1 100%; min-width: 0; }
+  .library-tools { gap: 8px; }
   .library-view-toggle { display: none; }
+  .library-bulk-divider { display: none; }
   .library-collection { display: block; }
   .library-collection .library-book, .library-collection[data-view="list"] .library-book { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--color-line-soft); }
   .library-collection.is-selecting .library-book, .library-collection[data-view="list"].is-selecting .library-book { grid-template-columns: 24px 48px minmax(0,1fr); }

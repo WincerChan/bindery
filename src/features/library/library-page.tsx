@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
-import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, GeneratedCover, Pagination, Select, Tag, TextField } from "../../ui";
+import { BookCover, Button, Checkbox, ConfirmDialog, EmptyState, GeneratedCover, Pagination, Tag, TextField } from "../../ui";
 import { showToast } from "../../client/toast";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
@@ -142,26 +142,35 @@ export function LibraryPage(props: {
     finally { setBusy(false); }
   }
   return <div class="library-page" ref={page}>
-    <div class="library-heading"><h1>书库</h1><span data-library-count>{props.data.total_books} 册{archived() ? " · 已归档" : props.data.read_filter === "unread" ? " · 仅未读" : ""}</span><Link href="/ingest" class="btn btn-primary">+ 入库</Link></div>
-    <form id="library-controls" class="library-controls" action="/" method="get" onSubmit={event => { event.preventDefault(); void search({}); }}>
-      <TextField class="library-search" label="搜索" type="search" name="q" placeholder="搜索书名、作者" value={query()} onInput={event => { setQuery(event.currentTarget.value); clearTimeout(timer); timer = setTimeout(() => void search({}), 400); }} />
-      <Select label="排序" name="sort" value={props.data.sort} onChange={event => void search({ sort: event.currentTarget.value === "created" ? "created" : "updated" })}><option value="created">最近导入</option><option value="updated">最近修改</option></Select>
+    <div class="library-heading"><h1>书库</h1><Link href="/ingest" class="btn btn-primary">+ 入库</Link></div>
+    <nav class="library-shelves" aria-label="书架">
+      <Link href={libraryReturnTo({ ...props.data, scope: "active", read_filter: "all", page: 1 })} aria-current={archived() ? undefined : "page"}>在库<Show when={!archived()}> <span data-library-count>{props.data.total_books}</span></Show></Link>
+      <Link data-scope-toggle href={libraryReturnTo({ ...props.data, scope: "archived", read_filter: "all", page: 1 })} aria-current={archived() ? "page" : undefined}>已归档<Show when={archived()}> <span data-library-count>{props.data.total_books}</span></Show></Link>
+    </nav>
+    <form id="library-controls" class="library-controls" action="/" method="get" hidden={selecting()} onSubmit={event => { event.preventDefault(); void search({}); }}>
+      <TextField class="library-search search-field" label="搜索书名、作者" labelHidden type="search" name="q" placeholder="搜索书名、作者" value={query()} onInput={event => { setQuery(event.currentTarget.value); clearTimeout(timer); timer = setTimeout(() => void search({}), 400); }} />
       <input type="hidden" name="scope" value={props.data.scope} /><input type="hidden" name="read_filter" value={props.data.read_filter} /><input type="hidden" name="page" value="1" data-page-input /><input type="hidden" name="per_page" value={props.data.per_page} data-per-page-input />
-      <Button type="submit" variant="secondary">搜索</Button>
-      <Chip data-scope-toggle selected={archived()} onClick={() => void search({ scope: archived() ? "active" : "archived", read_filter: "all" })}>已归档{archived() ? " ×" : ""}</Chip>
-      <Show when={!archived()}><Chip data-read-filter-toggle selected={props.data.read_filter === "unread"} onClick={() => void search({ read_filter: props.data.read_filter === "unread" ? "all" : "unread" })}>仅看未读{props.data.read_filter === "unread" ? " ×" : ""}</Chip></Show>
-      <div class="library-view-toggle" role="group" aria-label="显示方式"><Chip selected={view() === "grid"} onClick={() => changeView("grid")}>封面墙</Chip><Chip selected={view() === "list"} onClick={() => changeView("list")}>列表</Chip></div>
-      <Chip data-bulk-mode-toggle selected={selecting()} onClick={() => selecting() ? done() : setSelecting(true)}>多选</Chip>
+      <Show when={!archived()}><Checkbox data-read-filter-toggle label="仅看未读" checked={props.data.read_filter === "unread"} onChange={event => void search({ read_filter: event.currentTarget.checked ? "unread" : "all" })} /></Show>
+      <div class="library-tools">
+        <label class="inline-select inline-select-plain"><span>排序</span><select name="sort" value={props.data.sort} onChange={event => void search({ sort: event.currentTarget.value === "created" ? "created" : "updated" })}><option value="updated">最近修改</option><option value="created">最近导入</option></select></label>
+        <div class="segmented library-view-toggle" role="group" aria-label="显示方式">
+          <button type="button" aria-label="封面墙" aria-pressed={view() === "grid" ? "true" : "false"} onClick={() => changeView("grid")}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z" stroke="currentColor" stroke-width="1.7" /></svg></button>
+          <button type="button" aria-label="列表" aria-pressed={view() === "list" ? "true" : "false"} onClick={() => changeView("list")}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg></button>
+        </div>
+        <Button data-bulk-mode-toggle variant="quiet" class="library-select-toggle" aria-pressed={selecting() ? "true" : "false"} onClick={() => setSelecting(true)}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.7" /><path d="M8 12.5l2.5 2.5L16 9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>选择</Button>
+      </div>
     </form>
     <div data-bulk-controls><div class="library-bulk" data-bulk-actions role="toolbar" aria-label="批量操作" hidden={!selecting()}>
-      <span aria-live="polite">已选 <strong data-selected-count>{selected().length}</strong> 册</span>
       <Checkbox data-bulk-select-all label="全选本页" checked={Boolean(props.data.books.length) && selected().length === props.data.books.length} indeterminate={selected().length > 0 && selected().length < props.data.books.length} onChange={event => setSelected(event.currentTarget.checked ? props.data.books.map(book => book.book_id) : [])} />
-      <Button data-bulk-clear variant="quiet" onClick={() => setSelected([])}>清空</Button><Button data-bulk-done variant="secondary" onClick={done}>完成</Button>
+      <span class="library-bulk-count" aria-live="polite">已选 <strong data-selected-count>{selected().length}</strong> 册</span>
+      <Button data-bulk-clear variant="quiet" disabled={!selected().length} onClick={() => setSelected([])}>清空</Button>
+      <span class="library-bulk-divider" aria-hidden="true" />
       <Show when={archived()} fallback={<>
-      <form action="/books/download" method="post" onSubmit={download}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet" disabled={!selected().length || busy()}>批量下载</Button></form>
-      <Button variant="quiet" disabled={!selected().length || busy()} onClick={regenerate}>批量重新生成</Button>
-      <form action="/books/archive" method="post" onSubmit={event => { event.preventDefault(); setArchiveForm(event.currentTarget); }}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet" disabled={!selected().length || busy()}>批量归档</Button></form>
-      </>}><Button variant="secondary" disabled={!selected().length || busy()} onClick={() => void restore()}>批量恢复</Button><form action="/archive/delete-bulk" method="post" onSubmit={event => { event.preventDefault(); setDeleteForm(event.currentTarget); }}><SelectedIds ids={selected()} /><Button type="submit" variant="danger" disabled={!selected().length || busy()}>批量删除</Button></form></Show>
+      <form action="/books/download" method="post" onSubmit={download}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet" disabled={!selected().length || busy()}>下载</Button></form>
+      <Button variant="quiet" disabled={!selected().length || busy()} onClick={regenerate}>重新生成</Button>
+      <form action="/books/archive" method="post" onSubmit={event => { event.preventDefault(); setArchiveForm(event.currentTarget); }}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet" disabled={!selected().length || busy()}>归档</Button></form>
+      </>}><Button variant="quiet" disabled={!selected().length || busy()} onClick={() => void restore()}>恢复</Button><form action="/archive/delete-bulk" method="post" onSubmit={event => { event.preventDefault(); setDeleteForm(event.currentTarget); }}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet-danger" disabled={!selected().length || busy()}>彻底删除</Button></form></Show>
+      <Button data-bulk-done variant="secondary" size="sm" class="library-bulk-done" onClick={done}>完成</Button>
     </div></div>
     <LibrarySection data={props.data} view={view()} selecting={selecting()} selected={selected()} toggle={toggle} confirmArchive={setArchiveForm} confirmDelete={setDeleteForm} restoreBook={id => void restore([id])} />
     <ConfirmDialog open={Boolean(archiveForm())} title="归档书籍" confirmLabel="归档" onClose={() => setArchiveForm(null)} onConfirm={() => confirm("archive", archiveForm())}>确定归档选中的书籍吗？归档后可在书库「已归档」中恢复。</ConfirmDialog>

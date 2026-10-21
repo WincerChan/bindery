@@ -43,7 +43,7 @@ try {
   const archived = await post("/books/archive", new URLSearchParams([["book_ids", a], ["book_ids", "bad-id"], ["next", "//evil.invalid"]]));
   assert.equal(archived.status, 303); assert.equal(archived.headers.get("location"), "/"); assert.equal(db.prepare("SELECT archived FROM books WHERE book_id = ?").get(a).archived, 1);
   const legacyArchive = await get("/archive"); assert.equal(legacyArchive.status, 303); assert.equal(legacyArchive.headers.get("location"), "/?scope=archived");
-  const archive = await get("/?scope=archived"); assert.equal(archive.status, 200); const archiveHtml = await archive.text(); assert.match(archiveHtml, /data-book-select/); assert.match(archiveHtml, /批量恢复/); assert.doesNotMatch(archiveHtml, /data-read-filter-toggle|data-book-detail-link|\/books\/download/);
+  const archive = await get("/?scope=archived"); assert.equal(archive.status, 200); const archiveHtml = await archive.text(); assert.match(archiveHtml, /data-book-select/); assert.match(archiveHtml, />恢复</); assert.doesNotMatch(archiveHtml, /data-read-filter-toggle|data-book-detail-link|\/books\/download/);
   const deleted = await post("/archive/delete-bulk", new URLSearchParams([["book_ids", a], ["book_ids", b]]));
   assert.equal(deleted.status, 303); assert.equal(deleted.headers.get("location"), "/?scope=archived"); assert.equal(db.prepare("SELECT COUNT(*) AS n FROM books WHERE book_id = ?").get(a).n, 0); assert.equal(db.prepare("SELECT archived FROM books WHERE book_id = ?").get(b).archived, 0);
   for (const [next, expected] of [["/?scope=archived&q=Alpha&page=2#books", "/?scope=archived&q=Alpha&page=2"], ["https://evil.invalid/", "/?scope=archived"], ["//evil.invalid/", "/?scope=archived"], ["", "/?scope=archived"]]) {

@@ -108,7 +108,7 @@ it.each([true, false])("updates book cards, selection and empty states (hydratio
   selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
   expect(elements(mounted.root, "input").filter(el => el.getAttribute("name") === "book_ids")).toHaveLength(16);
   mounted.update({ ...library(["魔临"]), q: "魔临", read_filter: "unread", return_to: "/?q=魔临&read_filter=unread" });
-  expect(elements(mounted.root, "span", "data-library-count")[0]!.textContent).toBe("1 册 · 仅未读");
+  expect(elements(mounted.root, "span", "data-library-count")[0]!.textContent).toBe("1");
   expect(ids(mounted.root)).toEqual(["魔临"]);
   expect(original.parentNode).toBeNull();
   expect(elements(mounted.root, "input").filter(el => el.getAttribute("name") === "book_ids").map(el => (el as HTMLInputElement).value)).toEqual(["魔临", "魔临"]);
@@ -125,7 +125,7 @@ it.each(["/", "/rules"])("updates actual router loader data after hydrating %s",
   await settle();
   await mounted.update({ ...initial, q: "all" }); expect(ids(node)).toEqual(["甲", "魔临", "乙"]);
   await mounted.update({ ...library(["魔临"]), q: "魔临", return_to: "/?q=魔临" });
-  expect(elements(node, "span", "data-library-count")[0]!.textContent).toBe("1 册");
+  expect(elements(node, "span", "data-library-count")[0]!.textContent).toBe("1");
   expect(ids(node)).toEqual(["魔临"]);
   await mounted.update({ ...library([]), q: "missing" }); expect(ids(node)).toEqual([]);
 });
@@ -165,7 +165,7 @@ it("requires confirmation for single/bulk archive deletion and refreshes after b
     expect(rpc.mock.lastCall).toEqual(["mutateLibrarySelection", { data: { action: "delete", ids: action.startsWith("/book/") ? ["甲"] : ["甲", "乙"] } }]);
     selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
   }
-  fire(buttons().find(el => el.textContent === "批量恢复")!, "click"); await settle(); mounted.flush();
+  fire(buttons().find(el => el.textContent === "恢复")!, "click"); await settle(); mounted.flush();
   expect(restore).toHaveBeenCalledExactlyOnceWith(["甲", "乙"]); expect(refresh).toHaveBeenCalledTimes(3);
   expect(elements(mounted.root, "strong", "data-selected-count")[0]!.textContent).toBe("0");
   mounted.update({ data: { ...data, scope: "active", books: data.books.map(value => ({ ...value, archived: false })) }, restore, refresh, regenerate: vi.fn() });
@@ -310,7 +310,7 @@ it("closes the desktop settings menu on outside click, Escape, selection and rou
 it("updates tracker/wishlist filter rows and their empty state", () => {
   const mounted = mount("tracker", tracker(["甲", "乙"]));
   mounted.update(tracker(["乙"]));
-  expect(css(mounted.root, "article", "catalog-tracker-row").map(el => elements(el, "h2")[0]!.textContent)).toEqual(["乙"]);
+  expect(css(mounted.root, "div", "catalog-tracker-row").filter(el => !el.getAttribute("class")!.includes("catalog-tracker-head")).map(el => elements(el, "strong")[0]!.textContent)).toEqual(["乙"]);
   mounted.update(tracker([])); expect(css(mounted.root, "article", "catalog-tracker-row")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("没有符合筛选条件");
 });
@@ -578,7 +578,7 @@ it.each(["archive", "restore", "delete"] as const)("refreshes library %s through
   mounted.nextLibrary(initial); await mounted.router.invalidate(); mounted.flush();
   fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush();
   const all = elements(node, "input", "data-bulk-select-all")[0] as HTMLInputElement; all.checked = true; fire(all, "change"); mounted.flush();
-  if (action === "restore") fire(elements(node, "button").find(el => el.textContent === "批量恢复")!, "click");
+  if (action === "restore") fire(elements(node, "button").find(el => el.textContent === "恢复")!, "click");
   else { fire(elements(node, "form").find(el => el.getAttribute("action") === (action === "archive" ? "/books/archive" : "/archive/delete-bulk"))!, "submit"); mounted.flush(); const dialog = elements(node, "dialog").find(el => (el as HTMLDialogElement).open)!; fire(elements(dialog, "button").find(el => el.textContent === (action === "archive" ? "归档" : "彻底删除"))!, "click"); }
   await vi.waitFor(() => { mounted.flush(); expect(ids(node)).toEqual([]); });
   expect(rpc.mock.lastCall).toEqual(["mutateLibrarySelection", { data: { action, ids: ["甲", "乙"] } }]); expect(mounted.href()).toBe(entry); expect(mounted.libraryLoads()).toBe(4); expect(location.assign).not.toHaveBeenCalled();
@@ -596,7 +596,7 @@ it("refreshes retry/cleanup in the open sheet and Router-navigates shell, pagina
   const card = elements(node, "a", "data-book-detail-link")[0]!, href = card.getAttribute("href"); await click(card); expect(mounted.href()).toBe(href);
   await click(css(node, "a", "brand")[0]!); expect(mounted.href()).toBe("/");
   fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush(); const all = elements(node, "input", "data-bulk-select-all")[0] as HTMLInputElement; all.checked = true; fire(all, "change"); mounted.flush();
-  fire(elements(node, "button").find(el => el.textContent === "批量重新生成")!, "click"); await settle(); mounted.flush();
+  fire(elements(node, "button").find(el => el.textContent === "重新生成")!, "click"); await settle(); mounted.flush();
   expect(regenerate).toHaveBeenCalledExactlyOnceWith(["甲"]); expect(mounted.href()).toBe("/ingest?jobs_tab=running#jobs"); expect((elements(node, "dialog").find(el => el.id === "jobs") as HTMLDialogElement).open).toBe(true);
   await mounted.router.navigate({ href: "/ingest?jobs_tab=failed&jobs_page=2#jobs" }); mounted.flush();
   const rpc = vi.fn(async (name: string) => { mounted.nextIngest(name === "cleanupInvalidJobs" ? { ...ingest, jobs: { ...jobs([]), invalid_job_count: 0 } } : { ...ingest, jobs: jobs(["retried"], "failed") }); return {}; }); vi.stubGlobal("__binderyTestMutation", rpc);
@@ -621,7 +621,7 @@ it.each(["archive", "restore", "delete", "regenerate", "retry", "cleanup"])("Rou
   if (action === "regenerate" || action === "archive") {
     mounted.nextLibrary({ ...initial, scope: "active", books: [{ ...book("甲"), archived: false }] }); await mounted.router.invalidate(); mounted.flush();
   }
-  if (action === "regenerate") { fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush(); const all = elements(node, "input", "data-bulk-select-all")[0] as HTMLInputElement; all.checked = true; fire(all, "change"); mounted.flush(); fire(elements(node, "button").find(el => el.textContent === "批量重新生成")!, "click"); }
+  if (action === "regenerate") { fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush(); const all = elements(node, "input", "data-bulk-select-all")[0] as HTMLInputElement; all.checked = true; fire(all, "change"); mounted.flush(); fire(elements(node, "button").find(el => el.textContent === "重新生成")!, "click"); }
   else {
     const path = action === "retry" ? "/jobs/job/retry" : action === "cleanup" ? "/jobs/cleanup-invalid" : `/book/甲/${action}`;
     fire(elements(node, "form").find(el => el.getAttribute("action") === path)!, "submit"); mounted.flush();

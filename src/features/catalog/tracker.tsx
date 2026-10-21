@@ -58,28 +58,42 @@ export function TrackerForm(props: { wish?: TrackerItem; next: string; onClose: 
 export function TrackerPage(props: { data: TrackerPageData }) {
   const mutation = useMutation();
   const [active, setActive] = createSignal<{ wish?: TrackerItem } | null>(null), [deleting, setDeleting] = createSignal<TrackerItem | null>(null);
+  let filterForm!: HTMLFormElement, searchTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(searchTimer));
+  const filtered = () => Boolean(props.data.filters.q) || [props.data.filters.read_filter, props.data.filters.library_filter, props.data.filters.book_status_filter].some(value => value !== "all");
+  function applyFilters() { clearTimeout(searchTimer); void mutation.router.navigate({ to: "/tracker", search: formFields(filterForm) }); }
   async function remove() {
     await mutation.run(() => deleteTracker({ data: { id: deleting()!.id, next: props.data.current_url } }), async result => {
       setDeleting(null); await mutation.router.navigate({ href: result.target }); await mutation.router.invalidate();
     }, "已删除追踪", true);
   }
   return <div class="catalog-page catalog-tracker"><div class="catalog-heading"><h1>追踪</h1><div class="catalog-actions"><a class="btn btn-secondary" href={props.data.export_url}>导出 CSV</a><Button onClick={() => setActive({})}>添加书籍</Button></div></div>
-    <p class="muted">共 {props.data.stats.total} 本 · 未读 {props.data.stats.unread} · 在读 {props.data.stats.reading} · 已读 {props.data.stats.read} · 已入库 {props.data.stats.in_library}</p>
+    <p class="muted">共 {props.data.stats.total} 本 · 未读 {props.data.stats.unread} · 在读 {props.data.stats.reading} · 已读 {props.data.stats.read} · 已入库 {props.data.stats.in_library}<Show when={filtered()}><span class="catalog-tracker-matched"> · 筛选出 {props.data.stats.filtered} 本</span></Show></p>
     <Show when={props.data.duplicate_notice}><div class="catalog-tracker-notice" role="status"><p>已存在追踪条目：{props.data.duplicate_notice?.title}</p><Button variant="secondary" onClick={() => setActive({ wish: props.data.duplicate_notice! })}>点此前往编辑该条目。</Button></div></Show>
-    <form action="/tracker" method="get" class="catalog-tracker-filter" onSubmit={event => {
-      event.preventDefault(); const search = formFields(event.currentTarget); void mutation.router.navigate({ to: "/tracker", search });
-    }}>
-      <TextField name="q" label="搜索" type="search" value={props.data.filters.q} placeholder="搜索书名、作者、标签" />
-      <Select name="read_filter" label="阅读" value={props.data.filters.read_filter}><option value="all">全部</option><ReadOptions /></Select>
-      <Select name="library_filter" label="书库" value={props.data.filters.library_filter}><option value="all">全部</option><option value="in">已入库</option><option value="out">未入库</option></Select>
-      <Select name="book_status_filter" label="状态" value={props.data.filters.book_status_filter}><option value="all">全部</option><StatusOptions /></Select>
-      <div class="catalog-actions"><Button type="submit" variant="secondary">筛选</Button><Link href="/tracker" class="btn btn-quiet">重置</Link></div>
+    <form ref={filterForm} action="/tracker" method="get" class="catalog-tracker-filter" onSubmit={event => { event.preventDefault(); applyFilters(); }}>
+      <TextField class="search-field catalog-tracker-search" name="q" label="搜索书名、作者、标签" labelHidden type="search" value={props.data.filters.q} placeholder="搜索书名、作者、标签" onInput={() => { clearTimeout(searchTimer); searchTimer = setTimeout(applyFilters, 400); }} />
+      <label class={`inline-select ${props.data.filters.read_filter !== "all" ? "is-active" : ""}`}><span>阅读</span><select name="read_filter" value={props.data.filters.read_filter} onChange={applyFilters}><option value="all">全部</option><ReadOptions /></select></label>
+      <label class={`inline-select ${props.data.filters.library_filter !== "all" ? "is-active" : ""}`}><span>书库</span><select name="library_filter" value={props.data.filters.library_filter} onChange={applyFilters}><option value="all">全部</option><option value="in">已入库</option><option value="out">未入库</option></select></label>
+      <label class={`inline-select ${props.data.filters.book_status_filter !== "all" ? "is-active" : ""}`}><span>状态</span><select name="book_status_filter" value={props.data.filters.book_status_filter} onChange={applyFilters}><option value="all">全部</option><StatusOptions /></select></label>
+      <Show when={filtered()}><Link href="/tracker" class="catalog-tracker-clear">清除筛选</Link></Show>
     </form>
-    <div class="catalog-tracker-rows"><For each={props.data.wishes}>{wish => <article class="catalog-tracker-row" id={`wish-row-${wish.id}`}>
-      <div><h2>{wish.title}</h2><p class="muted">{wish.author || "未知作者"}</p><div class="catalog-tracker-meta"><Tag>{wish.book_status_label}</Tag><Tag tone={wish.read ? "ok" : "neutral"}>{wish.read_status_label}</Tag><Tag>{wish.exists_label}</Tag></div><Show when={wish.tags_text}><p>{wish.tags_text}</p></Show><Show when={wish.comment}><p>{wish.comment}</p></Show></div>
-      <div><p>评分：{wish.rating === null ? "未评分" : `${wish.rating} / 5`}</p><p class="muted">更新时间 {wish.updated_at_display}</p></div>
-      <div class="catalog-actions"><Show when={wish.library_book_id}><Link class="btn btn-secondary btn-sm" aria-label="查看详情" href={`/book/${wish.library_book_id}?return_to=${encodeURIComponent(props.data.current_url)}`}>详情 ↗</Link></Show><Button size="sm" variant="secondary" onClick={() => setActive({ wish })}>编辑追踪</Button><form action={`/tracker/${wish.id}/delete`} method="post" onSubmit={event => { event.preventDefault(); setDeleting(wish); }}><input type="hidden" name="next" value={props.data.current_url} /><Button type="submit" size="sm" variant="danger">删除</Button></form></div>
-    </article>}</For></div>
+    <div class="catalog-tracker-rows" role="table" aria-label="追踪列表">
+      <div class="catalog-tracker-row catalog-tracker-head" role="row"><span role="columnheader">书名</span><span role="columnheader">作者</span><span role="columnheader">状态</span><span role="columnheader">阅读</span><span role="columnheader">书库</span><span role="columnheader">评分</span><span role="columnheader">更新</span><span role="columnheader" class="catalog-tracker-actions-head">操作</span></div>
+      <For each={props.data.wishes}>{wish => <div class="catalog-tracker-row" role="row" id={`wish-row-${wish.id}`}>
+        <span role="cell" class="catalog-tracker-title" title={wish.comment || undefined}><strong>{wish.title}</strong><Show when={wish.tags_text}><span class="catalog-tracker-tags">{wish.tags_text}</span></Show></span>
+        <span role="cell" class="catalog-tracker-author">{wish.author || "未知作者"}</span>
+        <span role="cell"><Tag>{wish.book_status_label}</Tag></span>
+        <span role="cell" class={wish.read ? "catalog-tracker-read" : undefined}>{wish.read_status_label}</span>
+        <span role="cell" class={wish.exists_in_library ? "catalog-tracker-in" : "catalog-tracker-out"}>{wish.exists_in_library ? "已入库" : "未入库"}</span>
+        <span role="cell" class="catalog-tracker-rating">{wish.rating === null ? "—" : `${wish.rating} / 5`}</span>
+        <span role="cell" class="catalog-tracker-updated">{wish.updated_at_display}</span>
+        <span role="cell" class="catalog-tracker-actions">
+          <Show when={wish.library_book_id} fallback={<span class="catalog-tracker-disabled" aria-disabled="true">查看</span>}><Link aria-label={`查看《${wish.title}》详情`} href={`/book/${wish.library_book_id}?return_to=${encodeURIComponent(props.data.current_url)}`}>查看</Link></Show>
+          <button type="button" class="catalog-tracker-link" onClick={() => setActive({ wish })}>编辑</button>
+          <form action={`/tracker/${wish.id}/delete`} method="post" onSubmit={event => { event.preventDefault(); setDeleting(wish); }}><input type="hidden" name="next" value={props.data.current_url} /><button type="submit" class="catalog-tracker-link catalog-tracker-delete">删除</button></form>
+        </span>
+      </div>}</For>
+    </div>
     <Show when={!props.data.wishes.length}><EmptyState>没有符合筛选条件的书籍。</EmptyState></Show>
     <p class="muted">第 {props.data.page} / {props.data.total_pages} 页</p><Pagination page={props.data.page} total={props.data.stats.filtered} perPage={20} href={props.data.current_url} />
     <Dialog open={Boolean(active())} title={active()?.wish ? "编辑追踪" : "添加追踪"} onClose={() => setActive(null)} class="catalog-page"><Show when={active()} keyed>{value => <TrackerForm wish={value.wish} next={props.data.current_url} onClose={() => setActive(null)} />}</Show></Dialog>
