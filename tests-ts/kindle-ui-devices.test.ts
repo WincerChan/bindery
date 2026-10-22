@@ -285,7 +285,8 @@ it("renders the connection title, four numbered steps and remembered-device side
   const connection = withClass(root, "kindle-connect"), steps = withClass(connection, "kindle-steps");
   expect(elements(connection, "h1").map(node => node.textContent)).toEqual(["连接你的设备"]);
   expect(steps.tagName).toBe("ol"); expect(elements(steps, "li")).toHaveLength(4);
-  expect(elements(steps, "input").filter(node => node.getAttribute("type") === "radio").map(node => node.getAttribute("value"))).toEqual(["KPW3", "KO3", "other"]);
+  // The Kindle model choice appears only after an unpaired Kindle root is picked.
+  expect(elements(steps, "input").filter(node => node.getAttribute("type") === "radio")).toHaveLength(0);
   const picker = button(connection, "选择设备目录"); expect(picker.hasAttribute("disabled")).toBe(true);
   const nodes = elements(connection, "*"); expect(nodes.indexOf(steps)).toBeLessThan(nodes.indexOf(picker));
   expect(elements(connection, "aside")[0]!.getAttribute("aria-label")).toBe("记住的设备");
@@ -318,8 +319,10 @@ it("shows unsupported-browser guidance only after hydration", async () => {
 it("pairs a selected root with the chosen model/name and forgets only the browser record", async () => {
   const fs = await fakeKindle(), manager = new KindleDeviceManager(repository(), async () => fs.root), m = mount("connect", input(manager));
   await settle(m);
-  const ko3 = elements(m.root, "input").find(el => el.getAttribute("value") === "KO3")!; fire(ko3, "change"); m.flush();
+  expect(elements(m.root, "input").some(el => el.getAttribute("value") === "KO3")).toBe(false);
   fire(button(m.root, "选择设备目录"), "click"); await settle(m); expect(text(m)).toContain("完成首次配对");
+  expect(elements(m.root, "input").filter(el => el.getAttribute("type") === "radio").map(el => el.getAttribute("value"))).toEqual(["KPW3", "KO3", "other"]);
+  const ko3 = elements(m.root, "input").find(el => el.getAttribute("value") === "KO3")!; fire(ko3, "change"); m.flush();
   const name = field(m.root, "显示名称"); name.value = "我的 Oasis"; fire(name, "input"); m.flush();
   fire(elements(m.root, "form")[0]!, "submit"); await settle(m);
   expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ model: "KO3", name: "我的 Oasis" }); expect(text(m)).toContain("1264×1680");

@@ -8,9 +8,12 @@ import { KindleIcon } from "../kindle/icons";
 
 export function DeviceConnectPage() {
   const k = useDevice(), [model, setModel] = createSignal<KindleModel>("KPW3"), [name, setName] = createSignal("");
-  const detection = () => k.state().detected, kind = () => k.kind();
+  // Pairing follows the root that was just picked, never the remembered current device.
+  const detection = () => k.state().detected, kind = () => detection()?.kind ?? k.kind();
   const detectedKind = () => detection()?.kind;
   const canPair = () => k.ready() && k.state().status === "unpaired" && k.state().checkedAt !== null && !!detection();
+  // Only a freshly picked, unpaired root needs the detected summary and the model choice.
+  const pairing = () => k.ready() && k.state().status === "unpaired" && !!detection();
   const defaultName = () => detection() ? modelLabel(kind(), detection()!.model).split(" · ")[0]! : "我的设备";
   return <div class="kindle-split kindle-connect">
     <section aria-label="连接设备">
@@ -31,10 +34,10 @@ export function DeviceConnectPage() {
         </li>
         <li><strong>在浏览器弹窗里允许编辑</strong><p>浏览器重启后再次授权时会提供「每次访问都允许」选项。</p></li>
         <li><strong>第一次连接：确认型号并命名</strong><p>Bindery 会写入 .bindery/device.json，之后用它识别这台设备。</p>
-          <Show when={detection()}>
+          <Show when={pairing()}>
             <p class="kindle-small" data-detected-device>已识别：{kindLabel(kind())} · {modelLabel(kind(), detection()!.model)}{detection()!.modelCode ? ` · 型号代码 ${detection()!.modelCode}` : ""}{detection()!.productUuid ? ` · 产品 UUID ${detection()!.productUuid}` : ""}</p>
           </Show>
-          <Show when={kind() === "kindle"}>
+          <Show when={pairing() && detectedKind() === "kindle"}>
             <fieldset class="kindle-model-choice" disabled={!k.ready() || !k.supported() || k.busy()}><legend>Kindle 型号</legend><div class="kindle-models" role="radiogroup" aria-label="型号"><For each={["KPW3", "KO3", "other"] as const}>{value => <label class="checkbox"><input type="radio" name="kindle-model" value={value} checked={model() === value} onChange={() => setModel(value)} />{KINDLE_MODELS[value].name}</label>}</For></div></fieldset>
           </Show>
           <Show when={canPair()}>
