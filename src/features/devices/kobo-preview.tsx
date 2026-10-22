@@ -3,6 +3,7 @@ import { errorMessage } from "../../client/devices/fs";
 import { Button, Checkbox, Select } from "../../ui";
 import { Link } from "../../shared/spa-link";
 import { ChapterFrame } from "../kindle/typeset/frames";
+import { PreviewBookPicker } from "../kindle/typeset/book-picker";
 import { useOptionalDevice } from "./context";
 import { KOBO_LINE_HEIGHT_RANGE, KOBO_PREVIEW_DEFAULTS, KOBO_SCALE_RANGE, koboPreviewCss, koboPreviewEstimate, koboPreviewGeometry, koboPreviewSettings, type KoboPreviewSettings } from "./kobo-page";
 
@@ -70,7 +71,7 @@ export function KoboPreviewPage(props: { data: PreviewData; chapters: (bookId: s
     </section><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
       <div class="kt-preview-header">
         <div class="kt-preview-toolbar"><div class="kt-preview-selectors">
-          <Select label="预览书籍" value={bookId()} disabled={!props.data.books.length} onChange={event => { void chooseBook(event.currentTarget.value); }}><For each={props.data.books}>{book => <option value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</option>}</For></Select>
+          <PreviewBookPicker books={props.data.books} value={bookId()} disabled={!props.data.books.length} onChange={id => { void chooseBook(id); }} />
           <Select label="章节" value={String(chapter())} disabled={loading() || !sections().length} onChange={event => openChapter(Number(event.currentTarget.value))}><For each={sections()}>{(section, index) => <option value={String(index())}>{section.title}</option>}</For></Select>
         </div></div>
         <Show when={loading()}><p role="status">正在读取章节…</p></Show><Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>

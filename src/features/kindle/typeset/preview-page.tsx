@@ -9,6 +9,7 @@ import { validateCss } from "../../../core/css";
 import { Button, Checkbox, ConfirmDialog, Dialog, Select, Textarea, TextField } from "../../../ui";
 import { usePageDevice } from "./device";
 import { ChapterFrame } from "./frames";
+import { PreviewBookPicker } from "./book-picker";
 import { Link } from "../../../shared/spa-link";
 import { previewContentUrl, screenFor, type PreviewChapter, type PreviewData } from "./model";
 
@@ -213,7 +214,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
       </Show>
     </section><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
       <div class="kt-preview-header">
-      <div class="kt-preview-toolbar"><div class="kt-preview-selectors"><Select label="预览书籍" value={bookId()} disabled={!props.data.books.length} onChange={event => { void chooseBook(event.currentTarget.value); }}><For each={props.data.books}>{book => <option value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</option>}</For></Select>
+      <div class="kt-preview-toolbar"><div class="kt-preview-selectors"><PreviewBookPicker books={props.data.books} value={bookId()} disabled={!props.data.books.length} onChange={id => { void chooseBook(id); }} />
         <Select label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} onChange={event => openChapter(Number(event.currentTarget.value))}><For each={sections()}>{(section, index) => <option value={String(index())}>{section.title}</option>}</For></Select>
         <Select label="Kindle 页边距设置" value={draft().settings.kindleMargin} disabled={busy() || loading()} onChange={event => {
           const kindleMargin = event.currentTarget.value as KindleMarginPreset;

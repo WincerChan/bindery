@@ -40,6 +40,9 @@
 .kt-preview-selectors { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 8px; min-width: 0; }
 .kt-page .kt-preview-selectors .field { min-width: 0; gap: 4px; font-size: 13px; color: var(--color-ink-2); }
 .kt-preview-selectors .field > span { white-space: nowrap; }
+.kt-book-picker { display: grid; gap: 6px; min-width: 0; }
+/* The device pages' `.field input` padding would cover the search icon. */
+.kt-page .kt-book-search input:not([type="checkbox"]) { height: 32px; min-height: 32px; padding-left: 36px; font-size: 13px; }
 .kt-page .kt-preview-selectors select { --select-arrow-gap: 10px; height: 32px; min-height: 32px; padding: 0 30px 0 8px; min-width: 0; text-overflow: ellipsis; }
 .kt-calibration { min-height: 0; overflow: auto; }
 .kt-calibration p { padding-top: 6px; }
