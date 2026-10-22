@@ -7,7 +7,7 @@ import { useMutation } from "../../shared/client-mutation";
 import { mutateLibrarySelection } from "./mutations";
 import type { BookView } from "../../server/book-view";
 import type { LibraryPageData } from "../../server/library/queries";
-import { bookHref, gridPageSize, libraryReturnTo, type LibrarySearch } from "./search";
+import { bookHref, gridPageSize, libraryReturnTo, rememberGridPageSize, type LibrarySearch } from "./search";
 
 type View = "grid" | "list";
 export function LibraryBook(props: { book: BookView; returnTo: string; view: View; selecting: boolean; selected: boolean; toggle: () => void; confirmArchive?: (form: HTMLFormElement) => void; confirmDelete?: (form: HTMLFormElement) => void; restoreBook?: (id: string) => void }) {
@@ -108,7 +108,9 @@ export function LibraryPage(props: {
         if (media.matches || view() !== "grid") return;
         const width = page.querySelector<HTMLElement>("#library")?.clientWidth || 0;
         const per_page = gridPageSize(width);
-        if (width && per_page !== props.data.per_page) void search({ per_page });
+        if (!width) return;
+        rememberGridPageSize(per_page);
+        if (per_page !== props.data.per_page) void search({ per_page });
       }, 150);
     };
     const observer = new ResizeObserver(syncSize); observer.observe(page);
@@ -117,7 +119,7 @@ export function LibraryPage(props: {
   function changeView(next: View) {
     setView(next);
     try { localStorage.setItem("bindery-view", next); } catch { /* View still works when storage is disabled. */ }
-    if (next === "grid") { const width = page.querySelector<HTMLElement>("#library")?.clientWidth || 0; if (width) void search({ per_page: gridPageSize(width) }); }
+    if (next === "grid") { const width = page.querySelector<HTMLElement>("#library")?.clientWidth || 0; if (width) { rememberGridPageSize(gridPageSize(width)); void search({ per_page: gridPageSize(width) }); } }
   }
   const toggle = (id: string) => setSelected(ids => ids.includes(id) ? ids.filter(item => item !== id) : [...ids, id]);
   function done() { setSelecting(false); setSelected([]); }

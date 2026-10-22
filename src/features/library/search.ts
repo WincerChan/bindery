@@ -23,7 +23,17 @@ export function normalizeSearch(input: Record<string, unknown>): LibrarySearch {
 }
 export function libraryQueryInput(input: Record<string, unknown>) {
   const invalid = ["page", "per_page"].some(key => input[key] !== undefined && !Number.isSafeInteger(integer(input[key], NaN)));
-  return { search: normalizeSearch(input), invalid };
+  return { search: normalizeSearch(input), invalid, perPageGiven: input.per_page !== undefined };
+}
+/** The grid's measured page size, so a plain `/` loads it at once instead of loading 24 and then re-sizing. */
+export const GRID_PAGE_SIZE_COOKIE = "bindery_grid_per_page";
+export function gridPageSizeFromCookie(header: string | null): number | null {
+  const match = new RegExp(`(?:^|;\\s*)${GRID_PAGE_SIZE_COOKIE}=(\\d{1,3})(?:;|$)`).exec(header ?? "");
+  const value = match ? Number(match[1]) : NaN;
+  return value >= 4 && value <= 96 ? value : null;
+}
+export function rememberGridPageSize(perPage: number) {
+  try { document.cookie = `${GRID_PAGE_SIZE_COOKIE}=${perPage}; path=/; max-age=31536000; samesite=lax`; } catch { /* Only a re-size saving. */ }
 }
 export function libraryReturnTo(input: Record<string, unknown>): string {
   const search = normalizeSearch(input);
