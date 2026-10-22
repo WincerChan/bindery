@@ -29,7 +29,11 @@ export interface KepubZipEntry {
 }
 export interface KepubStats { entries: number; transformed: number; copied: number; removed: number; dummyTitlepage: boolean; unpackMs: number; opfMs: number; inflateMs: number; htmlMs: number; transformMs: number; compressMs: number; packMs: number; outputBytes: number }
 export interface KepubResult { data: Uint8Array<ArrayBuffer>; stats: KepubStats }
-export interface KepubOptions { signal?: AbortSignal; progress?: (stage: "inspecting" | "converting" | "done") => void }
+export interface KepubOptions {
+  signal?: AbortSignal; progress?: (stage: "inspecting" | "converting" | "done") => void;
+  /** Deflate members the input stored uncompressed (Bindery's intermediate archives). Off by default for kepubify parity. */
+  compressStored?: boolean;
+}
 
 const u16 = (view: DataView, offset: number) => view.getUint16(offset, true);
 const u32 = (view: DataView, offset: number) => view.getUint32(offset, true);
@@ -333,8 +337,8 @@ export async function convertToKepubAsync(data: Uint8Array, options: KepubOption
   const packStart = performance.now();
   const compressStart = performance.now();
   const output = await Promise.all(prepared.output.map(async (entry, index) => {
-    if (entry.raw || index === 0) return entry;
-    const bytes = entry.data!;
+    if (index === 0 || (entry.raw && !(options.compressStored && entry.raw.method === 0 && entry.raw.uncompressedSize > 0))) return entry;
+    const bytes = entry.data ?? entry.raw!.compressed;
     const compressed = await deflateRawNative(bytes);
     return { name: entry.name, raw: { name: entry.name, method: 8, flags: 0, crc: crc32(bytes), compressedSize: compressed.byteLength, uncompressedSize: bytes.byteLength, localOffset: 0, compressed } };
   }));

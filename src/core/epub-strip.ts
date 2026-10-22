@@ -1,11 +1,11 @@
 import { XMLSerializer } from "@xmldom/xmldom";
-import { canonicalZipMember, relativeHref, writeArchive, type ArchiveMember } from "./archive";
+import { canonicalZipMember, relativeHref, writeArchive, type ArchiveMember, type Deflater } from "./archive";
 import { EpubArchive, epubCoverItem, extractCover, isDocumentMediaType, manifestFromOpf, resolveOpfHref, type EpubSource } from "./epub";
 import { rewriteCssUrls, stripCss } from "./css-strip";
 import { appendElement, attr, child, children, descendants, OPF_NS, parseXml, serializeElementTree } from "./xml";
 import type { Element } from "./xml";
 
-export interface EpubStripOptions { stripFonts?: boolean; stripImages?: boolean }
+export interface EpubStripOptions { stripFonts?: boolean; stripImages?: boolean; stripPageMargins?: boolean }
 const fontFile = /\.(?:ttf|otf|woff2?)$/i;
 const imageFile = /\.(?:jpe?g|png|gif|webp|avif|svg|bmp|tiff?|ico|apng|jxl)$/i;
 const fontMedia = /^(?:font\/|application\/(?:.*font.*|vnd\.ms-opentype))/i;
@@ -50,7 +50,7 @@ export function createEpubAssetStripper(
   const styles = new Set(items.filter(item => item.media_type === "text/css").map(item => resourcePath(opf, item.href)));
   const guideCovers = new Set(children(child(root, "guide") ?? root, "reference").filter(ref => attr(ref, "type") === "cover").map(ref => resourcePath(opf, attr(ref, "href"))));
   const isImage = (from: string, url: string) => /^data:image\//i.test(url) || images.has(resourcePath(from, url)) || imageFile.test(url.split(/[?#]/)[0]);
-  const css = (text: string, from: string, keepCover: boolean) => stripCss(text, { ...options, isImage: url => isImage(from, url) && !(keepCover && cover && resourcePath(from, url) === cover) });
+  const css = (text: string, from: string, keepCover: boolean, pageRoot = false) => stripCss(text, { ...options, pageRoot, isImage: url => isImage(from, url) && !(keepCover && cover && resourcePath(from, url) === cover) });
   const encoder = new TextEncoder(), decoder = new TextDecoder(), serializer = new XMLSerializer();
   const coverStyles = new Map<string, string>(), coverSources = new Map<string, string>();
   const rewriteCoverCss = (text: string, from: string) => rewriteCssUrls(text, url => {
@@ -111,7 +111,7 @@ export function createEpubAssetStripper(
     return serializeElementTree(root);
   }
   function transform(name: string, content: Uint8Array): Uint8Array | undefined {
-    if (!options.stripFonts && !options.stripImages) return content;
+    if (!options.stripFonts && !options.stripImages && !options.stripPageMargins) return content;
     if (removed.has(name)) return undefined;
     if (name === opf) return packageDocument();
     if (name === "META-INF/encryption.xml") {
@@ -122,7 +122,13 @@ export function createEpubAssetStripper(
       if (!descendants(encryption, "EncryptedData").length) return undefined;
       content = encoder.encode(serializer.serializeToString(encryption));
     } else if (styles.has(name) || /\.css$/i.test(name)) content = encoder.encode(css(decoder.decode(content), name, false));
-    else if (docs.has(name) || /\.(?:xhtml|html?|svg)$/i.test(name)) {
+    else if ((docs.has(name) || /\.(?:xhtml|html?|svg)$/i.test(name)) && !options.stripFonts && !options.stripImages) {
+      // Page margins only touch <style> blocks and the html/body style attributes; skip the DOM round trip.
+      const original = decoder.decode(content);
+      const text = original.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style\s*>)/gi, (_match, open: string, body: string, close: string) => open + css(body, name, false) + close)
+        .replace(/<(?:html|body)\b[^>]*>/gi, tag => tag.replace(/(\sstyle\s*=\s*)(["'])([\s\S]*?)\2/i, (_match, prefix: string, quote: string, value: string) => prefix + quote + css(value, name, false, true) + quote));
+      if (text !== original) content = encoder.encode(text);
+    } else if (docs.has(name) || /\.(?:xhtml|html?|svg)$/i.test(name)) {
       const doc = parseXml(content), nodes = [doc, ...descendants(doc)];
       const coverPage = coverDocument(name, doc), referencesCover = (node: Element) => referencesCoverInDocument(name, node);
       if (coverPage) prepareCoverStyles();
@@ -131,7 +137,7 @@ export function createEpubAssetStripper(
           node.removeAttribute("font-family");
           if (node.localName === "font") node.removeAttribute("face");
         }
-        if (node.hasAttribute("style")) node.setAttribute("style", css(attr(node, "style"), name, coverPage));
+        if (node.hasAttribute("style")) node.setAttribute("style", css(attr(node, "style"), name, coverPage, node.localName === "html" || node.localName === "body"));
         if (node.localName === "style") {
           const stripped = css(node.textContent ?? "", name, coverPage);
           node.textContent = coverPage ? rewriteCoverCss(stripped, name) : stripped;
@@ -190,9 +196,9 @@ export function createEpubAssetStripper(
   };
 }
 
-/** Shared by Kindle transfer and preview. Only the returned copy is changed. */
-export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions): Uint8Array<ArrayBuffer> {
-  if (!options.stripFonts && !options.stripImages) return new Uint8Array(data);
+/** Shared by Kindle and Kobo transfer and the preview. Only the returned copy is changed; `deflate: null` stores members. */
+export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions, deflate?: Deflater | null): Uint8Array<ArrayBuffer> {
+  if (!options.stripFonts && !options.stripImages && !options.stripPageMargins) return new Uint8Array(data);
   const archive = new EpubArchive(data);
   const stripper = createEpubAssetStripper(archive, archive.entries.map(entry => canonicalZipMember(entry.name)), options, options.stripImages ? extractCover(data)?.[1] ?? null : null);
   const entries: ArchiveMember[] = [];
@@ -203,5 +209,5 @@ export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions): Ui
   // A cover document can occur after the package entry in ZIP order.
   entries.find(entry => canonicalZipMember(entry.name) === stripper.opf)!.data = stripper.transform(stripper.opf, archive.read(stripper.opf)!)!;
   for (const name of stripper.additionalNames()) entries.push({ name, data: stripper.transformCoverStyle(name, archive.read(stripper.source(name))!) });
-  return new Uint8Array(writeArchive(entries));
+  return new Uint8Array(writeArchive(entries, deflate));
 }

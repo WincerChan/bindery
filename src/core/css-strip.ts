@@ -1,4 +1,11 @@
-export interface StripCssOptions { stripFonts?: boolean; stripImages?: boolean; isImage: (url: string) => boolean }
+export interface StripCssOptions {
+  stripFonts?: boolean; stripImages?: boolean; isImage: (url: string) => boolean;
+  /** Drop margin/padding set on the page itself (`html`, `body`, `:root`), leaving the reader's own margins. */
+  stripPageMargins?: boolean;
+  /** The text is the inline style of an `html` or `body` element. */
+  pageRoot?: boolean;
+}
+const pageRootSelector = (selectors: string) => selectors.replace(/\/\*[\s\S]*?\*\//g, "").split(",").every(selector => /^\s*(?:html|body|:root)\s*$/i.test(selector));
 
 /** Decode CSS identifiers and URL strings, including escaped property / at-rule names. */
 function unescapeCss(text: string): string {
@@ -67,13 +74,16 @@ export function rewriteCssUrls(css: string, rewrite: (url: string) => string | u
 
 /** Token-aware removal preserves unrelated declarations, strings, comments and rule order. */
 export function stripCss(css: string, options: StripCssOptions): string {
-  if (!options.stripFonts && !options.stripImages) return css;
+  if (!options.stripFonts && !options.stripImages && !options.stripPageMargins) return css;
   const list = tokens(css), removed: Array<[number, number]> = [];
-  const declaration = (start: number, end: number, from: number, to: number) => {
+  const declaration = (start: number, end: number, from: number, to: number, pageRoot: boolean) => {
     if (list[start + 1]?.value !== ":") return;
     const property = list[start].value.toLowerCase();
     // The font shorthand also sets font-family; leaving it would restore a publisher font.
     let drop = options.stripFonts && ["font-family", "font"].includes(property);
+    // Explicit zeros stay: removing them would bring back the renderer's default body margin.
+    if (pageRoot && options.stripPageMargins && /^(?:margin|padding)(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?$/.test(property)
+      && list.slice(start + 2, end).some(token => !/^(?:[+-]?0+(?:\.0*)?[a-z%]*|!|important)$/i.test(token.value))) drop = true;
     if (options.stripImages) for (let i = start + 2; i < end; i++) {
       if (list[i].value.toLowerCase() !== "url" || list[i + 1]?.value !== "(") continue;
       let close = i + 2; while (close < end && list[close].value !== ")") close++;
@@ -82,7 +92,8 @@ export function stripCss(css: string, options: StripCssOptions): string {
     }
     if (drop) removed.push([from, to]);
   };
-  function block(start: number, end: number, from: number, to: number) {
+  // Only rules whose every selector is the page root qualify: `body.cover` and `body p` keep their spacing.
+  function block(start: number, end: number, from: number, to: number, pageRoot: boolean) {
     let statement = start, statementFrom = from, parens = 0, brackets = 0;
     for (let i = start; i < end; i++) {
       const value = list[i].value;
@@ -93,15 +104,15 @@ export function stripCss(css: string, options: StripCssOptions): string {
         let close = i + 1, depth = 1;
         for (; close < end; close++) { if (list[close].value === "{") depth++; if (list[close].value === "}" && --depth === 0) break; }
         if (options.stripFonts && list[statement]?.value.toLowerCase() === "@font-face") removed.push([statementFrom, list[close]?.end ?? to]);
-        else block(i + 1, close, list[i].end, list[close]?.start ?? to);
+        else block(i + 1, close, list[i].end, list[close]?.start ?? to, list[statement] !== undefined && statement < i && pageRootSelector(css.slice(list[statement].start, list[i].start)));
         i = close; statement = i + 1; statementFrom = list[i]?.end ?? to;
       } else if (value === ";") {
-        declaration(statement, i, statementFrom, list[i].end); statement = i + 1; statementFrom = list[i].end;
+        declaration(statement, i, statementFrom, list[i].end, pageRoot); statement = i + 1; statementFrom = list[i].end;
       }
     }
-    declaration(statement, end, statementFrom, to);
+    declaration(statement, end, statementFrom, to, pageRoot);
   }
-  block(0, list.length, 0, css.length);
+  block(0, list.length, 0, css.length, Boolean(options.pageRoot));
   let result = "", at = 0;
   for (const [from, to] of removed.sort((a, b) => a[0] - b[0])) { result += css.slice(at, from); at = to; }
   return result + css.slice(at);

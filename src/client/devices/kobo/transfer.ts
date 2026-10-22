@@ -1,5 +1,4 @@
 import { extractEpubMetadata } from "../../../core/epub";
-import { stripEpubAssets } from "../../../core/epub-strip";
 import { assertDevice, type PairedDevice } from "../identity";
 import { assertDeviceBookPath, koboBookFilename } from "../paths";
 import { PROGRESS_INTERVAL_MS, TransferProgressReporter } from "../progress";
@@ -46,14 +45,14 @@ export class KoboTransferService implements TransferService {
     chunks.length = 0;
     check();
     const metadata = extractEpubMetadata(epub, bookId);
-    const source = options.stripFonts || options.stripImages ? stripEpubAssets(epub, { stripFonts: options.stripFonts, stripImages: options.stripImages }) : epub;
     const started = Date.now();
     const reportConversion = (message: string, etaSeconds?: number) => progress.report({ state: "转换", phase: "convert", message: `${message} · 已用 ${((Date.now() - started) / 1000).toFixed(1)} 秒`, etaSeconds });
     reportConversion("正在转换 KEPUB");
     const timer = options.progress ? setInterval(() => reportConversion("正在转换 KEPUB（耗时取决于书籍大小）"), PROGRESS_INTERVAL_MS) : undefined;
     let converted;
     try {
-      converted = await this.dependencies.converter.convert(source, { signal: options.signal, progress: stage => {
+      // Stripping runs in the converter's worker, off the page's main thread.
+      converted = await this.dependencies.converter.convert(epub, { signal: options.signal, strip: { stripFonts: options.stripFonts, stripImages: options.stripImages, stripPageMargins: options.stripPageMargins }, progress: stage => {
         reportConversion(stage === "inspecting" ? "正在读取书籍结构" : stage === "converting" ? "正在转换 KEPUB" : "KEPUB 转换完成");
       } });
     } finally { if (timer !== undefined) clearInterval(timer); }

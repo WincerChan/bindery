@@ -66,10 +66,10 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; loadProf
   const [selected, setSelected] = createSignal<string[]>([]), [page, setPage] = createSignal(1);
   const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profile, setProfile] = createSignal("default"), [profileError, setProfileError] = createSignal("");
   const [profilesBusy, setProfilesBusy] = createSignal(false), [overwrite, setOverwrite] = createSignal(false);
-  const [stripFonts, setStripFonts] = createSignal(false), [stripImages, setStripImages] = createSignal(false);
+  const [stripFonts, setStripFonts] = createSignal(false), [stripImages, setStripImages] = createSignal(false), [stripMargins, setStripMargins] = createSignal(false);
   const kind = () => k.kind(), kindle = () => kind() === "kindle";
   const profileSummary = () => {
-    if (!kindle()) return [stripFonts() ? "去掉书籍自带字体" : "", stripImages() ? "去掉所有图片（保留封面）" : ""].filter(Boolean).join(" · ");
+    if (!kindle()) return [stripFonts() ? "去掉书籍自带字体" : "", stripImages() ? "去掉所有图片（保留封面）" : "", stripMargins() ? "去掉书籍自带页边距" : ""].filter(Boolean).join(" · ");
     const settings = profiles().find(item => item.id === profile())?.settings;
     return [settings?.stripFonts ? "去掉书籍自带字体" : "", settings?.stripImages ? "去掉所有图片（保留封面）" : ""].filter(Boolean).join(" · ");
   };
@@ -122,7 +122,7 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; loadProf
       if (!deviceId() || !k.inventory()) throw new Error("请先连接设备并等待书籍清单读取完成");
       for (const book of chosen()) {
         if (kindle()) k.enqueue(book.book_id, profile(), { overwrite: overwrite() });
-        else k.enqueue(book.book_id, "default", { overwrite: true, stripFonts: stripFonts(), stripImages: stripImages() });
+        else k.enqueue(book.book_id, "default", { overwrite: true, stripFonts: stripFonts(), stripImages: stripImages(), stripPageMargins: stripMargins() });
       }
       setSelected([]);
     });
@@ -156,8 +156,9 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; loadProf
             <div class="kindle-check-group">
               <Checkbox label="去掉书籍自带字体" checked={stripFonts()} onChange={e => setStripFonts(e.currentTarget.checked)} />
               <Checkbox label="去掉所有图片（保留封面）" checked={stripImages()} onChange={e => setStripImages(e.currentTarget.checked)} />
+              <Checkbox label="去掉书籍自带页边距" checked={stripMargins()} onChange={e => setStripMargins(e.currentTarget.checked)} />
             </div>
-            <p class="kindle-small">同名书会覆盖设备上的旧文件。</p>
+            <p class="kindle-small">页边距只由 Kobo 的阅读设置决定；书里封面、简介等特殊页面的排版不受影响。同名书会覆盖设备上的旧文件。</p>
           </>}>
             <Select label="排版方案" value={profile()} disabled={!deviceId() || profilesBusy()} onChange={e => setProfile(e.currentTarget.value)}><For each={profiles()}>{p => <option value={p.id}>{p.name}</option>}</For></Select>
             <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
