@@ -6,7 +6,7 @@ import { bookView } from "../book-view";
 import { ensureBookEpubCss } from "../epub-css";
 import { HttpError, requireBook } from "../http";
 import { epubPath, type LibraryStorage } from "../storage";
-import { readerReturnTo, type ReaderData } from "../../features/reader/model";
+import { readerEntryHref, readerReturnTo, type ReaderData } from "../../features/reader/model";
 import { bigIntegerParameter } from "./parameters";
 
 export const readerNoStoreHeaders = () => ({ "Cache-Control": "no-store, max-age=0", "CDN-Cache-Control": "no-store", Pragma: "no-cache", Expires: "0" });
@@ -24,10 +24,7 @@ export function readBookEpub(bookId: string, library: LibraryStorage): Uint8Arra
 export function previewRedirect(request: Request, bookId: string, library: LibraryStorage): Response {
   requireBook(bookId, library);
   if (!readBookArchive(bookId, library).metadata().sections.length) throw new HttpError(404, "书籍没有章节");
-  const query = new URLSearchParams({ resume: "1" });
-  const target = readerReturnTo(new URL(request.url).searchParams.get("return_to"), "");
-  if (target) query.set("return_to", target);
-  return new Response(null, { status: 303, headers: { ...readerNoStoreHeaders(), Location: `/book/${bookId}/preview/0?${query}` } });
+  return new Response(null, { status: 303, headers: { ...readerNoStoreHeaders(), Location: readerEntryHref(bookId, new URL(request.url).searchParams.get("return_to")) } });
 }
 export function loadReader(bookId: string, rawSection: string, returnTo: unknown, library: LibraryStorage): ReaderData {
   const meta = requireBook(bookId, library);

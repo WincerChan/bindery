@@ -4,6 +4,7 @@ import { Route as archive } from "../../src/routes/_app.archive";
 import { Route as legacyKindle } from "../../src/routes/_app.kindle";
 import { Route as legacyKindleIndex } from "../../src/routes/_app.kindle.index";
 import { Route as legacyKindlePreview } from "../../src/routes/_app.kindle.preview";
+import { Route as readerEntry } from "../../src/routes/_app.book.$book_id_.preview";
 import { legacyDeviceTarget } from "../../src/features/devices/redirects";
 
 export async function navigate(entry: string) {
@@ -28,6 +29,16 @@ export async function navigateDevice(entry: string) {
   const targetPreview = createRoute({ getParentRoute: () => root, path: "/devices/preview", validateSearch: (search: Record<string, unknown>) => search, component: () => null });
   void legacyKindle;
   const router = createRouter({ routeTree: root.addChildren([legacy, legacyIndex, legacyPreview, target, targetIndex, targetPreview]), history: createMemoryHistory({ initialEntries: ["/"] }), isServer: false, origin: "http://bindery.local" });
+  await router.load(); await router.navigate({ href: entry });
+  return router.state.location.href;
+}
+
+/** Library and detail-page read links: the entry route has no component and must redirect client-side. */
+export async function navigateReader(entry: string) {
+  const root = createRootRoute();
+  const entryRoute = createRoute({ getParentRoute: () => root, path: "/book/$book_id/preview", beforeLoad: context => readerEntry.options.beforeLoad!({ ...context } as never) });
+  const section = createRoute({ getParentRoute: () => root, path: "/book/$book_id/preview/$section", validateSearch: (search: Record<string, unknown>) => search, component: () => null });
+  const router = createRouter({ routeTree: root.addChildren([entryRoute, section]), history: createMemoryHistory({ initialEntries: ["/"] }), isServer: false, origin: "http://bindery.local" });
   await router.load(); await router.navigate({ href: entry });
   return router.state.location.href;
 }

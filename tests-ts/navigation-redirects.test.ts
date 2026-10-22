@@ -6,7 +6,9 @@ import { resolve } from "node:path";
 let probe: typeof import("./fixtures/navigation-redirects");
 beforeAll(async () => {
   const result = await build({ configFile: false, logLevel: "silent", plugins: [
-    { name: "redirects-client-boundary", enforce: "pre", resolveId: id => id === "../server/http" ? "\0redirects-http" : undefined, load: id => id === "\0redirects-http" ? "export const authenticatedRoute = handler => handler;" : undefined },
+    // Server-only modules stay out of the client probe, as in the real client build.
+    { name: "redirects-client-boundary", enforce: "pre", resolveId: id => id === "../server/http" ? "\0redirects-http" : id === "../server/reader/service" ? "\0redirects-reader" : undefined,
+      load: id => id === "\0redirects-http" ? "export const authenticatedRoute = handler => handler;" : id === "\0redirects-reader" ? "export const previewRedirect = () => null;" : undefined },
     solid({ ssr: true }),
   ], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/navigation-redirects.ts") } });
   const entry = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);
@@ -52,5 +54,12 @@ describe("merged navigation compatibility", () => {
   ])("redirects legacy device client navigation through beforeLoad: %s", async (entry, expected) => {
     expect(await probe.navigateDevice(entry)).toBe(expected);
     expect(probe.legacyDeviceTarget(entry)).toBe(entry === "/kindle/" ? "/devices/" : expected);
+  });
+  it.each([
+    ["/book/abc/preview", "/book/abc/preview/0?resume=1"],
+    ["/book/abc/preview?return_to=%2F%3Fpage%3D2", "/book/abc/preview/0?resume=1&return_to=%2F%3Fpage%3D2"],
+    ["/book/abc/preview?return_to=https%3A%2F%2Fevil.example", "/book/abc/preview/0?resume=1"],
+  ])("opens the reader from an in-app read link, resuming like the server redirect: %s", async (entry, expected) => {
+    expect(await probe.navigateReader(entry)).toBe(expected);
   });
 });

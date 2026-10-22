@@ -18,6 +18,12 @@ export function readerReturnTo(value: unknown, fallback = "/"): string {
   if (!raw.startsWith("/") || raw.startsWith("//") || /[\\\x00-\x1f\x7f]/.test(raw)) return fallback;
   return raw.split("#")[0] || fallback;
 }
+/** `/book/<id>/preview` opens section 0 and resumes the saved position, from the server and in-app alike. */
+export function readerEntryHref(bookId: string, returnTo: unknown): string {
+  const query = new URLSearchParams({ resume: "1" }), target = readerReturnTo(returnTo, "");
+  if (target) query.set("return_to", target);
+  return `/book/${bookId}/preview/0?${query}`;
+}
 export function sectionUrl(bookId: string, section: number, returnTo = "/", extra: Record<string, string> = {}): string {
   const query = new URLSearchParams();
   if (returnTo !== "/") query.set("return_to", returnTo);
