@@ -6,7 +6,8 @@ import { mapKoboPosition } from "./kobo";
 import { koboReadingInput as parseKoboReadingInput, type KoboReadingInput } from "./input";
 
 export type { KoboDevice, KoboEntry, KoboReadingInput } from "./input";
-export interface KoboReadingResult { synced: number; skipped: number; marked_read: number; unchanged: number }
+/** `kept`: the device reported an older or reset position, so the stored one stayed. */
+export interface KoboReadingResult { synced: number; skipped: number; marked_read: number; unchanged: number; kept: number }
 const READ_STATUS = ["unread", "reading", "finished"] as const;
 export function koboReadingInput(value: unknown): KoboReadingInput {
   try { return parseKoboReadingInput(value); }
@@ -14,10 +15,14 @@ export function koboReadingInput(value: unknown): KoboReadingInput {
 }
 const COMPARED: readonly (keyof DeviceReading)[] = ["book_id", "device_id", "device_kind", "device_name", "section", "section_fraction", "percent", "location", "read_status", "last_read_at", "time_spent_seconds", "rest_estimate_seconds"];
 const sameReading = (previous: DeviceReading | undefined, row: DeviceReading) => Boolean(previous) && COMPARED.every(column => previous![column] === row[column]);
+const readTime = (value: string | null | undefined) => value ? Date.parse(value) : NaN;
+// A re-transfer or reset can make the device forget a book's position; that must not erase what it reported before.
+const olderThanStored = (previous: DeviceReading | undefined, row: DeviceReading) =>
+  Number.isFinite(readTime(previous?.last_read_at)) && !(readTime(row.last_read_at) >= readTime(previous!.last_read_at));
 
 export function syncKoboReading(library: LibraryStorage, value: unknown): KoboReadingResult {
   const { device, books } = koboReadingInput(value), synced_at = nowIso();
-  const result: KoboReadingResult = { synced: 0, skipped: 0, marked_read: 0, unchanged: 0 };
+  const result: KoboReadingResult = { synced: 0, skipped: 0, marked_read: 0, unchanged: 0, kept: 0 };
   for (const entry of books) {
     if (!library.ensureBookExists(entry.book_id)) { result.skipped++; continue; }
     let position;
@@ -36,6 +41,7 @@ export function syncKoboReading(library: LibraryStorage, value: unknown): KoboRe
     };
     const previous = library.db.listDeviceReading(entry.book_id).find(item => item.device_id === device.id);
     if (sameReading(previous, row)) result.unchanged++;
+    else if (olderThanStored(previous, row)) result.kept++;
     else {
       library.db.upsertDeviceReading(row);
       result.synced++;

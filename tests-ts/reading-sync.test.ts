@@ -101,10 +101,25 @@ describe("Kobo sync validation and storage", () => {
     const { library, id } = fixture(), archivedId = "c".repeat(32);
     createBook(library, archivedId, { archived: true });
     const entry = koboEntry(id, { location: sectionsOf(library, id)[0].item_path, chapter_fraction: 0.4, percent: 10 }), unknown = koboEntry("b".repeat(32));
-    expect(syncKoboReading(library, syncInput([entry, unknown, koboEntry(archivedId)]))).toEqual({ synced: 1, skipped: 2, marked_read: 0, unchanged: 0 });
-    expect(syncKoboReading(library, syncInput([entry, unknown, koboEntry(archivedId)]))).toEqual({ synced: 0, skipped: 2, marked_read: 0, unchanged: 1 });
+    expect(syncKoboReading(library, syncInput([entry, unknown, koboEntry(archivedId)]))).toEqual({ synced: 1, skipped: 2, marked_read: 0, unchanged: 0, kept: 0 });
+    expect(syncKoboReading(library, syncInput([entry, unknown, koboEntry(archivedId)]))).toEqual({ synced: 0, skipped: 2, marked_read: 0, unchanged: 1, kept: 0 });
     expect(library.db.listDeviceReading(unknown.book_id)).toEqual([]);
     expect(library.db.listDeviceReading(archivedId)).toEqual([]);
+  });
+});
+
+describe("device positions that went backwards", () => {
+  it("keeps the stored position when the device reports a reset or an older read, and accepts equal or newer ones", () => {
+    const { library, id } = fixture(), sections = sectionsOf(library, id), stored = () => library.db.listDeviceReading(id)[0];
+    syncKoboReading(library, syncInput([koboEntry(id, { location: sections[1].item_path, chapter_fraction: 0.6, percent: 39 })]));
+    // A re-transferred book the Kobo now treats as never opened.
+    expect(syncKoboReading(library, syncInput([koboEntry(id, { last_read_at: null, percent: 0, read_status: 0 })]))).toMatchObject({ synced: 0, kept: 1 });
+    expect(stored()).toMatchObject({ section: 1, section_fraction: 0.6, percent: 39, last_read_at: "2026-10-22T13:11:20Z" });
+    expect(syncKoboReading(library, syncInput([koboEntry(id, { location: sections[0].item_path, last_read_at: "2026-10-22T09:00:00Z" })]))).toMatchObject({ kept: 1 });
+    expect(stored().section).toBe(1);
+    // Same read time, different position (e.g. the library EPUB changed): the device still wins.
+    expect(syncKoboReading(library, syncInput([koboEntry(id, { location: sections[0].item_path, chapter_fraction: 0.2, percent: 39 })]))).toMatchObject({ synced: 1, kept: 0 });
+    expect(stored()).toMatchObject({ section: 0, section_fraction: 0.2 });
   });
 });
 
@@ -113,12 +128,12 @@ describe("authoritative progress", () => {
     const { library, id } = fixture(), location = sectionsOf(library, id)[1].item_path;
     expect(library.loadMetadata(id).read).toBe(false);
     const first = syncKoboReading(library, syncInput([koboEntry(id, { location, chapter_fraction: 0.615, percent: 39, read_status: 2, time_spent_seconds: 132, rest_estimate_seconds: 8943 })]));
-    expect(first).toEqual({ synced: 1, skipped: 0, marked_read: 1, unchanged: 0 });
+    expect(first).toEqual({ synced: 1, skipped: 0, marked_read: 1, unchanged: 0, kept: 0 });
     expect(library.loadMetadata(id).read).toBe(true);
     expect(library.db.getWishByLibraryBookId(id)?.read_status).toBe("read");
     expect(library.db.listDeviceReading(id)[0]).toMatchObject({ read_status: "finished", section: 1, section_fraction: 0.615, percent: 39, time_spent_seconds: 132, rest_estimate_seconds: 8943 });
     const second = syncKoboReading(library, syncInput([koboEntry(id, { location, chapter_fraction: 0.1, percent: 10, read_status: 0, last_read_at: "2026-10-22T14:00:00Z" })]));
-    expect(second).toMatchObject({ synced: 1, marked_read: 0, unchanged: 0 });
+    expect(second).toMatchObject({ synced: 1, marked_read: 0, unchanged: 0, kept: 0 });
     expect(library.loadMetadata(id).read).toBe(true);
     expect(library.db.getWishByLibraryBookId(id)?.read_status).toBe("read");
     expect(library.db.listDeviceReading(id)[0].read_status).toBe("unread");

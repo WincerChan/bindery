@@ -98,7 +98,7 @@ describe("Kobo inventory progress", () => {
     expect(result.books.find(book => book.filename === "Bindery/乙.kepub.epub")).toEqual(expect.objectContaining({ book_id: bookId(2), record: expect.objectContaining({ book_id: bookId(2) }), progress: { read_status: 2, percent: 100, last_read_at: "2026-10-22T14:11:20Z" } }));
   });
   it("formats the auto-sync summary from the server result", () => {
-    expect(koboReadingSummary({ synced: 5, skipped: 0, marked_read: 1, unchanged: 0, lagged: false, unmatched: 0 })).toBe("已同步 5 本书的阅读进度 · 1 本标为已读");
-    expect(koboReadingSummary({ synced: 0, skipped: 1, marked_read: 0, unchanged: 2, lagged: true, unmatched: 3 })).toBe("已同步 2 本书的阅读进度 · 3 本未匹配到书库 · Kobo 阅读数据可能滞后");
+    expect(koboReadingSummary({ synced: 5, skipped: 0, marked_read: 1, unchanged: 0, kept: 0, lagged: false, unmatched: 0 })).toBe("已同步 5 本书的阅读进度 · 1 本标为已读");
+    expect(koboReadingSummary({ synced: 0, skipped: 1, marked_read: 0, unchanged: 2, kept: 1, lagged: true, unmatched: 3 })).toBe("已同步 2 本书的阅读进度 · 1 本设备进度较旧，已保留之前的记录 · 3 本未匹配到书库 · Kobo 阅读数据可能滞后");
   });
 });
