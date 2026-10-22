@@ -20,7 +20,10 @@ export function LibraryBook(props: { book: BookView; returnTo: string; view: Vie
       <Show when={book().archived} fallback={<BookCover {...book()} compact={props.view === "list"} />}><GeneratedCover {...book()} compact={props.view === "list"} /></Show>
       <Show when={props.selecting} fallback={<Show when={!book().archived}><>
         <Link class="library-cover-link" data-book-detail-link href={bookHref(book().book_id, props.returnTo)} aria-label={`打开《${book().title}》详情`} />
-        <Link class="library-hover-read" data-book-hover-actions href={bookHref(book().book_id, props.returnTo, true)}>阅读</Link>
+        <div class="library-hover-actions" data-book-hover-actions>
+          <Link class="library-hover-read" href={devicePreviewHref(book().book_id)} aria-label={`在设备排版中预览《${book().title}》`}>设备预览</Link>
+          <Link class="library-hover-read" href={bookHref(book().book_id, props.returnTo, true)}>阅读</Link>
+        </div>
       </></Show>}><button type="button" class="library-cover-link" aria-label={`选择《${book().title}》`} aria-pressed={props.selected ? "true" : "false"} onClick={props.toggle} /></Show>
     </div>
     <div class="library-book-info">

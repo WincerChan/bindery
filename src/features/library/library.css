@@ -13,8 +13,12 @@
 .library-collection[data-view="grid"] .is-archived .library-book-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .library-cover { position: relative; }
 .library-cover-link { position: absolute; inset: 0; background: transparent; padding: 0; border-radius: 0; }
-.library-hover-read { position: absolute; bottom: 0; inset-inline: 0; min-height: 40px; display: flex; justify-content: center; align-items: center; background: var(--color-ink); color: var(--color-bg); opacity: 0; pointer-events: none; text-decoration: none; }
-.library-book:hover .library-hover-read, .library-book:focus-within .library-hover-read { opacity: 1; pointer-events: auto; }
+/* Stacked rows: "阅读" keeps the bottom row, "设备预览" sits above it. */
+.library-hover-actions { position: absolute; bottom: 0; inset-inline: 0; display: flex; flex-direction: column; background: var(--color-ink); opacity: 0; pointer-events: none; }
+.library-hover-read { min-height: 40px; display: flex; justify-content: center; align-items: center; color: var(--color-bg); text-decoration: none; }
+.library-hover-read + .library-hover-read { border-top: 1px solid color-mix(in srgb, var(--color-bg) 25%, transparent); }
+.library-hover-read:hover { background: color-mix(in srgb, var(--color-bg) 12%, transparent); }
+.library-book:hover .library-hover-actions, .library-book:focus-within .library-hover-actions { opacity: 1; pointer-events: auto; }
 .library-book-info { min-width: 0; }
 .library-title { display: block; color: var(--color-ink); font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; margin: 8px 0 0; }
 .library-select-title { background: transparent; text-align: left; padding: 0; border-radius: 0; max-width: 100%; min-height: 40px; }
@@ -35,7 +39,7 @@
 .library-collection[data-view="list"] .library-book { display: grid; grid-template-columns: 72px minmax(0,1fr) 140px 48px 90px auto; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--color-line-soft); }
 .library-collection[data-view="list"].is-selecting .library-book { grid-template-columns: 24px 72px minmax(0,1fr) 140px 48px 90px; }
 .library-collection[data-view="list"] .library-title { margin-top: 0; }
-.library-collection[data-view="list"] .library-hover-read { display: none; }
+.library-collection[data-view="list"] .library-hover-actions { display: none; }
 .library-collection[data-view="list"] .library-book-actions { display: flex; align-items: center; gap: 4px; }
 .library-collection[data-view="list"] .library-publisher, .library-collection[data-view="list"] .library-format, .library-collection[data-view="list"] .library-updated { display: block; color: var(--color-ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .library-collection[data-view="list"] .library-list-head { display: grid; grid-template-columns: minmax(0,1fr) 140px 48px 90px 182px; gap: 16px; padding: 12px 0 12px 88px; border-block: 1px solid var(--color-line); color: var(--color-ink-3); font-size: 12px; }
@@ -58,7 +62,7 @@
   .library-collection .library-book, .library-collection[data-view="list"] .library-book { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--color-line-soft); }
   .library-collection.is-selecting .library-book, .library-collection[data-view="list"].is-selecting .library-book { grid-template-columns: 24px 48px minmax(0,1fr); }
   .library-collection[data-view="grid"] .library-selection { position: static; }
-  .library-collection .library-hover-read, .library-collection .library-list-head, .library-collection[data-view="list"] .library-list-head, .library-collection[data-view="list"] .library-publisher, .library-collection[data-view="list"] .library-format, .library-collection[data-view="list"] .library-updated, .library-collection .library-desktop-action { display: none; }
+  .library-collection .library-hover-actions, .library-collection .library-list-head, .library-collection[data-view="list"] .library-list-head, .library-collection[data-view="list"] .library-publisher, .library-collection[data-view="list"] .library-format, .library-collection[data-view="list"] .library-updated, .library-collection .library-desktop-action { display: none; }
   .library-collection .library-book-actions { display: flex; }
   .library-collection .library-title { margin: 0; }
   .library-phone-meta { display: block; font-size: 11px; color: var(--color-ink-3); margin-top: 4px; }
