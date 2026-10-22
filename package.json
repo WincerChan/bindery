@@ -14,6 +14,7 @@
     "@xmldom/xmldom": "0.9.12",
     "fflate": "0.8.3",
     "solid-js": "2.0.0-rc.15",
+    "sql.js": "1.14.2",
     "srvx": "1.0.6"
   },
   "devDependencies": {
@@ -21,6 +22,7 @@
     "@tanstack/solid-router": "2.0.0-rc.8",
     "@tanstack/solid-start": "2.0.0-rc.8",
     "@types/node": "^24.19.2",
+    "@types/sql.js": "1.4.11",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
     "vite": "8.3.4",

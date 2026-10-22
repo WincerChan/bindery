@@ -36,7 +36,8 @@ function fixture(name: string) {
   };
 }
 function snapshot(db: BinderyDatabase, base: string) {
-  const schema = db.all("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name");
+  // Frozen fixtures describe the legacy image's schema; reading-sync adds tables on top.
+  const schema = db.all("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name").filter(row => String(row.tbl_name) !== "device_reading");
   const tables = Object.fromEntries(["books", "jobs", "sessions", "passkeys", "webauthn_challenges", "app_settings", "reader_progress", "wishlist"].map(t => [t,
     db.all(`SELECT * FROM ${t} ORDER BY 1`).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key,
       value instanceof Uint8Array ? { blob: Buffer.from(value).toString("hex") } : value,
@@ -167,6 +168,14 @@ describe("frozen legacy-reference writable data layer", () => {
     expect(ts.db.get('SELECT "legacy literal" AS s')).toEqual({
       s: "legacy literal"
     });
+  });
+  it("adds device reading sync storage without changing the legacy reader_progress table", () => {
+    const ts = fixture("reading-sync-schema");
+    ts.db.init();
+    expect(ts.db.get("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'device_reading'")).toMatchObject({ sql: expect.stringContaining("PRIMARY KEY (book_id, device_id)") });
+    expect(ts.db.get("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_device_reading_book'")).toMatchObject({ sql: expect.stringContaining("ON device_reading(book_id)") });
+    expect(ts.db.all("SELECT * FROM device_reading")).toEqual([]);
+    expect(ts.db.get("SELECT sql FROM sqlite_master WHERE name = 'reader_progress'")).toMatchObject({ sql: expect.stringContaining("CREATE TABLE reader_progress") });
   });
   it("ports storage, metadata, book.json, jobs, sessions, progress and wishes without changing persisted encodings", async () => {
     const ts = fixture("crud-ts");

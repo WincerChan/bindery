@@ -32,6 +32,22 @@ export interface Challenge {
   session_id: string | null;
   expires_at: string;
 }
+export interface DeviceReading {
+  book_id: string;
+  device_id: string;
+  device_kind: string;
+  device_name: string;
+  section: number | null;
+  section_fraction: number | null;
+  percent: number | null;
+  location: string | null;
+  read_status: string;
+  last_read_at: string | null;
+  time_spent_seconds: number;
+  rest_estimate_seconds: number | null;
+  synced_at: string;
+}
+const DEVICE_READING_COLUMNS = ["book_id", "device_id", "device_kind", "device_name", "section", "section_fraction", "percent", "location", "read_status", "last_read_at", "time_spent_seconds", "rest_estimate_seconds", "synced_at"] as const;
 function rowToWish(row: Row): Wish {
   let readStatus = row.read_status ? strip(String(row.read_status)).toLowerCase() : "unread";
   if (!["unread", "reading", "read"].includes(readStatus)) readStatus = row.read ? "read" : "unread";
@@ -107,6 +123,13 @@ export class BinderyDatabase extends Connection {
     updated_at: string;
   } | null {
     return this.get("SELECT book_id, section, page, page_count, updated_at FROM reader_progress WHERE book_id = ?", bookId);
+  }
+  upsertDeviceReading(row: DeviceReading): void {
+    this.run(`INSERT INTO device_reading(${DEVICE_READING_COLUMNS.join(", ")}) VALUES (${DEVICE_READING_COLUMNS.map(() => "?").join(", ")})
+      ON CONFLICT(book_id, device_id) DO UPDATE SET ${DEVICE_READING_COLUMNS.slice(2).map(column => `${column}=excluded.${column}`).join(", ")}`, ...DEVICE_READING_COLUMNS.map(column => row[column]));
+  }
+  listDeviceReading(bookId: string): DeviceReading[] {
+    return this.all("SELECT * FROM device_reading WHERE book_id = ? ORDER BY last_read_at DESC, device_id", bookId);
   }
   createWish(wish: Wish): void {
     const identity = wishIdentity(wish.title, wish.author);

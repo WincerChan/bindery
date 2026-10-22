@@ -44,6 +44,11 @@ function planRenames(names: string[]): Map<string, string> {
   return renames;
 }
 
+/** Kobo stores the sanitized member paths in its reading database; map them back to library members. */
+export function koboMemberRenames(names: string[]): Map<string, string> {
+  return new Map([...planRenames(names)].map(([original, renamed]) => [renamed, original]));
+}
+
 /**
  * Rewrites members whose names Kobo and FAT32 cannot handle, plus every OPF/NCX/XHTML/CSS reference to them.
  * A changed archive is stored uncompressed: it only feeds the KEPUB converter, which compresses its own output.
