@@ -67,3 +67,6 @@
   .library-collection .is-archived .library-book-actions { flex-direction: column; gap: 4px; }
   .library-pager { margin-top: 16px; }
 }
+/* In-place reload (search, filters, paging): keep results readable, signal that new ones are coming. */
+.library-collection { transition: opacity .15s ease; }
+.library-collection.is-loading { opacity: .55; }

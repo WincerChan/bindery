@@ -97,9 +97,11 @@ describe("library filters, sorting and pagination (legacy library_filters)", () 
 });
 
 describe("return navigation and responsive sizing", () => {
-  it("matches legacy normalized return URLs, including whitespace and encoded Chinese", () => {
-    expect(libraryReturnTo({ sort: "unexpected", q: "abc", page: 0, read_filter: "unexpected" })).toBe("/?sort=updated&q=abc&page=1&read_filter=all&per_page=24");
+  it("writes only non-default parameters into return URLs, including whitespace and encoded Chinese", () => {
+    expect(libraryReturnTo({ sort: "unexpected", q: "abc", page: 0, read_filter: "unexpected" })).toBe("/?q=abc");
+    expect(libraryReturnTo({ scope: "active", sort: "updated", q: "", page: 1, read_filter: "all", per_page: 28 })).toBe("/");
     const back = libraryReturnTo({ sort: " CREATED ", q: "长安 & 作者", page: 2, read_filter: " UNREAD ", per_page: 20 });
+    expect(back).toBe("/?q=%E9%95%BF%E5%AE%89+%26+%E4%BD%9C%E8%80%85&sort=created&read_filter=unread&page=2");
     const href = bookHref(a, back, true);
     expect(new URL(href, "http://local").searchParams.get("return_to")).toBe(back);
     expect(href).toContain(`/book/${a}/preview?return_to=`);
@@ -108,7 +110,7 @@ describe("return navigation and responsive sizing", () => {
     expect(normalizeSearch({ scope: " ARCHIVED ", read_filter: "unread" })).toMatchObject({ scope: "archived", read_filter: "all" });
     expect(normalizeSearch({ scope: "bogus" }).scope).toBe("active");
     const archived = new URL(libraryReturnTo({ scope: "archived", q: "书", page: 3, read_filter: "unread" }), "http://local");
-    expect(Object.fromEntries(archived.searchParams)).toMatchObject({ scope: "archived", q: "书", page: "3", read_filter: "all" });
+    expect(Object.fromEntries(archived.searchParams)).toEqual({ scope: "archived", q: "书", page: "3" });
     expect(libraryReturnTo({ scope: "active" })).not.toContain("scope=");
   });
   it.each([[0, 4], [136, 4], [292, 8], [916, 24], [99999, 96]])("uses four rows at width %i", (width, size) => expect(gridPageSize(width)).toBe(size));

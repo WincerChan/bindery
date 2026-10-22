@@ -35,9 +35,19 @@ export function gridPageSizeFromCookie(header: string | null): number | null {
 export function rememberGridPageSize(perPage: number) {
   try { document.cookie = `${GRID_PAGE_SIZE_COOKIE}=${perPage}; path=/; max-age=31536000; samesite=lax`; } catch { /* Only a re-size saving. */ }
 }
+/**
+ * Library URL with only what differs from the defaults ("/" for the plain first page). The page size
+ * is not part of it: the server takes the grid's measured size from a cookie. Old URLs carrying every
+ * parameter, per_page included, still load as before.
+ */
 export function libraryReturnTo(input: Record<string, unknown>): string {
-  const search = normalizeSearch(input);
-  return "/?" + new URLSearchParams(Object.entries(search).filter(([key, value]) => key !== "scope" || value !== "active").map(([key, value]) => [key, String(value)]));
+  const search = normalizeSearch(input), query = new URLSearchParams();
+  if (search.scope !== "active") query.set("scope", search.scope);
+  if (search.q) query.set("q", search.q);
+  if (search.sort !== "updated") query.set("sort", search.sort);
+  if (search.read_filter !== "all") query.set("read_filter", search.read_filter);
+  if (search.page > 1) query.set("page", String(search.page));
+  return query.size ? `/?${query}` : "/";
 }
 export const bookHref = (id: string, returnTo: string, preview = false) =>
   `/book/${id}${preview ? "/preview" : ""}?return_to=${encodeURIComponent(returnTo)}`;

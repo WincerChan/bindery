@@ -48,9 +48,9 @@ export function LibraryBook(props: { book: BookView; returnTo: string; view: Vie
   </article>;
 }
 
-export function LibrarySection(props: { data: LibraryPageData; view?: View; selecting?: boolean; selected?: string[]; toggle?: (id: string) => void; confirmArchive?: (form: HTMLFormElement) => void; confirmDelete?: (form: HTMLFormElement) => void; restoreBook?: (id: string) => void }) {
+export function LibrarySection(props: { data: LibraryPageData; loading?: boolean; view?: View; selecting?: boolean; selected?: string[]; toggle?: (id: string) => void; confirmArchive?: (form: HTMLFormElement) => void; confirmDelete?: (form: HTMLFormElement) => void; restoreBook?: (id: string) => void }) {
   return <div id="library-section" data-page={props.data.page} data-total-books={props.data.total_books}>
-    <div id="library" class={`library-collection ${props.selecting ? "is-selecting" : ""}`} data-view={props.view || "grid"}>
+    <div id="library" class={`library-collection ${props.selecting ? "is-selecting" : ""} ${props.loading ? "is-loading" : ""}`} aria-busy={props.loading ? "true" : "false"} data-view={props.view || "grid"}>
       <Show when={props.data.books.length} fallback={<Show when={props.data.scope === "archived"} fallback={<EmptyState title="书库还是空的" action={<Link href="/ingest" class="btn btn-primary">入库第一本书</Link>}>上传 TXT 或 EPUB，开始整理你的书库。</EmptyState>}><EmptyState title="归档为空。" /></Show>}>
         <div class="library-list-head" data-library-list-head aria-hidden="true"><span>书名 / 作者</span><span>出版</span><span>格式</span><span>更新</span><span>操作</span></div>
         <For each={props.data.books}>{book => <LibraryBook book={book} returnTo={props.data.return_to} view={props.view || "grid"} selecting={Boolean(props.selecting)} selected={Boolean(props.selected?.includes(book.book_id))} toggle={() => props.toggle?.(book.book_id)} confirmArchive={props.confirmArchive} confirmDelete={props.confirmDelete} restoreBook={props.restoreBook} />}</For>
@@ -68,6 +68,8 @@ export function SelectedIds(props: { ids: string[] }) {
 export function LibraryPage(props: {
   data: LibraryPageData; initialView?: View; passkeyPrompt?: boolean;
   onSearch?: (search: LibrarySearch) => unknown | Promise<unknown>;
+  /** Results are reloading in place; the current ones stay visible. */
+  loading?: boolean;
   restore?: (ids: string[]) => Promise<unknown>; refresh?: () => Promise<unknown>;
   regenerate: (ids: string[]) => Promise<{ queued: number; failed: number; skipped: number }>;
 }) {
@@ -86,12 +88,15 @@ export function LibraryPage(props: {
   let previousScope = untrack(() => props.data.scope);
   createEffect(() => props.data.scope, scope => { if (scope !== previousScope) { setSelected([]); setSelecting(false); } previousScope = scope; });
   let page!: HTMLDivElement, timer: ReturnType<typeof setTimeout> | undefined;
-  createEffect(() => props.data.q, q => { setQuery(q); });
+  // Results for an earlier keystroke must not overwrite what is being typed; other changes (back/forward) sync.
+  let sentQuery: string | null = null;
+  createEffect(() => props.data.q, q => { if (q !== sentQuery) setQuery(q); sentQuery = null; });
   createEffect(() => props.data.books.map(book => book.book_id), ids => { setSelected(current => current.filter(id => ids.includes(id))); });
   onCleanup(() => clearTimeout(timer));
   async function search(overrides: Partial<LibrarySearch>) {
     clearTimeout(timer);
     const value = { scope: props.data.scope, sort: props.data.sort, q: query(), read_filter: props.data.read_filter, per_page: props.data.per_page, page: 1, ...overrides };
+    sentQuery = value.q;
     try { if (props.onSearch) await props.onSearch(value); else await mutation.router.navigate({ href: libraryReturnTo(value) }); }
     catch (error) { showToast(error instanceof Error ? error.message : "加载失败，请重试", "error"); }
   }
@@ -188,7 +193,7 @@ export function LibraryPage(props: {
       </>}><Button variant="quiet" disabled={!selected().length || busy()} onClick={() => void restore()}>恢复</Button><form action="/archive/delete-bulk" method="post" onSubmit={event => { event.preventDefault(); setDeleteForm(event.currentTarget); }}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet-danger" disabled={!selected().length || busy()}>彻底删除</Button></form></Show>
       <Button data-bulk-done variant="secondary" size="sm" class="library-bulk-done" onClick={done}>完成</Button>
     </div></div>
-    <LibrarySection data={props.data} view={view()} selecting={selecting()} selected={selected()} toggle={toggle} confirmArchive={setArchiveForm} confirmDelete={setDeleteForm} restoreBook={id => void restore([id])} />
+    <LibrarySection data={props.data} loading={props.loading} view={view()} selecting={selecting()} selected={selected()} toggle={toggle} confirmArchive={setArchiveForm} confirmDelete={setDeleteForm} restoreBook={id => void restore([id])} />
     <ConfirmDialog open={Boolean(archiveForm())} title="归档书籍" confirmLabel="归档" onClose={() => setArchiveForm(null)} onConfirm={() => confirm("archive", archiveForm())}>确定归档选中的书籍吗？归档后可在书库「已归档」中恢复。</ConfirmDialog>
     <ConfirmDialog open={Boolean(deleteForm())} title="永久删除书籍" danger confirmLabel="彻底删除" onClose={() => setDeleteForm(null)} onConfirm={() => confirm("delete", deleteForm())}>确定永久删除？书籍文件删除后无法恢复。</ConfirmDialog>
   </div>;

@@ -18,7 +18,8 @@ describe("library SSR and editorial UI regressions", () => {
     const hrefs = [...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>/g)].map(match => match[1]!);
     expect(hrefs.filter(href => href.includes("/preview?return_to="))).toHaveLength(2);
     expect(hrefs.filter(href => href.endsWith("/download"))).toHaveLength(1);
-    expect(html).toContain('name="next" value="/?sort=updated'); expect(html).toContain("read_filter=unread");
+    // Only non-default parameters: the default sort and page size stay out of the return URL.
+    expect(html).toContain('name="next" value="/?q=%E9%95%BF%E5%AE%89&amp;read_filter=unread&amp;page=2"'); expect(html).not.toContain("per_page=");
     let depth = 0;
     for (const token of html.matchAll(/<\/?a\b[^>]*>/g)) { if (token[0].startsWith("</")) depth--; else { expect(depth).toBe(0); depth++; } }
     expect(depth).toBe(0);
