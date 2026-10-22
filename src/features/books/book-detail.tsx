@@ -2,7 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
 import { mutateBook } from "./mutations";
-import { BookCover, Button, ConfirmDialog, Select } from "../../ui";
+import { BookCover, Button, ConfirmDialog, LocalTime, Select } from "../../ui";
 import type { BookPage } from "../../server/books/service";
 import { BookEditor } from "./book-editor";
 
@@ -11,14 +11,9 @@ export function durationLabel(seconds: number | null | undefined): string | null
   if (seconds < 60) return "不到 1 分钟";
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `约 ${Math.max(1, minutes)} 分钟`;
-  const hours = Math.ceil(minutes / 60);
-  if (hours < 24) return `约 ${hours} 小时`;
-  return `约 ${Math.ceil(hours / 24)} 天`;
+  // Reading time, not calendar time: stay in hours like Kobo does.
+  return `约 ${Math.ceil(minutes / 60)} 小时`;
 }
-const progressTime = (value: string) => {
-  const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? value.slice(0, 16).replace("T", " ") : value;
-};
 
 export function BookDetail(props: { page: BookPage }) {
   const [saved, setSaved] = createSignal<{ source: BookPage; value: BookPage } | null>(null);
@@ -169,7 +164,7 @@ export function BookDetail(props: { page: BookPage }) {
                     <ul><For each={page().reading_progress}>{item => <li data-reading-progress>
                       <div class="books-progress-head"><strong>{item.source_label}</strong><Show when={item.latest}><span class="books-progress-latest">最新</span></Show></div>
                       <p class="books-progress-position">{item.section_title}{item.percent === null ? "" : ` · ${item.percent}%`}</p>
-                      <p class="books-progress-meta">上次阅读 {progressTime(item.read_at)}{durationLabel(item.time_spent_seconds) ? ` · 用时 ${durationLabel(item.time_spent_seconds)}` : ""}{durationLabel(item.rest_estimate_seconds) ? ` · 剩余 ${durationLabel(item.rest_estimate_seconds)}` : ""}</p>
+                      <p class="books-progress-meta">上次阅读 <LocalTime value={item.read_at} />{durationLabel(item.time_spent_seconds) ? ` · 用时 ${durationLabel(item.time_spent_seconds)}` : ""}{durationLabel(item.rest_estimate_seconds) ? ` · 剩余 ${durationLabel(item.rest_estimate_seconds)}` : ""}</p>
                     </li>}</For></ul>
                   </section>
                 </Show>

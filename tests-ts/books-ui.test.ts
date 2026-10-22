@@ -123,7 +123,8 @@ describe("book detail and edit SSR", () => {
     expect(html).toContain("Libra 2");
     expect(html).toContain("第二章 重逢 · 50%");
     expect(html).toContain("第三章 再见 · 70%");
-    expect(html).toContain("上次阅读 2026-10-22 13:11");
+    // The server renders UTC; the browser switches the <time> to the reader's own zone after mounting.
+    expect(html).toMatch(/上次阅读 <time[^>]*datetime="2026-10-22T13:11:20Z"[^>]*>2026-10-22 13:11<\/time>/);
     expect(html).toContain("用时 约 2 分钟");
     expect(html).toContain("剩余 约 3 小时");
     expect(html).toContain("最新");
