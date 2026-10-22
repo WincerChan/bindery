@@ -154,7 +154,9 @@ it("keeps the device identity hierarchy and the complete books toolbar/table in 
   const bar = elements(root, "section", "data-kindle-device-bar")[0]!;
   expect(elements(bar, "h1").map(node => node.textContent)).toEqual(["设备"]);
   const identity = withClass(bar, "kindle-device-identity");
-  expect(Array.from(identity.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["h1", "p"]);
+  // Name, then a status line and a device spec line.
+  expect(Array.from(identity.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["h1", "p", "p"]);
+  expect(withClass(identity, "kindle-device-spec").textContent).toBe("通过 USB 连接设备并选择设备根目录");
   expect(withClass(bar, "kindle-status").getAttribute("role")).toBe("status");
   expect(withClass(bar, "kindle-status").className).toContain("page-description");
   expect(bar.textContent).not.toContain("我的 Paperwhite");
@@ -308,7 +310,9 @@ it.each(["books", "connect", "transfer"] as const)("hydrates neutral SSR for %s,
   const html = server.markup(page, c.input);
   expect(html).toContain("检测中…"); expect(html).not.toContain("我的 Paperwhite");
   const m = mount(page, c.input), ssrBar = elements(m.root, "section", "data-kindle-device-bar")[0];
-  await settle(m); expect(text(m)).toContain("我的 Paperwhite"); expect(text(m)).toContain("1072×1448"); expect(text(m)).toContain("Kindle 5.16.2.1.1");
+  await settle(m); expect(text(m)).toContain("我的 Paperwhite");
+  const spec = withClass(m.root, "kindle-device-spec");
+  expect(spec.textContent).toBe("Kindle Paperwhite 3 · 6″ · 固件 5.16.2.1.1"); expect(spec.getAttribute("title")).toBe("1072×1448 · 300 ppi");
   expect(elements(m.root, "section", "data-kindle-device-bar")[0]).toBe(ssrBar);
   if (page === "books") expect(elements(m.root, "tr", "data-device-book")).toHaveLength(1);
   if (page === "transfer") expect(elements(m.root, "li", "data-transfer-book").map(b => b.getAttribute("data-transfer-book"))).toEqual(["b"]);
@@ -333,7 +337,7 @@ it("pairs a selected root with the chosen model/name and forgets only the browse
   const ko3 = elements(m.root, "input").find(el => el.getAttribute("value") === "KO3")!; fire(ko3, "change"); m.flush();
   const name = field(m.root, "显示名称"); name.value = "我的 Oasis"; fire(name, "input"); m.flush();
   fire(elements(m.root, "form")[0]!, "submit"); await settle(m);
-  expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ model: "KO3", name: "我的 Oasis" }); expect(text(m)).toContain("1264×1680");
+  expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ model: "KO3", name: "我的 Oasis" }); expect(withClass(m.root, "kindle-device-spec").getAttribute("title")).toContain("1264×1680");
   fire(button(m.root, "忘记"), "click"); await settle(m); expect(await manager.remembered()).toEqual([]); expect(text(m)).toContain("未配对或未选择设备");
   expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ name: "我的 Oasis" });
 });
@@ -567,8 +571,8 @@ it("switches in place from the device bar, persists the choice and restores it o
   const select = elements(m.root, "select").find(node => node.getAttribute("aria-label") === "切换当前设备")!;
   expect(elements(select, "option").map(node => node.textContent)).toEqual([
     "当前设备",
-    "Kindle A · Kindle Paperwhite 3 · 已连接",
-    "Kobo B · Kobo Libra 2 · 已连接",
+    "Kindle A · 已连接",
+    "Kobo B · 已连接",
   ]);
   (select as HTMLSelectElement).value = b.identity.id; fire(select, "change"); await settle(m);
   expect(m.context().state().device?.identity.id).toBe(b.identity.id);

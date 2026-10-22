@@ -5,6 +5,14 @@ export function bytes(size: number) {
 }
 export const modelLabel = (kind: DeviceKind | null | undefined, model: string) => genericModelLabel(kind ?? "kindle", model);
 export const kindLabel = (kind: DeviceKind | null | undefined) => deviceKindLabel(kind ?? "kindle");
+/** "刚刚", "N 分钟前", "N 小时前", then the date: enough for "when did we last see the device". */
+export function agoLabel(then: number, now: number) {
+  const seconds = Math.max(0, Math.floor((now - then) / 1000));
+  if (seconds < 60) return "刚刚";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
+  return new Date(then).toLocaleDateString("zh-CN");
+}
 export const dateLabel = (date: string | null) => date ? new Date(date).toLocaleString("zh-CN", { hour12: false }) : "—";
 export const megabytes = (value: number) => (value / (1024 * 1024)).toLocaleString("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 export function byteProgressDetail(label: string, progress: { loaded?: number; total?: number; bytesPerSecond?: number; etaSeconds?: number }) {

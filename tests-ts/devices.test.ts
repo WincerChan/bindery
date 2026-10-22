@@ -9,6 +9,7 @@ import { deviceInventory, inventory, isKoboBook } from "../src/client/devices/in
 import { deleteBook } from "../src/client/devices/operations";
 import { fontTargetName, installFonts, listFonts } from "../src/client/devices/fonts";
 import { koboBookFilename } from "../src/client/devices/paths";
+import { agoLabel } from "../src/features/devices/format";
 import { LocalStorageDevicePreference, MemoryDevicePreference } from "../src/client/devices/preferences";
 import type { DeviceFont } from "../src/client/devices/fonts";
 import { KoboTransferService } from "../src/client/devices/kobo/transfer";
@@ -142,4 +143,15 @@ it("degrades safely when browser storage is unavailable", () => {
   });
   expect(broken.get()).toBeNull(); expect(() => broken.set("x")).not.toThrow(); expect(() => broken.clear()).not.toThrow();
   const memory = new MemoryDevicePreference("a"); memory.set("b"); expect(memory.get()).toBe("b"); memory.clear(); expect(memory.get()).toBeNull();
+});
+
+describe("device last-seen wording", () => {
+  it("says 刚刚, minutes, hours, then the date", () => {
+    const now = Date.UTC(2026, 9, 22, 12);
+    expect(agoLabel(now - 30_000, now)).toBe("刚刚");
+    expect(agoLabel(now - 1225_000, now)).toBe("20 分钟前");
+    expect(agoLabel(now - 3 * 3600_000, now)).toBe("3 小时前");
+    expect(agoLabel(now - 3 * 86400_000, now)).toBe(new Date(now - 3 * 86400_000).toLocaleDateString("zh-CN"));
+    expect(agoLabel(now + 5000, now)).toBe("刚刚");
+  });
 });

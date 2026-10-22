@@ -1,17 +1,28 @@
 import { createSignal, For, onSettled, Show } from "solid-js";
 import { useDevice } from "./context";
-import { bytes, kindLabel, modelLabel } from "./format";
-import { modelShortName } from "../../client/devices/models";
+import { agoLabel, bytes } from "./format";
+import { kindleModelInfo, koboModelInfo, modelShortName } from "../../client/devices/models";
 import { Button } from "../../ui";
 import { Link } from "../../shared/spa-link";
 
 export function DeviceBar() {
   const k = useDevice(), [now, setNow] = createSignal(0);
   onSettled(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); });
-  const kind = () => k.kind();
   const status = () => !k.ready() ? "检测中…" : !k.supported() ? "此浏览器不支持设备磁盘访问" : ({ granted: "已连接", prompt: "已插入 · 需要授权", denied: "已拒绝", disconnected: "已断开", unpaired: k.state().checkedAt ? "待完成配对" : "未配对或未选择设备" })[k.state().status];
   const usage = () => k.inventory()?.usage;
-  const ago = () => k.state().checkedAt === null ? "尚未检测" : `检测于 ${Math.max(0, Math.floor((now() - k.state().checkedAt!) / 1000))} 秒前`;
+  // A disconnected device says when it was last seen; a connected one needs no timestamp.
+  const lastSeen = () => k.ready() && k.state().status === "disconnected" && k.state().checkedAt !== null ? ` · ${agoLabel(k.state().checkedAt!, now())}识别` : "";
+  const device = () => k.ready() ? k.state().device : null;
+  const info = () => { const current = device(); return current ? (current.identity.kind === "kindle" ? kindleModelInfo : koboModelInfo)(current.identity.model) : null; };
+  const spec = () => {
+    const current = device(), model = info();
+    if (!current || !model) return "通过 USB 连接设备并选择设备根目录";
+    // Kindle's version.txt reads "Kindle 5.16.2.1.1 (…)": the version number is what matters.
+    const firmware = current.firmware ? /\d+(?:\.\d+)+/.exec(current.firmware)?.[0] ?? current.firmware : "";
+    // The heading already shows the name; repeat the model only when it differs.
+    return [current.identity.name.trim() === model.name ? "" : model.name, model.inches ? `${model.inches}″` : "", firmware ? `固件 ${firmware}` : ""].filter(Boolean).join(" · ");
+  };
+  const specDetail = () => { const model = info(); return model?.width ? `${model.width}×${model.height} · ${model.ppi} ppi` : undefined; };
   const width = (n: number) => `${usage()?.total ? n / usage()!.total * 100 : 0}%`;
   const currentId = () => k.state().device?.identity.id ?? "";
   const savedStatus = (saved: { id: string }) => {
@@ -23,7 +34,8 @@ export function DeviceBar() {
   return <section aria-label="当前设备" class="kindle-device-bar" data-kindle-device-bar>
     <div class="kindle-device-identity">
       <h1 class="page-title">{k.ready() && k.state().device ? k.state().device!.identity.name : "设备"}</h1>
-      <p class="page-description kindle-status" role="status"><span aria-hidden="true" class={`kindle-dot ${k.ready() && k.state().status === "granted" ? "connected" : ""}`} />{status()}<Show when={k.ready() && k.state().checkedAt !== null}> · {k.state().status === "disconnected" ? "最后成功识别：" : ""}{ago()}</Show> · {k.ready() && k.state().device ? `${kindLabel(kind())} · ${modelLabel(kind(), k.state().device!.identity.model)} · 固件 ${k.state().device!.firmware || "未读取"} · 由 .bindery/device.json 识别` : "通过 USB 连接设备并选择设备根目录"}</p>
+      <p class="page-description kindle-status" role="status"><span aria-hidden="true" class={`kindle-dot ${k.ready() && k.state().status === "granted" ? "connected" : ""}`} />{status()}{lastSeen()}</p>
+      <p class="kindle-small kindle-device-spec" title={specDetail()}>{spec()}</p>
       <Show when={k.ready() && !k.supported()}><p class="kindle-small">请在 Windows 的 Edge 或 Chrome 桌面版中通过 HTTPS 或 localhost 打开。</p></Show>
       <Show when={k.ready() && k.state().status === "denied"}><p class="kindle-small">点击授权重试，或在地址栏的站点设置中恢复文件访问权限，再重新选择设备目录。</p></Show>
       <Show when={k.ready() && k.state().message}><p class="kindle-small">{k.state().message}</p></Show>
@@ -45,7 +57,8 @@ export function DeviceBar() {
             void k.switchDevice(id).finally(() => { select.value = currentId(); });
           }}>
             <option value="">{k.remembered().length ? "当前设备" : "尚未记住设备"}</option>
-            <For each={k.remembered()}>{saved => <option value={saved.id}>{[saved.identity.name, modelShortName(saved.identity.kind, saved.identity.model)].filter((part, index, parts) => parts.indexOf(part) === index).join(" · ")} · {savedStatus(saved)}</option>}</For>
+            {/* The owner's name tells devices apart; the model is in the status line above. */}
+            <For each={k.remembered()}>{saved => <option value={saved.id}>{saved.identity.name.trim() || modelShortName(saved.identity.kind, saved.identity.model)} · {savedStatus(saved)}</option>}</For>
           </select>
         </label>
       </Show>
