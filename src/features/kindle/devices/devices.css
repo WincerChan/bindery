@@ -77,15 +77,34 @@
 .kindle-list-size { width: 64px; text-align: right; font-size: 12.5px; color: var(--color-ink-3); }
 .kindle-transfer .form-stack { margin-top: 16px; gap: 16px; }
 .kindle-preview-link { font-size: 13px; }
-.kindle-queue { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--color-line); display: grid; gap: 14px; }
-.kindle-queue .kindle-section-heading { justify-content: space-between; margin: 0; }
-.kindle-queue-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
-.kindle-queue-item { display: grid; gap: 6px; overflow-wrap: anywhere; }
+.kindle-target { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-block: 1px solid var(--color-line-soft); }
+.kindle-target > div { display: grid; min-width: 0; }
+.kindle-target-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kindle-target-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kindle-target-name .is-connected { color: var(--color-ok); }
+.kindle-target-name .is-offline { color: var(--color-warning); }
+.kindle-target-link { flex-shrink: 0; font-size: 13px; }
+.kindle-check-group { display: grid; gap: 12px; }
+.kindle-start { display: grid; gap: 6px; }
+/* Text buttons share the column's left and right edges instead of their padded box. */
+.kindle-text-button { min-height: 32px; padding-inline: 0; font-size: 13px; }
+.kindle-text-button:hover { color: var(--color-accent); }
+.kindle-queue { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--color-line); display: grid; gap: 8px; }
+.kindle-queue .kindle-section-heading { justify-content: space-between; align-items: center; flex-wrap: nowrap; margin: 0; }
+.kindle-queue-actions { display: flex; gap: 16px; }
+.kindle-queue-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.kindle-queue-item { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--color-line-soft); overflow-wrap: anywhere; }
+.kindle-queue-item:last-child { border-bottom: 0; }
 .kindle-queue-item .kindle-section-heading { font-size: 13.5px; }
 .kindle-queue-item strong { font-weight: 400; }
-.kindle-queue-summary { margin: 0; }
+.kindle-queue-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.kindle-queue-meta .kindle-text-button { flex-shrink: 0; }
+.kindle-retry { color: var(--color-accent); }
+.kindle-queue-empty { padding: 4px 0; }
+.kindle-queue-summary { font-variant-numeric: tabular-nums; }
 .kindle-queue button[aria-disabled="true"] { opacity: .5; cursor: not-allowed; filter: none; }
 .kindle-progress-detail { font-variant-numeric: tabular-nums; }
+.kindle-progress-detail.is-failed { color: var(--color-danger); }
 .kindle-queue-state { color: var(--color-ink-2); font-size: 12.5px; }
 .kindle-queue-state.is-failed { color: var(--color-danger); }
 .kindle-queue-state.is-complete { color: var(--color-ok); }
@@ -101,7 +120,7 @@
 .kindle-queue progress.is-complete { color: var(--color-ok); }
 .kindle-queue progress.is-complete::-webkit-progress-value { background: var(--color-ok); }
 .kindle-queue progress.is-complete::-moz-progress-bar { background: var(--color-ok); }
-.kindle-start-transfer { flex: 1; }
+.kindle-start-transfer { width: 100%; min-height: 44px; }
 .kindle-transfer > .kindle-aside > .kindle-small { margin-top: 14px; }
 .kindle-license { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--color-line); font-size: 12.5px; }
 .kindle-license summary { cursor: pointer; color: var(--color-accent); padding-block: 10px; }

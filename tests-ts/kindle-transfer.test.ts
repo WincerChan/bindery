@@ -133,6 +133,22 @@ describe("SPA transfer queue", () => {
     expect(order).toEqual(["bad", "good"]); expect(maxActive).toBe(1); expect(queue.snapshot().map(i => i.state)).toEqual(["失败", "完成", "失败"]); expect(updates).toEqual([]);
     expect(queue.snapshot()[0].message).toBe("conversion failed"); queue.clearFinished(); expect(queue.snapshot()).toEqual([]);
   });
+
+  it("retries only failed items, with their original options and only on their own device", async () => {
+    const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"), other = await pairDevice((await fakeKindle()).root, "KO3", "Kindle");
+    const calls: Array<[string, string, unknown]> = []; let fail = true;
+    const queue = new TransferQueue({ async transferBook(_device, id, profile, options) {
+      calls.push([id, profile, { overwrite: options.overwrite, stripFonts: options.stripFonts }]);
+      if (fail) throw new Error("Kindle 已断开，请重新插入后重试"); return { filename: `${id}.kfx`, size: 1 };
+    } });
+    const failed = queue.enqueue(device, "a", "wide", { overwrite: true, stripFonts: true }); await settleQueue(queue);
+    expect(queue.snapshot()[0]).toMatchObject({ id: failed, state: "失败" });
+    expect(() => queue.retry(failed, other)).toThrow("请先连接这本书的目标设备");
+    fail = false; const retried = queue.retry(failed, device)!; await settleQueue(queue);
+    expect(queue.snapshot().map(i => [i.id, i.state])).toEqual([[retried, "完成"]]);
+    expect(calls).toEqual([["a", "wide", { overwrite: true, stripFonts: true }], ["a", "wide", { overwrite: true, stripFonts: true }]]);
+    expect(queue.retry(retried, device)).toBeUndefined();
+  });
 });
 
 const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));

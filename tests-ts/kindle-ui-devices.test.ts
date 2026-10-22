@@ -41,7 +41,7 @@ import { KindleProvider, useKindle } from '${resolve("src/features/kindle/contex
 import { KindleDeviceBar } from '${resolve("src/features/kindle/device-bar")}';
 import { KindleBooksPage } from '${resolve("src/features/kindle/devices/books")}';
 import { KindleConnectPage } from '${resolve("src/features/kindle/devices/connect")}';
-import { KindleTransferPage, KindleTransferQueueProgress } from '${resolve("src/features/kindle/devices/transfer")}';
+import { KindleTransferPage, KindleTransferQueueProgress, queueSummary } from '${resolve("src/features/kindle/devices/transfer")}';
 function Capture(props) { props.receive(useKindle()); return null; }
 function view(page, input, books, capture) {
   function child() {
@@ -60,7 +60,7 @@ export function mount(root, initial, input, hydrating) {
   const dispose = (hydrating ? hydrate : render)(() => view(page, input, books, k => context = k), root);
   return { context: () => context, page(next) { setPage(next); flush(); }, books(next) { setBooks(next); flush(); }, flush, dispose };
 }
-const queueView = items => <KindleTransferQueueProgress items={items()} title={id => '书籍 ' + id} deviceName={() => 'KPW3'} cancel={() => {}} />;
+const queueView = items => <><p class="kindle-queue-summary">{queueSummary(items())}</p><KindleTransferQueueProgress items={items()} title={id => '书籍 ' + id} deviceName={() => 'KPW3'} currentDeviceId="kpw3" cancel={() => {}} /></>;
 export function progressMarkup(items) { return renderToString(() => queueView(() => items)); }
 export function mountProgress(root, initial, hydrating) {
   const [items, setItems] = createSignal(initial);
@@ -195,11 +195,15 @@ it("renders the transfer heading, text filters, compact search, setting fields a
   expect(withClass(toolbar, "kindle-search").getElementsByTagName("span")[0]!.className).toBe("sr-only");
   expect(elements(withClass(root, "kindle-library-list"), "li", "data-transfer-book")).toHaveLength(2);
   const aside = elements(root, "aside")[0]!, labels = elements(aside, "label");
-  expect(labels.find(node => node.firstChild?.textContent === "目标设备")!.getElementsByTagName("select")[0]!.hasAttribute("disabled")).toBe(true);
+  expect(elements(aside, "div", "data-transfer-target")[0]!.textContent).toContain("尚未连接设备");
   expect(labels.some(node => node.firstChild?.textContent === "排版方案")).toBe(true);
   const queue = withClass(aside, "kindle-queue");
   expect(withClass(queue, "kindle-queue-list").tagName).toBe("ol");
-  expect(button(queue, "开始传输（0）").className).toContain("btn-primary");
+  // Start sits at the end of the settings; while it cannot run it is outlined and explains why.
+  const startButton = button(withClass(aside, "kindle-start"), "开始传输");
+  expect(startButton.className).toContain("btn-secondary"); expect(startButton.hasAttribute("disabled")).toBe(true);
+  expect(elements(aside, "p", "data-start-hint")).toHaveLength(1);
+  expect(elements(queue, "button")).toHaveLength(0);
   expect(aside.textContent).not.toContain("压缩超大图片");
 });
 
@@ -222,13 +226,15 @@ it.each([true, false])("renders real queue progress and preserves stage-only liv
   disposers.push(() => { mounted.dispose(); root.remove(); });
   if (hydrating) { expect(elements(root, "*")).toEqual(ssrNodes); expect(attributes(elements(root, "*"))).toEqual(ssrAttributes); expect(root.textContent).toBe(ssrText); }
   const rows = elements(root, "li", "data-queue-item"), bars = elements(root, "progress");
-  expect(rows).toHaveLength(5);
-  expect(bars[1].getAttribute("value")).toBe(String(15 * mb)); expect(bars[1].getAttribute("max")).toBe(String(90 * mb));
-  expect(bars[1].getAttribute("aria-valuetext")).toBe("已写入 15.0 / 90.0 MB · 4.8 MB/s · 剩余约 16 秒");
-  expect(bars[2].hasAttribute("value")).toBe(false); expect(bars[2].getAttribute("aria-valuetext")).toContain("估计");
-  expect(bars[3].getAttribute("value")).toBe(String(2 * mb)); expect(bars[3].getAttribute("max")).toBe(String(5 * mb));
-  expect(bars[3].getAttribute("aria-valuetext")).toBe("已下载 2.0 / 5.0 MB · 1.0 MB/s · 剩余约 3 秒");
-  expect(bars[4].hasAttribute("value")).toBe(false); expect(bars[4].getAttribute("aria-valuetext")).toContain("总大小未知");
+  // Finished, failed and waiting rows carry no bar; only running transfers do.
+  expect(rows).toHaveLength(5); expect(bars).toHaveLength(4); expect(elements(rows[0], "progress")).toHaveLength(0);
+  expect(bars[0].getAttribute("value")).toBe(String(15 * mb)); expect(bars[0].getAttribute("max")).toBe(String(90 * mb));
+  expect(bars[0].getAttribute("aria-valuetext")).toBe("已写入 15.0 / 90.0 MB · 4.8 MB/s · 剩余约 16 秒");
+  expect(bars[1].hasAttribute("value")).toBe(false); expect(bars[1].getAttribute("aria-valuetext")).toContain("估计");
+  expect(bars[2].getAttribute("value")).toBe(String(2 * mb)); expect(bars[2].getAttribute("max")).toBe(String(5 * mb));
+  expect(bars[2].getAttribute("aria-valuetext")).toBe("已下载 2.0 / 5.0 MB · 1.0 MB/s · 剩余约 3 秒");
+  expect(bars[3].hasAttribute("value")).toBe(false); expect(bars[3].getAttribute("aria-valuetext")).toContain("总大小未知");
+  expect(rows.every(row => !row.textContent!.includes("KPW3"))).toBe(true);
   expect(withClass(root, "kindle-queue-summary").textContent).toBe("共 5 本 · 已完成 1 · 已写入 45.0 / 120.0 MB（另 3 本待转换）");
   const live = elements(root, "span", "aria-live"), announcements = live.map(node => node.textContent), liveChildren = live.map(node => Array.from(node.childNodes));
   expect(live).toHaveLength(5); expect(live.every(node => node.getAttribute("aria-live") === "polite" && node.getAttribute("aria-atomic") === "true")).toBe(true);
@@ -238,14 +244,15 @@ it.each([true, false])("renders real queue progress and preserves stage-only liv
   expect(elements(root, "li", "data-queue-item")).toEqual(rows); expect(elements(root, "progress")).toEqual(bars);
   expect(elements(root, "span", "aria-live")).toEqual(live); expect(live.map(node => node.textContent)).toEqual(announcements);
   expect(live.map(node => Array.from(node.childNodes))).toEqual(liveChildren);
-  expect(bars[1].getAttribute("value")).toBe(String(20 * mb));
+  expect(bars[0].getAttribute("value")).toBe(String(20 * mb));
   expect(withClass(root, "kindle-queue-summary").textContent).toContain("已写入 50.0 / 120.0 MB");
   mounted.update(next.map(value => value.id === "write" ? { ...value, phase: "finalize", message: "正在完成写入", loaded: value.total } : value));
-  expect(bars[1].hasAttribute("value")).toBe(false); expect(bars[1].getAttribute("aria-valuetext")).toBe("正在完成写入");
+  expect(bars[0].hasAttribute("value")).toBe(false); expect(bars[0].getAttribute("aria-valuetext")).toBe("正在完成写入");
   expect(live[1].textContent).toBe("书籍 write：正在完成写入");
   mounted.update(next.map(value => value.id === "write" ? { ...value, state: "失败", message: "Kindle 已断开，请重新插入后重试", writtenBytes: 0 } : value));
-  expect(live[1].textContent).toContain("失败：Kindle 已断开"); expect(bars[1].getAttribute("value")).toBe("0");
-  expect(withClass(root, "kindle-queue-summary").textContent).toContain("已写入 30.0 / 120.0 MB");
+  expect(live[1].textContent).toContain("失败：Kindle 已断开"); expect(elements(rows[1], "progress")).toHaveLength(0);
+  expect(withClass(rows[1], "kindle-progress-detail").className).toContain("is-failed");
+  expect(withClass(root, "kindle-queue-summary").textContent).toContain("失败 1"); expect(withClass(root, "kindle-queue-summary").textContent).toContain("已写入 30.0 / 120.0 MB");
 });
 
 it("carries streaming Content-Length through the real queue into download rows and the batch summary", async () => {
@@ -275,7 +282,8 @@ it("carries streaming Content-Length through the real queue into download rows a
     expect(queue.snapshot()[0]).toMatchObject({ phase: "download", loaded: chunkSize, total, downloadedBytes: chunkSize, downloadTotal: total });
     expect(bar.getAttribute("value")).toBe(String(chunkSize));
     expect(bar.getAttribute("aria-valuetext")).toContain("已下载 1.0 / 10.4 MB");
-    expect(withClass(m.root, "kindle-queue-summary").textContent).toBe("共 1 本 · 已完成 0 · 已下载 1.0 / 10.4 MB");
+    // One book: its row already shows the bytes, so the summary stays a count.
+    expect(withClass(m.root, "kindle-queue-summary").textContent).toBe("共 1 本 · 已完成 0");
   } finally { deliver(response); queue.cancel(id); await settle(m); }
   expect(convert).not.toHaveBeenCalled();
 });
@@ -399,10 +407,10 @@ it("keeps the queue running while moving among Kindle pages, supports cancel and
   const c = await connected(); let reject!: (e: Error) => void;
   const transfer = vi.fn((_device: PairedDevice, _book: string, _profile: string, options: TransferOptions = {}) => new Promise<ManifestBook>((_resolve, r) => { reject = r; options.signal?.addEventListener("abort", () => r(new DOMException("cancel", "AbortError"))); options.progress?.({ state: "转换", phase: "convert", message: "正在转换 KFX", startedAt: Date.now(), phaseStartedAt: Date.now() }); }));
   c.input.queue = new TransferQueue({ transferBook: transfer });
-  const m = mount("transfer", c.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "开始传输（1）"), "click"); await settle(m);
+  const m = mount("transfer", c.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "开始传输 · 1 本"), "click"); await settle(m);
   expect(text(m)).toContain("正在转换 KFX"); expect(transfer).toHaveBeenCalledOnce(); const context = m.context(); m.page("books"); await settle(m); m.page("connect"); await settle(m); m.page("transfer"); await settle(m);
   expect(m.context()).toBe(context); expect(transfer).toHaveBeenCalledOnce(); expect(text(m)).toContain("正在转换 KFX");
-  fire(button(m.root, "取消"), "click"); await settle(m); expect(text(m)).toContain("失败"); expect(text(m)).toContain("操作已取消");
+  fire(button(m.root, "取消 书库甲"), "click"); await settle(m); expect(text(m)).toContain("失败"); expect(text(m)).toContain("操作已取消");
   fire(button(m.root, "清除已结束"), "click"); m.flush(); expect(elements(m.root, "li", "data-queue-item")).toHaveLength(0);
   expect(text(m)).toContain("GPL-3.0-or-later"); expect(text(m)).toContain("GNU GENERAL PUBLIC LICENSE"); expect(elements(m.root, "a").some(a => a.getAttribute("href") === "https://crates.io/api/v1/crates/boko/0.5.0/download")).toBe(true);
   reject(new Error("already cancelled"));
@@ -414,13 +422,17 @@ it("uses the selected profile and overwrite setting, shows failure, and retries 
   const m = mount("transfer", c.input); await settle(m); expect(text(m)).toContain("配置服务暂时不可用"); fail = false; fire(button(m.root, "重试"), "click"); await settle(m);
   fire(button(m.root, "全部"), "click"); m.flush(); const select = elements(m.root, "label").find(label => label.firstChild?.textContent === "排版方案")!.getElementsByTagName("select")[0] as HTMLSelectElement; select.value = "wide"; fire(select, "change"); m.flush(); const overwrite = elements(m.root, "input").find(el => el.getAttribute("type") === "checkbox" && el.parentNode?.textContent === "覆盖设备上的同名书") as HTMLInputElement; overwrite.checked = true; fire(overwrite, "change"); m.flush();
   expect(elements(m.root, "p", "data-profile-summary")[0]!.textContent).toBe("去掉书籍自带字体 · 去掉所有图片（保留封面）");
-  const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); expect(text(m)).toContain("约 4 B（按设备已有副本）"); fire(button(m.root, "开始传输（1）"), "click"); await settle(m);
+  const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); expect(text(m)).toContain("约 4 B（按设备已有副本）"); fire(button(m.root, "开始传输 · 1 本"), "click"); await settle(m);
   expect(transfer).toHaveBeenCalledWith(expect.anything(), "a", "wide", expect.objectContaining({ overwrite: true })); expect(text(m)).toContain("Kindle 空间不足");
+  // Retry re-queues the same book with the same profile and options, replacing the failed row.
+  fire(button(m.root, "重试 书库甲"), "click"); await settle(m);
+  expect(transfer).toHaveBeenCalledTimes(2); expect(transfer).toHaveBeenLastCalledWith(expect.anything(), "a", "wide", expect.objectContaining({ overwrite: true }));
+  expect(elements(m.root, "li", "data-queue-item")).toHaveLength(1);
 });
 
 it("refreshes inventory after queue completion and exposes accurate enumerated usage", async () => {
   const c = await connected(); const transfer = vi.fn(async () => { const r = record("a", "a.kfx"); await c.fs.write("documents/a.kfx", "BOOK"); await c.fs.write(".bindery/manifest.json", JSON.stringify({ version: 1, books: [r] })); return r; }); c.input.queue = new TransferQueue({ transferBook: transfer });
-  const m = mount("transfer", c.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "开始传输（1）"), "click"); await settle(m);
+  const m = mount("transfer", c.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "开始传输 · 1 本"), "click"); await settle(m);
   expect(text(m)).toContain("已传入 Kindle"); expect(m.context().inventory()!.usage.books).toBe(4); expect(m.context().inventory()!.usage.capacity).toBeNull(); expect(elements(m.root, "li", "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).toEqual(["b"]);
 });
 

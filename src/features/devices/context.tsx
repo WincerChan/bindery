@@ -1,6 +1,6 @@
 import { createContext, createSignal, onSettled, useContext } from "solid-js";
 import type { JSX } from "@solidjs/web";
-import { DeviceManager, assertReachable, deviceInventory, errorMessage, getTransferQueue, type DeviceInventory, type DeviceState, type RememberedDevice, type TransferItem, type TransferQueue, type TransferOptions } from "../../client/devices";
+import { DeviceManager, assertReachable, deviceInventory, errorMessage, getTransferQueue, type DeviceInventory, type DeviceState, type RememberedDevice, type TransferItem, type TransferQueue, type TransferRequestOptions } from "../../client/devices";
 import type { DeviceKind } from "../../client/devices/models";
 
 // One inert manager per runtime. SSR never calls its browser / File System Access APIs.
@@ -105,11 +105,16 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue)
       await manager.restore(saved);
       await loadRemembered();
     }),
-    enqueue: (bookId: string, profileId = "default", options: boolean | Pick<TransferOptions, "overwrite" | "stripFonts" | "stripImages"> = false) => {
+    enqueue: (bookId: string, profileId = "default", options: boolean | TransferRequestOptions = false) => {
       const current = manager.snapshot();
       if (current.status !== "granted" || !current.device || current.device.identity.id !== state().device?.identity.id) throw new Error("设备已切换或断开，请重新选择书籍");
       return queue().enqueue(current.device, bookId, profileId, typeof options === "boolean" ? { overwrite: options } : options);
     },
+    retry: (id: string) => run(async () => {
+      const current = manager.snapshot();
+      if (current.status !== "granted" || !current.device) throw new Error("设备未连接，请重新连接后重试");
+      queue().retry(id, current.device);
+    }),
     cancel: (id: string) => queue().cancel(id), clearFinished: () => queue().clearFinished(),
   };
 }

@@ -19,50 +19,53 @@ function stageAnnouncement(item: TransferItem) {
   if (item.state === "等待" || item.state === "完成" || item.state === "失败") return `${item.state}：${item.message}`;
   return ({ download: "正在下载 EPUB", convert: item.kind === "kobo" ? "正在转换 KEPUB，耗时为估计" : "正在转换 KFX，耗时为估计", write: "正在写入设备", thumbnail: "正在生成封面缩略图", finalize: "正在完成写入" })[item.phase];
 }
-function TransferQueueRow(props: { item: () => TransferItem; title: string; deviceName: string; cancel: () => void }) {
+function TransferQueueRow(props: { item: () => TransferItem; title: string; deviceName?: string; cancel: () => void; retry?: () => void }) {
   const item = props.item;
+  const running = () => item().state !== "完成" && item().state !== "失败" && item().state !== "等待";
   const determinate = () => (item().phase === "download" || item().phase === "write") && item().total !== undefined && item().total! > 0;
-  const value = () => item().state === "完成" ? 1 : item().state === "等待" || item().state === "失败" ? 0 : determinate() ? item().loaded ?? 0 : undefined;
-  const max = () => item().state !== "完成" && item().state !== "失败" && item().state !== "等待" && determinate() ? item().total : 1;
   return <li class="kindle-queue-item" data-queue-item={item().id}>
     <div class="kindle-section-heading"><strong>{props.title}</strong><span class={`kindle-queue-state ${item().state === "失败" ? "is-failed" : item().state === "完成" ? "is-complete" : ""}`}>{item().state}</span></div>
-    <p class="kindle-small">目标：{props.deviceName}</p>
-    <progress class={item().state === "完成" ? "is-complete" : ""} aria-label={`${props.title} 传输进度`} aria-valuetext={progressDetail(item())} max={max()} value={value()} />
-    <p class="kindle-small kindle-progress-detail">{progressDetail(item())}</p>
+    <Show when={running()}><progress aria-label={`${props.title} 传输进度`} aria-valuetext={progressDetail(item())} max={determinate() ? item().total : 1} value={determinate() ? item().loaded ?? 0 : undefined} /></Show>
+    <div class="kindle-queue-meta">
+      <p class={`kindle-small kindle-progress-detail ${item().state === "失败" ? "is-failed" : ""}`}>{props.deviceName ? `${props.deviceName} · ` : ""}{progressDetail(item())}</p>
+      <Show when={item().state !== "完成" && item().state !== "失败"}><Button class="kindle-text-button" variant="quiet" aria-label={`取消 ${props.title}`} onClick={props.cancel}>取消</Button></Show>
+      <Show when={item().state === "失败" && props.retry}><Button class="kindle-text-button kindle-retry" variant="quiet" aria-label={`重试 ${props.title}`} onClick={() => props.retry!()}>重试</Button></Show>
+    </div>
     <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{props.title}：{stageAnnouncement(item())}</span>
-    <Show when={item().state !== "完成" && item().state !== "失败"}><Button variant="quiet" size="sm" onClick={props.cancel}>取消</Button></Show>
   </li>;
 }
-export function DeviceTransferQueueProgress(props: { items: readonly TransferItem[]; title: (id: string) => string; deviceName: (id: string) => string; cancel: (id: string) => void }) {
+export function queueSummary(items: readonly TransferItem[]) {
+  const failed = items.filter(item => item.state === "失败").length;
+  const prefix = `共 ${items.length} 本 · 已完成 ${items.filter(item => item.state === "完成").length}${failed ? ` · 失败 ${failed}` : ""}`;
+  // A single book shows its own bytes in its row, and finished batches have nothing left to measure.
+  if (items.length < 2 || items.every(item => item.state === "完成" || item.state === "失败")) return prefix;
+  const downloads = items.filter(item => item.downloadTotal !== undefined), known = items.filter(item => item.writeTotal !== undefined);
+  const downloaded = downloads.reduce((sum, item) => sum + item.downloadedBytes, 0), downloadTotal = downloads.reduce((sum, item) => sum + item.downloadTotal!, 0);
+  const downloadUnknown = items.length - downloads.length;
+  const download = downloads.length ? ` · 已下载 ${megabytes(downloaded)} / ${megabytes(downloadTotal)} MB${downloadUnknown ? `（另 ${downloadUnknown} 本下载大小未知）` : ""}` : "";
+  if (!known.length) return prefix + download;
+  const written = known.reduce((sum, item) => sum + item.writtenBytes, 0), total = known.reduce((sum, item) => sum + item.writeTotal!, 0);
+  const unknown = items.length - known.length;
+  return `${prefix}${download} · 已写入 ${megabytes(written)} / ${megabytes(total)} MB${unknown ? `（另 ${unknown} 本待转换）` : ""}`;
+}
+export function DeviceTransferQueueProgress(props: { items: readonly TransferItem[]; title: (id: string) => string; deviceName: (id: string) => string; currentDeviceId?: string; cancel: (id: string) => void; retry?: (id: string) => void }) {
   const byId = createMemo(() => new Map(props.items.map(item => [item.id, item])));
   const ids = createMemo(() => props.items.map(item => item.id));
-  const summary = () => {
-    const items = props.items, downloads = items.filter(item => item.downloadTotal !== undefined), known = items.filter(item => item.writeTotal !== undefined);
-    const prefix = `共 ${items.length} 本 · 已完成 ${items.filter(item => item.state === "完成").length}`;
-    const downloaded = downloads.reduce((sum, item) => sum + item.downloadedBytes, 0), downloadTotal = downloads.reduce((sum, item) => sum + item.downloadTotal!, 0);
-    const downloadUnknown = items.length - downloads.length;
-    const download = downloads.length ? ` · 已下载 ${megabytes(downloaded)} / ${megabytes(downloadTotal)} MB${downloadUnknown ? `（另 ${downloadUnknown} 本下载大小未知）` : ""}` : "";
-    if (!known.length) return prefix + download;
-    const written = known.reduce((sum, item) => sum + item.writtenBytes, 0), total = known.reduce((sum, item) => sum + item.writeTotal!, 0);
-    const unknown = items.length - known.length;
-    return `${prefix}${download} · 已写入 ${megabytes(written)} / ${megabytes(total)} MB${unknown ? `（另 ${unknown} 本待转换）` : ""}`;
-  };
-  return <>
-    <p class="kindle-small kindle-mono kindle-queue-summary" data-queue-summary>{summary()}</p>
-    <ol class="kindle-queue-list"><For each={ids()} fallback={<li class="muted">选择书籍后开始传输。</li>}>{id => {
-      // Stable IDs preserve rows and live regions when immutable progress snapshots arrive.
-      const initial = byId().get(id)!;
-      const item = createMemo(() => byId().get(id) ?? initial);
-      return <TransferQueueRow item={item} title={props.title(initial.bookId)} deviceName={props.deviceName(initial.deviceId)} cancel={() => props.cancel(id)} />;
-    }}</For></ol>
-  </>;
+  return <ol class="kindle-queue-list"><For each={ids()} fallback={<li class="kindle-small kindle-queue-empty">选择书籍后开始传输。</li>}>{id => {
+    // Stable IDs preserve rows and live regions when immutable progress snapshots arrive.
+    const initial = byId().get(id)!;
+    const item = createMemo(() => byId().get(id) ?? initial);
+    // The target is only worth naming when it is not the device this page shows.
+    const deviceName = () => initial.deviceId === props.currentDeviceId ? undefined : props.deviceName(initial.deviceId);
+    return <TransferQueueRow item={item} title={props.title(initial.bookId)} deviceName={deviceName()} cancel={() => props.cancel(id)} retry={props.retry && (() => props.retry!(id))} />;
+  }}</For></ol>;
 }
 
 export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; loadProfiles: (deviceId: string) => Promise<TypesettingProfile[]> }) {
   const k = useDevice(), [filter, setFilter] = createSignal("不在设备"), [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<string[]>([]), [page, setPage] = createSignal(1);
   const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profile, setProfile] = createSignal("default"), [profileError, setProfileError] = createSignal("");
-  const [profilesBusy, setProfilesBusy] = createSignal(false), [overwrite, setOverwrite] = createSignal(false), [notice, setNotice] = createSignal("");
+  const [profilesBusy, setProfilesBusy] = createSignal(false), [overwrite, setOverwrite] = createSignal(false);
   const [stripFonts, setStripFonts] = createSignal(false), [stripImages, setStripImages] = createSignal(false);
   const kind = () => k.kind(), kindle = () => kind() === "kindle";
   const profileSummary = () => {
@@ -101,6 +104,19 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; loadProf
   const unknown = () => chosen().filter(b => !onDevice().has(b.book_id)).length;
   const title = (id: string) => props.books.find(b => b.book_id === id)?.title || id;
   const active = () => k.items().filter(i => i.state !== "完成" && i.state !== "失败");
+  const finished = () => k.items().some(i => i.state === "完成" || i.state === "失败");
+  const label = () => kindle() ? "Kindle" : "Kobo";
+  const target = () => k.ready() ? k.state().device?.identity.name : undefined;
+  const targetStatus = () => !k.ready() ? "检测中" : ({ granted: "已连接", prompt: "待授权", denied: "无访问权限", disconnected: "未连接", unpaired: "未配对" })[k.state().status];
+  const canStart = () => !!deviceId() && !!k.inventory() && chosen().length > 0 && !profilesBusy() && !k.busy();
+  const startHint = () => {
+    if (!k.ready()) return "正在检测设备…";
+    if (!deviceId()) return target() ? `插入 ${label()} 并重新连接后即可传输。` : "先连接设备，再选择要传输的书。";
+    if (!k.inventory()) return "正在读取设备书籍清单…";
+    if (profilesBusy()) return "正在读取排版方案…";
+    if (!chosen().length) return "先在书库列表中选择要传输的书。";
+    return "";
+  };
   function start() {
     void k.run(async () => {
       if (!deviceId() || !k.inventory()) throw new Error("请先连接设备并等待书籍清单读取完成");
@@ -108,7 +124,7 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; loadProf
         if (kindle()) k.enqueue(book.book_id, profile(), { overwrite: overwrite() });
         else k.enqueue(book.book_id, "default", { overwrite: true, stripFonts: stripFonts(), stripImages: stripImages() });
       }
-      setNotice(`已加入 ${chosen().length} 本书，传输期间请保持页面打开和 USB 连接。`); setSelected([]);
+      setSelected([]);
     });
   }
   return <>
@@ -132,28 +148,45 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; loadProf
       <aside aria-label="传输" class="kindle-aside">
         <h2>设置</h2>
         <div class="form-stack">
-          <Select label="目标设备" disabled><option>{deviceId() ? `${k.state().device!.identity.name}（当前连接）` : "尚未连接设备"}</option></Select>
+          <div class="kindle-target" data-transfer-target>
+            <div><span class="kindle-small">目标设备</span><span class="kindle-target-name"><strong>{target() || "尚未连接设备"}</strong><Show when={target()}><span aria-hidden="true" class={`kindle-dot ${deviceId() ? "connected" : ""}`} /><span class={`kindle-small ${deviceId() ? "is-connected" : "is-offline"}`}>{targetStatus()}</span></Show></span></div>
+            <Link class="kindle-target-link" href="/devices/connect">{deviceId() ? "切换设备" : target() ? "重新连接" : "连接设备"}</Link>
+          </div>
           <Show when={kindle()} fallback={<>
-            <Checkbox label="去掉书籍自带字体" checked={stripFonts()} onChange={e => setStripFonts(e.currentTarget.checked)} />
-            <Checkbox label="去掉所有图片（保留封面）" checked={stripImages()} onChange={e => setStripImages(e.currentTarget.checked)} />
-            <p class="kindle-small">KEPUB 在浏览器的 Web Worker 中转换，写入 Bindery/。再次传入同名书籍会覆盖旧文件。</p>
+            <div class="kindle-check-group">
+              <Checkbox label="去掉书籍自带字体" checked={stripFonts()} onChange={e => setStripFonts(e.currentTarget.checked)} />
+              <Checkbox label="去掉所有图片（保留封面）" checked={stripImages()} onChange={e => setStripImages(e.currentTarget.checked)} />
+            </div>
+            <p class="kindle-small">同名书会覆盖设备上的旧文件。</p>
           </>}>
             <Select label="排版方案" value={profile()} disabled={!deviceId() || profilesBusy()} onChange={e => setProfile(e.currentTarget.value)}><For each={profiles()}>{p => <option value={p.id}>{p.name}</option>}</For></Select>
             <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
             <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId(), kind())}>重试</Button></p></Show>
             <Link class="kindle-preview-link" href="/devices/preview">预览并调整排版方案</Link>
-            <Checkbox label="写入封面缩略图（有封面时自动写入）" checked disabled />
-            <Checkbox label="覆盖设备上的同名书" checked={overwrite()} onChange={e => setOverwrite(e.currentTarget.checked)} />
+            <div class="kindle-check-group">
+              <Checkbox label="写入封面缩略图（有封面时自动写入）" checked disabled />
+              <Checkbox label="覆盖设备上的同名书" checked={overwrite()} onChange={e => setOverwrite(e.currentTarget.checked)} />
+            </div>
             <p class="kindle-small">覆盖仅替换 Bindery 记录的同一本书，保留原文件名与 .sdr 阅读记录。其他来源或不同书籍的同名文件会另存副本。</p>
           </Show>
+          <div class="kindle-start">
+            <Button class="kindle-start-transfer" variant={canStart() ? "primary" : "secondary"} disabled={!canStart()} onClick={start}>{chosen().length ? `开始传输 · ${chosen().length} 本` : "开始传输"}</Button>
+            <Show when={startHint()}><p class="kindle-small" data-start-hint>{startHint()}</p></Show>
+          </div>
         </div>
-        <Show when={notice()}><p class="notice" role="status">{notice()}</p></Show>
-        <section class="kindle-queue" aria-label="传输队列"><div class="kindle-section-heading"><h2>队列</h2></div>
-          <DeviceTransferQueueProgress items={k.items()} title={title} deviceName={id => k.remembered().find(d => d.id === id)?.identity.name || id} cancel={k.cancel} />
-          <div class="kindle-actions"><Button variant="quiet" disabled={!active().length} onClick={() => active().forEach(i => k.cancel(i.id))}>取消所有未完成</Button><Button class="kindle-start-transfer" disabled={!deviceId() || !k.inventory() || !chosen().length || profilesBusy() || k.busy()} onClick={start}>开始传输（{chosen().length}）</Button></div><div class="kindle-actions"><Button variant="quiet" disabled={!k.items().some(i => i.state === "完成" || i.state === "失败")} onClick={k.clearFinished}>清除已结束</Button></div>
+        <section class="kindle-queue" aria-label="传输队列">
+          <div class="kindle-section-heading">
+            <h2>队列</h2>
+            <div class="kindle-queue-actions">
+              <Show when={active().length}><Button class="kindle-text-button" variant="quiet" onClick={() => active().forEach(i => k.cancel(i.id))}>全部取消</Button></Show>
+              <Show when={finished()}><Button class="kindle-text-button" variant="quiet" onClick={k.clearFinished}>清除已结束</Button></Show>
+            </div>
+          </div>
+          <Show when={k.items().length}><p class="kindle-small kindle-queue-summary" data-queue-summary>{queueSummary(k.items())}</p></Show>
+          <DeviceTransferQueueProgress items={k.items()} title={title} deviceName={id => k.remembered().find(d => d.id === id)?.identity.name || id} currentDeviceId={k.state().device?.identity.id} cancel={k.cancel} retry={k.retry} />
         </section>
-        <p class="kindle-small">{kindle() ? "EPUB 从书库下载，在浏览器内由 boko Web Worker 转换 KFX，再经 USB 写入 Kindle。" : "EPUB 从书库下载，在浏览器内由 TypeScript 转换器生成 KEPUB，再经 USB 写入 Kobo 的 Bindery/ 文件夹。"}切换标签页时队列继续；刷新或关闭网页会中断传输。</p>
-        <Show when={kindle()}><Link class="kindle-small" href="#boko-license">boko 许可证与对应源码</Link></Show>
+        <p class="kindle-small">传输时请保持页面打开。切换标签页不影响，刷新或关闭网页会中断传输。</p>
+        <Show when={kindle()}><p class="kindle-small">EPUB 在浏览器内由 boko 转换为 KFX。<Link href="#boko-license">boko 许可证与对应源码</Link></p></Show>
       </aside>
     </div>
     <Show when={kindle()}><BokoLicense /></Show>
