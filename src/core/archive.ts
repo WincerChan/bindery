@@ -86,16 +86,16 @@ export function canonicalZipMember(name: string): string {
   while (normalized.startsWith("../")) normalized = normalized.slice(3);
   return normalized === "." ? "" : normalized;
 }
-export function readArchive(data: Uint8Array): ArchiveMember[] {
-  const members = unzipSync(data),
-    view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+/** Member names in central directory order, without inflating anything. */
+export function archiveMemberNames(data: Uint8Array): string[] {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   // Read central directory order explicitly (object enumeration reorders integer filenames).
   let end = data.length - 22;
   for (; end >= Math.max(0, data.length - 65557); end--)
     if (view.getUint32(end, true) === 0x06054b50) break;
   if (end < 0) throw new Error("Invalid ZIP central directory");
   let offset = view.getUint32(end + 16, true);
-  const entries: ArchiveMember[] = [],
+  const names: string[] = [],
     count = view.getUint16(end + 10, true);
   for (let i = 0; i < count; i++) {
     if (view.getUint32(offset, true) !== 0x02014b50)
@@ -103,23 +103,29 @@ export function readArchive(data: Uint8Array): ArchiveMember[] {
     const length = view.getUint16(offset + 28, true),
       extra = view.getUint16(offset + 30, true),
       comment = view.getUint16(offset + 32, true);
-    const name = new TextDecoder().decode(
+    names.push(new TextDecoder().decode(
       data.subarray(offset + 46, offset + 46 + length),
-    );
-    const payload = members[name];
-    if (!payload) throw new Error(`Unsupported ZIP filename encoding: ${name}`);
-    entries.push({ name, data: payload });
+    ));
     offset += 46 + length + extra + comment;
   }
-  return entries;
+  return names;
 }
-export function writeArchive(entries: Iterable<ArchiveMember>): Uint8Array {
+export function readArchive(data: Uint8Array): ArchiveMember[] {
+  const members = unzipSync(data);
+  return archiveMemberNames(data).map((name) => {
+    const payload = members[name];
+    if (!payload) throw new Error(`Unsupported ZIP filename encoding: ${name}`);
+    return { name, data: payload };
+  });
+}
+/** `deflate: null` stores every member, for intermediate archives that are re-packed right away. */
+export function writeArchive(entries: Iterable<ArchiveMember>, deflate: Deflater | null = defaultDeflater): Uint8Array {
   const chunks: Uint8Array[] = [];
   let total = 0;
   writeArchiveToSink(entries, data => {
     chunks.push(data);
     total += data.length;
-  });
+  }, deflate);
   const result = new Uint8Array(total);
   let offset = 0;
   for (const chunk of chunks) {
@@ -132,7 +138,7 @@ export function writeArchive(entries: Iterable<ArchiveMember>): Uint8Array {
 export function writeArchiveToSink(
   entries: Iterable<ArchiveMember>,
   write: (chunk: Uint8Array) => void,
-  deflate: Deflater = defaultDeflater,
+  deflate: Deflater | null = defaultDeflater,
 ): void {
   const zip = new Zip((error, data) => {
     if (error) throw error;
@@ -140,7 +146,7 @@ export function writeArchiveToSink(
   });
   try {
     for (const entry of entries) {
-      const file = entry.name === "mimetype" ? new ZipPassThrough(entry.name) : new VerifiedZipDeflate(entry.name, entry.data, deflate);
+      const file = entry.name === "mimetype" || !deflate ? new ZipPassThrough(entry.name) : new VerifiedZipDeflate(entry.name, entry.data, deflate);
       zip.add(file);
       file.push(entry.data, true);
     }

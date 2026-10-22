@@ -25,6 +25,20 @@ function tokens(css: string): Array<{ value: string; start: number; end: number 
       }
     }
     result.push({ value: unescapeCss(css.slice(start, at)), start, end: at });
+    // An unquoted url( ... ) is one token: "/*" inside it is part of the URL, not a comment.
+    // Contents with quotes keep the normal tokenization (a quoted URL, possibly after a comment).
+    if (css[at] === "(" && result.at(-1)!.value.toLowerCase() === "url") {
+      let urlStart = at + 1, close = urlStart;
+      while (/\s/.test(css[urlStart] ?? "")) urlStart++;
+      while (close < css.length && css[close] !== ")" && !/["'(]/.test(css[close])) close += css[close] === "\\" ? 2 : 1;
+      if (css[close] === ")") {
+        let urlEnd = close;
+        while (urlEnd > urlStart && /\s/.test(css[urlEnd - 1])) urlEnd--;
+        result.push({ value: "(", start: at, end: at + 1 });
+        if (urlEnd > urlStart) result.push({ value: unescapeCss(css.slice(urlStart, urlEnd)), start: urlStart, end: urlEnd });
+        at = close;
+      }
+    }
   }
   return result;
 }
