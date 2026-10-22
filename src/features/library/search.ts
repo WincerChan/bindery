@@ -41,6 +41,14 @@ export function libraryReturnTo(input: Record<string, unknown>): string {
 }
 export const bookHref = (id: string, returnTo: string, preview = false) =>
   `/book/${id}${preview ? "/preview" : ""}?return_to=${encodeURIComponent(returnTo)}`;
+/** Opens the device transfer page with these library books already selected. */
+export const deviceTransferHref = (ids: readonly string[]) => `/devices/transfer?books=${ids.map(encodeURIComponent).join(",")}`;
+/** Opens the device typesetting preview with this book already chosen. */
+export const devicePreviewHref = (id: string) => `/devices/preview?book=${encodeURIComponent(id)}`;
+/** Book ids handed over by deviceTransferHref; anything malformed is dropped. */
+export function transferSelection(value: unknown): string[] {
+  return typeof value === "string" ? [...new Set(value.split(",").filter(id => /^[a-f0-9]{32}$/.test(id)))].slice(0, 500) : [];
+}
 export const gridPageSize = (width: number, gap = 20) => Math.max(4, Math.min(96, Math.max(1, Math.floor((width + gap) / (136 + gap))) * 4));
 export function selectionInput(value: unknown): string[] | null {
   return Array.isArray(value) && value.every((id): id is string => typeof id === "string") ? value : null;

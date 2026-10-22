@@ -7,7 +7,7 @@ import { useMutation } from "../../shared/client-mutation";
 import { mutateLibrarySelection } from "./mutations";
 import type { BookView } from "../../server/book-view";
 import type { LibraryPageData } from "../../server/library/queries";
-import { bookHref, gridPageSize, libraryReturnTo, rememberGridPageSize, type LibrarySearch } from "./search";
+import { bookHref, devicePreviewHref, deviceTransferHref, gridPageSize, libraryReturnTo, rememberGridPageSize, type LibrarySearch } from "./search";
 
 type View = "grid" | "list";
 export function LibraryBook(props: { book: BookView; returnTo: string; view: View; selecting: boolean; selected: boolean; toggle: () => void; confirmArchive?: (form: HTMLFormElement) => void; confirmDelete?: (form: HTMLFormElement) => void; restoreBook?: (id: string) => void }) {
@@ -38,6 +38,8 @@ export function LibraryBook(props: { book: BookView; returnTo: string; view: Vie
       <Show when={book().archived} fallback={<>
       <Link class="btn btn-secondary btn-sm" href={bookHref(book().book_id, props.returnTo, true)}>阅读</Link>
       <a class="btn btn-quiet btn-sm library-desktop-action" href={`/book/${book().book_id}/download`}>下载</a>
+      <Link class="btn btn-quiet btn-sm library-desktop-action" href={devicePreviewHref(book().book_id)} aria-label={`在设备排版中预览《${book().title}》`}>设备预览</Link>
+      <Link class="btn btn-quiet btn-sm library-desktop-action" href={deviceTransferHref([book().book_id])} aria-label={`发送《${book().title}》到设备`}>发送</Link>
       <form class="library-desktop-action" action={`/book/${book().book_id}/archive`} method="post" onSubmit={event => {
         if (props.confirmArchive) { event.preventDefault(); props.confirmArchive(event.currentTarget); }
       }}><input type="hidden" name="next" value={props.returnTo} /><Button type="submit" variant="quiet" size="sm">归档</Button></form>
@@ -179,6 +181,8 @@ export function LibraryPage(props: {
       <span class="library-bulk-divider" aria-hidden="true" />
       <Show when={archived()} fallback={<>
       <form action="/books/download" method="post" onSubmit={download}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet" disabled={!selected().length || busy()}>下载</Button></form>
+      <Button variant="quiet" disabled={!selected().length || busy()} onClick={() => void mutation.router.navigate({ href: deviceTransferHref(selected()) })}>发送到设备</Button>
+      <Button variant="quiet" disabled={selected().length !== 1 || busy()} title={selected().length > 1 ? "一次预览一本书" : undefined} onClick={() => void mutation.router.navigate({ href: devicePreviewHref(selected()[0]!) })}>设备预览</Button>
       <Button variant="quiet" disabled={!selected().length || busy()} onClick={regenerate}>重新生成</Button>
       <form action="/books/archive" method="post" onSubmit={event => { event.preventDefault(); setArchiveForm(event.currentTarget); }}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet" disabled={!selected().length || busy()}>归档</Button></form>
       </>}><Button variant="quiet" disabled={!selected().length || busy()} onClick={() => void restore()}>恢复</Button><form action="/archive/delete-bulk" method="post" onSubmit={event => { event.preventDefault(); setDeleteForm(event.currentTarget); }}><SelectedIds ids={selected()} /><Button type="submit" variant="quiet-danger" disabled={!selected().length || busy()}>彻底删除</Button></form></Show>

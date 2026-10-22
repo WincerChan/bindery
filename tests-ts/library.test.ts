@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { libraryPage, loadLibraryPage } from "../src/server/library/queries";
 import { archiveBooks, deleteArchivedBooks, downloadBooks, normalizeBookIds, regenerateBooks, restoreArchivedBooks } from "../src/server/library/actions";
 import { archivePost, deletePost, downloadPost } from "../src/server/library/handlers";
-import { bookHref, gridPageSize, gridPageSizeFromCookie, libraryQueryInput, libraryReturnTo, normalizeSearch } from "../src/features/library/search";
+import { bookHref, devicePreviewHref, deviceTransferHref, gridPageSize, gridPageSizeFromCookie, libraryQueryInput, libraryReturnTo, normalizeSearch, transferSelection } from "../src/features/library/search";
 import { metadataFromDict } from "../src/core/models";
 import { readArchive } from "../src/core/archive";
 import { bookEpubNeedsCssSync } from "../src/server/epub-css";
@@ -113,6 +113,13 @@ describe("return navigation and responsive sizing", () => {
   });
   it.each([[0, 4], [136, 4], [292, 8], [916, 24], [99999, 96]])("uses four rows at width %i", (width, size) => expect(gridPageSize(width)).toBe(size));
   it.each([[0, 4], [200, 96], ["garbage", 24]])("normalizes page size %s", (value, expected) => expect(normalizeSearch({ per_page: value }).per_page).toBe(expected));
+  it("hands selected books to the device transfer page and drops anything that is not a book id", () => {
+    const a = "a".repeat(32), b = "b".repeat(32);
+    expect(deviceTransferHref([a, b])).toBe(`/devices/transfer?books=${a},${b}`);
+    expect(transferSelection(`${a},${b},${a},../x,${"A".repeat(32)}`)).toEqual([a, b]);
+    expect(transferSelection(undefined)).toEqual([]);
+    expect(devicePreviewHref(a)).toBe(`/devices/preview?book=${a}`);
+  });
   it("reads the remembered grid size only when the URL has no page size", () => {
     expect(gridPageSizeFromCookie("theme=dark; bindery_grid_per_page=28; x=1")).toBe(28);
     for (const header of [null, "", "bindery_grid_per_page=2", "bindery_grid_per_page=200", "bindery_grid_per_page=abc", "xbindery_grid_per_page=28"]) expect(gridPageSizeFromCookie(header)).toBeNull();

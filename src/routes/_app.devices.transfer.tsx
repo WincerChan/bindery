@@ -4,9 +4,14 @@ import { loadLibrary } from "../features/library/functions";
 import { listKindleProfiles } from "../server/kindle/functions";
 import { loadDeviceLibrary } from "../features/devices/library";
 import { DeviceTransferPage } from "../features/devices/transfer";
+import { transferSelection } from "../features/library/search";
 export const Route = createFileRoute("/_app/devices/transfer")({
   pendingComponent: DeviceBodySkeleton,
+  validateSearch: (search: Record<string, unknown>): { books?: string } => typeof search.books === "string" ? { books: search.books } : {},
   loader: () => loadDeviceLibrary(page => loadLibrary({ data: { page, per_page: 96 } })),
   component: Transfer,
 });
-function Transfer() { const books = Route.useLoaderData(); return <DeviceTransferPage books={books()} loadProfiles={deviceId => listKindleProfiles({ data: deviceId })} />; }
+function Transfer() {
+  const books = Route.useLoaderData(), search = Route.useSearch();
+  return <DeviceTransferPage books={books()} preselected={transferSelection(search().books)} loadProfiles={deviceId => listKindleProfiles({ data: deviceId })} />;
+}

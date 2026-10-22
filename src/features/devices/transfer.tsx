@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
 import { defaultProfile, type TypesettingProfile } from "../../client/kindle/profiles";
 import type { DeviceBook } from "../../client/devices/inventory";
 import { koboBookFilename } from "../../client/devices/paths";
@@ -61,9 +61,11 @@ export function DeviceTransferQueueProgress(props: { items: readonly TransferIte
   }}</For></ol>;
 }
 
-export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; loadProfiles: (deviceId: string) => Promise<TypesettingProfile[]> }) {
-  const k = useDevice(), [filter, setFilter] = createSignal("不在设备"), [query, setQuery] = createSignal("");
-  const [selected, setSelected] = createSignal<string[]>([]), [page, setPage] = createSignal(1);
+export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselected?: string[]; loadProfiles: (deviceId: string) => Promise<TypesettingProfile[]> }) {
+  // Books sent from the library start selected, under "全部" so copies already on the device stay visible.
+  const handed = untrack(() => (props.preselected ?? []).filter(id => props.books.some(book => book.book_id === id)));
+  const k = useDevice(), [filter, setFilter] = createSignal(handed.length ? "全部" : "不在设备"), [query, setQuery] = createSignal("");
+  const [selected, setSelected] = createSignal<string[]>(handed), [page, setPage] = createSignal(1);
   const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profile, setProfile] = createSignal("default"), [profileError, setProfileError] = createSignal("");
   const [profilesBusy, setProfilesBusy] = createSignal(false), [overwrite, setOverwrite] = createSignal(false);
   const [stripFonts, setStripFonts] = createSignal(false), [stripImages, setStripImages] = createSignal(false), [stripMargins, setStripMargins] = createSignal(false);
@@ -83,7 +85,9 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; loadProf
     catch (e) { if (token === profileRevision) setProfileError(e instanceof Error ? e.message : "排版方案读取失败"); }
     finally { if (token === profileRevision) setProfilesBusy(false); }
   }
-  createEffect(deviceId, id => { setSelected([]); void reloadProfiles(id, kind()); return () => { profileRevision++; }; });
+  // A device switch clears the selection; the hand-over from the library survives until a device is ready.
+  let pending = handed;
+  createEffect(deviceId, id => { setSelected(pending); if (id) pending = []; void reloadProfiles(id, kind()); return () => { profileRevision++; }; });
   const koboBooks = createMemo(() => {
     const map = new Map<string, DeviceBook>();
     if (kindle()) return map;

@@ -23,7 +23,7 @@ import { MemoryDevicePreference } from "../src/client/devices/preferences";
 import { clientDocument, elements, fire } from "./support/client-dom";
 
 type Page = "books" | "connect" | "transfer";
-interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]> }
+interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; preselected?: string[] }
 interface Mounted { context(): KindleContextValue; page(page: Page): void; books(books: KindleLibraryBook[]): void; flush(): void; dispose(): void }
 interface Probe {
   markup(page: Page, input: Input): string; mount(root: HTMLElement, page: Page, input: Input, hydrate: boolean): Mounted;
@@ -48,7 +48,7 @@ function view(page, input, books, capture) {
     switch (page()) {
       case 'books': return <KindleBooksPage books={books()} />;
       case 'connect': return <KindleConnectPage />;
-      case 'transfer': return <KindleTransferPage books={books()} loadProfiles={input.loadProfiles} />;
+      case 'transfer': return <KindleTransferPage books={books()} preselected={input.preselected} loadProfiles={input.loadProfiles} />;
     }
   }
   return <Loading><KindleProvider manager={input.manager} queue={input.queue}><Capture receive={capture} /><KindleDeviceBar />{child()}</KindleProvider></Loading>;
@@ -414,6 +414,14 @@ it("keeps the queue running while moving among Kindle pages, supports cancel and
   fire(button(m.root, "清除已结束"), "click"); m.flush(); expect(elements(m.root, "li", "data-queue-item")).toHaveLength(0);
   expect(text(m)).toContain("GPL-3.0-or-later"); expect(text(m)).toContain("GNU GENERAL PUBLIC LICENSE"); expect(elements(m.root, "a").some(a => a.getAttribute("href") === "https://crates.io/api/v1/crates/boko/0.5.0/download")).toBe(true);
   reject(new Error("already cancelled"));
+});
+
+it("starts with the books sent from the library selected, under 全部, once the device is ready", async () => {
+  const c = await connected([record("a", "a.kfx")]); c.input.preselected = ["a", "missing"];
+  const m = mount("transfer", c.input); await settle(m);
+  expect(button(m.root, "全部").getAttribute("aria-pressed")).toBe("true");
+  expect(elements(m.root, "li", "data-transfer-book").filter(row => row.getAttribute("class")?.includes("is-selected")).map(row => row.getAttribute("data-transfer-book"))).toEqual(["a"]);
+  expect(button(m.root, "开始传输 · 1 本").hasAttribute("disabled")).toBe(false);
 });
 
 it("uses the selected profile and overwrite setting, shows failure, and retries profile loading", async () => {
