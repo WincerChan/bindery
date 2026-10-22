@@ -5,6 +5,7 @@ import { Link } from "../../shared/spa-link";
 import { ChapterFrame } from "../kindle/typeset/frames";
 import { PreviewBookPicker } from "../kindle/typeset/book-picker";
 import { useOptionalDevice } from "./context";
+import { SendToDevice } from "./send-to-device";
 import { KOBO_LINE_HEIGHT_RANGE, KOBO_PREVIEW_DEFAULTS, KOBO_SCALE_RANGE, koboPreviewCss, koboPreviewEstimate, koboPreviewGeometry, koboPreviewSettings, type KoboPreviewSettings } from "./kobo-page";
 
 const STORAGE_KEY = "bindery.kobo.preview";
@@ -67,7 +68,8 @@ export function KoboPreviewPage(props: { data: PreviewData; chapters: (bookId: s
         <Checkbox label="去掉所有图片（保留封面）" checked={stripImages()} onChange={event => setStripImages(event.currentTarget.checked)} />
         <Checkbox label="去掉书籍自带页边距" checked={stripMargins()} onChange={event => setStripMargins(event.currentTarget.checked)} />
       </div>
-      <p class="muted">这些选项只影响预览。要在传书时生效，请在<Link href="/devices/transfer">传书页</Link>勾选同样的选项。</p>
+      <SendToDevice bookId={bookId()} profileId="default" options={{ stripFonts: stripFonts(), stripImages: stripImages(), stripPageMargins: stripMargins() }} />
+      <p class="muted">发送时使用上面勾选的选项，并覆盖设备上的旧版本。批量传书请到<Link href="/devices/transfer">传书页</Link>。</p>
     </section><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
       <div class="kt-preview-header">
         <div class="kt-preview-toolbar"><div class="kt-preview-selectors">

@@ -10,6 +10,7 @@ import { Button, Checkbox, ConfirmDialog, Dialog, Select, Textarea, TextField } 
 import { usePageDevice } from "./device";
 import { ChapterFrame } from "./frames";
 import { PreviewBookPicker } from "./book-picker";
+import { SendToDevice } from "../../devices/send-to-device";
 import { Link } from "../../../shared/spa-link";
 import { previewContentUrl, screenFor, type PreviewChapter, type PreviewData } from "./model";
 
@@ -65,6 +66,15 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
   const rangeValue = (key: (typeof ranges)[number]["key"]) => key === "marginX" ? marginPercent() : draft().settings[key];
   const immutable = () => draft().builtIn || busy() || loading();
   const canStore = () => Boolean(target()) && !busy() && !loading() && !settingsError();
+  // Kindle transfers load the saved profile by id, so only a saved, unchanged profile of the connected Kindle can be sent.
+  const sendBlocked = () => {
+    const device = connected();
+    if (device && device.identity.kind !== "kindle") return "当前设备不是 Kindle。";
+    if (device && target() && device.identity.id !== target()!.id) return `方案属于 ${target()!.name}，请连接这台设备后发送。`;
+    if (draft().id === "draft") return "先保存这个方案再发送。";
+    if (dirty()) return "有未保存的修改，保存方案后再发送。";
+    return settingsError() || undefined;
+  };
   const confirmDiscard = () => !dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？");
   createEffect(() => props.data, data => {
     chapterRequest++; setBookId(data.bookId); setSections(data.sections); openChapter(0); setChapterLoading(false); setChapterError(data.error);
@@ -212,6 +222,7 @@ export function TypesetPage(props: { manager: KindleDeviceManager | null; data: 
           <Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为</Button>
           <Button disabled={!canStore() || !dirty()} onClick={() => save()}>保存方案</Button></div>
       </Show>
+      <SendToDevice bookId={bookId()} profileId={draft().id} options={{}} blocked={sendBlocked()} />
     </section><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
       <div class="kt-preview-header">
       <div class="kt-preview-toolbar"><div class="kt-preview-selectors"><PreviewBookPicker books={props.data.books} value={bookId()} disabled={!props.data.books.length} onChange={id => { void chooseBook(id); }} />
