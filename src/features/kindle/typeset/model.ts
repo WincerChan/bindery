@@ -8,8 +8,10 @@ export interface PreviewChapter { title: string; item_path: string }
 export interface PreviewData { books: PreviewBook[]; bookId: string; sections: PreviewChapter[]; error: string }
 export function previewContentUrl(bookId: string, path: string, options: EpubStripOptions): string {
   const member = encodeEpubPath(path);
-  return options.stripFonts || options.stripImages
-    ? `/devices/content/${bookId}/${options.stripFonts ? 1 : 0}${options.stripImages ? 1 : 0}/epub/${member}`
+  // Two flags for fonts/images; a third only when page margins are stripped (Kobo).
+  const mode = `${options.stripFonts ? 1 : 0}${options.stripImages ? 1 : 0}${options.stripPageMargins ? 1 : ""}`;
+  return options.stripFonts || options.stripImages || options.stripPageMargins
+    ? `/devices/content/${bookId}/${mode}/epub/${member}`
     : `/book/${bookId}/epub/${member}`;
 }
 export function screenFor(model: KindleModel) { return KINDLE_MODELS[model === "other" ? "KPW3" : model]; }

@@ -1,17 +1,18 @@
 import { createEffect, createMemo, createSignal, onCleanup, onSettled, Show } from "solid-js";
 import { errorMessage } from "../../../client/kindle/fs";
 import type { FontFamily, KindleModel, PairedDevice } from "../../../client/kindle";
-import { DocumentFonts, PreviewDocument, previewTurnKey } from "./frame";
+import { DocumentFonts, PreviewDocument, previewTurnKey, type PageGeometry } from "./frame";
 import { screenFor } from "./model";
 import type { KindleMarginPreset } from "../../../client/kindle/margins";
 import { Button } from "../../../ui";
 
-export function ChapterFrame(props: { src: string; model: KindleModel; marginPreset: KindleMarginPreset; css: string | null; device: PairedDevice | null; family?: FontFamily; start: { page: number }; hasPrevious: boolean; hasNext: boolean; onChapter: (direction: -1 | 1) => void }) {
+/** `geometry` replaces the Kindle model/margin calibration, e.g. for Kobo's approximate page. */
+export function ChapterFrame(props: { src: string; model: KindleModel; marginPreset: KindleMarginPreset; geometry?: PageGeometry; label?: string; css: string | null; device: PairedDevice | null; family?: FontFamily; start: { page: number }; hasPrevious: boolean; hasNext: boolean; onChapter: (direction: -1 | 1) => void }) {
   let frame!: HTMLIFrameElement, viewport!: HTMLDivElement, bezel!: HTMLDivElement, controller: PreviewDocument | undefined;
   let resizeFrame = () => {};
   let disposed = false, generation = 0;
   const [scale, setScale] = createSignal(0.4), [error, setError] = createSignal("");
-  const dimensions = () => screenFor(props.model);
+  const dimensions = () => props.geometry ?? screenFor(props.model), label = () => props.label ?? "Kindle";
   const [loaded, setLoaded] = createSignal(0);
   const [position, setPosition] = createSignal({ page: 1, count: 1 }), [ready, setReady] = createSignal(false);
   const clear = () => { generation++; controller?.destroy(); controller = undefined; setError(""); setReady(false); setPosition({ page: 1, count: 1 }); };
@@ -32,9 +33,10 @@ export function ChapterFrame(props: { src: string; model: KindleModel; marginPre
       setReady(true); setLoaded(value => value + 1);
     } catch (error) { setError(errorMessage(error)); }
   }
-  createEffect(() => ({ css: props.css, device: props.device, family: props.family, model: props.model, marginPreset: props.marginPreset, loaded: loaded() }), value => {
+  createEffect(() => ({ css: props.css, device: props.device, family: props.family, model: props.model, marginPreset: props.marginPreset, geometry: props.geometry, loaded: loaded() }), value => {
     if (!controller) return;
-    if (value.css !== null) controller.setDevice(value.model, value.marginPreset);
+    if (value.geometry) controller.setGeometry(value.geometry);
+    else if (value.css !== null) controller.setDevice(value.model, value.marginPreset);
     const current = generation;
     void controller.update(value.css, value.device, value.family).catch(error => { if (!disposed && current === generation) setError(`设备字体加载失败：${errorMessage(error)}`); });
   });
@@ -61,8 +63,8 @@ export function ChapterFrame(props: { src: string; model: KindleModel; marginPre
   createEffect(dimensions, () => { resizeFrame(); });
   onCleanup(() => { disposed = true; generation++; controller?.destroy(); controller = undefined; });
   return <div class="kt-frame-wrap">
-    <div ref={viewport} class="kt-device-space"><div ref={bezel} class="kt-device-bezel" style={{ width: `${dimensions().width * scale()}px` }}><div class="kt-screen" tabindex="0" role="group" aria-label="Kindle 分页预览，使用左右方向键或 PageUp、PageDown 翻页" onKeyDown={event => previewTurnKey(event, turn)} style={{ "aspect-ratio": `${dimensions().width} / ${dimensions().height}` }}>
-      <iframe ref={frame} title="Kindle 章节排版预览" sandbox="allow-same-origin" referrerpolicy="no-referrer" src={props.src || undefined}
+    <div ref={viewport} class="kt-device-space"><div ref={bezel} class="kt-device-bezel" style={{ width: `${dimensions().width * scale()}px` }}><div class="kt-screen" tabindex="0" role="group" aria-label={`${label()} 分页预览，使用左右方向键或 PageUp、PageDown 翻页`} onKeyDown={event => previewTurnKey(event, turn)} style={{ "aspect-ratio": `${dimensions().width} / ${dimensions().height}` }}>
+      <iframe ref={frame} title={`${label()} 章节排版预览`} sandbox="allow-same-origin" referrerpolicy="no-referrer" src={props.src || undefined}
         width={dimensions().width} height={dimensions().height} style={{ transform: `scale(${scale()})` }} onLoad={onLoad} />
     </div></div></div>
     <div class="kt-actions kt-page-controls" role="group" aria-label="预览翻页">

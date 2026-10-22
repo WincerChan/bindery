@@ -24,6 +24,20 @@ export class DocumentFonts {
 }
 
 interface TextAnchor { node: Text; offset: number }
+/**
+ * A device page in device pixels; `fontFamily` is the reader's default face, still overridable by the book.
+ * `bookInsets`: the reader keeps the book's own html/body margin and padding (Kobo), unlike boko for Kindle.
+ * `embeddedFontsOnly`: the reader has no system fonts, so `local()` sources and desktop family names are
+ * redirected to `fallbackSources`, standing in for the reader's own default face.
+ */
+export interface PageGeometry {
+  width: number; height: number; emPx: number; lineHeight: number; side: number; top: number; bottom: number; column: number; gap: number; contentHeight: number;
+  fontFamily?: string; bookInsets?: boolean; embeddedFontsOnly?: boolean; fallbackSources?: string;
+}
+// Desktop CJK families a book may name without embedding; an e-reader does not have them.
+const SYSTEM_FAMILIES = ["宋体", "SimSun", "新宋体", "NSimSun", "黑体", "SimHei", "楷体", "KaiTi", "楷体_GB2312", "仿宋", "FangSong", "仿宋_GB2312", "微软雅黑", "Microsoft YaHei", "华文宋体", "STSong", "华文楷体", "STKaiti", "华文仿宋", "STFangsong", "华文黑体", "STHeiti", "Songti SC", "Kaiti SC", "Heiti SC"];
+/** Splits a CSS list at top-level commas. */
+const cssList = (value: string) => { const parts: string[] = []; let depth = 0, quote = "", start = 0; for (let i = 0; i < value.length; i++) { const ch = value[i]; if (quote) { if (ch === "\\") i++; else if (ch === quote) quote = ""; } else if (ch === '"' || ch === "'") quote = ch; else if (ch === "(") depth++; else if (ch === ")") depth--; else if (ch === "," && !depth) { parts.push(value.slice(start, i).trim()); start = i + 1; } } parts.push(value.slice(start).trim()); return parts.filter(Boolean); };
 export interface PreviewPage { page: number; count: number }
 
 export function previewTurnKey(event: KeyboardEvent, turn: (direction: -1 | 1) => void) {
@@ -39,7 +53,7 @@ export class PreviewDocument {
   private base: HTMLStyleElement;
   private fonts: DocumentFonts;
   private fontKey = "";
-  private geometry = kindlePageGeometry("KPW3", "narrow");
+  private geometry: PageGeometry = kindlePageGeometry("KPW3", "narrow");
   private page = 1;
   private count = 1;
   private anchor?: TextAnchor;
@@ -50,6 +64,8 @@ export class PreviewDocument {
   private originalStyles = new Map<HTMLElement, string>();
   private cleanups: (() => void)[] = [];
   private originalMarker: string | null;
+  private spacers: HTMLElement[] = [];
+  private fontsDetached = false;
   private key = (event: KeyboardEvent) => previewTurnKey(event, direction => this.turn(direction));
   private click = (event: MouseEvent) => {
     if ((event.target as Element | null)?.closest?.("a")) { event.preventDefault(); return; }
@@ -87,20 +103,74 @@ export class PreviewDocument {
     this.cleanups.push(() => document.fonts.removeEventListener?.("loadingdone", refresh));
     void document.fonts.ready?.then(refresh);
   }
-  setDevice(model: KindleModel, preset: KindleMarginPreset) {
+  setDevice(model: KindleModel, preset: KindleMarginPreset) { this.setGeometry(kindlePageGeometry(model, preset)); }
+  setGeometry(geometry: PageGeometry) {
     if (this.initialized && !this.layoutPending) this.anchor = this.capture() ?? this.anchor;
     this.layoutPending = true;
-    this.geometry = kindlePageGeometry(model, preset);
-    const { width, height, emPx, lineHeight, side, top, bottom, column, gap, contentHeight } = this.geometry;
+    const { width, height, emPx, lineHeight, side, fontFamily } = geometry;
+    let { top, bottom } = geometry, left = side, right = side, insetTop = 0, insetBottom = 0;
+    if (geometry.bookInsets) {
+      const inset = this.bookInsets(emPx);
+      // Side insets repeat on every page; top and bottom ones open and close the chapter's flow.
+      left = Math.max(0, side + inset.left); right = Math.max(0, side + inset.right); insetTop = inset.top; insetBottom = inset.bottom;
+    }
+    const fallback = geometry.fallbackSources ?? 'url("data:,")';
+    if (geometry.embeddedFontsOnly) this.detachSystemFonts(fallback);
+    const column = Math.max(1, width - left - right), gap = left + right, contentHeight = height - top - bottom;
+    this.geometry = { ...geometry, column, gap, contentHeight };
+    this.setSpacers(insetTop, insetBottom);
     const root = { width: `${width}px`, "min-width": "0", "max-width": "none", height: `${height}px`, "min-height": "0", "max-height": "none", margin: "0", padding: "0", border: "0", "box-sizing": "content-box", overflow: "hidden", position: "relative", "scroll-behavior": "auto", "scroll-snap-type": "none", "overflow-anchor": "none", "scrollbar-width": "none", direction: "ltr", "writing-mode": "horizontal-tb" };
-    const body = { display: "block", position: "static", float: "none", width: `${column}px`, "min-width": "0", "max-width": "none", height: `${contentHeight}px`, "min-height": "0", "max-height": "none", margin: `${top}px ${side}px ${bottom}px`, padding: "0", border: "0", "box-sizing": "content-box", overflow: "visible", "column-width": `${column}px`, "column-gap": `${gap}px`, "column-count": "auto", "column-fill": "auto", direction: "ltr", "writing-mode": "horizontal-tb" };
+    const body = { display: "block", position: "static", float: "none", width: `${column}px`, "min-width": "0", "max-width": "none", height: `${contentHeight}px`, "min-height": "0", "max-height": "none", margin: left === right ? `${top}px ${left}px ${bottom}px` : `${top}px ${right}px ${bottom}px ${left}px`, padding: "0", border: "0", "box-sizing": "content-box", overflow: "visible", "column-width": `${column}px`, "column-gap": `${gap}px`, "column-count": "auto", "column-fill": "auto", direction: "ltr", "writing-mode": "horizontal-tb" };
     const declarations = (values: Record<string, string>) => Object.entries(values).map(([key, value]) => `${key}: ${value} !important;`).join(" ");
     this.base.textContent = `html { font-size: ${emPx}px; ${declarations(root)} } body { ${declarations(body)} overflow-wrap: anywhere; }
-      body { line-height: ${lineHeight}; }
+      body { line-height: ${lineHeight};${fontFamily ? ` font-family: ${fontFamily};` : ""} }${geometry.embeddedFontsOnly ? `
+      ${SYSTEM_FAMILIES.map(family => `@font-face { font-family: "${family}"; src: ${fallback}; }`).join(" ")}` : ""}
       html[data-bindery-kindle]::after { content: "" !important; display: block !important; position: absolute !important; left: var(--bindery-page-end, 0px) !important; top: 0 !important; width: 1px !important; height: 1px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; pointer-events: none !important; }
       ::-webkit-scrollbar { display: none !important; } img, svg { max-width: 100%; max-height: ${contentHeight}px; }`;
     this.force(this.document.documentElement, root);
     this.force(this.document.body, body);
+  }
+  /** The book's own html + body margin and padding, measured without the preview's forced geometry. */
+  private bookInsets(emPx: number) {
+    const doc = this.document, view = doc.defaultView, elements = [doc.documentElement, doc.body];
+    const inline = elements.map(element => element.style.cssText), base = this.base.textContent;
+    for (const element of elements) if (this.originalStyles.has(element)) element.style.cssText = this.originalStyles.get(element)!;
+    // Zero the UA body margin underneath the book's CSS: only author spacing counts.
+    this.base.textContent = `html { font-size: ${emPx}px; } body { margin: 0; }`;
+    const sides = ["top", "right", "bottom", "left"] as const, total = { top: 0, right: 0, bottom: 0, left: 0 };
+    for (const element of elements) {
+      const style = view?.getComputedStyle(element);
+      for (const side of sides) total[side] += (Number.parseFloat(style?.getPropertyValue(`margin-${side}`) ?? "") || 0) + (Number.parseFloat(style?.getPropertyValue(`padding-${side}`) ?? "") || 0);
+    }
+    elements.forEach((element, index) => { element.style.cssText = inline[index]; });
+    this.base.textContent = base;
+    return total;
+  }
+  private setSpacers(top: number, bottom: number) {
+    for (const spacer of this.spacers) spacer.remove();
+    this.spacers = [];
+    for (const [height, first] of [[top, true], [bottom, false]] as const) {
+      if (height <= 0) continue;
+      const spacer = this.document.createElement("div");
+      spacer.setAttribute("data-bindery-inset", ""); spacer.setAttribute("aria-hidden", "true");
+      spacer.setAttribute("style", `display: block !important; height: ${height}px !important; margin: 0 !important; padding: 0 !important; border: 0 !important;`);
+      this.document.body.insertBefore(spacer, first ? this.document.body.firstChild : null);
+      this.spacers.push(spacer);
+    }
+  }
+  /** Drops `local()` sources from the book's @font-face rules; a rule left with none uses the reader's fallback. */
+  private detachSystemFonts(fallback: string) {
+    if (this.fontsDetached) return;
+    this.fontsDetached = true;
+    const visit = (rules: CSSRuleList) => {
+      for (const rule of Array.from(rules)) {
+        if (/^@font-face\b/i.test(rule.cssText)) {
+          const style = (rule as CSSFontFaceRule).style, sources = cssList(style.getPropertyValue("src")).filter(source => !/^local\(/i.test(source));
+          style.setProperty("src", sources.length ? sources.join(", ") : fallback);
+        } else if ("cssRules" in rule) visit((rule as CSSGroupingRule).cssRules);
+      }
+    };
+    for (const sheet of Array.from(this.document.styleSheets)) { try { visit(sheet.cssRules); } catch { /* Cross-origin sheets are not book CSS. */ } }
   }
   private force(element: HTMLElement, values: Record<string, string>) {
     // Preserve the whole inline declaration block: shorthands can replace mixed-priority longhands.
@@ -189,7 +259,7 @@ export class PreviewDocument {
   }
   destroy() {
     this.disposed = true; this.fonts.clear(); this.cleanups.forEach(cleanup => cleanup());
-    this.style.remove(); this.base.remove(); this.document.removeEventListener("click", this.click); this.document.removeEventListener("keydown", this.key);
+    this.style.remove(); this.base.remove(); for (const spacer of this.spacers) spacer.remove(); this.document.removeEventListener("click", this.click); this.document.removeEventListener("keydown", this.key);
     for (const [element, css] of this.originalStyles) element.style.cssText = css;
     if (this.originalMarker === null) this.document.documentElement.removeAttribute("data-bindery-kindle");
     else this.document.documentElement.setAttribute("data-bindery-kindle", this.originalMarker);

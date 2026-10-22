@@ -10,6 +10,7 @@ import { readerFixture } from "./fixtures/reader/support";
 import { fakeKindle } from "./support/fake-fs";
 import { convertMarginX, kindlePageGeometry, kindlePreviewMetrics, minimumMarginX } from "../src/client/kindle/margins";
 import { previewDocumentFixture } from "./support/kindle-preview-dom";
+import { KOBO_LIBRA2_PAGE } from "../src/features/devices/kobo-page";
 import { fire } from "./support/client-dom";
 
 const cleanups: (() => void)[] = [];
@@ -251,4 +252,31 @@ it("handles empty/missing EPUBs and exposes a recoverable error for malformed ch
   writeFileSync(path, "broken archive"); expect(previewData(fixture.library, fixture.id).error).not.toBe("");
   rmSync(path); expect(previewData(fixture.library, "")).toEqual({ books: [], bookId: "", sections: [], error: "" });
   expect(() => previewChapters(fixture.library, "../invalid")).toThrow("书籍不存在");
+});
+
+it("keeps the book's own html/body spacing on a Kobo page and redirects system fonts to the reader fallback", () => {
+  const target = previewDocumentFixture(), { document, body, head } = target;
+  const p = document.createElement("p"); body.appendChild(p);
+  // The synthetic DOM has no cascade: the book's `html, body { padding: 0.5em }` at 53.5px arrives as computed values.
+  const computed = (element: Element) => ({ getPropertyValue: (name: string) => name.startsWith("padding-") && (element === document.documentElement || element === body) ? "26.75px" : "0px" });
+  const sources = new Map([["embedded", 'local("SongTi"), url("../Fonts/a.ttf")'], ["system", 'local("宋体"), local("SongTi")']]);
+  const rule = (name: string) => ({ cssText: `@font-face { font-family: ${name}; }`, style: { getPropertyValue: () => sources.get(name)!, setProperty: (_property: string, value: string) => { sources.set(name, value); } } });
+  Object.defineProperties(document, {
+    defaultView: { value: { getComputedStyle: computed } },
+    styleSheets: { value: [{ cssRules: [rule("embedded"), { cssText: "@media screen { }", cssRules: [rule("system")] }] }] },
+  });
+  const preview = new PreviewDocument(document); preview.setGeometry(KOBO_LIBRA2_PAGE);
+  const base = head.firstChild!;
+  // 40px device margin + 26.75px html + 26.75px body on each side, every page.
+  expect(body.style.getPropertyValue("margin")).toBe("96px 93.5px 160px");
+  expect(body.style.getPropertyValue("width")).toBe(`${1264 - 187}px`); expect(body.style.getPropertyValue("column-gap")).toBe("187px");
+  // Top and bottom insets open and close the flow instead of repeating on each page.
+  const spacers = Array.from(body.childNodes).filter(node => (node as Element).hasAttribute?.("data-bindery-inset")) as Element[];
+  expect(spacers.map(spacer => /height: ([\d.]+px)/.exec(spacer.getAttribute("style")!)?.[1])).toEqual(["53.5px", "53.5px"]);
+  expect(body.firstChild).toBe(spacers[0]); expect(body.lastChild).toBe(spacers[1]);
+  expect(sources.get("embedded")).toBe('url("../Fonts/a.ttf")');
+  expect(sources.get("system")).toBe(KOBO_LIBRA2_PAGE.fallbackSources);
+  expect(base.textContent).toContain(`@font-face { font-family: "宋体"; src: ${KOBO_LIBRA2_PAGE.fallbackSources}; }`);
+  expect(base.textContent).toContain("font-family: sans-serif;");
+  preview.destroy(); expect(Array.from(body.childNodes)).toEqual([p]);
 });
