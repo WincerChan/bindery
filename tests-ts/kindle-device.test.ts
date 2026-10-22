@@ -122,6 +122,35 @@ describe("inventory, fonts and safe device operations", () => {
     fs.beforeOperation = undefined; fs.plug(); await recoverDevice(fs.root); await expect(fs.text("documents/book.kfx")).rejects.toMatchObject({ name: "NotFoundError" });
     expect((await readManifest(fs.root)).books).toEqual([]);
   });
+  it("deletes a book last, without reading or backing it up, and without scanning the device", async () => {
+    const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle");
+    const record = { book_id: "a".repeat(32), filename: "book.kfx", content_id: "ABC", cde_content_type: "EBOK" as const, profile_id: "default", profile_name: "默认", transferred_at: new Date().toISOString(), size: 4, thumbnail: null };
+    await fs.write("documents/book.kfx", "BOOK"); await fs.write("documents/other/deep.kfx", "x"); await writeManifest(fs.root, { version: 1, books: [record] }); fs.operations = [];
+    await deleteBook(device, "book.kfx");
+    const ops = fs.operations, index = (operation: string, path: string) => ops.findIndex(o => o.operation === operation && o.path === path);
+    expect(ops.some(o => o.path === "/documents/book.kfx" && o.operation === "getFile")).toBe(false);
+    // Listing documents/ names its children; nothing descends into them or other folders.
+    expect(ops.some(o => o.operation !== "iterate" && (o.path.startsWith("/documents/other") || o.path.startsWith("/fonts")))).toBe(false);
+    expect(index("remove", "/documents/book.kfx")).toBeGreaterThan(index("close", "/.bindery/manifest.json"));
+    expect((await readManifest(fs.root)).books).toEqual([]); await expect(fs.text(".bindery/pending.json")).rejects.toMatchObject({ name: "NotFoundError" });
+  });
+  it("finishes an interrupted deletion forward and rolls back one that had not started", async () => {
+    const record = { book_id: "a".repeat(32), filename: "book.kfx", content_id: "ABC", cde_content_type: "EBOK" as const, profile_id: "default", profile_name: "默认", transferred_at: new Date().toISOString(), size: 4, thumbnail: null };
+    const setup = async () => { const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"); await fs.write("documents/book.kfx", "BOOK"); await writeManifest(fs.root, { version: 1, books: [record] }); return { fs, device }; };
+    // Unplugged right after the book was removed, before the journal recorded the commit.
+    const forward = await setup(); let removed = false;
+    forward.fs.beforeOperation = o => { if (removed) forward.fs.unplug(); if (o.operation === "remove" && o.path === "/documents/book.kfx") removed = true; };
+    await expect(deleteBook(forward.device, "book.kfx")).rejects.toMatchObject({ name: "NotFoundError" });
+    forward.fs.beforeOperation = undefined; forward.fs.plug(); await recoverDevice(forward.fs.root);
+    await expect(forward.fs.text("documents/book.kfx")).rejects.toMatchObject({ name: "NotFoundError" }); expect((await readManifest(forward.fs.root)).books).toEqual([]);
+    await expect(forward.fs.text(".bindery/pending.json")).rejects.toMatchObject({ name: "NotFoundError" });
+    // Unplugged before the book was touched: the manifest returns to its backup and the book stays.
+    const back = await setup();
+    back.fs.beforeOperation = o => { if (o.operation === "remove" && o.path === "/documents/book.kfx") back.fs.unplug(); };
+    await expect(deleteBook(back.device, "book.kfx")).rejects.toMatchObject({ name: "NotFoundError" });
+    back.fs.beforeOperation = undefined; back.fs.plug(); await recoverDevice(back.fs.root);
+    expect(await back.fs.text("documents/book.kfx")).toBe("BOOK"); expect((await readManifest(back.fs.root)).books).toEqual([record]);
+  });
   it("refuses a tampered recovery path before touching any protected file", async () => {
     const fs = await fakeKindle(); await fs.write(".bindery/pending.json", JSON.stringify({ version: 1, committed: false, backups: [{ path: ["system", "version.txt"], kind: null }] })); fs.operations = [];
     await expect(recoverDevice(fs.root)).rejects.toThrow("受保护");

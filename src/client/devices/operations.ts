@@ -1,6 +1,7 @@
 import { directoryEntries, documentPath, EntryAccessError, entryOperation, optionalEntry, protectedEntry, type KindleDirectory, type UnreadableEntry } from "./fs";
 import type { PairedDevice } from "./identity";
-import { inventory, isBook } from "./inventory";
+import { isBook } from "./inventory";
+import type { DeviceKind } from "./models";
 import { manifestBytes, readManifest } from "../kindle/manifest";
 import { applyDevicePatchesFor, validateDevicePath, withDeviceLock, type DevicePatch } from "./transaction";
 
@@ -33,13 +34,28 @@ async function removeTree(root: KindleDirectory, parent: KindleDirectory, name: 
   }
 }
 
+/** Finds one book and its .sdr sidecar by listing only the folders on its path, not the whole device. */
+async function locateBook(root: KindleDirectory, parts: string[], kind: DeviceKind) {
+  let dir = root;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const entry = await optionalEntry(root, dir, parts[i], parts.slice(0, i).join("/"), kind);
+    if (!entry || entry.kind !== "directory") return null;
+    dir = entry;
+  }
+  const entries = await directoryEntries(root, dir, parts.slice(0, -1).join("/"), kind);
+  const file = entries.find(entry => entry.kind === "file" && entry.name === parts.at(-1));
+  if (!file) return null;
+  const sidecarName = file.name.replace(/\.[^.]+$/, ".sdr").toLowerCase();
+  const sidecar = entries.find(entry => entry.kind === "directory" && entry.name.toLowerCase() === sidecarName);
+  return { sidecar: sidecar ? [...parts.slice(0, -1), sidecar.name] : null };
+}
 export async function deleteBook(device: PairedDevice, filename: string) {
   if (device.identity.kind === "kobo") return deleteKoboBook(device, filename);
   const path = documentPath(filename); if (!isBook(path.at(-1)!)) throw new Error("只能删除 documents 中的书籍文件");
   return withDeviceLock(device, async () => {
-    const book = (await inventory(device.root, "kindle")).books.find(b => b.filename === filename);
+    const book = await locateBook(device.root, ["documents", ...path], "kindle");
     if (!book) throw new Error("设备书籍不存在");
-    const manifest = await readManifest(device.root), record = book.record;
+    const manifest = await readManifest(device.root), record = manifest.books.find(b => b.filename.toLowerCase() === filename.toLowerCase()) ?? null;
     manifest.books = manifest.books.filter(b => b.filename.toLowerCase() !== filename.toLowerCase());
     const patches: DevicePatch[] = [{ path: ["documents", ...path], data: null }];
     patches.push({ path: [".bindery", "manifest.json"], data: manifestBytes(manifest) });
@@ -59,7 +75,7 @@ export async function deleteBook(device: PairedDevice, filename: string) {
         await removeTree(device.root, parent, parts.at(-1)!, parts.slice(0, -1).join("/"), report.notRemoved);
       } catch (error) { if (!(error instanceof EntryAccessError)) throw error; report.notRemoved.push(error.issue); }
     };
-    if (book.sidecar) await cleanup(["documents", ...documentPath(book.sidecar)]);
+    if (book.sidecar) await cleanup(book.sidecar);
     if (record?.thumbnail && !manifest.books.some(b => b.thumbnail === record.thumbnail)) await cleanup(["system", "thumbnails", record.thumbnail]);
     return report;
   });
@@ -70,8 +86,7 @@ async function deleteKoboBook(device: PairedDevice, filename: string): Promise<D
   validateDevicePath(parts, "kobo");
   if (parts[0] !== "Bindery" || !/\.kepub\.epub$/i.test(parts.at(-1)!)) throw new Error("只能删除 Bindery 中的 KEPUB 文件");
   return withDeviceLock(device, async () => {
-    const book = (await inventory(device.root, "kobo")).books.find(b => b.filename === filename);
-    if (!book) throw new Error("设备书籍不存在");
+    if (!await locateBook(device.root, parts, "kobo")) throw new Error("设备书籍不存在");
     await applyDevicePatchesFor(device.root, "kobo", [{ path: parts, data: null }]);
     return { filename, removed: true, notRemoved: [] };
   });

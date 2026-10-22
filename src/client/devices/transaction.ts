@@ -20,7 +20,11 @@ export async function withDeviceLock<T>(device: PairedDevice, action: () => Prom
 }
 export interface DevicePatch { path: string[]; data: Uint8Array<ArrayBuffer> | string | Blob | null }
 interface Backup { path: string[]; kind: "file" | "directory" | null }
-interface Journal { version: 1; committed: boolean; backups: Backup[] }
+/**
+ * `deletes` lists existing files removed without a backup, after every write. If recovery finds any of
+ * them gone, all writes had already finished, so it completes the deletions instead of rolling back.
+ */
+interface Journal { version: 1; committed: boolean; backups: Backup[]; deletes?: string[][] }
 
 const kindleLabel = (kind: DeviceKind) => kind === "kindle" ? "Kindle" : "Kobo";
 export function validateDevicePath(path: unknown, kind: DeviceKind = "kindle"): asserts path is string[] {
@@ -45,6 +49,23 @@ async function parent(root: DeviceDirectory, path: string[], create = false, kin
     dir = await entryOperation(root, full, () => current.getDirectoryHandle(name, { create }), kind);
   }
   return { dir, name: path.at(-1)! };
+}
+/** Enumerates each level, so an unreadable entry is never mistaken for a missing one. */
+async function existingEntry(root: DeviceDirectory, path: string[], kind: DeviceKind) {
+  let dir = root;
+  for (let i = 0; i < path.length; i++) {
+    const entry = await optionalEntry(root, dir, path[i], path.slice(0, i).join("/"), kind);
+    if (!entry || i === path.length - 1) return entry;
+    if (entry.kind !== "directory") return null;
+    dir = entry;
+  }
+  return null;
+}
+async function completeDeletes(root: DeviceDirectory, deletes: string[][], kind: DeviceKind) {
+  for (const path of deletes) {
+    const target = await existingEntry(root, path, kind);
+    if (target?.kind === "file") { const { dir } = await parent(root, path, false, kind); await remove(root, dir, path.at(-1)!, path.slice(0, -1).join("/"), false, kind); }
+  }
 }
 async function remove(root: DeviceDirectory, dir: DeviceDirectory, name: string, prefix: string, recursive = false, kind: DeviceKind = "kindle") {
   if (await optionalEntry(root, dir, name, prefix, kind)) await entryOperation(root, `${prefix}/${name}`, () => dir.removeEntry(name, { recursive }), kind);
@@ -81,7 +102,17 @@ export async function recoverDevice(root: DeviceDirectory, kind: DeviceKind = "k
   if (journal === undefined) return;
   if (!journal || journal.version !== 1 || typeof journal.committed !== "boolean" || !Array.isArray(journal.backups)) throw new Error("设备恢复日志损坏");
   for (const b of journal.backups) { validateDevicePath(b.path, kind); if (![null, "file", "directory"].includes(b.kind)) throw new Error("设备恢复日志损坏"); }
-  if (!journal.committed) {
+  const deletes = journal.deletes ?? [];
+  if (!Array.isArray(deletes)) throw new Error("设备恢复日志损坏");
+  for (const path of deletes) validateDevicePath(path, kind);
+  let deleting = false;
+  if (!journal.committed) for (const path of deletes) if (!await existingEntry(root, path, kind)) { deleting = true; break; }
+  if (deleting) {
+    // Unbacked deletions had started, so every write was done: finish the transaction forward.
+    await completeDeletes(root, deletes, kind);
+    journal.committed = true;
+    await entryOperation(root, ".bindery/pending.json", () => writeBytes(internal, "pending.json", JSON.stringify(journal)), kind);
+  } else if (!journal.committed) {
     const backup = await entryOperation(root, ".bindery/rollback", () => internal.getDirectoryHandle("rollback"), kind);
     // Read and validate every backup before touching destinations. A listed backup may be unreadable.
     const snapshots: (Snapshot | null)[] = [];
@@ -105,7 +136,10 @@ export async function recoverDevice(root: DeviceDirectory, kind: DeviceKind = "k
   await remove(root, internal, "rollback", ".bindery", true, kind);
   await remove(root, internal, "pending.json", ".bindery", false, kind);
 }
-/** Caller holds withDeviceLock. Backups + journal precede any target change; manifest is last. */
+/**
+ * Caller holds withDeviceLock. Backups + journal precede any target change; writes run in order and
+ * existing files to delete go last without a backup, since removing a file needs no copy to undo.
+ */
 export async function applyDevicePatchesFor(root: DeviceDirectory, kind: DeviceKind, patches: DevicePatch[], signal?: AbortSignal, progress?: (patch: DevicePatch, progress: WriteProgress) => void) {
   const check = () => { if (signal?.aborted) throw new DOMException("操作已取消", "AbortError"); };
   check();
@@ -114,20 +148,28 @@ export async function applyDevicePatchesFor(root: DeviceDirectory, kind: DeviceK
   const internal = await entryOperation(root, ".bindery", () => root.getDirectoryHandle(".bindery", { create: true }), kind);
   await remove(root, internal, "rollback", ".bindery", true, kind);
   const backup = await entryOperation(root, ".bindery/rollback", () => internal.getDirectoryHandle("rollback", { create: true }), kind), journal: Journal = { version: 1, committed: false, backups: [] };
-  for (let i = 0; i < patches.length; i++) {
-    check(); const patch = patches[i], target = await parent(root, patch.path, true, kind), current = await optionalEntry(root, target.dir, target.name, patch.path.slice(0, -1).join("/"), kind);
+  const deletes = new Set<DevicePatch>();
+  for (const patch of patches) {
+    check(); const target = await parent(root, patch.path, true, kind), current = await optionalEntry(root, target.dir, target.name, patch.path.slice(0, -1).join("/"), kind);
     if (current?.kind === "directory" && patch.data !== null) throw new Error("目标文件名已被文件夹占用");
-    if (current) await copy(root, current, patch.path.join("/"), backup, String(i), `.bindery/rollback/${i}`, kind);
+    if (patch.data === null && current?.kind === "file") { deletes.add(patch); continue; }
+    const index = journal.backups.length;
+    if (current) await copy(root, current, patch.path.join("/"), backup, String(index), `.bindery/rollback/${index}`, kind);
     journal.backups.push({ path: patch.path, kind: current?.kind ?? null });
   }
+  if (deletes.size) journal.deletes = [...deletes].map(patch => patch.path);
   await entryOperation(root, ".bindery/pending.json", () => writeBytes(internal, "pending.json", JSON.stringify(journal)), kind);
   try {
     for (const patch of patches) {
+      if (deletes.has(patch)) continue;
       check(); const target = await parent(root, patch.path, true, kind);
       if (patch.data === null) await remove(root, target.dir, target.name, patch.path.slice(0, -1).join("/"), true, kind);
       else await entryOperation(root, patch.path.join("/"), () => writeBytes(target.dir, target.name, patch.data!, { signal, progress: value => progress?.(patch, value) }), kind);
     }
-    check(); journal.committed = true;
+    // Once a deletion starts the transaction only moves forward, so cancellation is checked before it.
+    check();
+    for (const patch of deletes) { const target = await parent(root, patch.path, false, kind); await remove(root, target.dir, target.name, patch.path.slice(0, -1).join("/"), false, kind); }
+    journal.committed = true;
     await entryOperation(root, ".bindery/pending.json", () => writeBytes(internal, "pending.json", JSON.stringify(journal)), kind);
   } catch (error) {
     try { await recoverDevice(root, kind); } catch { /* Unplug: persistent journal is recovered on next operation. */ }

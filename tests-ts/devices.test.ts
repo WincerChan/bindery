@@ -109,9 +109,13 @@ describe("Kobo write policy, books, transfer, deletion and fonts", () => {
   });
   it("deletes only managed Bindery KEPUBs", async () => {
     const fs = await fakeKobo(), device = await pairDetectedDevice(fs.root, await detectDevice(fs.root), "libra2", "Libra");
-    await fs.write("Bindery/A.kepub.epub", "managed"); await fs.write("Other/B.epub", "external");
+    await fs.write("Bindery/A.kepub.epub", "managed"); await fs.write("Other/B.epub", "external"); fs.operations = [];
     await deleteBook(device, "Bindery/A.kepub.epub");
     await expect(fs.bytes("Bindery/A.kepub.epub")).rejects.toMatchObject({ name: "NotFoundError" });
+    // A deletion neither copies the book into the rollback nor walks the rest of the device.
+    expect(fs.operations.filter(o => o.operation === "getFile" && o.path.endsWith(".epub"))).toEqual([]);
+    expect(fs.operations.filter(o => o.operation !== "iterate" && o.path.startsWith("/Other"))).toEqual([]);
+    await expect(deleteBook(device, "Bindery/A.kepub.epub")).rejects.toThrow("设备书籍不存在");
     await expect(deleteBook(device, "Other/B.epub")).rejects.toThrow("受保护");
     expect(await fs.text("Other/B.epub")).toBe("external");
   });
