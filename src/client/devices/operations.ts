@@ -3,6 +3,7 @@ import type { PairedDevice } from "./identity";
 import { isBook } from "./inventory";
 import type { DeviceKind } from "./models";
 import { manifestBytes, readManifest } from "../kindle/manifest";
+import { koboManifestBytes, readKoboManifest, withoutKoboManifestBook } from "./kobo/manifest";
 import { applyDevicePatchesFor, validateDevicePath, withDeviceLock, type DevicePatch } from "./transaction";
 
 export interface DeleteBookReport { filename: string; removed: true; notRemoved: UnreadableEntry[] }
@@ -87,7 +88,10 @@ async function deleteKoboBook(device: PairedDevice, filename: string): Promise<D
   if (parts[0] !== "Bindery" || !/\.kepub\.epub$/i.test(parts.at(-1)!)) throw new Error("只能删除 Bindery 中的 KEPUB 文件");
   return withDeviceLock(device, async () => {
     if (!await locateBook(device.root, parts, "kobo")) throw new Error("设备书籍不存在");
-    await applyDevicePatchesFor(device.root, "kobo", [{ path: parts, data: null }]);
+    const manifest = await readKoboManifest(device.root), next = withoutKoboManifestBook(manifest, filename);
+    const patches: DevicePatch[] = [{ path: parts, data: null }];
+    if (next.books.length !== manifest.books.length) patches.push({ path: [".bindery", "manifest.json"], data: koboManifestBytes(next) });
+    await applyDevicePatchesFor(device.root, "kobo", patches);
     return { filename, removed: true, notRemoved: [] };
   });
 }

@@ -29,7 +29,7 @@ describe("PWA cache privacy boundary", () => {
   it.each(["/book/a/epub/OEBPS/a.html", "/book/a/cover", "/book/a/download", "/_serverFn/data/123", "/api/books"])("does not substitute HTML for navigated private resources %s", path => {
     expect(requestStrategy(navigate(path), scope, precache)).toBe("network-only");
   });
-  it.each(["/assets/app-Ab12cd34.js", "/assets/app-Ab12cd34.css", "/assets/kindle-worker-Ab12cd34.js", "/assets/boko_bg-Ab12cd34.wasm", "/assets/boko.wasm", "/assets/workers/boko.wasm", "/icons/icon-192.png", "/offline.html", "/manifest.json", "/logo.svg"])("uses cache-first for public static asset %s", path => {
+  it.each(["/assets/app-Ab12cd34.js", "/assets/app-Ab12cd34.css", "/assets/kindle-worker-Ab12cd34.js", "/assets/boko_bg-Ab12cd34.wasm", "/assets/sql-wasm-browser-Ab12cd34.wasm", "/assets/boko.wasm", "/assets/workers/boko.wasm", "/icons/icon-192.png", "/offline.html", "/manifest.json", "/logo.svg"])("uses cache-first for public static asset %s", path => {
     expect(requestStrategy(request(path), scope, precache)).toBe("cache-first");
   });
   it.each([

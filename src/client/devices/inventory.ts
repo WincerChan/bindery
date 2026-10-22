@@ -3,9 +3,12 @@ import { listFonts, type FontFamily } from "./fonts";
 import { assertDevice, type PairedDevice } from "./identity";
 import type { DeviceKind } from "./models";
 import { readManifest, type ManifestBook } from "../kindle/manifest";
+import { readKoboReading, type KoboContentRow, type KoboDatabaseLoader, type KoboFallbackBook } from "./kobo/reading";
+import type { KoboManifestBook } from "./kobo/manifest";
 import { withDeviceLock } from "./transaction";
 
 export interface DeviceBookRecord { book_id: string; profile_id: string; profile_name: string; transferred_at: string; thumbnail: string | null }
+export interface DeviceBookProgress { read_status: KoboContentRow["read_status"]; percent: number; last_read_at: string | null }
 export interface DeviceBook {
   /** Device-relative path, e.g. `documents/name.kfx` or `Bindery/name.kepub.epub`. */
   filename: string;
@@ -14,8 +17,11 @@ export interface DeviceBook {
   modifiedAt: number;
   sidecar: string | null;
   source: "Bindery" | "其他";
-  record: ManifestBook | null;
+  book_id: string | null;
+  record: ManifestBook | KoboManifestBook | null;
+  progress: DeviceBookProgress | null;
 }
+export interface DeviceInventoryOptions { koboBooks?: readonly KoboFallbackBook[]; loadKoboDatabase?: KoboDatabaseLoader }
 export interface DeviceInventory { books: DeviceBook[]; fonts: FontFamily[]; unreadable: UnreadableEntry[]; unreadableCount: number; usage: { books: number; fonts: number; other: number; total: number; capacity: null; free: null } }
 export const isBook = (name: string) => /\.(kfx|azw|azw3|txt)$/i.test(name) && !name.startsWith("._");
 export const isKoboBook = (name: string) => /\.(?:epub|kepub\.epub)$/i.test(name) && !name.startsWith("._");
@@ -51,7 +57,7 @@ async function kindleInventory(root: DeviceDirectory, unreadable: UnreadableEntr
       if (!file) continue;
       if (isBook(entry.name)) {
         const record = records.get(filename.toLowerCase()) ?? null; bookBytes += file.size;
-        books.push({ filename, format: entry.name.split(".").at(-1)!.toLowerCase(), size: file.size, modifiedAt: file.lastModified, sidecar: sidecars.get(entry.name.replace(/\.[^.]+$/, ".sdr").toLowerCase()) ?? null, source: record ? "Bindery" : "其他", record });
+        books.push({ filename, format: entry.name.split(".").at(-1)!.toLowerCase(), size: file.size, modifiedAt: file.lastModified, sidecar: sidecars.get(entry.name.replace(/\.[^.]+$/, ".sdr").toLowerCase()) ?? null, source: record ? "Bindery" : "其他", book_id: record?.book_id ?? null, record, progress: null });
       } else other += file.size;
     }
   };
@@ -74,9 +80,14 @@ async function kindleInventory(root: DeviceDirectory, unreadable: UnreadableEntr
 
 const skipKoboDirectory = (name: string) => protectedEntry(name) || [".kobo", ".bindery", "fonts", "system"].includes(name.toLowerCase());
 /** Kobo inventory: every EPUB/KEPUB outside the system folders; Bindery/ marks managed files. */
-async function koboInventory(root: DeviceDirectory, unreadable: UnreadableEntry[] = []): Promise<DeviceInventory> {
+async function koboInventory(root: DeviceDirectory, unreadable: UnreadableEntry[] = [], options: DeviceInventoryOptions = {}): Promise<DeviceInventory> {
   await assertReachable(root, "kobo");
   const reader = new EntryReader(root, unreadable, "kobo"), books: DeviceBook[] = [];
+  let reading: Awaited<ReturnType<typeof readKoboReading>> | null = null;
+  try { reading = await readKoboReading(root, options.koboBooks ?? [], options.loadKoboDatabase); }
+  catch { /* A missing or damaged reading database must not hide the device's books. */ }
+  const records = new Map((reading?.manifest.books ?? []).map(book => [book.filename.toLowerCase(), book]));
+  const bookIds = reading?.bookIds ?? new Map<string, string>(), progress = new Map((reading?.rows ?? []).map(row => [row.filename.toLowerCase(), row]));
   let bookBytes = 0, other = 0;
   const visit = async (dir: DeviceDirectory, prefix: string) => {
     const path = prefix.replace(/\/$/, "");
@@ -87,7 +98,10 @@ async function koboInventory(root: DeviceDirectory, unreadable: UnreadableEntry[
       const file = await reader.read(filename, () => entry.getFile()); if (!file) continue;
       if (isKoboBook(entry.name)) {
         bookBytes += file.size;
-        books.push({ filename, format: formatOf(entry.name), size: file.size, modifiedAt: file.lastModified, sidecar: null, source: isBindery(filename) ? "Bindery" : "其他", record: null });
+        const key = filename.toLowerCase(), record = records.get(key) ?? null, book_id = bookIds.get(key) ?? record?.book_id ?? null;
+        const fallback = !record && book_id ? { book_id, filename, transferred_at: new Date(file.lastModified).toISOString() } satisfies KoboManifestBook : null;
+        const row = progress.get(key), deviceProgress = row ? { read_status: row.read_status, percent: row.percent, last_read_at: row.last_read_at } : null;
+        books.push({ filename, format: formatOf(entry.name), size: file.size, modifiedAt: file.lastModified, sidecar: null, source: isBindery(filename) ? "Bindery" : "其他", book_id, record: record ?? fallback, progress: deviceProgress });
       } else other += file.size;
     }
   };
@@ -95,12 +109,12 @@ async function koboInventory(root: DeviceDirectory, unreadable: UnreadableEntry[
   const fonts = await listFonts(root, new EntryReader(root, unreadable, "kobo"), "kobo"), fontBytes = fonts.reduce((sum, f) => sum + f.size, 0);
   return { books: books.sort((a, b) => a.filename.localeCompare(b.filename)), fonts, unreadable: reader.unreadable, unreadableCount: reader.unreadable.length, usage: { books: bookBytes, fonts: fontBytes, other, total: bookBytes + fontBytes + other, capacity: null, free: null } };
 }
-export async function inventory(root: DeviceDirectory, kind: DeviceKind = "kindle", unreadable: UnreadableEntry[] = []): Promise<DeviceInventory> {
-  return kind === "kobo" ? koboInventory(root, unreadable) : kindleInventory(root, unreadable);
+export async function inventory(root: DeviceDirectory, kind: DeviceKind = "kindle", unreadable: UnreadableEntry[] = [], options: DeviceInventoryOptions = {}): Promise<DeviceInventory> {
+  return kind === "kobo" ? koboInventory(root, unreadable, options) : kindleInventory(root, unreadable);
 }
 /** Preferred UI entry: waits for active mutations and recovers interrupted transactions. */
-export const deviceInventory = (device: PairedDevice) => {
+export const deviceInventory = (device: PairedDevice, options: DeviceInventoryOptions = {}) => {
   const unreadable: UnreadableEntry[] = [];
-  return withDeviceLock(device, () => inventory(device.root, device.identity.kind, unreadable), { readOnly: true, onUnreadable: issue => unreadable.push(issue) });
+  return withDeviceLock(device, () => inventory(device.root, device.identity.kind, unreadable, options), { readOnly: true, onUnreadable: issue => unreadable.push(issue) });
 };
 export { assertDevice };

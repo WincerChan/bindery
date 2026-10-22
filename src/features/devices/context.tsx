@@ -2,6 +2,7 @@ import { createContext, createSignal, onSettled, useContext } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { DeviceManager, assertReachable, deviceInventory, errorMessage, getTransferQueue, type DeviceInventory, type DeviceState, type RememberedDevice, type TransferItem, type TransferQueue, type TransferRequestOptions } from "../../client/devices";
 import type { DeviceKind } from "../../client/devices/models";
+import { koboReadingSummary, type KoboReadingSync } from "./kobo-summary";
 
 // One inert manager per runtime. SSR never calls its browser / File System Access APIs.
 let shared: DeviceManager | null = null;
@@ -12,7 +13,7 @@ export const kindleManager = deviceManager;
 
 const neutral = (): DeviceState => ({ status: "unpaired", device: null, detected: null, checkedAt: null, now: 0, message: "" });
 
-function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue) {
+function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue, koboReadingSync?: KoboReadingSync) {
   const [ready, setReady] = createSignal(false), [supported, setSupported] = createSignal(false);
   const [state, setState] = createSignal<DeviceState>(neutral());
   const [inventory, setInventory] = createSignal<DeviceInventory | null>(null);
@@ -22,7 +23,8 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue)
   const [connections, setConnections] = createSignal<Record<string, boolean>>({});
   const [items, setItems] = createSignal<readonly TransferItem[]>([]);
   const [error, setError] = createSignal(""), [busy, setBusy] = createSignal(false);
-  let alive = true, revision = 0, observed = neutral();
+  const [syncSummary, setSyncSummary] = createSignal(""), [syncError, setSyncError] = createSignal("");
+  let alive = true, revision = 0, observed = neutral(), syncKey = "", syncRunning = false, syncQueued = false;
   const kind = (): DeviceKind => state().device?.identity.kind ?? state().detected?.kind ?? "kindle";
   /**
    * Pick the device to restore without ever prompting for permission.
@@ -65,9 +67,31 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue)
     catch (e) { if (alive && !(e instanceof Error && e.name === "AbortError")) setError(errorMessage(e, kind())); }
     finally { if (alive) setBusy(false); }
   }
+  /** Once per Kobo connection; a reconnect or an explicit refresh starts another pass. */
+  async function runKoboReadingSync(next: DeviceState, force = false) {
+    const device = next.status === "granted" ? next.device : null;
+    if (!device || device.identity.kind !== "kobo") {
+      syncKey = ""; syncQueued = false;
+      if (!force) { setSyncSummary(""); setSyncError(""); }
+      return;
+    }
+    if (!koboReadingSync || !force && syncKey === device.identity.id) return;
+    if (syncRunning) { if (force) syncQueued = true; return; }
+    const key = device.identity.id;
+    syncKey = key; syncRunning = true; syncQueued = false;
+    setSyncError(""); setSyncSummary("正在同步阅读进度…");
+    const current = () => alive && manager.snapshot().status === "granted" && manager.snapshot().device?.identity.id === key;
+    try { const result = await koboReadingSync(device); if (current()) setSyncSummary(koboReadingSummary(result)); }
+    catch (e) { if (current()) { setSyncSummary(""); setSyncError(`阅读进度同步失败：${errorMessage(e, "kobo")}`); } }
+    finally {
+      syncRunning = false;
+      if (syncQueued && alive) { syncQueued = false; void runKoboReadingSync(manager.snapshot(), true); }
+    }
+  }
   function receive(next: DeviceState) {
     const previous = observed; observed = next; setState(next);
     if (previous.status !== next.status || previous.device?.identity.id !== next.device?.identity.id || previous.device?.root !== next.device?.root) { setInventory(null); void refreshInventory(); }
+    void runKoboReadingSync(next);
   }
   function start() {
     setSupported(typeof (globalThis as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === "function");
@@ -89,7 +113,7 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue)
   }
   return {
     manager, ready, supported, state, inventory, inventoryBusy, inventoryError, remembered, permissions, connections, items, error, busy, kind,
-    start, run, refreshInventory, loadRemembered,
+    syncSummary, syncError, start, run, refreshInventory, loadRemembered,
     pick: () => run(async () => { await manager.pick(); await loadRemembered(); }),
     authorize: (saved?: RememberedDevice) => run(async () => {
       // Keep the permission request before any await: Chrome requires user activation.
@@ -97,7 +121,7 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue)
       else await manager.requestPermission();
       await loadRemembered();
     }),
-    refresh: () => run(async () => { await manager.probe(); await refreshInventory(); await loadRemembered(); }),
+    refresh: () => run(async () => { await manager.probe(); await runKoboReadingSync(manager.snapshot(), true); await refreshInventory(); await loadRemembered(); }),
     forget: (id: string) => run(async () => { await manager.forget(id); await loadRemembered(); }),
     switchDevice: (id: string) => run(async () => {
       const saved = (await manager.remembered()).find(device => device.id === id);
@@ -121,8 +145,8 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue)
 export type DeviceContextValue = ReturnType<typeof createDeviceContext>;
 const DeviceContext = createContext<DeviceContextValue | null>(null);
 /** Shared across device tabs; navigating never cancels the SPA queue. */
-export function DeviceProvider(props: { children: JSX.Element; manager?: DeviceManager; queue?: TransferQueue }) {
-  const value = createDeviceContext(props.manager ?? deviceManager(), () => props.queue ?? getTransferQueue());
+export function DeviceProvider(props: { children: JSX.Element; manager?: DeviceManager; queue?: TransferQueue; koboReadingSync?: KoboReadingSync }) {
+  const value = createDeviceContext(props.manager ?? deviceManager(), () => props.queue ?? getTransferQueue(), props.koboReadingSync);
   onSettled(() => value.start());
   return <DeviceContext value={value}>{props.children}</DeviceContext>;
 }

@@ -20,7 +20,7 @@ export function DeviceConnectPage() {
       <div class="kindle-connect-heading">
         <h1>连接你的设备</h1>
         <Show when={detection()} fallback={<p class="muted">用 USB 线连上电脑后，在浏览器里选中设备根目录。Bindery 会根据根目录结构自动识别 Kindle 或 Kobo；设备身份保存在 .bindery/。</p>}>
-          <Show when={detectedKind() === "kindle"} fallback={<p class="muted">Kobo 的书写入 Bindery/，字体写入 fonts/，设备身份保存在 .bindery/。不会读写 KoboReader.sqlite。</p>}>
+          <Show when={detectedKind() === "kindle"} fallback={<p class="muted">Kobo 的书写入 Bindery/，字体写入 fonts/，设备身份保存在 .bindery/。只读取阅读进度，不会修改 KoboReader.sqlite。</p>}>
             <p class="muted">Kindle 的书写入 documents/、封面写入 system/thumbnails/，字体写入 fonts/，设备身份保存在 .bindery/。</p>
           </Show>
         </Show>
@@ -60,7 +60,7 @@ export function DeviceConnectPage() {
         <For each={k.remembered()} fallback={<p class="muted">尚未记住设备。首次配对后会保存在此浏览器中。</p>}>{saved => <div class="kindle-remembered" data-remembered-device={saved.id}>
           <KindleIcon name="device" />
           <div class="kindle-remembered-info"><strong>{saved.identity.name}</strong><p class="kindle-small kindle-mono">{modelLabel(saved.identity.kind, saved.identity.model)}</p><p class="kindle-small">{k.state().device?.identity.id === saved.id ? ({ granted: "已连接", disconnected: "已断开", prompt: "需要授权", denied: "已拒绝", unpaired: "待配对" })[k.state().status] : ({ granted: "已记住 · 权限已授予", prompt: "需要授权", denied: "已拒绝" })[k.permissions()[saved.id] || "prompt"]}</p></div>
-          <div class="kindle-actions"><Button variant="secondary" size="sm" disabled={k.busy() || !k.supported()} onClick={() => k.authorize(saved)}>{k.state().device?.identity.id === saved.id && k.state().status === "granted" ? "重新检测" : "授权 / 选择"}</Button><Button variant="quiet" size="sm" disabled={k.busy()} onClick={() => k.forget(saved.id)}>忘记</Button></div>
+          <div class="kindle-actions"><Button variant="secondary" size="sm" disabled={k.busy() || !k.supported()} onClick={() => { if (k.state().device?.identity.id === saved.id && k.state().status === "granted") void k.refresh(); else void k.authorize(saved); }}>{k.state().device?.identity.id === saved.id && k.state().status === "granted" ? "重新检测" : "授权 / 选择"}</Button><Button variant="quiet" size="sm" disabled={k.busy()} onClick={() => k.forget(saved.id)}>忘记</Button></div>
         </div>}</For>
       </Show>
       <Show when={detectedKind() === "kindle"} fallback={<p class="kindle-small">已记住的设备只保存在此浏览器中；Kobo 的书目与字体直接读取设备上的文件。忘记设备不会删除设备上的书籍或身份。</p>}>

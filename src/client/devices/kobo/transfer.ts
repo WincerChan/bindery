@@ -5,6 +5,7 @@ import { PROGRESS_INTERVAL_MS, TransferProgressReporter } from "../progress";
 import type { TransferOptions, TransferResult, TransferService } from "../queue";
 import { applyDevicePatchesFor, withDeviceLock } from "../transaction";
 import { getKepubConverter, type KepubConverter } from "./kepub-client";
+import { koboManifestBytes, readKoboManifest, withKoboManifestBook } from "./manifest";
 
 export interface KoboTransferDependencies {
   converter: KepubConverter;
@@ -61,7 +62,9 @@ export class KoboTransferService implements TransferService {
     assertDeviceBookPath(path);
     return withDeviceLock(device, async () => {
       check(); progress.report({ state: "写入", phase: "write", message: "正在准备 Kobo 写入与恢复备份", loaded: 0, total: converted.data.byteLength });
-      await applyDevicePatchesFor(device.root, "kobo", [{ path: ["Bindery", filename], data: converted.data }], options.signal, (_patch, value) => {
+      const manifest = withKoboManifestBook(await readKoboManifest(device.root), { book_id: bookId, filename: `Bindery/${filename}`, transferred_at: new Date().toISOString() });
+      await applyDevicePatchesFor(device.root, "kobo", [{ path: ["Bindery", filename], data: converted.data }, { path: [".bindery", "manifest.json"], data: koboManifestBytes(manifest) }], options.signal, (patch, value) => {
+        if (patch.path[0] !== "Bindery") return;
         progress.report({ state: "写入", phase: value.committing ? "finalize" : "write", message: value.committing ? "正在完成写入" : "正在写入 Kobo", loaded: value.loaded, total: value.total }, value.committing || value.loaded === value.total);
       });
       progress.report({ state: "完成", phase: "finalize", message: "已传入 Kobo" });

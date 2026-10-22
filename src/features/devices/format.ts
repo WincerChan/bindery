@@ -14,6 +14,14 @@ export function agoLabel(then: number, now: number) {
   return new Date(then).toLocaleDateString("zh-CN");
 }
 export const dateLabel = (date: string | null) => date ? new Date(date).toLocaleString("zh-CN", { hour12: false }) : "—";
+/** `10-22 21:11`, local time, for the compact Kobo last-read label. */
+export function readingTimeLabel(date: string | null) {
+  if (!date) return "";
+  const value = new Date(date);
+  if (!Number.isFinite(value.getTime())) return "";
+  const pad = (number: number) => String(number).padStart(2, "0");
+  return `${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
 export const megabytes = (value: number) => (value / (1024 * 1024)).toLocaleString("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 export function byteProgressDetail(label: string, progress: { loaded?: number; total?: number; bytesPerSecond?: number; etaSeconds?: number }) {
   const amount = progress.total === undefined ? `${megabytes(progress.loaded ?? 0)} MB（总大小未知）` : `${megabytes(progress.loaded ?? 0)} / ${megabytes(progress.total)} MB`;

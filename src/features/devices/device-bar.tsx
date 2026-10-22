@@ -39,6 +39,8 @@ export function DeviceBar() {
       <Show when={k.ready() && !k.supported()}><p class="kindle-small">请在 Windows 的 Edge 或 Chrome 桌面版中通过 HTTPS 或 localhost 打开。</p></Show>
       <Show when={k.ready() && k.state().status === "denied"}><p class="kindle-small">点击授权重试，或在地址栏的站点设置中恢复文件访问权限，再重新选择设备目录。</p></Show>
       <Show when={k.ready() && k.state().message}><p class="kindle-small">{k.state().message}</p></Show>
+      <Show when={k.syncError()}><p class="field-error" role="alert" data-reading-sync>{k.syncError()}</p></Show>
+      <Show when={k.syncSummary()}><p class="kindle-small" role="status" data-reading-sync>{k.syncSummary()}</p></Show>
     </div>
     <Show when={k.ready() && k.state().status === "granted"}>
       <div class="kindle-usage" aria-busy={k.inventoryBusy() ? "true" : "false"}>

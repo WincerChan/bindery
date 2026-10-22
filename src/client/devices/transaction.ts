@@ -33,7 +33,7 @@ export function validateDevicePath(path: unknown, kind: DeviceKind = "kindle"): 
   if (kind === "kobo") {
     const managedBook = path.length >= 2 && dir === "Bindery" && path.slice(1).every(part => !part.startsWith("._")) && /\.kepub\.epub$/i.test(path.at(-1)!);
     const font = path.length === 2 && dir === "fonts" && /\.(ttf|otf)$/i.test(name) && !name.startsWith("._");
-    const identity = path.length === 2 && dir === ".bindery" && name === "device.json";
+    const identity = path.length === 2 && dir === ".bindery" && (name === "device.json" || name === "manifest.json");
     if (!managedBook && !font && !identity) throw new Error("拒绝访问 Kobo 受保护路径");
     return;
   }

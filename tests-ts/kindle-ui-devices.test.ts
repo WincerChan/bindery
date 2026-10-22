@@ -23,7 +23,8 @@ import { MemoryDevicePreference } from "../src/client/devices/preferences";
 import { clientDocument, elements, fire } from "./support/client-dom";
 
 type Page = "books" | "connect" | "transfer";
-interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; preselected?: string[] }
+interface SyncResult { synced: number; skipped: number; marked_read: number; unchanged: number; lagged: boolean; unmatched: number }
+interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; preselected?: string[]; syncKobo?: (device: PairedDevice) => Promise<SyncResult> }
 interface Mounted { context(): KindleContextValue; page(page: Page): void; books(books: KindleLibraryBook[]): void; flush(): void; dispose(): void }
 interface Probe {
   markup(page: Page, input: Input): string; mount(root: HTMLElement, page: Page, input: Input, hydrate: boolean): Mounted;
@@ -51,7 +52,7 @@ function view(page, input, books, capture) {
       case 'transfer': return <KindleTransferPage books={books()} preselected={input.preselected} loadProfiles={input.loadProfiles} />;
     }
   }
-  return <Loading><KindleProvider manager={input.manager} queue={input.queue}><Capture receive={capture} /><KindleDeviceBar />{child()}</KindleProvider></Loading>;
+  return <Loading><KindleProvider manager={input.manager} queue={input.queue} koboReadingSync={input.syncKobo}><Capture receive={capture} /><KindleDeviceBar />{child()}</KindleProvider></Loading>;
 }
 export function markup(page, input) { return renderToString(() => view(() => page, input, () => input.books, () => {})); }
 export function mount(root, initial, input, hydrating) {
@@ -87,7 +88,7 @@ beforeAll(async () => {
   for (const ssr of [false, true]) {
     const result = await build({ configFile: false, logLevel: "silent", plugins: [
       // These tests inject the profile API and queue service. Never bundle server-only RPC handlers into Node-tree DOM probes.
-      { name: "kindle-ui-rpc-boundary", enforce: "pre", resolveId: (id, importer) => id.includes("server/kindle/functions") && importer ? "\0kindle-ui-rpc" : undefined, load: id => id === "\0kindle-ui-rpc" ? "export const listKindleProfiles = async () => { throw Error('unexpected RPC in UI test') }" : undefined },
+      { name: "kindle-ui-rpc-boundary", enforce: "pre", resolveId: (id, importer) => !importer ? undefined : id.includes("server/kindle/functions") ? "\0kindle-ui-rpc" : id.includes("server/reading/functions") || id.includes("library/functions") ? "\0reading-ui-rpc" : undefined, load: id => id === "\0kindle-ui-rpc" ? "export const listKindleProfiles = async () => { throw Error('unexpected RPC in UI test') }" : id === "\0reading-ui-rpc" ? "export const syncKoboReading = async () => { throw Error('unexpected RPC in UI test') }; export const loadLibrary = async () => { throw Error('unexpected RPC in UI test') }" : undefined },
       solid(solidOptions),
     ], resolve: { dedupe: ["solid-js", "@solidjs/web"], conditions: ssr ? ["node", "production"] : ["browser", "production"] },
     define: { "process.env.NODE_ENV": JSON.stringify("production") }, ssr: { noExternal: true },
@@ -516,6 +517,16 @@ it("renders Kobo transfer controls without Kindle-only settings or licenses", as
   expect(elements(m.root, "option").some(node => node.textContent === "默认（只用书籍自带样式）")).toBe(false);
 });
 
+it("auto-syncs Kobo reading once per connection and again after re-detection", async () => {
+  const c = await connectedKobo(), sync = vi.fn(async (_device: PairedDevice): Promise<SyncResult> => ({ synced: 5, skipped: 0, marked_read: 1, unchanged: 0, lagged: false, unmatched: 0 }));
+  c.input.syncKobo = sync;
+  const m = mount("books", c.input); await settle(m);
+  expect(sync).toHaveBeenCalledTimes(1);
+  expect(text(m)).toContain("已同步 5 本书的阅读进度 · 1 本标为已读");
+  fire(button(m.root, "重新检测"), "click"); await settle(m);
+  expect(sync).toHaveBeenCalledTimes(2);
+});
+
 it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs", async () => {
   const c = await connectedKobo(["Bindery/书库甲.kepub.epub", "Other/外部.epub"]); const m = mount("books", c.input); await settle(m);
   expect(elements(m.root, "tr", "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["Bindery/书库甲.kepub.epub", "Other/外部.epub"]);
@@ -534,6 +545,7 @@ it("detects a Kobo with an unknown product ID and still permits pairing", async 
   const fs = await fakeKobo("N999"), manager = new KindleDeviceManager(repository(), async () => fs.root), m = mount("connect", input(manager)); await settle(m);
   fire(button(m.root, "选择设备目录"), "click"); await settle(m);
   expect(text(m)).toContain("已识别：Kobo · Kobo（未知型号）"); expect(text(m)).toContain("型号代码 N999"); expect(text(m)).toContain("产品 UUID 00000000-0000-0000-0000-000000000388");
+  expect(text(m)).toContain("只读取阅读进度，不会修改 KoboReader.sqlite"); expect(text(m)).not.toContain("不会读写 KoboReader.sqlite");
   expect(text(m)).not.toContain("documents/"); expect(text(m)).not.toContain("system/thumbnails"); expect(text(m)).not.toContain("KFX");
   const name = field(m.root, "显示名称"); name.value = "未知 Kobo"; fire(name, "input"); m.flush();
   fire(elements(m.root, "form")[0]!, "submit"); await settle(m);
