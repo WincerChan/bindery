@@ -4,6 +4,7 @@ import { metadataFromDict, type Book, type Job, type Metadata, type Volume } fro
 import { strip } from "../../core/text";
 import { bookFromDict } from "../../core/models";
 import { buildEpub, writeEpubFromSectionStream, extractCover, extractEpubMetadata, stripWebpAssetsAndRefs, updateEpubMetadata, type StreamBuildSection } from "../../core/epub";
+import { stripEpubAssets } from "../../core/epub-strip";
 import type { ParsedBookSection } from "../../core/parsing";
 import { LibraryStorage, coverPath, epubPath, saveBook, saveCoverBytes, sourcePath, writeSourceFile } from "../storage";
 import { parseBookFile, parseBookFileEvents, textFileHasContent } from "../parsing";
@@ -112,7 +113,8 @@ export async function runEditWriteback(library: LibraryStorage, job: Job, fetche
     const book = parseBookFile(sourcePath(library.base, meta.book_id), meta.book_id, getRule(meta.rule_template || "default")?.rules);
     atomicWrite(path, buildEpub(book, meta, { cover: coverAsset(library, meta), css_text: composeBookCss(meta) })); saveBook(book, library.base, meta.book_id);
   }
-  else atomicWrite(path, updateEpubMetadata(readFileSync(path), meta, { cover: meta.source_type === "epub" && !coverChanged ? null : coverAsset(library, meta), css_text: composeBookCss(meta), strip_original_css: meta.source_type === "epub" && options.strip_original_css }));
+  // Fonts go before the theme and book CSS are injected, so their font-family rules survive.
+  else atomicWrite(path, updateEpubMetadata(meta.source_type === "epub" && options.strip_fonts ? stripEpubAssets(readFileSync(path), { stripFonts: true }) : readFileSync(path), meta, { cover: meta.source_type === "epub" && !coverChanged ? null : coverAsset(library, meta), css_text: composeBookCss(meta), strip_original_css: meta.source_type === "epub" && options.strip_original_css }));
   updateJob(library, job.id, { stage: "刷新封面" }); refreshCover(library, meta);
   updateMetaSynced(meta); library.saveMetadata(meta); return meta;
 }

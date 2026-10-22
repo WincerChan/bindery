@@ -43,7 +43,7 @@ export function enqueueJob(input: EnqueueInput, library = getLibrary()): { queue
     throw new HttpError(400, "任务参数错误");
   }
   if (action === "edit-writeback") {
-    if (!input.id) return enqueueEditWriteback({ book_id: input.book_id!, rule_template: input.rule_template, cover_bytes: null, cover_name: null, cover_url: "", strip_original_css: false }, library);
+    if (!input.id) return enqueueEditWriteback({ book_id: input.book_id!, rule_template: input.rule_template, cover_bytes: null, cover_name: null, cover_url: "", strip_original_css: false, strip_fonts: false }, library);
     loadEditWriteback(library, input.id);
   }
   library.ensure();

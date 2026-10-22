@@ -60,6 +60,7 @@ function page(): BookPage {
     rules: [{ rule_id: "default", name: "默认规则", version: "1" }],
     themes: [{ theme_id: "default", name: "默认主题", version: "1" }],
     strip_original_css: false,
+    strip_fonts: false,
   };
 }
 describe("book detail and edit SSR", () => {

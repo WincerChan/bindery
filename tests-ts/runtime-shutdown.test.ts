@@ -51,7 +51,7 @@ afterEach(async () => {
 });
 async function queuePair() {
   const { enqueueEditWriteback } = await import("../src/server/jobs");
-  const options = { book_id: bookId, cover_bytes: null, cover_name: null, strip_original_css: false };
+  const options = { book_id: bookId, cover_bytes: null, cover_name: null, strip_original_css: false, strip_fonts: false };
   const first = enqueueEditWriteback({ ...options, cover_url: "https://cover.invalid/test.png" }, library).job;
   const next = enqueueEditWriteback({ ...options, cover_url: "" }, library).job;
   lifecycle.startJobWorker(library);

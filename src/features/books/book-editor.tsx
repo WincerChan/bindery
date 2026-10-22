@@ -292,6 +292,19 @@ export function BookEditor(props: {
               </p>
             </div>
             <div class="books-wide">
+              <Checkbox
+                label="删除自带字体"
+                name="strip_fonts"
+                value="1"
+                checked={page().strip_fonts}
+              />
+              <p>
+                仅本次写回生效（EPUB 来源）：删除书里内嵌的字体文件、@font-face
+                和原书的 font-family，正文改用阅读器的字体；渲染主题与本书追加
+                CSS 里的字体设置不受影响。
+              </p>
+            </div>
+            <div class="books-wide">
               <div class="books-actions">
                 <h3>高级：针对本书追加 CSS</h3>
                 <Button

@@ -25,6 +25,7 @@ export interface BookPage {
   rules: { rule_id: string; name: string; version: string }[];
   themes: { theme_id: string; name: string; version: string }[];
   strip_original_css: boolean;
+  strip_fonts: boolean;
   error?: string;
   info?: string;
   lookup_attempts?: LookupAttempt[];
@@ -72,6 +73,7 @@ export function loadBookPage(
       version,
     })),
     strip_original_css: false,
+    strip_fonts: false,
   };
 }
 function applyFields(meta: Metadata, form: FormData): void {
@@ -197,6 +199,7 @@ export async function fetchBookMetadata(
     draft = buildEditDraft(page, form);
   page.book = draft;
   page.strip_original_css = trueFlag(textField(form, "strip_original_css"));
+  page.strip_fonts = trueFlag(textField(form, "strip_fonts"));
   const query = draft.title.trim(),
     result = await lookupBookMetadataCandidates(query, {
       author: draft.author,
@@ -259,6 +262,7 @@ export async function saveBookEdit(
     meta = requireBook(id, library);
   applyFields(meta, form);
   page.strip_original_css = trueFlag(textField(form, "strip_original_css"));
+  page.strip_fonts = trueFlag(textField(form, "strip_fonts"));
   const error = validateCss(textField(form, "custom_css"));
   if (error) {
     meta.custom_css = strip(textField(form, "custom_css")) || null;
@@ -279,6 +283,7 @@ export async function saveBookEdit(
     cover_name: upload?.name || null,
     cover_url: textField(form, "cover_url").trim(),
     strip_original_css: page.strip_original_css,
+    strip_fonts: page.strip_fonts,
   };
   meta.status = "dirty";
   meta.updated_at = nowIso();

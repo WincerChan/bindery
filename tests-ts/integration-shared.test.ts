@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { validateCss } from "../src/core/css";
-import { readArchive } from "../src/core/archive";
+import { readArchive, writeArchive } from "../src/core/archive";
 import { buildEpub, extractCover } from "../src/core/epub";
 import { bookFromDict, type Metadata, type Wish } from "../src/core/models";
 import { BinderyDatabase } from "../src/server/db";
@@ -26,7 +26,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 const iso = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g;
 const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 const newPng = Buffer.concat([png, Buffer.from("new cover")]);
-const options = () => ({ cover_bytes: null as Uint8Array | null, cover_name: null as string | null, cover_url: "", strip_original_css: false });
+const options = () => ({ cover_bytes: null as Uint8Array | null, cover_name: null as string | null, cover_url: "", strip_original_css: false, strip_fonts: false });
 const form = (values: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(values)) f.set(k, v); return f; };
 const reference = (mode: string) => JSON.parse(readFileSync(resolve("tests-ts/fixtures/parity/integration", `${mode}.json`), "utf8"));
 beforeEach(() => {
@@ -132,6 +132,24 @@ describe("durable edit write-back via the real queue consumer", () => {
     seedEdit("epub"); enqueueEditWriteback({ book_id: id, ...options(), strip_original_css: strip }, library); await drainJobs(library);
     const members = readArchive(readFileSync(epubPath(library.base, id))); expect(members.some(m => m.name === "EPUB/Styles/style.css")).toBe(!strip);
     expect(members.filter(m => m.name.endsWith(".css")).map(m => Buffer.from(m.data).toString()).join("\n")).toContain("p {color:blue}");
+  });
+  it.each([false, true])("removes embedded fonts before injecting theme/book CSS only when asked (%s)", async strip => {
+    const meta = seedEdit("epub"); meta.custom_css = 'p {color:blue; font-family: "Reader Keep"}'; library.saveMetadata(meta);
+    const path = epubPath(library.base, id), members = readArchive(readFileSync(path));
+    const style = members.find(m => m.name === "EPUB/Styles/style.css")!;
+    style.data = Buffer.from(`${Buffer.from(style.data).toString()}\n@font-face{font-family:Book;src:url(../Fonts/book.ttf)} p{font-family:Book}`);
+    writeFileSync(path, writeArchive([...members, { name: "EPUB/Fonts/book.ttf", data: new Uint8Array([0, 1, 0, 0]) }]));
+    enqueueEditWriteback({ book_id: id, ...options(), strip_fonts: strip }, library); await drainJobs(library);
+    const after = readArchive(readFileSync(path)), css = after.filter(m => m.name.endsWith(".css")).map(m => Buffer.from(m.data).toString()).join("\n");
+    expect(after.some(m => m.name === "EPUB/Fonts/book.ttf")).toBe(!strip);
+    expect(css.includes("@font-face")).toBe(!strip); expect(css.includes("font-family:Book")).toBe(!strip);
+    // The book's own CSS is injected afterwards, so its font choice survives the strip.
+    expect(css).toContain('font-family: "Reader Keep"');
+  });
+  it("still accepts an edit task staged before strip_fonts existed", () => {
+    const { job } = enqueueEditWriteback({ book_id: id, ...options() }, library), task = join(queueDirectory(library, job.id), "task.json");
+    const spec = JSON.parse(readFileSync(task, "utf8")); delete spec.strip_fonts; writeFileSync(task, JSON.stringify(spec));
+    expect(loadEditWriteback(library, job.id).strip_fonts).toBe(false);
   });
   it.each(["txt", "txt-no-source"])("extracts the original TXT cover instead of a stale metadata sidecar: %s", async kind => {
     const meta = seedEdit(kind); meta.cover_file = saveCoverBytes(library.base, id, newPng, "stale.jpg"); library.saveMetadata(meta);
