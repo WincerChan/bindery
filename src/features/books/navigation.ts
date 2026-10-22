@@ -1,3 +1,4 @@
+import { readerEntryHref } from "../reader/model";
 /** urllib.parse.quote(..., safe="") also escapes these five URI characters. */
 export const quoteComponent = (value: string) =>
   encodeURIComponent(value).replace(
@@ -25,6 +26,7 @@ export function bookNavigation(id: string, returnTo: unknown) {
     return_to_query: query,
     detail_url: `/book/${id}${query}`,
     edit_url: `/book/${id}/edit${query}`,
-    preview_url: `/book/${id}/preview${query}`,
+    // Straight to the reader target, as the /preview entry would redirect.
+    preview_url: readerEntryHref(id, return_to),
   };
 }

@@ -16,7 +16,8 @@ describe("library SSR and editorial UI regressions", () => {
     const html = ui.item("00", null, view);
     expect(html).toContain('data-book-card'); expect(html).toContain(`data-book-layout="${view}"`);
     const hrefs = [...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>/g)].map(match => match[1]!);
-    expect(hrefs.filter(href => href.includes("/preview?return_to="))).toHaveLength(2);
+    // Read links skip the /preview entry redirect and open the reader at the saved position.
+    expect(hrefs.filter(href => href.includes("/preview/0?resume=1&amp;return_to="))).toHaveLength(2);
     expect(hrefs.filter(href => href.endsWith("/download"))).toHaveLength(1);
     // Only non-default parameters: the default sort and page size stay out of the return URL.
     expect(html).toContain('name="next" value="/?q=%E9%95%BF%E5%AE%89&amp;read_filter=unread&amp;page=2"'); expect(html).not.toContain("per_page=");

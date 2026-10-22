@@ -104,7 +104,7 @@ describe("return navigation and responsive sizing", () => {
     expect(back).toBe("/?q=%E9%95%BF%E5%AE%89+%26+%E4%BD%9C%E8%80%85&sort=created&read_filter=unread&page=2");
     const href = bookHref(a, back, true);
     expect(new URL(href, "http://local").searchParams.get("return_to")).toBe(back);
-    expect(href).toContain(`/book/${a}/preview?return_to=`);
+    expect(href).toContain(`/book/${a}/preview/0?resume=1&return_to=`);
   });
   it("normalizes scope and preserves archived return URLs without unread filtering", () => {
     expect(normalizeSearch({ scope: " ARCHIVED ", read_filter: "unread" })).toMatchObject({ scope: "archived", read_filter: "all" });

@@ -1,3 +1,4 @@
+import { readerEntryHref } from "../reader/model";
 export interface LibrarySearch {
   scope: "active" | "archived";
   sort: "created" | "updated";
@@ -49,8 +50,9 @@ export function libraryReturnTo(input: Record<string, unknown>): string {
   if (search.page > 1) query.set("page", String(search.page));
   return query.size ? `/?${query}` : "/";
 }
+// Read links go straight to the reader target: the /preview entry would add a redirect hop and a second skeleton.
 export const bookHref = (id: string, returnTo: string, preview = false) =>
-  `/book/${id}${preview ? "/preview" : ""}?return_to=${encodeURIComponent(returnTo)}`;
+  preview ? readerEntryHref(id, returnTo) : `/book/${id}?return_to=${encodeURIComponent(returnTo)}`;
 /** Opens the device transfer page with these library books already selected. */
 export const deviceTransferHref = (ids: readonly string[]) => `/devices/transfer?books=${ids.map(encodeURIComponent).join(",")}`;
 /** Opens the device typesetting preview with this book already chosen. */

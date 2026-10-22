@@ -74,7 +74,7 @@ describe("book detail and edit SSR", () => {
       "/regenerate",
     ])
       expect(html).toContain(`/book/${"a".repeat(32)}${suffix}`);
-    expect(html).toContain("/preview?return_to=");
+    expect(html).toContain("/preview/0?resume=1&amp;return_to=");
     expect(html).toContain("示例书&lt;&amp;>");
     expect(html).toContain('aria-label="阅读状态"');
     expect(html).toContain("✓ 已读");
