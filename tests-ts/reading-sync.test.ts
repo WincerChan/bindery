@@ -3,10 +3,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { readArchive } from "../src/core/archive";
 import { sanitizeEpubMemberPaths } from "../src/core/epub-safe-paths";
 import { epubPath } from "../src/server/storage";
-import { readBookArchive } from "../src/server/reader/service";
+import { loadReader, readBookArchive } from "../src/server/reader/service";
 import { mapKoboPosition, type KoboEntry } from "../src/server/reading/kobo";
 import { koboReadingInput, syncKoboReading } from "../src/server/reading/sync";
 import { latestProgress } from "../src/server/reading/progress";
+import { loadBookPage } from "../src/server/books/service";
 import { createBook } from "./fixtures/library/support";
 import { obfuscatedEpub } from "./fixtures/reader/obfuscated";
 import { readerFixture } from "./fixtures/reader/support";
@@ -131,9 +132,23 @@ describe("authoritative progress", () => {
       time_spent_seconds: 132, rest_estimate_seconds: 8943, synced_at: "2026-10-22T13:12:00Z",
     });
     expect(latestProgress(library, id)).toEqual({ source: { device_id: "kobo-1", device_name: "Libra 2", kind: "kobo" }, section: 2, section_fraction: 0.5, percent: 70, read_at: "2026-10-22T13:11:20Z" });
+    expect(loadReader(id, "0", "/", library).latest_progress).toEqual(latestProgress(library, id));
     library.db.upsertReaderProgress(id, 0, 3, 11, "2026-10-22T14:00:00Z");
     expect(latestProgress(library, id)).toEqual({ source: "web", section: 0, section_fraction: 0.2, page: 3, page_count: 11, read_at: "2026-10-22T14:00:00Z" });
     expect(latestProgress(library, "f".repeat(32))).toBeNull();
+  });
+  it("lists every source for book detail with titles, percent estimates and the newest marker", () => {
+    const { library, id } = fixture(), sections = sectionsOf(library, id);
+    library.db.upsertReaderProgress(id, 1, 3, 11, "2026-10-22T13:00:00Z");
+    library.db.upsertDeviceReading({
+      book_id: id, device_id: "kobo-1", device_kind: "kobo", device_name: "Libra 2", section: 2, section_fraction: 0.5,
+      percent: 70, location: null, read_status: "reading", last_read_at: "2026-10-22T13:11:20Z",
+      time_spent_seconds: 132, rest_estimate_seconds: 8943, synced_at: "2026-10-22T13:12:00Z",
+    });
+    expect(loadBookPage(id, "/", library).reading_progress).toEqual([
+      expect.objectContaining({ source_label: "Libra 2", section: 2, section_title: sections[2].title, percent: 70, time_spent_seconds: 132, rest_estimate_seconds: 8943, latest: true }),
+      expect.objectContaining({ source: "web", source_label: "网页阅读器", section: 1, section_title: sections[1].title, percent: 40, time_spent_seconds: null, rest_estimate_seconds: null, latest: false }),
+    ]);
   });
   it("never creates or changes reader_progress during a device sync", () => {
     const { library, id } = fixture();

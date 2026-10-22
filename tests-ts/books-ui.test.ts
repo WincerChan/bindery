@@ -111,6 +111,24 @@ describe("book detail and edit SSR", () => {
     expect(html).toContain("return_to=%2F%3Fq%3D%E4%B9%A6%26page%3D2");
     expect(html).toContain('name="next" value="/?q=书&amp;page=2"');
   });
+  it("lists each reading source with section, percent, times, estimates and the newest marker", () => {
+    const value = page();
+    value.reading_progress = [
+      { source: "web", source_label: "网页阅读器", section: 1, section_fraction: 0.5, percent: 50, read_at: "2026-10-22T13:00:00Z", time_spent_seconds: null, rest_estimate_seconds: null, section_title: "第二章 重逢", latest: false },
+      { source: { device_id: "kobo-1", device_name: "Libra 2", kind: "kobo" }, source_label: "Libra 2", section: 2, section_fraction: 0.2, percent: 70, read_at: "2026-10-22T13:11:20Z", time_spent_seconds: 132, rest_estimate_seconds: 8943, section_title: "第三章 再见", latest: true },
+    ];
+    const html = ui.detail(value).replace(/<!--.*?-->/g, "");
+    expect(html).toContain("阅读进度");
+    expect(html).toContain("网页阅读器");
+    expect(html).toContain("Libra 2");
+    expect(html).toContain("第二章 重逢 · 50%");
+    expect(html).toContain("第三章 再见 · 70%");
+    expect(html).toContain("上次阅读 2026-10-22 13:11");
+    expect(html).toContain("用时 约 2 分钟");
+    expect(html).toContain("剩余 约 3 小时");
+    expect(html).toContain("最新");
+    expect(ui.detail(page()).replace(/<!--.*?-->/g, "")).not.toContain("阅读进度");
+  });
   it("hides regenerate controls without TXT source and renders EPUB source label", () => {
     const value = page();
     value.book.can_regenerate = false;

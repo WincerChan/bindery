@@ -1,4 +1,4 @@
-import { brightBgColors, contentUrl, defaultSettings, dimBgColors, pageEpsilon, pageMetrics, readerFonts, textMatches, type ReaderData, type ReaderSettings } from "./model";
+import { brightBgColors, contentUrl, defaultSettings, dimBgColors, fractionPage, pageEpsilon, pageMetrics, readerFonts, textMatches, type ReaderData, type ReaderSettings } from "./model";
 interface Anchor { node: Text; offset: number }
 const typographyProperties = ["font-family", "font-size", "line-height", "text-align", "text-justify"] as const;
 interface FrameState { frame: HTMLIFrameElement; section: number; ready: boolean; scroller?: HTMLDivElement; pages?: HTMLDivElement; tail?: HTMLDivElement; style?: HTMLStyleElement; bookTypography?: { value: string; priority: string }[]; observer?: ResizeObserver; cleanup?: () => void; anchor?: Anchor; page: number }
@@ -8,14 +8,14 @@ export interface ReaderLocation { section: number; page: number; pageCount: numb
 export class ReaderFrames {
   private frames: FrameState[];
   private active = -1;
-  private desired: { section: number; page: number; find: string; hash: string };
+  private desired: { section: number; page: number; find: string; hash: string; fraction: number | null };
   private settings: ReaderSettings = defaultSettings;
   private disposed = false;
   private animation = 0;
   private searchText = "";
   private removeListeners: (() => void)[] = [];
-  constructor(private data: ReaderData, elements: HTMLIFrameElement[], position: { section: number; page: number }, private change: (value: ReaderLocation) => void, private busy: (value: boolean) => void, private error: (value: string) => void) {
-    this.desired = { ...position, find: "", hash: "" };
+  constructor(private data: ReaderData, elements: HTMLIFrameElement[], position: { section: number; page: number; fraction?: number }, private change: (value: ReaderLocation) => void, private busy: (value: boolean) => void, private error: (value: string) => void) {
+    this.desired = { ...position, fraction: position.fraction ?? null, find: "", hash: "" };
     this.frames = elements.map((frame, index) => ({ frame, section: index === 0 ? position.section : -1, ready: false, page: 1 }));
     this.frames.forEach((state, index) => {
       const load = () => this.loaded(index);
@@ -36,7 +36,7 @@ export class ReaderFrames {
   }
   open(section: number, page = 1, find = "", hash = "") {
     if (section < 0 || section >= this.data.sections.length || this.disposed) return;
-    this.desired = { section, page, find, hash };
+    this.desired = { section, page, find, hash, fraction: null };
     this.busy(true); this.error("");
     const cached = this.frames.findIndex(state => state.section === section);
     if (cached >= 0) { if (this.frames[cached].ready) this.activate(cached); return; }
@@ -224,6 +224,10 @@ export class ReaderFrames {
       const rect = range.getBoundingClientRect();
       const left = scroller.scrollLeft + rect.left - scroller.getBoundingClientRect().left;
       page = Math.min(metrics.count, Math.max(1, Math.floor((left + pageEpsilon) / metrics.step) + 1));
+    }
+    if (this.frames[this.active] === state && this.desired.fraction !== null && state.section === this.desired.section) {
+      page = fractionPage(this.desired.fraction, metrics.count);
+      this.desired.fraction = null;
     }
     scroller.scrollTo({ left: Math.min(metrics.maxLeft, (page - 1) * metrics.step), top: 0, behavior: "auto" });
     state.page = page;

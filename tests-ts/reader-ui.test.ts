@@ -3,7 +3,7 @@ import { build } from "vite";
 import solid from "vite-plugin-solid";
 import { solidOptions } from "../scripts/solid-options";
 import { resolve } from "node:path";
-import { contentUrl, defaultSettings, highlightedParts, initialPosition, normalizeSettings, pageMetrics, readerReturnTo, sectionUrl, textMatches, type ReaderData } from "../src/features/reader/model";
+import { contentUrl, defaultSettings, fractionPage, highlightedParts, initialPosition, normalizeSettings, pageMetrics, readerReturnTo, sectionUrl, textMatches, type ReaderData } from "../src/features/reader/model";
 import { ProgressWriter } from "../src/features/reader/progress";
 let ui: typeof import("./fixtures/reader/ui");
 beforeAll(async () => {
@@ -59,6 +59,17 @@ describe("reader pagination, resume and settings", () => {
     expect(initialPosition(data, new URLSearchParams("resume=1&nav=prev"))).toEqual({ section: 1, page: 1 });
     expect(initialPosition(data, new URLSearchParams("page=last"))).toEqual({ section: 0, page: Number.MAX_SAFE_INTEGER });
     data.initial_progress!.section = -1; expect(initialPosition(data, new URLSearchParams("resume=1"))).toEqual({ section: 0, page: 1 });
+  });
+  it("prefers the newest source, falls back when a device has no section, and converts fractions to pages", () => {
+    const base = { section_index: 0, sections: [{}, {}, {}], initial_progress: { section: 1, page: 3, page_count: 8 } } as ReaderData;
+    const web = { source: "web", section: 1, section_fraction: 0.25, page: 3, page_count: 8, read_at: "2026-10-22T13:00:00Z" };
+    const device = { source: { device_id: "kobo-1", device_name: "Libra 2", kind: "kobo" }, section: 2, section_fraction: 0.5, percent: 70, read_at: "2026-10-22T13:11:20Z" };
+    expect(initialPosition({ ...base, latest_progress: web } as ReaderData, new URLSearchParams("resume=1"))).toEqual({ section: 1, page: 3 });
+    expect(initialPosition({ ...base, latest_progress: device } as ReaderData, new URLSearchParams("resume=1"))).toEqual({ section: 2, page: 1, fraction: 0.5 });
+    expect(initialPosition({ ...base, latest_progress: { ...device, section: null } } as ReaderData, new URLSearchParams("resume=1"))).toEqual({ section: 1, page: 3 });
+    expect(initialPosition({ ...base, initial_progress: null, latest_progress: { ...device, section: null } } as ReaderData, new URLSearchParams("resume=1"))).toEqual({ section: 0, page: 1 });
+    expect(initialPosition({ ...base, latest_progress: device } as ReaderData, new URLSearchParams("resume=1&nav=prev"))).toEqual({ section: 2, page: 1 });
+    expect(fractionPage(0, 10)).toBe(1); expect(fractionPage(0.5, 10)).toBe(6); expect(fractionPage(1, 10)).toBe(10); expect(fractionPage(0.5, 1)).toBe(1);
   });
   it("normalizes persisted settings and supports legacy line-height without CSS injection", () => {
     expect(normalizeSettings(null)).toEqual(defaultSettings);

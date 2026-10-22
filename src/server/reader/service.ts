@@ -8,6 +8,7 @@ import { HttpError, requireBook } from "../http";
 import { epubPath, type LibraryStorage } from "../storage";
 import { readerEntryHref, readerReturnTo, type ReaderData } from "../../features/reader/model";
 import { bigIntegerParameter } from "./parameters";
+import { latestProgress } from "../reading/progress";
 
 export const readerNoStoreHeaders = () => ({ "Cache-Control": "no-store, max-age=0", "CDN-Cache-Control": "no-store", Pragma: "no-cache", Expires: "0" });
 export function readBookArchive(bookId: string, library: LibraryStorage) {
@@ -39,7 +40,7 @@ export function loadReader(bookId: string, rawSection: string, returnTo: unknown
   return {
     book: { book_id: view.book_id, title: view.title, author: view.author, cover_url: view.cover_url },
     sections, section_index: section, initial_progress: library.db.getReaderProgress(bookId),
-    return_to: readerReturnTo(returnTo),
+    latest_progress: latestProgress(library, bookId), return_to: readerReturnTo(returnTo),
   };
 }
 // legacy int() accepts booleans, truncates numbers, and rejects decimal strings.

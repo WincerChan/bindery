@@ -10,6 +10,8 @@ import { enqueueEditWriteback } from "../jobs";
 import { strip } from "../../core/text";
 import { validateCss } from "../../core/css";
 import { bookNavigation } from "../../features/books/navigation";
+import { readBookArchive } from "../reader/service";
+import { listProgress, readingProgressView, type ReadingProgressView } from "../reading/progress";
 import {
   lookupBookMetadataCandidates,
   type LookupMetadata,
@@ -22,6 +24,7 @@ export type BookDraft = BookView & { cover_fetch_url?: string };
 export interface BookPage {
   book: BookDraft;
   navigation: ReturnType<typeof bookNavigation>;
+  reading_progress?: ReadingProgressView[];
   rules: { rule_id: string; name: string; version: string }[];
   themes: { theme_id: string; name: string; version: string }[];
   strip_original_css: boolean;
@@ -58,10 +61,14 @@ export function loadBookPage(
   library: LibraryStorage,
 ): BookPage {
   const meta = requireBook(id, library),
-    tracker = ensureTrackerConsistencyForMeta(meta, library);
+    tracker = ensureTrackerConsistencyForMeta(meta, library),
+    progress = listProgress(library, id);
+  let sections: { title: string }[] = [];
+  if (progress.length) { try { sections = readBookArchive(id, library).metadata().sections; } catch { /* A missing EPUB should not hide saved progress. */ } }
   return {
     book: bookView(meta, library, tracker),
     navigation: bookNavigation(id, returnTo),
+    reading_progress: readingProgressView(progress, sections),
     rules: loadRuleTemplates().map(({ rule_id, name, version }) => ({
       rule_id,
       name,

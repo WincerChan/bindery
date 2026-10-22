@@ -1,4 +1,5 @@
 import { encodeEpubPath } from "../../core/epub-path";
+import type { LatestProgress } from "../../server/reading/progress";
 
 export interface ReaderProgress { book_id: string; section: number; page: number; page_count: number; updated_at: string }
 export interface SearchHit { index: number; title: string; offset: number; snippet: string }
@@ -8,6 +9,7 @@ export interface ReaderData {
   sections: { title: string; item_path: string }[];
   section_index: number;
   initial_progress: ReaderProgress | null;
+  latest_progress?: LatestProgress | null;
   return_to: string;
 }
 
@@ -33,15 +35,31 @@ export function sectionUrl(bookId: string, section: number, returnTo = "/", extr
 export function contentUrl(bookId: string, path: string): string {
   return `/book/${bookId}/epub/${encodeEpubPath(path)}`;
 }
-export function initialPosition(data: ReaderData, query: URLSearchParams): { section: number; page: number } {
-  let section = data.section_index, page = 1;
-  const saved = data.initial_progress;
-  if (query.get("resume") === "1" && saved && saved.section >= 0 && saved.section < data.sections.length) {
-    section = saved.section; page = Math.max(1, saved.page);
+export function initialPosition(data: ReaderData, query: URLSearchParams): { section: number; page: number; fraction?: number } {
+  let section = data.section_index, page = 1, fraction: number | undefined;
+  const latest = data.latest_progress, saved = data.initial_progress;
+  if (query.get("resume") === "1") {
+    const latestSection = latest?.section;
+    if (latest && latestSection !== null && latestSection !== undefined && latestSection >= 0 && latestSection < data.sections.length) {
+      section = latestSection;
+      if (latest.source === "web" && typeof latest.page === "number" && typeof latest.page_count === "number") page = Math.max(1, latest.page);
+      else if (typeof latest.section_fraction === "number" && Number.isFinite(latest.section_fraction)) fraction = Math.max(0, Math.min(1, latest.section_fraction));
+    } else if (saved && saved.section >= 0 && saved.section < data.sections.length) {
+      section = saved.section;
+      const savedFraction = (saved as { section_fraction?: unknown }).section_fraction, hasPageCount = typeof (saved as { page_count?: unknown }).page_count === "number";
+      if (typeof savedFraction === "number" && Number.isFinite(savedFraction) && !hasPageCount) fraction = Math.max(0, Math.min(1, savedFraction));
+      else page = Math.max(1, saved.page);
+    }
   }
-  if (["prev", "next"].includes(query.get("nav") || "")) page = 1;
-  if (query.get("page") === "last" && !["prev", "next"].includes(query.get("nav") || "")) page = Number.MAX_SAFE_INTEGER;
-  return { section, page };
+  const nav = query.get("nav") || "";
+  if (["prev", "next"].includes(nav)) { page = 1; fraction = undefined; }
+  if (query.get("page") === "last" && !["prev", "next"].includes(nav)) { page = Number.MAX_SAFE_INTEGER; fraction = undefined; }
+  return fraction === undefined ? { section, page } : { section, page, fraction };
+}
+/** Device positions have no page count until the section is paginated. */
+export function fractionPage(fraction: number, pageCount: number): number {
+  const count = Math.max(1, Math.trunc(pageCount));
+  return Math.max(1, Math.min(count, Math.round(Math.max(0, Math.min(1, fraction)) * Math.max(0, count - 1)) + 1));
 }
 export const pageEpsilon = 0.5;
 export function textMatches(text: string, query: string, limit = 200): { start: number; end: number }[] {

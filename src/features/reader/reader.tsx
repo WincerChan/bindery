@@ -13,8 +13,14 @@ const lineHeights = [1.55, 1.65, 1.75, 1.85, 1.95, 2.05];
 export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
   // Resume/query seed this session once; subsequent turns belong to ReaderFrames.
   const initial = untrack(() => initialPosition(props.data, props.query)), book = () => props.data.book;
-  const initialCount = untrack(() => props.query.get("resume") === "1" && props.data.initial_progress?.section === initial.section ? Math.max(1, props.data.initial_progress.page_count) : 1);
-  const [position, setPosition] = createSignal({ section: initial.section, page: Math.min(initial.page, initialCount), pageCount: initialCount, frame: 0 });
+  const initialCount = untrack(() => {
+    if (props.query.get("resume") !== "1") return 1;
+    const latest = props.data.latest_progress, saved = props.data.initial_progress;
+    const progress = latest && latest.section === initial.section ? latest : saved && saved.section === initial.section ? saved : null;
+    return progress && "page_count" in progress && typeof progress.page_count === "number" ? Math.max(1, progress.page_count) : 1;
+  });
+  const start = { section: initial.section, page: Math.min(initial.page, initialCount), ...(initial.fraction === undefined ? {} : { fraction: initial.fraction }) };
+  const [position, setPosition] = createSignal({ section: start.section, page: start.page, pageCount: initialCount, frame: 0 });
   const [settings, setSettings] = createSignal<ReaderSettings>({ ...defaultSettings });
   const [panel, setPanel] = createSignal<Panel | null>(null);
   const [chapterFocusPending, setChapterFocusPending] = createSignal(false);
@@ -44,7 +50,7 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
     if (typeof window === "undefined" || disposed || controller) return;
     try { setSettings(normalizeSettings(JSON.parse(localStorage.getItem("bindery:reader") || "null"))); } catch { /* storage can be disabled */ }
     writer = new ProgressWriter(book().book_id, setProgressError);
-    controller = new ReaderFrames(props.data, [a, b, c], initial, value => {
+    controller = new ReaderFrames(props.data, [a, b, c], start, value => {
       setPosition(value); writer!.queue(value.section, value.page, value.pageCount);
       const next = new URL(url(value.section), window.location.href);
       if (!firstPosition && window.location.pathname !== next.pathname) history.pushState(history.state, "", `${next.pathname}${next.search}`);
