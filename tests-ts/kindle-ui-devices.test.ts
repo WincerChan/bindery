@@ -359,6 +359,12 @@ it("reports invalid directory selection and ignores user cancellation", async ()
   expect(text(m)).toContain("请选择 Kindle 磁盘根目录"); fail = false; fire(button(m.root, "选择设备目录"), "click"); await settle(m); expect(m.context().error()).toBe("");
 });
 
+it("labels books sent with the built-in profile by its current name, not the one recorded at transfer", async () => {
+  const c = await connected([{ ...record("a", "a.kfx"), profile_name: "默认（只用书籍自带样式）" }]);
+  const m = mount("books", c.input); await settle(m);
+  expect(text(m)).toContain("默认"); expect(text(m)).not.toContain("只用书籍自带样式");
+});
+
 it("filters device books using library metadata and filename fallback, including the empty state", async () => {
   const c = await connected([record("a", "a.kfx", "wide")]); await c.fs.write("documents/陌生的书.azw3", "other");
   const m = mount("books", c.input); await settle(m); expect(text(m)).toContain("书库甲"); expect(text(m)).toContain("陌生的书"); expect(text(m)).toContain("宽边距");

@@ -7,6 +7,7 @@ import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, TextField
 import { useDevice } from "./context";
 import { bytes, dateLabel, readingTimeLabel } from "./format";
 import { koboBookFilename } from "../../client/devices/paths";
+import { defaultProfile, DEFAULT_PROFILE_ID } from "../../client/devices/profiles";
 import { KindleIcon } from "../kindle/icons";
 import { Link } from "../../shared/spa-link";
 import type { DeviceLibraryBook } from "./library";
@@ -32,7 +33,8 @@ function DeviceCover(props: { book: DeviceBook; title: string; author: string | 
 
 const bookTitle = (filename: string) => filename.split("/").at(-1)!.replace(/\.kepub\.epub$/i, "").replace(/\.[^.]+$/, "");
 const deviceNoun = (kind: string | null | undefined) => kind === "kobo" ? "Kobo" : "Kindle";
-const profileName = (book: DeviceBook) => book.record && "profile_name" in book.record ? book.record.profile_name : null;
+// Books sent with the built-in profile keep the label it had at transfer time; show its current one.
+const profileName = (book: DeviceBook) => !book.record || !("profile_name" in book.record) ? null : book.record.profile_id === DEFAULT_PROFILE_ID ? defaultProfile().name : book.record.profile_name;
 const progressLabel = (book: DeviceBook, kind: string) => {
   const progress = book.progress;
   if (!progress || !progress.last_read_at && !progress.percent) return "未读";
