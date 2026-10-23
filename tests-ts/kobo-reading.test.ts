@@ -9,6 +9,7 @@ import { detectDevice, pairDetectedDevice } from "../src/client/devices/identity
 import { deleteBook } from "../src/client/devices/operations";
 import { validateDevicePath } from "../src/client/devices/transaction";
 import { KoboTransferService } from "../src/client/devices/kobo/transfer";
+import { EMPTY_SETTINGS } from "../src/client/devices/profiles";
 import { koboReadingEntries, parseKoboContent, readKoboReading } from "../src/client/devices/kobo/reading";
 import { parseKoboManifest } from "../src/client/devices/kobo/manifest";
 import { koboReadingSummary } from "../src/features/devices/kobo-sync";
@@ -74,7 +75,7 @@ describe("Kobo manifest transfer and deletion", () => {
     const service = new KoboTransferService({ fetch: async () => new Response(fixture), converter: { convert: async data => { const result = convertToKepub(data); return { data: result.data, stats: result.stats }; } } });
     const record = await service.transferBook(device, bookId(1));
     const manifest = JSON.parse(await fs.text(".bindery/manifest.json"));
-    expect(manifest).toEqual({ version: 1, books: [{ book_id: bookId(1), filename: `Bindery/${record.filename}`, transferred_at: expect.any(String), fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/) }] });
+    expect(manifest).toEqual({ version: 1, books: [{ book_id: bookId(1), filename: `Bindery/${record.filename}`, transferred_at: expect.any(String), fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/), settings: EMPTY_SETTINGS }] });
     await service.transferBook(device, bookId(1));
     expect(JSON.parse(await fs.text(".bindery/manifest.json")).books).toHaveLength(1);
     await deleteBook(device, `Bindery/${record.filename}`);

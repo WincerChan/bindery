@@ -148,10 +148,11 @@ it("renders one neutral page with both kinds available, no profile-owning device
   expect(frame(root).getAttribute("width")).toBe("1072");
   expect(elements(root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("1072×1448");
   expect(elements(root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("实测");
-  expect(elements(root, "input").some(node => node.id === "kt-marginX")).toBe(false);
+  expect(input(root, "kt-marginX").hasAttribute("disabled")).toBe(false);
   expect(elements(root, "button").filter(node => node.textContent === "保存方案" || node.textContent === "删除")).toHaveLength(0);
-  expect(elements(withClass(root, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["新建方案"]);
-  expect(root.textContent).toContain("默认方案只使用书籍自带样式，不做任何调整");
+  expect(elements(withClass(root, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "另存为方案"]);
+  expect(root.textContent).toContain("调整后可直接发送，不必保存为方案");
+  expect(root.textContent).not.toContain("要调整边距、行高等，请新建方案");
   expect(withClass(root, "kt-preview-sticky")).toBeDefined();
   expect(withClass(root, "kt-device-space").parentElement).toBe(withClass(root, "kt-frame-wrap"));
   expect(frame(root).getAttribute("sandbox")).toBe("allow-same-origin");
@@ -198,7 +199,21 @@ it("sends the unsaved draft as a settings snapshot and sends an empty snapshot f
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   setValue(input(mounted.root, "kt-marginX"), "2.5");
   fire(button(mounted.root, "发送到 我的 Paperwhite"), "click"); await settle();
-  expect(queue.enqueue).toHaveBeenLastCalledWith(expect.any(Object), "a", "custom", { settings: expect.objectContaining({ marginX: 2.5, marginXUnit: "percent" }), overwrite: true });
+  expect(queue.enqueue).toHaveBeenLastCalledWith(expect.any(Object), "a", "custom", { settings: expect.objectContaining({ marginX: 2.5, marginXUnit: "percent" }), profileName: "正文", overwrite: true });
+});
+
+it("sends an edited default without saving or loading a profile and clears the leave prompt after sending", async () => {
+  const { manager } = await paired(), profiles = api(), onDirty = vi.fn();
+  const queue = { snapshot: () => [], subscribe: () => () => {}, enqueue: vi.fn(() => "queued"), cancel: () => {}, retry: () => {}, clearFinished: () => {} };
+  const mounted = mount(manager, { profiles, onDirty, queue }); await settle();
+  setValue(input(mounted.root, "kt-marginX"), "2.5");
+  expect(onDirty).toHaveBeenLastCalledWith(true);
+  fire(button(mounted.root, "发送到 我的 Paperwhite"), "click"); await settle();
+  expect(queue.enqueue).toHaveBeenLastCalledWith(expect.any(Object), "a", "default", { settings: expect.objectContaining({ marginX: 2.5, marginXUnit: "percent" }), overwrite: true });
+  expect(profiles.create).not.toHaveBeenCalled(); expect(profiles.update).not.toHaveBeenCalled();
+  expect(onDirty).toHaveBeenLastCalledWith(false);
+  setValue(input(mounted.root, "kt-lineHeight"), "1.8");
+  expect(onDirty).toHaveBeenLastCalledWith(true);
 });
 
 it("shows the overflow note without clamping or blocking a save", async () => {
@@ -210,26 +225,31 @@ it("shows the overflow note without clamping or blocking a save", async () => {
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("-20");
 });
 
-it("keeps the built-in profile immutable and saves, updates and deletes a global custom profile", async () => {
+it("edits the built-in default as an unsaved draft and saves it as a new global custom profile", async () => {
   const { manager } = await paired(), profiles = api(), mounted = mount(manager, { profiles }); await settle();
-  expect(elements(mounted.root, "input").some(node => node.id === "kt-marginX")).toBe(false);
-  fire(button(mounted.root, "新建方案"), "click"); ui.flush();
+  const margin = input(mounted.root, "kt-marginX") as HTMLInputElement;
+  expect(margin.disabled).toBe(false);
+  setValue(margin, "2.5");
+  expect(mounted.root.textContent).toContain("有未保存的修改");
+  expect(elements(labels(mounted.root, "select", "方案"), "option").map(option => option.textContent)).toContain("默认 · 已调整（未保存）");
+  expect(profiles.create).not.toHaveBeenCalled(); expect(profiles.update).not.toHaveBeenCalled();
+  fire(button(mounted.root, "另存为方案"), "click"); ui.flush();
   setValue(labels(mounted.root, "input", "新方案名称"), "大字正文");
   fire(elements(mounted.root, "form")[0]!, "submit"); await settle();
-  expect(profiles.create).toHaveBeenCalledWith({ name: "大字正文", settings: EMPTY_SETTINGS });
+  expect(profiles.create).toHaveBeenCalledWith({ name: "大字正文", settings: expect.objectContaining({ marginX: 2.5, marginXUnit: "percent" }) });
   setValue(input(mounted.root, "kt-textIndent"), "2"); fire(button(mounted.root, "保存方案"), "click"); await settle();
   expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "new-profile", name: "大字正文", settings: expect.objectContaining({ textIndent: 2 }) }));
   expect(mounted.root.textContent).toContain("排版方案已保存，所有设备共用。");
   fire(button(mounted.root, "删除"), "click"); ui.flush();
   fire(button(elements(mounted.root, "dialog")[1]!, "确认"), "click"); await settle();
   expect(profiles.delete).toHaveBeenCalledWith("new-profile");
-  expect(elements(mounted.root, "input").some(node => node.id === "kt-marginX")).toBe(false);
+  expect(input(mounted.root, "kt-marginX").hasAttribute("disabled")).toBe(false);
 });
 
 it("rejects an invalid font query without breaking the page", async () => {
   const { manager } = await paired(), mounted = mount(manager, { initialFont: "bad\nfont" }); await settle();
   expect(mounted.root.textContent).toContain("无效的字体名称");
-  expect((button(mounted.root, "保存方案") as HTMLButtonElement).disabled).toBe(true);
+  expect((button(mounted.root, "另存为方案") as HTMLButtonElement).disabled).toBe(true);
   setValue(labels(mounted.root, "select", "字体（预览设备上已安装）"), "", "change");
   expect(mounted.root.textContent).not.toContain("无效的字体名称");
 });
@@ -333,7 +353,7 @@ it("shows compact profile range rows, all strip toggles and advanced settings fo
   expect(elements(checkboxes, "label").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片", "去掉书籍自带页边距"]);
   expect(elements(checkboxes, "input").every(node => node.getAttribute("type") === "checkbox")).toBe(true);
   expect(elements(labels(editor, "select", "字体（预览设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
-  expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "删除", "另存为", "保存方案"]);
+  expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "删除", "另存为方案", "保存方案"]);
 });
 
 it("fits the frame to the smaller width/height constraint after mount, resize and panel changes, and releases layout listeners", async () => {

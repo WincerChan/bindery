@@ -41,6 +41,7 @@ describe("transfer settings snapshots", () => {
     await service.transferBook(device, bookId, "draft", { settings: { ...EMPTY_SETTINGS, stripPageMargins: true, textIndent: 2 } });
     expect(profileLoader).not.toHaveBeenCalled();
     expect(convert.mock.calls[0]![1]!.profile).toMatchObject({ settings: { stripPageMargins: true }, css: expect.stringContaining("text-indent: 2em") });
+    expect(JSON.parse(await fs.text(".bindery/manifest.json")).books[0].settings).toEqual({ ...EMPTY_SETTINGS, stripPageMargins: true, textIndent: 2 });
   });
   it("loads a Kobo profile by id and checks its font against the device inventory", async () => {
     const fs = await fakeKobo(), device = await pairDetectedDevice(fs.root, await detectDevice(fs.root), "libra2", "Libra");

@@ -4,6 +4,7 @@ import { KindleDeviceManager, detectedAgo } from "../src/client/kindle/device";
 import { KINDLE_MODELS, pairDevice, readIdentity, validateKindle } from "../src/client/kindle/identity";
 import { inventory } from "../src/client/kindle/inventory";
 import { readManifest, writeManifest, parseManifest, thumbnailName } from "../src/client/kindle/manifest";
+import { EMPTY_SETTINGS } from "../src/client/devices/profiles";
 import { deleteBook } from "../src/client/kindle/operations";
 import { deleteFontFamily, installFonts, inspectFont, listFonts, loadPreviewFont, readFont } from "../src/client/kindle/fonts";
 import type { HandleRepository, RememberedDevice } from "../src/client/kindle/remembered";
@@ -99,6 +100,10 @@ describe("inventory, fonts and safe device operations", () => {
     await deleteBook({ root: fs.root, identity: (await readIdentity(fs.root))!, firmware: null }, "Book.kfx");
     await expect(fs.bytes("documents/Book.kfx")).rejects.toMatchObject({ name: "NotFoundError" }); await expect(fs.bytes("documents/Book.sdr/state")).rejects.toMatchObject({ name: "NotFoundError" }); expect((await readManifest(fs.root)).books).toEqual([]); expect(await fs.text("metadata.calibre")).toBe("untouchable");
     expect(() => parseManifest({ version: 1, books: [{ ...record, filename: "../attack.kfx" }] })).toThrow();
+    const settings = { ...EMPTY_SETTINGS, lineHeight: 1.8 };
+    expect(parseManifest({ version: 1, books: [record] }).books[0]).not.toHaveProperty("settings");
+    expect(parseManifest({ version: 1, books: [{ ...record, settings }] }).books[0]!.settings).toEqual(settings);
+    expect(() => parseManifest({ version: 1, books: [{ ...record, settings: { lineHeight: 0.1 } }] })).toThrow();
   });
   it("uses OpenType names before filenames, groups R/B/I/BI and extra weights, and ignores resource files", async () => {
     const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle");

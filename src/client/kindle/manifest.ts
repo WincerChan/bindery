@@ -1,3 +1,4 @@
+import { profileSettings, type ProfileSettings } from "../devices/profiles";
 import { entryName, entryOperation, readInternalJson, writeBytes, type KindleDirectory } from "./fs";
 import { isBookFingerprint } from "../../core/fingerprint";
 
@@ -7,6 +8,7 @@ export interface ManifestBook {
   thumbnail: string | null;
   /** SHA-256 of the normalized title + author; absent on records written before it existed. */
   fingerprint?: string;
+  settings?: ProfileSettings;
 }
 export interface DeviceManifest { version: 1; books: ManifestBook[] }
 export const thumbnailName = (id: string, type: "EBOK" | "PDOC") => {
@@ -19,6 +21,7 @@ export function parseManifest(value: unknown): DeviceManifest {
   const filenames = new Set<string>();
   for (const b of v.books) {
     if (!b || typeof b.filename !== "string" || entryName(b.filename) !== b.filename || !b.filename.toLowerCase().endsWith(".kfx") || filenames.has(b.filename.toLowerCase()) || typeof b.book_id !== "string" || !b.book_id || typeof b.content_id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(b.content_id) || !["EBOK", "PDOC"].includes(b.cde_content_type) || typeof b.profile_id !== "string" || typeof b.profile_name !== "string" || !Number.isFinite(Date.parse(b.transferred_at)) || !Number.isSafeInteger(b.size) || b.size < 0 || b.thumbnail !== null && b.thumbnail !== thumbnailName(b.content_id, b.cde_content_type) || b.fingerprint !== undefined && !isBookFingerprint(b.fingerprint)) throw new Error("Kindle 传输记录包含无效条目");
+    if (b.settings !== undefined) profileSettings(b.settings);
     filenames.add(b.filename.toLowerCase());
   }
   return structuredClone(v);

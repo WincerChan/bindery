@@ -41,9 +41,10 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
           assert.match(html, /实测：Kindle Paperwhite 3 窄边距、Kobo Libra 2 最小边距/);
           assert.match(html, /class="kt-preview kt-preview-sticky"/);
           assert.ok(html.includes('<details class="kt-calibration"><summary>校准说明</summary>'));
-          // The built-in profile renders no adjustable controls, only the new-profile action.
-          assert.doesNotMatch(html, /id="kt-marginX"|class="kt-checkboxes"|class="kt-advanced"/);
-          assert.match(html, /默认方案只使用书籍自带样式，不做任何调整/); assert.match(html, />新建方案</);
+          // The built-in profile is editable and can be sent without being saved as a profile.
+          assert.match(html, /id="kt-marginX"/); assert.match(html, /class="kt-checkboxes"/); assert.match(html, /class="kt-advanced"/);
+          assert.match(html, /调整后可直接发送，不必保存为方案/); assert.match(html, />另存为方案</);
+          assert.doesNotMatch(html, /默认方案只使用书籍自带样式|要调整边距、行高等，请新建方案|>新建方案<|>保存方案</);
           assert.doesNotMatch(html, /收窄到约 1 字边距|负值收窄 Kindle 自身页边距|设备默认字体（保留书籍字体样式）/);
         }
       }

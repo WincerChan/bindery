@@ -12,14 +12,15 @@ export const DEFAULT_PROFILE_ID = "default";
 export const defaultProfile = (): TypesettingProfile => ({ id: DEFAULT_PROFILE_ID, name: "默认", settings: { ...EMPTY_SETTINGS }, builtIn: true });
 export const isDefaultSettings = (settings: ProfileSettings) => JSON.stringify(profileSettings(settings)) === JSON.stringify(EMPTY_SETTINGS);
 /** A sent snapshot wins over the default id; an empty one explicitly takes the default path. */
-export function snapshotProfile(profileId: string, settings: unknown): TypesettingProfile | null {
+export function snapshotProfile(profileId: string, settings: unknown, baseName?: string): TypesettingProfile | null {
   if (settings === undefined) return null;
   const value = profileSettings(settings);
   if (isDefaultSettings(value)) return defaultProfile();
-  return { id: profileId === DEFAULT_PROFILE_ID ? "snapshot" : profileId, name: "发送时的排版", settings: value, builtIn: false };
+  const name = baseName?.trim() || (profileId === DEFAULT_PROFILE_ID ? defaultProfile().name : "已保存方案");
+  return { id: profileId, name: `${name}（已调整）`, settings: value, builtIn: false };
 }
-export async function resolveTransferProfile(profileId: string, settings: unknown, load: (id: string) => Promise<TypesettingProfile>): Promise<TypesettingProfile> {
-  return snapshotProfile(profileId, settings) ?? load(profileId);
+export async function resolveTransferProfile(profileId: string, settings: unknown, load: (id: string) => Promise<TypesettingProfile>, baseName?: string): Promise<TypesettingProfile> {
+  return snapshotProfile(profileId, settings, baseName) ?? load(profileId);
 }
 export function deviceIdInput(value: unknown): string {
   if (typeof value !== "string" || !/^[\w-]{1,128}$/.test(value)) throw new Error("无效的设备 ID");
@@ -69,8 +70,9 @@ export function profileSettings(value: unknown): ProfileSettings {
  * and Kobo copies on transfer; device calibration metadata never generates CSS.
  */
 export function generateProfileCss(profile: TypesettingProfile): string {
-  if (profile.id === DEFAULT_PROFILE_ID) return "";
-  const s = profileSettings(profile.settings), body: string[] = [], paragraph: string[] = [];
+  const s = profileSettings(profile.settings);
+  if (isDefaultSettings(s)) return "";
+  const body: string[] = [], paragraph: string[] = [];
   const em = (n: number) => `${n}em`;
   if (s.marginX !== null) {
     const margin = `${s.marginX}${MARGIN_X_UNITS[s.marginXUnit]}`;

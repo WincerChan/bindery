@@ -6,9 +6,9 @@ import type { DeviceKind } from "./models";
 import type { TransferProgress } from "./progress";
 import { getDeviceTransferService } from "./transfer";
 
-export interface TransferOptions { overwrite?: boolean; settings?: ProfileSettings; signal?: AbortSignal; progress?: (progress: TransferProgress) => void }
+export interface TransferOptions { overwrite?: boolean; settings?: ProfileSettings; profileName?: string; signal?: AbortSignal; progress?: (progress: TransferProgress) => void }
 /** What a queued request remembers; retry replays exactly these. */
-export type TransferRequestOptions = Pick<TransferOptions, "overwrite" | "settings">;
+export type TransferRequestOptions = Pick<TransferOptions, "overwrite" | "settings" | "profileName">;
 export interface TransferResult { filename: string; size: number }
 export interface TransferService { transferBook(device: PairedDevice, bookId: string, profileId: string, options: TransferOptions): Promise<TransferResult> }
 

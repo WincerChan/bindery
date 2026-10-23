@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show } from "solid-js";
 import { errorMessage } from "../../../client/devices/fs";
 import { deviceKindLabel, kindleModelInfo, koboModelInfo, modelShortName, type DeviceKind } from "../../../client/devices/models";
-import { defaultProfile, EMPTY_SETTINGS, generateProfileCss, profileSettings, type ProfileSettings, type TypesettingProfile } from "../../../client/devices/profiles";
+import { defaultProfile, DEFAULT_PROFILE_ID, EMPTY_SETTINGS, generateProfileCss, profileSettings, type ProfileSettings, type TypesettingProfile } from "../../../client/devices/profiles";
 import {
   READING_LINE_HEIGHT_RANGE, READING_SCALE_RANGE, convertMarginX, defaultReadingSettings, devicePresets, marginXPx, pageGeometry,
   previewEstimate, previewTarget, readingSettings, type DeviceReadingSettings,
@@ -57,7 +57,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const [target, setTarget] = createSignal<Target | null>(null), [modelKind, setModelKind] = createSignal<DeviceKind>("kindle"), [model, setModel] = createSignal("KPW3");
   const [reading, setReading] = createSignal<DeviceReadingSettings>(defaultReadingSettings("kindle"));
   const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [draft, setDraft] = createSignal<TypesettingProfile>(defaultProfile());
-  const [baseline, setBaseline] = createSignal(JSON.stringify(defaultProfile()));
+  const [baseline, setBaseline] = createSignal(JSON.stringify(defaultProfile())), [sent, setSent] = createSignal<string | null>(null);
   const [fonts, setFonts] = createSignal<FontFamily[]>([]);
   const [busy, setBusy] = createSignal(false), [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal(""), [notice, setNotice] = createSignal("");
@@ -75,12 +75,13 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const readingKey = createMemo(() => target()?.id ? `${target()!.id}:${kind()}` : `model:${kind()}`);
   const fontDevice = createMemo<PairedDevice | null>(() => { const current = connected(), selected = target(); return current && selected?.id === current.identity.id ? current : null; });
   const family = createMemo(() => fonts().find(value => value.name === draft().settings.fontFamily));
-  const dirty = () => !draft().builtIn && JSON.stringify(draft()) !== baseline();
+  const dirty = () => JSON.stringify(draft()) !== baseline();
+  const blockerDirty = () => dirty() && sent() !== JSON.stringify(draft());
   const settings = () => profileSettings(draft().settings);
   const settingsError = () => { try { settings(); return ""; } catch (error) { return errorMessage(error); } };
   const cssError = () => validateCss(draft().settings.customCss);
   const css = () => settingsError() ? null : generateProfileCss({ ...draft(), settings: settings() });
-  const immutable = () => draft().builtIn || busy() || loading();
+  const locked = () => busy() || loading();
   const canStore = () => !busy() && !loading() && !settingsError();
   const estimate = () => previewEstimate(geometry(), draft().settings);
   const overflow = () => estimate().sideMarginPx < geometry().side;
@@ -106,9 +107,9 @@ function DevicePreviewPageInner(props: PreviewProps) {
     return list.filter(value => !seen.has(value.id) && Boolean(seen.add(value.id)));
   };
   function openChapter(index: number, page = 1) { setChapter(index); setChapterStart({ page }); }
-  function selectProfile(profile: TypesettingProfile) { const selected = copyProfile(profile); setDraft(selected); setBaseline(JSON.stringify(selected)); setError(""); setNotice(""); }
-  function edit<K extends keyof ProfileSettings>(key: K, value: ProfileSettings[K]) { if (!immutable()) setDraft(old => ({ ...old, settings: { ...old.settings, [key]: value } })); }
-  function editMargin(value: number | null) { if (!immutable()) setDraft(old => ({ ...old, settings: { ...old.settings, marginX: value, ...(value === null ? {} : { marginXUnit: "percent" as const }) } })); }
+  function selectProfile(profile: TypesettingProfile) { const selected = copyProfile(profile); setDraft(selected); setBaseline(JSON.stringify(selected)); setSent(null); setError(""); setNotice(""); }
+  function edit<K extends keyof ProfileSettings>(key: K, value: ProfileSettings[K]) { if (!locked()) setDraft(old => ({ ...old, settings: { ...old.settings, [key]: value } })); }
+  function editMargin(value: number | null) { if (!locked()) setDraft(old => ({ ...old, settings: { ...old.settings, marginX: value, ...(value === null ? {} : { marginXUnit: "percent" as const }) } })); }
   function editReading(patch: Partial<DeviceReadingSettings>) { const value = readingSettings(kind(), { ...reading(), ...patch }); setReading(value); scheduleReadingSave(value); }
   function resetReading() { const value = defaultReadingSettings(kind()); setReading(value); scheduleReadingSave(value); }
   function scheduleReadingSave(value: DeviceReadingSettings) {
@@ -128,7 +129,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
     modelOnlyByUser = true; setModelKind(value); setModel(defaultModel(value)); setTarget(null);
     const fallback = defaultReadingSettings(value); setReading(fallback);
   }
-  function openSaveAs() { setSaveName(draft().builtIn ? "我的排版" : draft().name); setSaveAs(true); }
+  function openSaveAs() { setSaveName(draft().builtIn && draft().name === defaultProfile().name ? "我的排版" : draft().name); setSaveAs(true); }
   function reset() { if (!dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？")) selectProfile(JSON.parse(baseline()) as TypesettingProfile); }
   async function save(asNew = false) {
     if (!canStore()) return;
@@ -183,13 +184,13 @@ function DevicePreviewPageInner(props: PreviewProps) {
     const current = fontDevice();
     setFonts(current ? device?.inventory()?.fonts ?? [] : []);
   });
-  createEffect(dirty, value => { props.onDirty?.(value); });
+  createEffect(blockerDirty, value => { props.onDirty?.(value); });
   onSettled(() => { void loadProfiles(); });
   onCleanup(() => { disposed = true; profileRequest++; chapterRequest++; readingRequest++; if (saveTimer !== undefined) clearTimeout(saveTimer); });
   const src = () => { const section = sections()[chapter()]; return section ? previewContentUrl(bookId(), section.item_path, settingsError() ? EMPTY_SETTINGS : draft().settings) : ""; };
   return <section class="kt-page" aria-label="排版与预览">
     <div class="kt-preview-layout"><section class="kt-editor" aria-label="排版方案编辑器">
-      <div class="kt-editor-heading"><h2>排版方案</h2><p class="muted">所有设备共用一套排版参数；传书时写入副本，书库里的 EPUB 不变。</p></div>
+      <div class="kt-editor-heading"><h2>排版方案</h2><p class="muted">所有设备共用一套排版参数；传书时写入副本，书库里的 EPUB 不变。调整后可直接发送，不必保存为方案。</p></div>
       <Select label="预览设备" value={target()?.id ?? ""} disabled={busy()} onChange={event => chooseTarget(event.currentTarget.value)}>
         <option value="">仅预览型号</option>
         <For each={available()}>{identity => <option value={identity.id}>{identity.name}</option>}</For>
@@ -218,8 +219,8 @@ function DevicePreviewPageInner(props: PreviewProps) {
         if (selected && (!dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？"))) selectProfile(selected);
         event.currentTarget.value = draft().id;
       }}>
-        <Show when={!profiles().some(profile => profile.id === draft().id)}><option value={draft().id}>{draft().name}</option></Show>
-        <For each={profiles()}>{profile => <option value={profile.id}>{profile.builtIn ? "默认" : profile.name}</option>}</For>
+        <Show when={!profiles().some(profile => profile.id === draft().id)}><option value={draft().id}>{draft().name}{dirty() ? " · 已调整（未保存）" : ""}</option></Show>
+        <For each={profiles()}>{profile => <option value={profile.id}>{(profile.builtIn ? defaultProfile().name : profile.name) + (profile.id === draft().id && dirty() ? " · 已调整（未保存）" : "")}</option>}</For>
       </Select></div>
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
       <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
@@ -227,37 +228,33 @@ function DevicePreviewPageInner(props: PreviewProps) {
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={dirty()}><p role="status">有未保存的修改</p></Show>
       <Show when={draft().settings.fontFamily && !family()}><p class="muted">所选字体当前预览设备不可用，预览暂用替代字体；发送前请确认目标设备已安装。</p></Show>
-      <Show when={!draft().builtIn} fallback={<p class="muted">默认方案只使用书籍自带样式，不做任何调整。要调整边距、行高等，请新建方案。</p>}>
       <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}>{range.label}</label>
-        <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? marginMax() : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={immutable()} onInput={event => { const value = Number(event.currentTarget.value); if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />
+        <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? marginMax() : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} onInput={event => { const value = Number(event.currentTarget.value); if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />
         <span class="kt-range-value"><output for={`kt-${range.key}`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output>
-        <button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={immutable() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button></span>
+        <button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={locked() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button></span>
       </div>}</For>
-      <Select label="字体（预览设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={immutable()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
+      <Select label="字体（预览设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={locked()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
         <option value="">设备默认字体</option>
         <Show when={draft().settings.fontFamily && !family()}><option value={draft().settings.fontFamily!}>{draft().settings.fontFamily}（尚未在当前设备读取到）</option></Show>
         <For each={fonts()}>{font => <option value={font.name}>{font.name}</option>}</For>
       </Select>
       <div class="kt-checkboxes" role="group" aria-label="正文样式">
-        <Checkbox label="两端对齐" checked={draft().settings.justify === true} disabled={immutable()} onChange={event => edit("justify", event.currentTarget.checked)} />
-        <Checkbox label="去掉书籍自带字体" checked={draft().settings.stripFonts} disabled={immutable()} onChange={event => edit("stripFonts", event.currentTarget.checked)} />
-        <Checkbox label="去掉所有图片" checked={draft().settings.stripImages} disabled={immutable()} onChange={event => edit("stripImages", event.currentTarget.checked)} />
-        <Checkbox label="去掉书籍自带页边距" checked={draft().settings.stripPageMargins} disabled={immutable()} onChange={event => edit("stripPageMargins", event.currentTarget.checked)} />
+        <Checkbox label="两端对齐" checked={draft().settings.justify === true} disabled={locked()} onChange={event => edit("justify", event.currentTarget.checked)} />
+        <Checkbox label="去掉书籍自带字体" checked={draft().settings.stripFonts} disabled={locked()} onChange={event => edit("stripFonts", event.currentTarget.checked)} />
+        <Checkbox label="去掉所有图片" checked={draft().settings.stripImages} disabled={locked()} onChange={event => edit("stripImages", event.currentTarget.checked)} />
+        <Checkbox label="去掉书籍自带页边距" checked={draft().settings.stripPageMargins} disabled={locked()} onChange={event => edit("stripPageMargins", event.currentTarget.checked)} />
       </div>
       <details class="kt-advanced"><summary>更多设置</summary><div>
-        <TextField label="方案名称" value={draft().name} disabled={immutable()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
-        <Button variant="quiet" disabled={immutable() || draft().settings.justify === null} onClick={() => edit("justify", null)}>{draft().settings.justify === null ? "对齐方式沿用书籍" : "对齐方式恢复书籍设置"}</Button>
-        <Textarea label="额外自定义 CSS" rows={6} value={draft().settings.customCss} disabled={immutable()} error={cssError() ?? undefined} onInput={event => edit("customCss", event.currentTarget.value)} />
+        <TextField label="方案名称" value={draft().name} disabled={locked()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
+        <Button variant="quiet" disabled={locked() || draft().settings.justify === null} onClick={() => edit("justify", null)}>{draft().settings.justify === null ? "对齐方式沿用书籍" : "对齐方式恢复书籍设置"}</Button>
+        <Textarea label="额外自定义 CSS" rows={6} value={draft().settings.customCss} disabled={locked()} error={cssError() ?? undefined} onInput={event => edit("customCss", event.currentTarget.value)} />
         <Textarea label="生成的 CSS（只读）" rows={8} class="kt-generated" readonly value={css() ?? "排版参数校验未通过，预览保留上次有效样式。"} />
       </div></details>
-      </Show>
-      <Show when={!draft().builtIn} fallback={<div class="kt-actions kt-profile-actions"><Button disabled={!canStore()} onClick={openSaveAs}>新建方案</Button></div>}>
-        <div class="kt-actions kt-profile-actions"><Button variant="quiet" disabled={busy() || loading() || !dirty()} onClick={reset}>重置</Button>
-          <Button variant="quiet" disabled={immutable() || draft().id === "draft"} onClick={() => setDeleting(true)}>删除</Button>
-          <Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为</Button>
-          <Button disabled={!canStore() || !dirty()} onClick={() => save()}>保存方案</Button></div>
-      </Show>
-      <SendToDevice bookId={bookId()} profileId={draft().id} options={{ settings: settingsError() ? EMPTY_SETTINGS : settings() }} blocked={sendBlocked()} />
+      <div class="kt-actions kt-profile-actions"><Button variant="quiet" disabled={locked() || !dirty()} onClick={reset}>重置</Button>
+        <Show when={!draft().builtIn && draft().id !== "draft"}><Button variant="quiet" disabled={locked()} onClick={() => setDeleting(true)}>删除</Button></Show>
+        <Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为方案</Button>
+        <Show when={!draft().builtIn && draft().id !== "draft"}><Button disabled={!canStore() || !dirty()} onClick={() => save()}>保存方案</Button></Show></div>
+      <SendToDevice bookId={bookId()} profileId={draft().id} options={{ settings: settingsError() ? EMPTY_SETTINGS : settings(), ...(draft().id === DEFAULT_PROFILE_ID ? {} : { profileName: draft().name }) }} onSent={() => setSent(JSON.stringify(draft()))} blocked={sendBlocked()} />
     </section><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
       <div class="kt-preview-header">
       <div class="kt-preview-toolbar"><div class="kt-preview-selectors"><PreviewBookPicker books={props.data.books} value={bookId()} disabled={!props.data.books.length} onChange={id => { void chooseBook(id); }} />

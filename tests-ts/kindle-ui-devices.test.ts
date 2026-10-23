@@ -9,7 +9,7 @@ import { solidOptions } from "../scripts/solid-options";
 import { KindleDeviceManager } from "../src/client/kindle/device";
 import { pairDevice, type PairedDevice } from "../src/client/kindle/identity";
 import { TransferQueue, type TransferItem } from "../src/client/kindle/queue";
-import { defaultProfile, type TypesettingProfile } from "../src/client/devices/profiles";
+import { defaultProfile, EMPTY_SETTINGS, type TypesettingProfile } from "../src/client/devices/profiles";
 import type { ManifestBook } from "../src/client/kindle/manifest";
 import type { RememberedDevice } from "../src/client/kindle/remembered";
 import { KindleTransferService, type TransferOptions } from "../src/client/kindle/transfer";
@@ -421,6 +421,33 @@ it("enqueues a retransmission with the recorded profile and overwrite enabled", 
   for (const index of [3, 6, 7]) expect(elements(row, "td")[index]!.className).toContain("kindle-mono");
   fire(button(m.root, "重新传入 书库甲"), "click"); await settle(m); expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), "a", "wide", expect.objectContaining({ overwrite: true }));
   expect(text(m)).toContain("已加入传输队列：书库甲");
+});
+
+it("retransmits a tweaked Kindle book with its recorded settings snapshot", async () => {
+  const settings = { ...EMPTY_SETTINGS, lineHeight: 1.8 };
+  const c = await connected([{ ...record("a", "a.kfx"), profile_name: "默认（已调整）", settings }]);
+  const transfer = vi.fn(async () => { throw new Error("conversion stop"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
+  const m = mount("books", c.input); await settle(m);
+  expect(text(m)).toContain("默认（已调整）");
+  fire(button(m.root, "重新传入 书库甲"), "click"); await settle(m);
+  expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), "a", "default", expect.objectContaining({ overwrite: true, settings }));
+});
+
+it("retransmits a Kobo book with its recorded settings snapshot and keeps old records on the default path", async () => {
+  const id = "c".repeat(32), filename = "Bindery/书库甲.kepub.epub", settings = { ...EMPTY_SETTINGS, stripPageMargins: true };
+  const c = await connectedKobo([filename]); c.input.books = [book(id, "书库甲")];
+  await c.fs.write(".bindery/manifest.json", JSON.stringify({ version: 1, books: [{ book_id: id, filename, transferred_at: new Date().toISOString(), settings }] }));
+  const transfer = vi.fn(async () => { throw new Error("conversion stop"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
+  const m = mount("books", c.input); await settle(m);
+  fire(button(m.root, "重新传入 书库甲"), "click"); await settle(m);
+  expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), id, "default", expect.objectContaining({ overwrite: true, settings }));
+
+  const old = await connectedKobo([filename]); old.input.books = [book(id, "书库甲")];
+  await old.fs.write(".bindery/manifest.json", JSON.stringify({ version: 1, books: [{ book_id: id, filename, transferred_at: new Date().toISOString() }] }));
+  const oldTransfer = vi.fn(async () => { throw new Error("conversion stop"); }); old.input.queue = new TransferQueue({ transferBook: oldTransfer });
+  const oldView = mount("books", old.input); await settle(oldView);
+  fire(button(oldView.root, "重新传入 书库甲"), "click"); await settle(oldView);
+  expect(oldTransfer).toHaveBeenCalledWith(expect.objectContaining({ identity: old.device.identity }), id, "default", expect.objectContaining({ overwrite: true }));
 });
 
 it("loads device profiles, applies library filters/search and preserves selection across paging", async () => {

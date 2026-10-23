@@ -78,6 +78,15 @@ describe("transfer pipeline and device-side recovery", () => {
     await deleteBook(device, record.filename); expect((await readManifest(fs.root)).books).toEqual([]); await expect(fs.bytes(`system/thumbnails/${record.thumbnail}`)).rejects.toMatchObject({ name: "NotFoundError" });
     await expect(fs.bytes(`documents/${record.filename.replace(/\.kfx$/, ".sdr")}/position`)).rejects.toMatchObject({ name: "NotFoundError" });
   });
+  it("records a tweaked Kindle snapshot and keeps it for a retransmission", async () => {
+    const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"), { transfer } = service();
+    const settings = { ...EMPTY_SETTINGS, lineHeight: 1.8 };
+    const record = await transfer.transferBook(device, bookId, "default", { settings });
+    expect(record).toMatchObject({ profile_id: "default", profile_name: "默认（已调整）", settings });
+    expect((await readManifest(fs.root)).books[0]!.settings).toEqual(settings);
+    const again = await transfer.transferBook(device, bookId, record.profile_id, { overwrite: true, settings: record.settings });
+    expect(again).toMatchObject({ profile_id: "default", profile_name: "默认（已调整）", settings });
+  });
   it("uses collision-safe Windows filenames and never overwrites an unrelated file, folder or sidecar", async () => {
     const fs = await fakeKindle(); await fs.write("documents/Transfer Book.KFX", "outside"); await fs.mkdir("documents/Transfer Book (2).kfx"); await fs.mkdir("documents/Transfer Book (3).sdr");
     expect(await collisionSafeFilename(await fs.root.getDirectoryHandle("documents"), "Transfer Book", fs.root)).toBe("Transfer Book (4).kfx");

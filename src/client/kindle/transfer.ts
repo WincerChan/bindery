@@ -67,7 +67,7 @@ export class KindleTransferService {
     const check = () => { if (options.signal?.aborted) throw new DOMException("操作已取消", "AbortError"); };
     const progress = new TransferProgressReporter(options.progress);
     check(); await assertDevice(device); progress.report({ state: "转换", phase: "download", message: "正在读取书库 EPUB" });
-    const profileLoaded = await resolveTransferProfile(profileId, options.settings, this.dependencies.profile);
+    const profileLoaded = await resolveTransferProfile(profileId, options.settings, this.dependencies.profile, options.profileName);
     const profile = { ...profileLoaded, settings: profileSettings(profileLoaded.settings) };
     if (profile.settings.fontFamily && !(await listFonts(device.root)).some(f => f.name === profile.settings.fontFamily)) throw new Error(`Kindle 上未安装字体：${profile.settings.fontFamily}`);
     const response = await this.dependencies.fetch(`/book/${bookId}/download`, { credentials: "same-origin", redirect: "error", signal: options.signal });
@@ -139,7 +139,7 @@ export class KindleTransferService {
       filename ??= await collisionSafeFilename(documents, result.bookInfo.title || bookId, device.root);
       assertBookFilename(filename);
       const thumb = thumbnail ? thumbnailName(identity.contentId, identity.cdeContentType) : null;
-      const record: ManifestBook = { book_id: bookId, filename, content_id: identity.contentId, cde_content_type: identity.cdeContentType, profile_id: profile.id, profile_name: profile.name, transferred_at: new Date().toISOString(), size: result.data.length, thumbnail: thumb, ...(fingerprint ? { fingerprint } : {}) };
+      const record: ManifestBook = { book_id: bookId, filename, content_id: identity.contentId, cde_content_type: identity.cdeContentType, profile_id: profile.id, profile_name: profile.name, transferred_at: new Date().toISOString(), size: result.data.length, thumbnail: thumb, ...(fingerprint ? { fingerprint } : {}), settings: profile.settings };
       const nextBooks = manifest.books.filter(b => b.filename.toLowerCase() !== filename!.toLowerCase());
       // Same EPUB ID may belong to several copies. Never overwrite a thumbnail we did not write.
       if (thumb) {

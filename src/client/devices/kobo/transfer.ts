@@ -37,7 +37,7 @@ export class KoboTransferService implements TransferService {
     const check = () => { if (options.signal?.aborted) throw new DOMException("操作已取消", "AbortError"); };
     const progress = new TransferProgressReporter(options.progress);
     check(); await assertDevice(device);
-    const profileLoaded = await resolveTransferProfile(profileId, options.settings, this.dependencies.profile ?? loadProfile), profile = { ...profileLoaded, settings: profileSettings(profileLoaded.settings) };
+    const profileLoaded = await resolveTransferProfile(profileId, options.settings, this.dependencies.profile ?? loadProfile, options.profileName), profile = { ...profileLoaded, settings: profileSettings(profileLoaded.settings) };
     if (profile.settings.fontFamily && !(await (this.dependencies.fonts ?? listFonts)(device.root, undefined, "kobo")).some(font => font.name === profile.settings.fontFamily)) throw new Error(`Kobo 上未安装字体：${profile.settings.fontFamily}`);
     progress.report({ state: "转换", phase: "download", message: "正在读取书库 EPUB" });
     const response = await this.dependencies.fetch(`/book/${bookId}/download`, { credentials: "same-origin", redirect: "error", signal: options.signal });
@@ -84,7 +84,7 @@ export class KoboTransferService implements TransferService {
       const current = await readKoboManifest(device.root), existing = options.overwrite ? overwriteTarget(current.books, bookId, fingerprint) : undefined;
       const path = existing?.filename ?? `Bindery/${koboBookFilename(metadata.title || bookId)}`, filename = path.slice("Bindery/".length);
       assertDeviceBookPath(path);
-      const record: KoboManifestBook = { book_id: bookId, filename: path, transferred_at: new Date().toISOString(), ...(fingerprint ? { fingerprint } : {}) };
+      const record: KoboManifestBook = { book_id: bookId, filename: path, transferred_at: new Date().toISOString(), ...(fingerprint ? { fingerprint } : {}), settings: profile.settings };
       const manifest = withKoboManifestBook(current, record);
       await applyDevicePatchesFor(device.root, "kobo", [{ path: ["Bindery", filename], data: converted.data }, { path: [".bindery", "manifest.json"], data: koboManifestBytes(manifest) }], options.signal, (patch, value) => {
         if (patch.path[0] !== "Bindery") return;

@@ -1,7 +1,8 @@
+import { profileSettings, type ProfileSettings } from "../profiles";
 import { entryName, readInternalJson, type KindleDirectory } from "../fs";
 import { isBookFingerprint } from "../../../core/fingerprint";
 
-export interface KoboManifestBook { book_id: string; filename: string; transferred_at: string; fingerprint?: string }
+export interface KoboManifestBook { book_id: string; filename: string; transferred_at: string; fingerprint?: string; settings?: ProfileSettings }
 export interface KoboManifest { version: 1; books: KoboManifestBook[] }
 const manifestError = () => new Error("Kobo 传输记录损坏，请检查 .bindery/manifest.json");
 const validFilename = (filename: unknown): filename is string => {
@@ -15,6 +16,7 @@ export function parseKoboManifest(value: unknown): KoboManifest {
   const filenames = new Set<string>(), bookIds = new Set<string>();
   for (const book of v.books) {
     if (!book || typeof book.book_id !== "string" || !/^[a-f0-9]{32}$/.test(book.book_id) || !validFilename(book.filename) || typeof book.transferred_at !== "string" || !Number.isFinite(Date.parse(book.transferred_at)) || book.fingerprint !== undefined && !isBookFingerprint(book.fingerprint) || filenames.has(book.filename.toLowerCase()) || bookIds.has(book.book_id)) throw manifestError();
+    if (book.settings !== undefined) profileSettings(book.settings);
     filenames.add(book.filename.toLowerCase()); bookIds.add(book.book_id);
   }
   return structuredClone(v as KoboManifest);

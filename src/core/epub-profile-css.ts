@@ -4,12 +4,12 @@ import { appendStylesheetLink } from "./epub-html";
 import { appendElement, attr, child, children, OPF_NS, serializeElementTree } from "./xml";
 import { validateCss } from "./css";
 import { stripEpubAssets } from "./epub-strip";
-import { DEFAULT_PROFILE_ID, generateProfileCss, profileSettings, type TypesettingProfile } from "../client/devices/profiles";
+import { generateProfileCss, isDefaultSettings, profileSettings, type TypesettingProfile } from "../client/devices/profiles";
 
-/** Strip the profile's assets, then append its CSS. The default profile returns the input bytes unchanged. */
+/** Strip the profile's assets, then append its CSS. Default settings return the input bytes unchanged. */
 export function applyTypesettingProfile(data: Uint8Array, profile: TypesettingProfile, deflate?: Deflater | null): Uint8Array<ArrayBuffer> {
-  if (profile.id === DEFAULT_PROFILE_ID) return new Uint8Array(data);
   const settings = profileSettings(profile.settings);
+  if (isDefaultSettings(settings)) return new Uint8Array(data);
   return appendProfileCss(stripEpubAssets(data, settings, deflate), generateProfileCss(profile), deflate);
 }
 

@@ -7,7 +7,7 @@ import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, TextField
 import { useDevice } from "./context";
 import { bytes, dateLabel, readingTimeLabel } from "./format";
 import { koboBookFilename } from "../../client/devices/paths";
-import { defaultProfile, DEFAULT_PROFILE_ID } from "../../client/devices/profiles";
+import { defaultProfile, DEFAULT_PROFILE_ID, isDefaultSettings } from "../../client/devices/profiles";
 import { KindleIcon } from "../kindle/icons";
 import { Link } from "../../shared/spa-link";
 import { createDeviceLibraryResolver, type DeviceLibraryBook, type DeviceLibraryResolver } from "./library";
@@ -33,8 +33,13 @@ function DeviceCover(props: { book: DeviceBook; title: string; author: string | 
 
 const bookTitle = (filename: string) => filename.split("/").at(-1)!.replace(/\.kepub\.epub$/i, "").replace(/\.[^.]+$/, "");
 const deviceNoun = (kind: string | null | undefined) => kind === "kobo" ? "Kobo" : "Kindle";
-// Books sent with the built-in profile keep the label it had at transfer time; show its current one.
-const profileName = (book: DeviceBook) => !book.record || !("profile_name" in book.record) ? null : book.record.profile_id === DEFAULT_PROFILE_ID ? defaultProfile().name : book.record.profile_name;
+// Books sent without a tweak keep the built-in label current; a recorded tweak keeps its snapshot name.
+const profileName = (book: DeviceBook) => {
+  const record = book.record;
+  if (!record || !("profile_name" in record)) return null;
+  const settings = "settings" in record ? record.settings : undefined;
+  return record.profile_id === DEFAULT_PROFILE_ID && (settings === undefined || isDefaultSettings(settings)) ? defaultProfile().name : record.profile_name;
+};
 const progressLabel = (book: DeviceBook, kind: string) => {
   const progress = book.progress;
   if (!progress || !progress.last_read_at && !progress.percent) return "未读";
@@ -107,7 +112,8 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
     void k.run(async () => {
       const record = book.record, id = resolvedId(book);
       if (!record || !id || !metadata(book)) throw new Error("这本书已不在当前书库，无法重新传入");
-      k.enqueue(id, "profile_id" in record ? record.profile_id : "default", { overwrite: true });
+      const settings = "settings" in record ? record.settings : undefined;
+      k.enqueue(id, "profile_id" in record ? record.profile_id : DEFAULT_PROFILE_ID, settings === undefined ? { overwrite: true } : { overwrite: true, settings });
       const copies = all().filter(b => resolvedId(b) === id).length;
       setNotice(`已加入传输队列：${title(book)}${copies > 1 ? "（将覆盖此书首份 Bindery 副本）" : ""}`);
     });
