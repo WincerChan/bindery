@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import { cachePrefix } from "../src/client/pwa/policy";
@@ -143,7 +143,10 @@ describe.runIf(built)("generated PWA worker", () => {
 
 describe.runIf(built)("production PWA static headers (actual handler, no sockets)", () => {
   it("serves a JSON manifest, root SW, offline page and every icon with correct public MIME types", async () => {
-    const { createProductionHandler } = await import(pathToFileURL(resolve("scripts/production-handler.mjs")).href);
+    // Native require bypasses Vite's transformation of the handler's `file:`-relative dist import.
+    const { createProductionHandler } = createRequire(import.meta.url)(resolve("scripts/production-handler.mjs")) as {
+      createProductionHandler: () => Promise<((request: Request) => Promise<Response>) & { shutdown(options?: unknown): Promise<void> }>;
+    };
     const handler = await createProductionHandler();
     try {
       for (const [path, type] of [["/manifest.json", "application/json"], ["/sw.js", "text/javascript"], ["/offline.html", "text/html"], ...manifest.icons.map(icon => [icon.src, icon.type])]) {
