@@ -1,4 +1,5 @@
 import { createEffect, createSignal, createUniqueId, For, onCleanup, onSettled, Show, untrack } from "solid-js";
+import { useRouter } from "@tanstack/solid-router";
 import { BookCover, Button } from "../../ui";
 import { Link } from "../../shared/spa-link";
 import { contentUrl, defaultSettings, highlightedParts, initialPosition, normalizeSettings, sectionUrl, type ReaderData, type ReaderSettings, type SearchHit, type SearchResults } from "./model";
@@ -31,8 +32,21 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
   let a!: HTMLIFrameElement, b!: HTMLIFrameElement, c!: HTMLIFrameElement, controller: ReaderFrames | undefined, writer: ProgressWriter | undefined, searchRequest: AbortController | undefined;
   let toc!: HTMLDialogElement, search!: HTMLDialogElement, preferences!: HTMLDialogElement, searchInput!: HTMLInputElement;
   let tocTrigger!: HTMLButtonElement, searchTrigger!: HTMLButtonElement, settingsTrigger!: HTMLButtonElement;
-  let cleanup: (() => void) | undefined, disposed = false, firstPosition = true;
+  let cleanup: (() => void) | undefined, disposed = false;
   const current = () => props.data.sections[position().section];
+  /**
+   * Chapter turns only replace the current entry: the reader already shows the next chapter, while the
+   * router patches history.pushState and would treat each chapter URL as a new route (reload, skeleton,
+   * remount), and its popstate listener runs before any of ours. `_ignoreSubscribers` is the switch
+   * @tanstack/history itself sets around its own writes. Back therefore leaves the book.
+   */
+  const router = useRouter() as ReturnType<typeof useRouter> | null;
+  const silently = (update: () => void) => {
+    const history = router?.history as { _ignoreSubscribers?: boolean } | undefined;
+    if (!history) { update(); return; }
+    history._ignoreSubscribers = true;
+    try { update(); } finally { history._ignoreSubscribers = false; }
+  };
   const detailUrl = () => `/book/${book().book_id}${props.data.return_to === "/" ? "" : `?${new URLSearchParams({ return_to: props.data.return_to })}`}`;
   const url = (section: number, extra: Record<string, string> = {}) => sectionUrl(book().book_id, section, props.data.return_to, extra);
   const updateSetting = <K extends keyof ReaderSettings>(name: K, value: ReaderSettings[K]) => setSettings(old => normalizeSettings({ ...old, [name]: value }));
@@ -53,11 +67,9 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
     controller = new ReaderFrames(props.data, [a, b, c], start, value => {
       setPosition(value); writer!.queue(value.section, value.page, value.pageCount);
       const next = new URL(url(value.section), window.location.href);
-      if (!firstPosition && window.location.pathname !== next.pathname) history.pushState(history.state, "", `${next.pathname}${next.search}`);
-      else if (window.location.pathname !== next.pathname || /[?&](?:resume|page|nav|find)=/.test(window.location.search)) {
-        history.replaceState(history.state, "", `${next.pathname}${next.search}`);
+      if (window.location.pathname !== next.pathname || /[?&](?:resume|page|nav|find)=/.test(window.location.search)) {
+        silently(() => history.replaceState(history.state, "", `${next.pathname}${next.search}`));
       }
-      firstPosition = false;
     }, setBusy, setError);
     controller.configure(settings());
     if (props.query.get("find")) controller.open(initial.section, initial.page, props.query.get("find")!);
@@ -100,17 +112,13 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
     };
     const hide = () => { if (document.visibilityState === "hidden") writer?.unload(navigator.sendBeacon.bind(navigator)); };
     const unload = () => writer?.unload(navigator.sendBeacon.bind(navigator));
-    const pop = () => {
-      const match = new RegExp(`^/book/${book().book_id}/preview/(\\d+)/?$`).exec(window.location.pathname);
-      if (match) { closePanel(false); controller?.open(Number(match[1])); }
-    };
     const time = () => setClock(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
     time(); const timer = setInterval(time, 29_000);
-    window.addEventListener("keydown", key); window.addEventListener("pagehide", unload); window.addEventListener("popstate", pop);
+    window.addEventListener("keydown", key); window.addEventListener("pagehide", unload);
     document.addEventListener("visibilitychange", hide); document.addEventListener("pointerdown", outside); document.addEventListener("focusin", focus);
     cleanup = () => {
       removeFrameKeys.forEach(remove => remove());
-      clearInterval(timer); window.removeEventListener("keydown", key); window.removeEventListener("pagehide", unload); window.removeEventListener("popstate", pop);
+      clearInterval(timer); window.removeEventListener("keydown", key); window.removeEventListener("pagehide", unload);
       document.removeEventListener("visibilitychange", hide); document.removeEventListener("pointerdown", outside); document.removeEventListener("focusin", focus);
     };
   });

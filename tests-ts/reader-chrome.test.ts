@@ -182,7 +182,8 @@ it("searches, highlights and appends results, navigates with find, and cancels c
   fire(all(css("reader-search-results"), "a")[0], "click"); mounted!.flush(); animate();
   expect(ui.frames.opens.at(-1)).toEqual({ section: 1, page: 1, find: "词" });
   expect((css("reader-search") as HTMLDialogElement).open).toBe(false);
-  expect(history.pushState).toHaveBeenCalledWith(null, "", expect.stringContaining("/preview/1?return_to="));
+  // Chapter changes replace the entry: the router would otherwise reload the route for every chapter.
+  expect(history.replaceState).toHaveBeenCalledWith(null, "", expect.stringContaining("/preview/1?return_to=")); expect(history.pushState).not.toHaveBeenCalled();
   click("全文检索");
   let complete!: (response: Response) => void;
   fetch.mockImplementation(() => new Promise<Response>(resolve => { complete = resolve; }));

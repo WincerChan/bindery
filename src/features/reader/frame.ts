@@ -70,7 +70,10 @@ export class ReaderFrames {
     const state = this.frames[index];
     state.observer?.disconnect(); state.cleanup?.(); state.cleanup = undefined;
     Object.assign(state, { section, ready: false, scroller: undefined, pages: undefined, anchor: undefined });
-    state.frame.src = contentUrl(this.data.book.book_id, this.data.sections[section].item_path);
+    // Setting src adds a joint-history entry per chapter, so Back would first step the hidden frame.
+    const url = contentUrl(this.data.book.book_id, this.data.sections[section].item_path), window = state.frame.contentWindow;
+    if (window && state.frame.getAttribute("src")) window.location.replace(new URL(url, document.baseURI).href);
+    else state.frame.src = url;
   }
   private loaded(index: number) {
     if (this.disposed) return;
