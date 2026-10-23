@@ -40,15 +40,19 @@ const settleQueue = async (queue: TransferQueue) => {
   throw new Error("queue did not settle");
 };
 // WebCrypto resolves outside fake timers, so advance again after each async boundary.
+// Captured before any test fakes timers: work that is not timer-driven (e.g. crypto.subtle hashing a
+// fingerprint) only finishes once the real event loop turns, which fake timers alone never do.
+const realImmediate = globalThis.setImmediate;
+const turn = () => new Promise<void>(resolve => realImmediate(resolve));
 const settleTimers = async <T>(pending: Promise<T>): Promise<T> => {
   let settled = false;
   const tracked = pending.then(value => { settled = true; return value; }, error => { settled = true; throw error; });
-  for (let i = 0; i < 50 && !settled; i++) { await vi.runAllTimersAsync(); await Promise.resolve(); }
+  for (let i = 0; i < 1000 && !settled; i++) { await vi.runAllTimersAsync(); await turn(); }
   return tracked;
 };
 const settleQueueTimers = async (queue: TransferQueue) => {
-  for (let i = 0; i < 50; i++) {
-    await vi.runAllTimersAsync(); await Promise.resolve();
+  for (let i = 0; i < 1000; i++) {
+    await vi.runAllTimersAsync(); await turn();
     if (queue.snapshot().every(j => j.state === "完成" || j.state === "失败")) return;
   }
   throw new Error("queue did not settle");

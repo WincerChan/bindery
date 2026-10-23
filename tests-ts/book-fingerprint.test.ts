@@ -8,6 +8,7 @@ import { parseBook } from "../src/core/parsing";
 import { bookFingerprint, createLibraryMatcher } from "../src/core/fingerprint";
 import { normalizeIdentity } from "../src/core/identity";
 import { parseManifest, readManifest, type ManifestBook } from "../src/client/kindle/manifest";
+import { EMPTY_SETTINGS } from "../src/client/devices/profiles";
 import { parseKoboManifest } from "../src/client/devices/kobo/manifest";
 import { inventory } from "../src/client/devices/inventory";
 import { readKfxBookMetadata } from "../src/client/kindle/kfx-metadata";
@@ -89,7 +90,7 @@ describe("book fingerprint", () => {
     const kobo = await fakeKobo(), koboDevice = await pairDetectedDevice(kobo.root, await detectDevice(kobo.root), "libra2", "Libra");
     const transferred = await koboService().transferBook(koboDevice, id("a"));
     const koboManifest = parseKoboManifest(JSON.parse(await kobo.text(".bindery/manifest.json")));
-    expect(koboManifest.books[0]).toEqual({ book_id: id("a"), filename: `Bindery/${transferred.filename}`, transferred_at: expect.any(String), fingerprint: expected });
+    expect(koboManifest.books[0]).toEqual({ book_id: id("a"), filename: `Bindery/${transferred.filename}`, transferred_at: expect.any(String), fingerprint: expected, settings: EMPTY_SETTINGS });
     const oldKobo = { book_id: id("b"), filename: "Bindery/Old.kepub.epub", transferred_at: "2026-10-22T13:12:00Z" };
     expect(parseKoboManifest({ version: 1, books: [oldKobo] }).books[0]!.fingerprint).toBeUndefined();
     expect(() => parseKoboManifest({ version: 1, books: [{ ...oldKobo, fingerprint: "abc" }] })).toThrow();
@@ -106,7 +107,7 @@ describe("book fingerprint", () => {
     await fs.write(old.filename, "old"); await fs.write(".bindery/manifest.json", JSON.stringify({ version: 1, books: [old] }));
     const result = await koboService().transferBook(device, id("a"), "default", { overwrite: true });
     expect(result.filename).toBe("旧名.kepub.epub");
-    expect(parseKoboManifest(JSON.parse(await fs.text(".bindery/manifest.json"))).books).toEqual([{ book_id: id("a"), filename: old.filename, transferred_at: expect.any(String), fingerprint }]);
+    expect(parseKoboManifest(JSON.parse(await fs.text(".bindery/manifest.json"))).books).toEqual([{ book_id: id("a"), filename: old.filename, transferred_at: expect.any(String), fingerprint, settings: EMPTY_SETTINGS }]);
     await expect(fs.bytes(`Bindery/${title}.kepub.epub`)).rejects.toMatchObject({ name: "NotFoundError" });
   });
   it("overwrites an old Kindle record by its KFX fingerprint, keeping the file and .sdr and rewriting id + fingerprint", async () => {
