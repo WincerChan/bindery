@@ -10,6 +10,7 @@ import { FontSample } from "../../devices/preview/frames";
 import { Link } from "../../../shared/spa-link";
 import { fileSize, inspectFontBatch } from "./model";
 import { KindleIcon } from "../icons";
+import { FontLanguageFilter, matchesFontLanguage, type FontLanguage } from "../../devices/font-language";
 import { byteProgressDetail } from "../devices/format";
 
 function FontInstallQueueProgress(props: { progress: FontInstallProgress; active: boolean; cancelling: boolean; cancel: () => void }) {
@@ -48,7 +49,8 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
   const kind = () => context?.kind() ?? "kindle";
   const { state } = usePageDevice(manager);
   const shared = context?.manager === manager ? context : null;
-  const [families, setFamilies] = createSignal<FontFamily[]>([]);
+  const [families, setFamilies] = createSignal<FontFamily[]>([]), [language, setLanguage] = createSignal<FontLanguage>("all");
+  const shown = () => families().filter(family => matchesFontLanguage(family, language()));
   const [scanning, setScanning] = createSignal(false), [updating, setUpdating] = createSignal(false);
   const busy = () => scanning() || updating();
   const [error, setError] = createSignal(""), [notice, setNotice] = createSignal("");
@@ -128,7 +130,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
     onDrop={event => { event.preventDefault(); setDragging(false); if (event.dataTransfer) void choose(Array.from(event.dataTransfer.files)); }}>
     <div class="kt-heading"><div><h2>字体</h2><p class="muted">设备根目录下的 <span class="kindle-mono">fonts/</span> · {families().length} 个家族 · {families().reduce((sum, family) => sum + family.fonts.length, 0)} 个字体文件 · <span class="kindle-mono">{fileSize(totalSize())}</span> · 已忽略 macOS 的 ._* 文件和 Readme.txt</p></div>
-      <div class="kt-actions"><Button variant="secondary" disabled={!device() || busy()} onClick={scan}>重新扫描</Button><Button disabled={!device() || busy()} onClick={() => input.click()}>添加字体</Button></div>
+      <div class="kt-actions"><FontLanguageFilter value={language()} onChange={setLanguage} /><Button variant="secondary" disabled={!device() || busy()} onClick={scan}>重新扫描</Button><Button disabled={!device() || busy()} onClick={() => input.click()}>添加字体</Button></div>
     </div>
     <input ref={input} type="file" multiple accept=".ttf,.otf" hidden aria-label="选择 TTF 或 OTF 字体文件" onChange={event => { void choose(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
     <Show when={!state()}><p role="status">检测中…</p></Show>
@@ -142,7 +144,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     </section>}</Show>
     <Show when={installProgress()}>{progress => <FontInstallQueueProgress progress={progress()} active={installing() && progress().state !== "完成" && progress().state !== "失败"} cancelling={cancelling()} cancel={() => { setCancelling(true); installation?.controller.abort(); }} />}</Show>
     <section class="kt-table-scroll" aria-label="字体列表"><table class="kt-font-table"><caption class="sr-only">设备已安装字体</caption><thead><tr><th scope="col">家族</th><th scope="col">样张</th><th scope="col">字重 / 样式</th><th scope="col">大小</th><th scope="col">操作</th></tr></thead><tbody>
-      <For each={families()}>{family => <tr data-font-family={family.name}><td><strong>{family.name}</strong><small class="kt-font-files kindle-mono" title={family.fonts.map(font => font.filename).join(" · ")}>{family.fonts.map(font => font.filename).join(" · ")}</small><small>手动安装</small></td>
+      <For each={shown()}>{family => <tr data-font-family={family.name}><td><strong>{family.name}</strong><small class="kt-font-files kindle-mono" title={family.fonts.map(font => font.filename).join(" · ")}>{family.fonts.map(font => font.filename).join(" · ")}</small><small>手动安装</small></td>
         <td><Show when={device()}>{current => <FontSample device={current()} family={family} />}</Show></td>
         <td><div class="kt-coverage"><For each={["R", "B", "I", "BI"]}>{code => <span class={family.coverage.includes(code) ? "" : "is-missing"} title={`${({ R: "常规", B: "粗体", I: "斜体", BI: "粗斜体" } as Record<string, string>)[code]}${family.coverage.includes(code) ? "" : "（缺失）"}`}>{code}</span>}</For></div>
           <small>{family.coverage.filter(code => !["R", "B", "I", "BI"].includes(code)).join("、")}</small>
@@ -152,6 +154,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
         }}><KindleIcon name="eye" /></Link></Show><Button variant="icon" aria-label={`从设备删除 ${family.name}`} title={`从设备删除 ${family.name}`} disabled={busy() || !device()} onClick={() => setDeleting(family)}><KindleIcon name="trash" /></Button></div></td></tr>}</For>
     </tbody></table></section>
     <Show when={device() && !busy() && families().length === 0 && !error()}><p class="muted">设备 fonts/ 目录中还没有可用字体。</p></Show>
+    <Show when={families().length > 0 && shown().length === 0}><p class="muted">没有{language() === "cjk" ? "中文" : "英文"}字体。</p></Show>
     <section class="kt-font-help" aria-label="添加字体"><div><h2>添加字体</h2><p>把 TTF / OTF 文件拖到这个页面上，或点击「添加字体」。请一起添加同一家族的常规、粗体、斜体与粗斜体文件。</p><p>R 常规 · B 粗体 · I 斜体 · BI 粗斜体。缺少的粗体和斜体可能由设备模拟，效果会与真实字形不同。</p></div><p><KindleIcon name="warning" />增删字体后，需要重启设备或重新插拔，字体列表才会更新。</p></section>
     <ConfirmDialog open={Boolean(deleting())} title="从设备删除字体？" danger confirmLabel="删除整个家族" onClose={() => { if (!busy()) setDeleting(null); }} onConfirm={remove}>
       <p>将删除 {deleting()?.name} 的全部 {deleting()?.fonts.length} 个文件。使用此字体的排版方案不会自动改写。</p>

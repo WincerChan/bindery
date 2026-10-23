@@ -5,15 +5,61 @@ import { applyDevicePatchesFor, withDeviceLock, type DevicePatch } from "./trans
 import type { DeviceKind } from "./models";
 import { koboFamilyName, renameFontFamily } from "../../core/font-names";
 
-export interface DeviceFont { filename: string; family: string; style: string; weight: number; italic: boolean; coverage: "R" | "B" | "I" | "BI" | string; size: number; postscript?: string }
+/** `cjk`: the font maps common Chinese characters; absent when its character map could not be read. */
+export interface DeviceFont { filename: string; family: string; style: string; weight: number; italic: boolean; coverage: "R" | "B" | "I" | "BI" | string; size: number; postscript?: string; cjk?: boolean }
 export interface FontFamily { name: string; fonts: DeviceFont[]; coverage: string[]; size: number }
+/** A family is Chinese when any of its files maps Chinese characters (Chinese fonts carry Latin glyphs too). */
+export const isCjkFamily = (family: FontFamily) => family.fonts.some(font => font.cjk);
+export type FontLanguage = "all" | "cjk" | "latin";
+/** Every family that is not Chinese counts as English, including ones whose character map could not be read. */
+export const matchesFontLanguage = (family: FontFamily, language: FontLanguage) => language === "all" || (language === "cjk") === isCjkFamily(family);
 export const isFontFile = (name: string) => /\.(ttf|otf)$/i.test(name) && !name.startsWith("._");
 const fontMagic = (head: Uint8Array) => head.length >= 12 && (new DataView(head.buffer, head.byteOffset, head.byteLength).getUint32(0) === 0x00010000 || new TextDecoder().decode(head.subarray(0, 4)) === "OTTO");
-async function fontNames(file: File): Promise<{ family?: string; style?: string; postscript?: string }> {
+// 的 一 是 中: any two present means the font is meant for Chinese text.
+const CJK_PROBES = [0x7684, 0x4e00, 0x662f, 0x4e2d];
+/** Reads only the cmap subtable (format 4 or 12) and checks the probe characters; null when it cannot tell. */
+async function mapsCjk(file: File, offset: number, length: number): Promise<boolean | null> {
+  if (length < 4 || offset + length > file.size) return null;
+  const head = new DataView(await file.slice(offset, offset + Math.min(length, 4 + 8 * 64)).arrayBuffer()), tables = Math.min(head.getUint16(2), 64);
+  const records: { platform: number; encoding: number; at: number }[] = [];
+  for (let i = 0; i < tables && 12 + i * 8 <= head.byteLength; i++) records.push({ platform: head.getUint16(4 + i * 8), encoding: head.getUint16(6 + i * 8), at: head.getUint32(8 + i * 8) });
+  const rank = (r: { platform: number; encoding: number }) => r.platform === 3 && r.encoding === 10 ? 0 : r.platform === 0 && r.encoding >= 4 ? 1 : r.platform === 3 && r.encoding === 1 ? 2 : r.platform === 0 ? 3 : 9;
+  const best = records.filter(r => rank(r) < 9).sort((a, b) => rank(a) - rank(b))[0];
+  if (!best || best.at + 8 > length) return null;
+  const start = offset + best.at, sub = new DataView(await file.slice(start, start + 8).arrayBuffer()), format = sub.getUint16(0);
+  const size = format === 12 ? sub.getUint32(4) : format === 4 ? sub.getUint16(2) : 0;
+  if (!size || size > 16_777_216 || start + size > file.size) return null;
+  const data = new DataView(await file.slice(start, start + size).arrayBuffer());
+  const has = (code: number) => {
+    if (format === 12) {
+      for (let i = 0, groups = data.getUint32(12); i < groups && 16 + i * 12 + 12 <= size; i++) {
+        const at = 16 + i * 12; if (code >= data.getUint32(at) && code <= data.getUint32(at + 4)) return true;
+      }
+      return false;
+    }
+    const segments = data.getUint16(6) / 2, ends = 14, starts = ends + segments * 2 + 2, deltas = starts + segments * 2, ranges = deltas + segments * 2;
+    for (let i = 0; i < segments; i++) {
+      if (code > data.getUint16(ends + i * 2) || code < data.getUint16(starts + i * 2)) continue;
+      const range = data.getUint16(ranges + i * 2);
+      if (!range) return ((code + data.getInt16(deltas + i * 2)) & 0xffff) !== 0;
+      const glyphAt = ranges + i * 2 + range + (code - data.getUint16(starts + i * 2)) * 2;
+      return glyphAt + 2 <= size && data.getUint16(glyphAt) !== 0;
+    }
+    return false;
+  };
+  try { return CJK_PROBES.filter(has).length >= 2; } catch { return null; }
+}
+async function fontNames(file: File): Promise<{ family?: string; style?: string; postscript?: string; cjk?: boolean }> {
   const header = new Uint8Array(await file.slice(0, 65548).arrayBuffer());
   if (!fontMagic(header)) throw new Error(`无效的 TTF/OTF 字体：${file.name}`);
   const view = new DataView(header.buffer), count = view.getUint16(4);
   if (count > 4096 || 12 + count * 16 > header.length) throw new Error(`字体表损坏：${file.name}`);
+  let cjk: boolean | null = null;
+  for (let i = 0; i < count; i++) {
+    const at = 12 + i * 16;
+    if (new TextDecoder().decode(header.subarray(at, at + 4)) === "cmap") { cjk = await mapsCjk(file, view.getUint32(at + 8), view.getUint32(at + 12)).catch(() => null); break; }
+  }
+  const withCjk = <T extends object>(names: T) => cjk === null ? names : { ...names, cjk };
   for (let i = 0; i < count; i++) {
     const at = 12 + i * 16;
     if (new TextDecoder().decode(header.subarray(at, at + 4)) !== "name") continue;
@@ -27,9 +73,9 @@ async function fontNames(file: File): Promise<{ family?: string; style?: string;
       const text = new TextDecoder("utf-16be").decode(bytes.subarray(start, start + size)).replace(/\0/g, "").trim(), score = (platform === 3 ? 2 : 1) + (language === 0x409 ? 2 : 0);
       if (text && (!found.has(id) || found.get(id)!.score < score)) found.set(id, { score, text });
     }
-    return { family: found.get(16)?.text ?? found.get(1)?.text, style: found.get(17)?.text ?? found.get(2)?.text, postscript: found.get(6)?.text };
+    return withCjk({ family: found.get(16)?.text ?? found.get(1)?.text, style: found.get(17)?.text ?? found.get(2)?.text, postscript: found.get(6)?.text });
   }
-  return {};
+  return withCjk({});
 }
 export async function inspectFont(file: File): Promise<DeviceFont> {
   const names = await fontNames(file), stem = file.name.replace(/\.(ttf|otf)$/i, ""), match = /(?:[-_ ]?)(ExtraLight|UltraLight|SemiBold|DemiBold|ExtraBold|UltraBold|Regular|Normal|Medium|Light|Thin|Bold|Black|Heavy|Italic|Oblique)(?:[-_ ]?(Italic|Oblique))?$/i.exec(stem);
@@ -37,7 +83,7 @@ export async function inspectFont(file: File): Promise<DeviceFont> {
   const token = style.replace(/[ _-]/g, "").toLowerCase(), italic = /italic|oblique/.test(token);
   const weight = /extra(?:bold)|ultrabold/.test(token) ? 800 : /semi(?:bold)|demibold/.test(token) ? 600 : /bold/.test(token) ? 700 : /black|heavy/.test(token) ? 900 : /extra(?:light)|ultralight/.test(token) ? 200 : /thin/.test(token) ? 100 : /light/.test(token) ? 300 : /medium/.test(token) ? 500 : 400;
   const coverage = weight === 400 ? italic ? "I" : "R" : weight === 700 ? italic ? "BI" : "B" : `${style}`;
-  return { filename: file.name, family, style, weight, italic, coverage, size: file.size, ...(names.postscript ? { postscript: names.postscript } : {}) };
+  return { filename: file.name, family, style, weight, italic, coverage, size: file.size, ...(names.postscript ? { postscript: names.postscript } : {}), ...(names.cjk === undefined ? {} : { cjk: names.cjk }) };
 }
 export async function listFonts(root: KindleDirectory, reader = new EntryReader(root), kind: DeviceKind = "kindle"): Promise<FontFamily[]> {
   const dir = await reader.read("fonts", () => optionalDirectory(root, "fonts", root, "", kind));

@@ -14,6 +14,7 @@ import { Link } from "../../../shared/spa-link";
 import { DeviceProvider, useOptionalDevice } from "../context";
 import type { DeviceManager } from "../../../client/devices/device";
 import { SendToDevice } from "../send-to-device";
+import { FontLanguageFilter, matchesFontLanguage, type FontLanguage } from "../font-language";
 import { PreviewBookPicker } from "./book-picker";
 import { ChapterFrame } from "./frames";
 import { previewContentUrl, type PreviewChapter, type PreviewData } from "./model";
@@ -75,6 +76,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const readingKey = createMemo(() => target()?.id ? `${target()!.id}:${kind()}` : `model:${kind()}`);
   const fontDevice = createMemo<PairedDevice | null>(() => { const current = connected(), selected = target(); return current && selected?.id === current.identity.id ? current : null; });
   const family = createMemo(() => fonts().find(value => value.name === draft().settings.fontFamily));
+  const [fontLanguage, setFontLanguage] = createSignal<FontLanguage>("all");
   const dirty = () => JSON.stringify(draft()) !== baseline();
   const blockerDirty = () => dirty() && sent() !== JSON.stringify(draft());
   const settings = () => profileSettings(draft().settings);
@@ -225,11 +227,15 @@ function DevicePreviewPageInner(props: PreviewProps) {
         <span class="kt-range-value"><output for={`kt-${range.key}`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output>
         <button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={locked() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button></span>
       </div>}</For>
-      <Select label="字体（预览设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={locked()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
-        <option value="">设备默认字体</option>
-        <Show when={draft().settings.fontFamily && !family()}><option value={draft().settings.fontFamily!}>{draft().settings.fontFamily}（尚未在当前设备读取到）</option></Show>
-        <For each={fonts()}>{font => <option value={font.name}>{font.name}</option>}</For>
-      </Select>
+      <div class="kt-font-field">
+        <FontLanguageFilter value={fontLanguage()} onChange={setFontLanguage} disabled={locked()} />
+        <Select label="字体（预览设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={locked()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
+          <option value="">设备默认字体</option>
+          <Show when={draft().settings.fontFamily && !family()}><option value={draft().settings.fontFamily!}>{draft().settings.fontFamily}（尚未在当前设备读取到）</option></Show>
+          {/* The chosen font stays listed even when the filter hides its language. */}
+          <For each={fonts().filter(font => font.name === draft().settings.fontFamily || matchesFontLanguage(font, fontLanguage()))}>{font => <option value={font.name}>{font.name}</option>}</For>
+        </Select>
+      </div>
       <div class="kt-checkboxes" role="group" aria-label="正文样式">
         <Checkbox label="去掉书籍自带字体" checked={draft().settings.stripFonts} disabled={locked()} onChange={event => edit("stripFonts", event.currentTarget.checked)} />
         <Checkbox label="去掉所有图片" checked={draft().settings.stripImages} disabled={locked()} onChange={event => edit("stripImages", event.currentTarget.checked)} />

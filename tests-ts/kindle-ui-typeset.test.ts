@@ -159,7 +159,7 @@ it("renders the fonts title, summary, actions, five scoped columns and installat
   const heading = withClass(root, "kt-heading");
   expect(elements(heading, "h2").map(node => node.textContent)).toEqual(["字体"]);
   expect(heading.textContent).toContain("0 个家族 · 0 个字体文件");
-  expect(elements(heading, "button").map(node => node.textContent)).toEqual(["重新扫描", "添加字体"]);
+  expect(elements(heading, "button").map(node => node.textContent)).toEqual(["全部", "中文", "英文", "重新扫描", "添加字体"]);
   expect(button(heading, "重新扫描").className).toContain("btn-secondary");
   expect(button(heading, "添加字体").className).toContain("btn-primary");
   const table = withClass(root, "kt-font-table");
