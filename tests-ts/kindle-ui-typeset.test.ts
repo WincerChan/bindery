@@ -103,16 +103,16 @@ beforeAll(async () => {
       // Exercise the real route components, injecting only the server RPC boundary.
       { name: "kindle-ui-rpc-boundary", enforce: "pre", resolveId(id, importer) {
         if (!importer) return;
-        if (id.includes("server/kindle/functions")) return "\0kindle-ui-profiles";
+        if (id.includes("server/typeset/functions")) return "\0kindle-ui-profiles";
         if (id.endsWith("/server/functions")) return "\0kindle-ui-auth";
         if (id.endsWith("/typeset/preview.server")) return "\0kindle-ui-preview";
         if (id === "@tanstack/solid-start") return "\0kindle-ui-start";
       }, load(id) {
         if (id === "\0kindle-ui-profiles") return `
-          export const listKindleProfiles = ({ data }) => globalThis.__kindleProfiles.list(data);
-          export const createKindleProfile = ({ data }) => globalThis.__kindleProfiles.create(data);
-          export const updateKindleProfile = ({ data }) => globalThis.__kindleProfiles.update(data);
-          export const deleteKindleProfile = ({ data }) => globalThis.__kindleProfiles.delete(data.deviceId, data.id);
+          export const listTypesetProfiles = ({ data }) => globalThis.__kindleProfiles.list(data);
+          export const createTypesetProfile = ({ data }) => globalThis.__kindleProfiles.create(data);
+          export const updateTypesetProfile = ({ data }) => globalThis.__kindleProfiles.update(data);
+          export const deleteTypesetProfile = ({ data }) => globalThis.__kindleProfiles.delete(undefined, data.id);
         `;
         if (id === "\0kindle-ui-auth") return "export const authenticated = {}";
         if (id === "\0kindle-ui-preview") return "export const previewData = () => { throw Error('unexpected preview RPC') }; export const previewChapters = previewData;";

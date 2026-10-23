@@ -6,18 +6,21 @@ import { KoboPreviewPage } from "../features/devices/kobo-preview";
 import { useDeviceManager, useOptionalDevice } from "../features/devices/context";
 import { TypesetPage, type ProfileApi } from "../features/kindle/typeset/preview-page";
 import { authenticated } from "../server/functions";
-import { createKindleProfile, deleteKindleProfile, listKindleProfiles, updateKindleProfile } from "../server/kindle/functions";
+import { createTypesetProfile, deleteTypesetProfile, listTypesetProfiles, updateTypesetProfile } from "../server/typeset/functions";
+import { profileSettings as legacySettings } from "../client/kindle/profiles";
+import type { TypesettingProfile } from "../client/kindle/profiles";
 import "../features/kindle/typeset/typeset.css";
 
 const getPreview = createServerFn({ method: "GET" }).middleware([authenticated]).validator((book: string) => typeof book === "string" ? book : "")
   .handler(async ({ context, data }) => (await import("../features/kindle/typeset/preview.server")).previewData(context.library, data));
 const getChapters = createServerFn({ method: "GET" }).middleware([authenticated]).validator((book: string) => typeof book === "string" ? book : "")
   .handler(async ({ context, data }) => (await import("../features/kindle/typeset/preview.server")).previewChapters(context.library, data));
+const legacyProfile = (profile: { id: string; name: string; settings: unknown; builtIn: boolean }, deviceId: string): TypesettingProfile => ({ ...profile, deviceId, settings: legacySettings(profile.settings) });
 const profileApi: ProfileApi = {
-  list: deviceId => listKindleProfiles({ data: deviceId }),
-  create: profile => createKindleProfile({ data: profile }),
-  update: profile => updateKindleProfile({ data: profile }),
-  delete: (deviceId, id) => deleteKindleProfile({ data: { deviceId, id } }),
+  list: async deviceId => (await listTypesetProfiles({ data: deviceId })).map(profile => legacyProfile(profile, deviceId)),
+  create: async profile => legacyProfile(await createTypesetProfile({ data: profile }), profile.deviceId),
+  update: async profile => legacyProfile(await updateTypesetProfile({ data: profile }), profile.deviceId),
+  delete: (_deviceId, id) => deleteTypesetProfile({ data: { id } }),
 };
 export const Route = createFileRoute("/_app/devices/preview")({
   pendingComponent: DeviceBodySkeleton,

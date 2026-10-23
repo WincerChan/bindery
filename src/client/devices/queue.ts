@@ -1,13 +1,14 @@
 import { createSignal, onCleanup } from "solid-js";
 import { errorMessage } from "./fs";
 import type { PairedDevice } from "./identity";
+import type { ProfileSettings } from "./profiles";
 import type { DeviceKind } from "./models";
 import type { TransferProgress } from "./progress";
 import { getDeviceTransferService } from "./transfer";
 
-export interface TransferOptions { overwrite?: boolean; stripFonts?: boolean; stripImages?: boolean; stripPageMargins?: boolean; signal?: AbortSignal; progress?: (progress: TransferProgress) => void }
+export interface TransferOptions { overwrite?: boolean; settings?: ProfileSettings; signal?: AbortSignal; progress?: (progress: TransferProgress) => void }
 /** What a queued request remembers; retry replays exactly these. */
-export type TransferRequestOptions = Pick<TransferOptions, "overwrite" | "stripFonts" | "stripImages" | "stripPageMargins">;
+export type TransferRequestOptions = Pick<TransferOptions, "overwrite" | "settings">;
 export interface TransferResult { filename: string; size: number }
 export interface TransferService { transferBook(device: PairedDevice, bookId: string, profileId: string, options: TransferOptions): Promise<TransferResult> }
 

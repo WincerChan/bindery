@@ -126,7 +126,7 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
       if (!deviceId() || !k.inventory()) throw new Error("请先连接设备并等待书籍清单读取完成");
       for (const book of chosen()) {
         if (kindle()) k.enqueue(book.book_id, profile(), { overwrite: overwrite() });
-        else k.enqueue(book.book_id, "default", { overwrite: true, stripFonts: stripFonts(), stripImages: stripImages(), stripPageMargins: stripMargins() });
+        else k.enqueue(book.book_id, "default", { overwrite: true, settings: { ...defaultProfile("").settings, stripFonts: stripFonts(), stripImages: stripImages(), stripPageMargins: stripMargins() } });
       }
       setSelected([]);
     });

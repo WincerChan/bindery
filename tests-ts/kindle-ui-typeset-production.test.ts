@@ -56,8 +56,8 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
         return handler(new Request(url, { method, ...(method === "POST" ? { body: args } : {}), headers: { Cookie: auth ? "bindery_session=" + session : "", Origin: "http://localhost", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json", "X-Server-Function-Format": "8" } }));
       }
       const settings = { marginX: 1, marginY: null, lineHeight: 1.6, paragraphSpacing: null, textIndent: 2, justify: true, fontFamily: null, customCss: "", stripFonts: true, stripImages: true };
-      const input = { deviceId: "test-device", name: "正文", settings };
-      for (const [name, method, data] of [["getPreview", "GET", bookId], ["getChapters", "GET", bookId], ["listKindleProfiles", "GET", "test-device"], ["createKindleProfile", "POST", input], ["updateKindleProfile", "POST", { ...input, id: "missing" }], ["deleteKindleProfile", "POST", { deviceId: "test-device", id: "missing" }]]) {
+      const input = { name: "正文", settings };
+      for (const [name, method, data] of [["getPreview", "GET", bookId], ["getChapters", "GET", bookId], ["listTypesetProfiles", "GET", undefined], ["createTypesetProfile", "POST", input], ["updateTypesetProfile", "POST", { ...input, id: "missing" }], ["deleteTypesetProfile", "POST", { id: "missing" }]]) {
         const response = await rpc(name, method, data, false); assert.equal(response.status, 200, name);
         assert.ok(response.headers.get("X-Server-Function-Format")); assert.equal(response.headers.get("Location"), null);
         const payload = await response.json(); assert.equal(payload.error.isSerializedRedirect, true); assert.equal(payload.error.href, "/login?next=%2F");
@@ -88,17 +88,17 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
         for (const path of ["%00x", "a%5Cb", "a%0Ab", "a%2F..%2Fx", "absent.xhtml"]) assert.equal((await get(prefix + path)).status, 404);
       }
       assert.deepEqual(await result(await rpc("getChapters", "GET", bookId)), preview.sections);
-      const initial = await result(await rpc("listKindleProfiles", "GET", "test-device")); assert.equal(initial.length, 1); assert.equal(initial[0].builtIn, true);
-      const created = await result(await rpc("createKindleProfile", "POST", input)); assert.equal(created.deviceId, "test-device");
+      const initial = await result(await rpc("listTypesetProfiles", "GET")); assert.equal(initial.length, 1); assert.equal(initial[0].builtIn, true);
+      const created = await result(await rpc("createTypesetProfile", "POST", input)); assert.ok(created.id);
       assert.equal(created.settings.stripFonts, true); assert.equal(created.settings.stripImages, true);
-      const updated = await result(await rpc("updateKindleProfile", "POST", { ...input, id: created.id, name: "已更新" })); assert.equal(updated.name, "已更新");
-      const stored = (await result(await rpc("listKindleProfiles", "GET", "test-device")))[1]; assert.deepEqual(stored.settings, { ...settings, deviceModel: "KPW3", kindleMargin: "narrow", marginXUnit: "em" });
-      const negative = { ...settings, deviceModel: "KO3", kindleMargin: "medium", marginX: -4.8, marginXUnit: "percent" };
-      await result(await rpc("updateKindleProfile", "POST", { ...input, id: created.id, settings: negative }));
-      assert.deepEqual((await result(await rpc("listKindleProfiles", "GET", "test-device")))[1].settings, negative);
-      assert.equal((await result(await rpc("listKindleProfiles", "GET", "another-device"))).length, 1);
-      await result(await rpc("deleteKindleProfile", "POST", { deviceId: "test-device", id: created.id }));
-      assert.equal((await result(await rpc("listKindleProfiles", "GET", "test-device"))).length, 1);
+      const updated = await result(await rpc("updateTypesetProfile", "POST", { ...input, id: created.id, name: "已更新" })); assert.equal(updated.name, "已更新");
+      const stored = (await result(await rpc("listTypesetProfiles", "GET")))[1]; assert.deepEqual(stored.settings, { ...settings, marginXUnit: "em", stripPageMargins: false });
+      const negative = { ...settings, marginX: -4.8, marginXUnit: "percent" };
+      await result(await rpc("updateTypesetProfile", "POST", { ...input, id: created.id, settings: negative }));
+      assert.deepEqual((await result(await rpc("listTypesetProfiles", "GET")))[1].settings, { ...negative, stripPageMargins: false });
+      assert.equal((await result(await rpc("listTypesetProfiles", "GET"))).length, 2);
+      await result(await rpc("deleteTypesetProfile", "POST", { id: created.id }));
+      assert.equal((await result(await rpc("listTypesetProfiles", "GET"))).length, 1);
       writeFileSync(join(root, "typeset-result.json"), JSON.stringify({ ok: true }));
       } finally { await handler.shutdown(); }
     `);

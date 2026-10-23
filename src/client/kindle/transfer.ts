@@ -2,13 +2,13 @@ import { getBokoConverter, type EpubConverter } from "../boko/client";
 import { ConversionEstimate } from "../boko/estimate";
 import { readKfxIdentity } from "../boko/kfx";
 import { extractCover } from "../../core/epub";
-import { applyTypesettingProfile } from "./epub";
+import { applyTypesettingProfile } from "../../core/epub-profile-css";
 import { assertWindowsWritePath, directoryEntries, entryName, entryOperation, optionalDirectory, optionalEntry, type KindleDirectory } from "./fs";
 import { assertDevice } from "../devices/identity";
 import type { PairedDevice } from "../devices/identity";
 import type { TransferOptions as DeviceTransferOptions } from "../devices/queue";
 import { manifestBytes, readManifest, thumbnailName, type ManifestBook } from "./manifest";
-import { defaultProfile, DEFAULT_PROFILE_ID, profileSettings, type TypesettingProfile } from "./profiles";
+import { defaultProfile, DEFAULT_PROFILE_ID, profileSettings, type TypesettingProfile } from "../devices/profiles";
 import { applyDevicePatchesFor, withDeviceLock, type DevicePatch } from "./transaction";
 import { makeThumbnail } from "./thumbnail";
 import { listFonts } from "./fonts";
@@ -19,7 +19,7 @@ export interface TransferOptions extends DeviceTransferOptions {}
 export interface TransferDependencies {
   converter: EpubConverter;
   fetch: typeof fetch;
-  profile: (deviceId: string, profileId: string) => Promise<TypesettingProfile>;
+  profile: (profileId: string) => Promise<TypesettingProfile>;
   thumbnail: (bytes: Uint8Array) => Promise<Uint8Array<ArrayBuffer>>;
 }
 import { BOOK_STEM_BUDGET, fitStem, safeBookStem } from "../devices/paths";
@@ -40,11 +40,15 @@ export async function collisionSafeFilename(documents: KindleDirectory, title: s
   }
   return filename;
 }
-async function loadProfile(deviceId: string, profileId: string) {
-  if (profileId === DEFAULT_PROFILE_ID) return defaultProfile(deviceId);
-  const { listKindleProfiles } = await import("../../server/kindle/functions");
-  const profile = (await listKindleProfiles({ data: deviceId })).find(p => p.id === profileId);
-  if (!profile) throw new Error("排版配置不存在或不属于此 Kindle"); return profile;
+async function loadProfile(profileId: string) {
+  if (profileId === DEFAULT_PROFILE_ID) return defaultProfile();
+  const { listTypesetProfiles } = await import("../../server/typeset/functions");
+  const profile = (await listTypesetProfiles()).find(p => p.id === profileId);
+  if (!profile) throw new Error("排版方案不存在"); return profile;
+}
+function snapshotProfile(profileId: string, settings: TransferOptions["settings"]): TypesettingProfile | null {
+  if (!settings) return null;
+  return { id: profileId, name: profileId === DEFAULT_PROFILE_ID ? defaultProfile().name : "发送时的排版", settings: profileSettings(settings), builtIn: profileId === DEFAULT_PROFILE_ID };
 }
 export class KindleTransferService {
   private conversionEstimate = new ConversionEstimate();
@@ -54,10 +58,9 @@ export class KindleTransferService {
     const check = () => { if (options.signal?.aborted) throw new DOMException("操作已取消", "AbortError"); };
     const progress = new TransferProgressReporter(options.progress);
     check(); await assertDevice(device); progress.report({ state: "转换", phase: "download", message: "正在读取书库 EPUB" });
-    const profile = await this.dependencies.profile(device.identity.id, profileId);
-    if (profile.deviceId !== device.identity.id || profile.id !== profileId) throw new Error("排版配置不属于此 Kindle");
-    if (profile.id !== DEFAULT_PROFILE_ID) profileSettings(profile.settings);
-    if (profile.id !== DEFAULT_PROFILE_ID && profile.settings.fontFamily && !(await listFonts(device.root)).some(f => f.name === profile.settings.fontFamily)) throw new Error(`Kindle 上未安装字体：${profile.settings.fontFamily}`);
+    const snapshot = snapshotProfile(profileId, options.settings), profileLoaded = snapshot ?? await this.dependencies.profile(profileId);
+    const profile = { ...profileLoaded, settings: profileSettings(profileLoaded.settings) };
+    if (profile.settings.fontFamily && !(await listFonts(device.root)).some(f => f.name === profile.settings.fontFamily)) throw new Error(`Kindle 上未安装字体：${profile.settings.fontFamily}`);
     const response = await this.dependencies.fetch(`/book/${bookId}/download`, { credentials: "same-origin", redirect: "error", signal: options.signal });
     if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "登录已过期，请重新登录" : `书库 EPUB 下载失败（${response.status}）`);
     if (!response.body) throw new Error("书库 EPUB 下载响应没有数据流");

@@ -3,6 +3,7 @@ import { BASE_TABLES, TABLES, INDEXES } from "./schema";
 import { transaction, type Row } from "./connection";
 import { wishIdentity } from "./encoding";
 import { initKindleSchema } from "../kindle/migration";
+import { initTypesetSchema } from "../typeset/migration";
 function columns(conn: DatabaseSync, table: string): Set<string> {
   return new Set(conn.prepare(`PRAGMA table_info(${table})`).all().map(row => String(row.name)));
 }
@@ -14,6 +15,7 @@ export function initSchema(conn: DatabaseSync): void {
   if (!sessionColumns.has("auth_method")) conn.exec("ALTER TABLE sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password'");
   if (!sessionColumns.has("password_verified_at")) conn.exec("ALTER TABLE sessions ADD COLUMN password_verified_at TEXT");
   for (const sql of TABLES) conn.exec(sql);
+  initTypesetSchema(conn);
   const wishlistColumns = columns(conn, "wishlist");
   for (const [name, type] of [["library_book_id", "TEXT"], ["identity_title", "TEXT NOT NULL DEFAULT ''"], ["identity_author", "TEXT NOT NULL DEFAULT ''"], ["read_status", "TEXT NOT NULL DEFAULT 'unread'"], ["tags_json", "TEXT NOT NULL DEFAULT '[]'"], ["comment", "TEXT"]]) if (!wishlistColumns.has(name!)) conn.exec(`ALTER TABLE wishlist ADD COLUMN ${name} ${type}`);
   transaction(conn, () => {

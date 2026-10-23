@@ -30,7 +30,7 @@ function service(overrides: Partial<TransferDependencies> = {}) {
   const dependencies: TransferDependencies = {
     converter: { async convert(data) { inputs.push(data); return converted; } },
     fetch: async (_url, options) => { fetched.push(options!); return new Response(epub); },
-    profile: async (deviceId, id) => id === "default" ? defaultProfile(deviceId) : { ...defaultProfile(deviceId), id, name: "自定义", builtIn: false, settings: { ...EMPTY_SETTINGS, textIndent: 3.25 } },
+    profile: async id => id === "default" ? defaultProfile("test") : { ...defaultProfile("test"), id, name: "自定义", builtIn: false, settings: { ...EMPTY_SETTINGS, textIndent: 3.25 } },
     thumbnail: async bytes => { expect(bytes).toEqual(new Uint8Array(cover)); return thumbnail; }, ...overrides,
   };
   return { transfer: new KindleTransferService(dependencies), fetched, inputs };
@@ -42,7 +42,7 @@ const settleQueue = async (queue: TransferQueue) => {
 describe("transfer pipeline and device-side recovery", () => {
   it("passes both asset toggles to conversion while retaining the original cover for the Kindle thumbnail", async () => {
     const original = assetEpub(), before = original.slice(), fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle");
-    const { transfer, inputs } = service({ fetch: async () => new Response(original), profile: async deviceId => ({ ...defaultProfile(deviceId), id: "stripped", builtIn: false, settings: { ...EMPTY_SETTINGS, stripFonts: true, stripImages: true } }) });
+    const { transfer, inputs } = service({ fetch: async () => new Response(original), profile: async () => ({ ...defaultProfile("test"), id: "stripped", builtIn: false, settings: { ...EMPTY_SETTINGS, stripFonts: true, stripImages: true } }) });
     const record = await transfer.transferBook(device, bookId, "stripped"), archive = new EpubArchive(inputs[0]);
     expect(archive.entries.some(entry => entry.name.includes("/Fonts/"))).toBe(false);
     expect(archive.entries.filter(entry => entry.name.includes("/Images/")).map(entry => entry.name)).toEqual(["EPUB/Images/cover.png"]);
@@ -52,7 +52,7 @@ describe("transfer pipeline and device-side recovery", () => {
     const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Paperwhite"), { transfer, fetched, inputs } = service(), original = epub.slice(), progress: string[] = [];
     const record = await transfer.transferBook(device, bookId, "custom", { progress: value => { if (progress.at(-1) !== value.state) progress.push(value.state); } });
     expect(fetched[0]).toMatchObject({ credentials: "same-origin", redirect: "error" }); expect(epub).toEqual(original);
-    expect(readArchive(inputs[0]).some(e => e.name.endsWith("bindery-kindle-profile.css") && new TextDecoder().decode(e.data).includes("3.25em"))).toBe(true);
+    expect(readArchive(inputs[0]).some(e => e.name.endsWith("bindery-profile.css") && new TextDecoder().decode(e.data).includes("3.25em"))).toBe(true);
     expect(record).toMatchObject({ content_id: converted.identity.contentId, cde_content_type: "EBOK", profile_id: "custom", profile_name: "自定义", size: converted.data.length });
     expect(await fs.bytes(`documents/${record.filename}`)).toEqual(converted.data); expect(await fs.bytes(`system/thumbnails/${record.thumbnail}`)).toEqual(thumbnail); expect((await readManifest(fs.root)).books).toEqual([record]);
     expect(progress).toEqual(["转换", "写入", "完成"]); expect((await inventory(fs.root)).books[0].source).toBe("Bindery");
@@ -100,7 +100,7 @@ describe("transfer pipeline and device-side recovery", () => {
     await expect(service({ fetch: async () => new Response("", { status: 500 }) }).transfer.transferBook(device, bookId)).rejects.toThrow("500");
     await expect(service({ converter: { async convert() { throw new Error("bad EPUB"); } } }).transfer.transferBook(device, bookId)).rejects.toThrow("bad EPUB");
     const controller = new AbortController(), cancel = service({ converter: { async convert() { controller.abort(); return converted; } } }); await expect(cancel.transfer.transferBook(device, bookId, "default", { signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
-    const missingFont = service({ profile: async deviceId => ({ ...defaultProfile(deviceId), id: "missing-font", builtIn: false, settings: { ...EMPTY_SETTINGS, fontFamily: "Not Installed" } }) }); await expect(missingFont.transfer.transferBook(device, bookId, "missing-font")).rejects.toThrow("未安装字体");
+    const missingFont = service({ profile: async () => ({ ...defaultProfile("test"), id: "missing-font", builtIn: false, settings: { ...EMPTY_SETTINGS, fontFamily: "Not Installed" } }) }); await expect(missingFont.transfer.transferBook(device, bookId, "missing-font")).rejects.toThrow("未安装字体");
     expect((await inventory(fs.root)).books).toEqual([]);
   });
   it("recovers permission revocation during write after explicit reauthorization", async () => {
@@ -138,15 +138,16 @@ describe("SPA transfer queue", () => {
     const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"), other = await pairDevice((await fakeKindle()).root, "KO3", "Kindle");
     const calls: Array<[string, string, unknown]> = []; let fail = true;
     const queue = new TransferQueue({ async transferBook(_device, id, profile, options) {
-      calls.push([id, profile, { overwrite: options.overwrite, stripFonts: options.stripFonts }]);
+      calls.push([id, profile, { overwrite: options.overwrite, settings: options.settings }]);
       if (fail) throw new Error("Kindle 已断开，请重新插入后重试"); return { filename: `${id}.kfx`, size: 1 };
     } });
-    const failed = queue.enqueue(device, "a", "wide", { overwrite: true, stripFonts: true }); await settleQueue(queue);
+    const settings = { ...EMPTY_SETTINGS, stripFonts: true };
+    const failed = queue.enqueue(device, "a", "wide", { overwrite: true, settings }); await settleQueue(queue);
     expect(queue.snapshot()[0]).toMatchObject({ id: failed, state: "失败" });
     expect(() => queue.retry(failed, other)).toThrow("请先连接这本书的目标设备");
     fail = false; const retried = queue.retry(failed, device)!; await settleQueue(queue);
     expect(queue.snapshot().map(i => [i.id, i.state])).toEqual([[retried, "完成"]]);
-    expect(calls).toEqual([["a", "wide", { overwrite: true, stripFonts: true }], ["a", "wide", { overwrite: true, stripFonts: true }]]);
+    expect(calls).toEqual([["a", "wide", { overwrite: true, settings }], ["a", "wide", { overwrite: true, settings }]]);
     expect(queue.retry(retried, device)).toBeUndefined();
   });
 });

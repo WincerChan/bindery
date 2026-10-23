@@ -46,10 +46,10 @@ it("matches all KPW3 observations and labels scaled KO3 / other calibration as e
   expect(convertMarginX("KPW3", "narrow", -0.8, "em", "percent")).toBeCloseTo(-4.82, 2);
   expect(convertMarginX("KPW3", "wide", 2, "percent", "percent")).toBe(2);
   const oasis = kindlePreviewMetrics("KO3", "narrow", -0.8, "em");
-  expect(oasis.emPx).toBeCloseTo(55 * 1264 / 1072);
-  expect(oasis.deviceMarginPx).toBe(Math.round(80 * 1264 / 1072));
-  expect(oasis).toMatchObject({ charsPerLine: 18, measured: false });
-  expect(kindlePreviewMetrics("KO3", "narrow", -4.8, "percent")).toMatchObject({ charsPerLine: 18, measured: false });
+  expect(oasis.emPx).toBe(55);
+  expect(oasis.deviceMarginPx).toBe(80);
+  expect(oasis).toMatchObject({ charsPerLine: 21, measured: false });
+  expect(kindlePreviewMetrics("KO3", "narrow", -4.8, "percent")).toMatchObject({ charsPerLine: 21, measured: false });
   expect(kindlePreviewMetrics("other", "narrow", 0, "percent")).toMatchObject({ charsPerLine: 16, measured: false });
 });
 it("groups inspected install batches by family and retains additional weights", async () => {
@@ -89,7 +89,7 @@ it("updates the profile stylesheet without altering book styles and clears docum
   expect(base.textContent).toContain("margin: 52px 80px 70px !important"); expect(base.textContent).toContain("body { line-height: 1.75; }");
   expect(base.textContent).toContain("scrollbar-width: none !important");
   preview.setDevice("KPW3", "medium"); expect(base.textContent).toContain("margin: 52px 137px 70px !important");
-  preview.setDevice("KO3", "wide"); expect(base.textContent).toContain(`font-size: ${55 * 1264 / 1072}px`);
+  preview.setDevice("KO3", "wide"); expect(base.textContent).toContain("font-size: 55px");
   await preview.update("p { line-height: 1.6; }", device, family); expect(target.fonts.size).toBe(5);
   await preview.update("p { line-height: 1.8; }", device, family); expect(profile.textContent).toContain("1.8"); expect(target.fonts.size).toBe(5);
   await preview.update(null, null); expect(target.fonts.size).toBe(0); expect(profile.textContent).toContain("1.8");
@@ -125,8 +125,7 @@ it("pins device body geometry over author margins while keeping direct children,
     expect(body.style.getPropertyValue("margin")).toBe(`${geometry.top}px ${geometry.side}px ${geometry.bottom}px`);
     expect(body.style.getPropertyPriority("margin")).toBe("important");
     expect(body.style.getPropertyValue("font-family")).toBe("Book");
-    const scale = geometry.width / 1072;
-    expect(metrics).toMatchObject({ topMarginPx: Math.round(52 * scale), bottomMarginPx: Math.round(70 * scale), verticalMeasured: model === "KPW3" && preset === "narrow" });
+    expect(metrics).toMatchObject({ topMarginPx: 52, bottomMarginPx: 70, verticalMeasured: model === "KPW3" && preset === "narrow" });
     expect(geometry.lineHeight).toBe(1.75);
     for (const [value, unit, suffix] of [[-4.8, "percent", "%"], [-0.8, "em", "em"], [5, "percent", "%"]] as const) {
       await preview.update(`body > * { margin-left: ${value}${suffix} !important; margin-right: ${value}${suffix} !important; }`, null);

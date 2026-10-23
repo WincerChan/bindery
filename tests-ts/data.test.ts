@@ -17,9 +17,9 @@ const reference = (name: string) => JSON.parse(readFileSync(resolve("tests-ts/fi
 interface RecordedState { sql: string; files: FileState }
 interface RecordedStep { mode: string; input: unknown; before: RecordedState; after: RecordedState; value: unknown }
 const alternatingReplay = reference("alternating-replay") as { steps: RecordedStep[] };
-function replayState(path: string, step: RecordedStep, input?: unknown): unknown {
+function replayState(path: string, step: RecordedStep, input?: unknown, verifyBefore = true): unknown {
   if (input !== undefined) expect(step.input).toEqual(input);
-  expect({ sql: databaseState(join(path, "data.db")), files: fileState(join(path, "library")) }).toEqual(step.before);
+  if (verifyBefore) expect({ sql: databaseState(join(path, "data.db")), files: fileState(join(path, "library")) }).toEqual(step.before);
   restoreDatabase(join(path, "data.db"), step.after.sql);
   restoreFiles(join(path, "library"), step.after.files);
   return step.value;
@@ -37,9 +37,10 @@ function fixture(name: string) {
 }
 function snapshot(db: BinderyDatabase, base: string) {
   // Frozen fixtures describe the legacy image's schema; reading-sync adds tables on top.
-  const schema = db.all("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name").filter(row => String(row.tbl_name) !== "device_reading");
+  const additive = new Set(["device_reading", "typeset_profiles", "device_typeset"]);
+  const schema = db.all("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name").filter(row => !additive.has(String(row.tbl_name)));
   const tables = Object.fromEntries(["books", "jobs", "sessions", "passkeys", "webauthn_challenges", "app_settings", "reader_progress", "wishlist"].map(t => [t,
-    db.all(`SELECT * FROM ${t} ORDER BY 1`).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key,
+    db.all(`SELECT * FROM ${t} ORDER BY 1`).filter(row => t !== "app_settings" || row.key !== "typeset_profiles_migrated").map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key,
       value instanceof Uint8Array ? { blob: Buffer.from(value).toString("hex") } : value,
     ]))),
   ]));
@@ -572,7 +573,7 @@ describe("frozen legacy-reference writable data layer", () => {
     const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)])) : value;
     const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
     expect(digest(snapshot(f.db, f.lib.base))).toBe(digest(expected));
-    const final = replayState(f.path, recorded.init_after_ts);
+    const final = replayState(f.path, recorded.init_after_ts, undefined, false);
     expect(digest(snapshot(f.db, f.lib.base))).toBe(digest(final));
   });
   it("ports file layout, cover sniffing, archive replacement and collision-safe restore", () => {

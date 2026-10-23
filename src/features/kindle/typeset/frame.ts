@@ -2,6 +2,8 @@ import { loadPreviewFont, type FontFamily } from "../../../client/kindle/fonts";
 import type { KindleModel, PairedDevice } from "../../../client/kindle/identity";
 import { kindlePageGeometry, type KindleMarginPreset } from "../../../client/kindle/margins";
 import { previewAnchorPage, previewPagination } from "./model";
+import type { PageGeometry } from "../../../client/devices/typeset";
+export type { PageGeometry } from "../../../client/devices/typeset";
 
 /** A font registration belongs to exactly one isolated document. Late loads cannot resurrect it. */
 export class DocumentFonts {
@@ -24,16 +26,6 @@ export class DocumentFonts {
 }
 
 interface TextAnchor { node: Text; offset: number }
-/**
- * A device page in device pixels; `fontFamily` is the reader's default face, still overridable by the book.
- * `bookInsets`: the reader keeps the book's own html/body margin and padding (Kobo), unlike boko for Kindle.
- * `embeddedFontsOnly`: the reader has no system fonts, so `local()` sources and desktop family names are
- * redirected to `fallbackSources`, standing in for the reader's own default face.
- */
-export interface PageGeometry {
-  width: number; height: number; emPx: number; lineHeight: number; side: number; top: number; bottom: number; column: number; gap: number; contentHeight: number;
-  fontFamily?: string; bookInsets?: boolean; embeddedFontsOnly?: boolean; fallbackSources?: string;
-}
 // Desktop CJK families a book may name without embedding; an e-reader does not have them.
 const SYSTEM_FAMILIES = ["宋体", "SimSun", "新宋体", "NSimSun", "黑体", "SimHei", "楷体", "KaiTi", "楷体_GB2312", "仿宋", "FangSong", "仿宋_GB2312", "微软雅黑", "Microsoft YaHei", "华文宋体", "STSong", "华文楷体", "STKaiti", "华文仿宋", "STFangsong", "华文黑体", "STHeiti", "Songti SC", "Kaiti SC", "Heiti SC"];
 /** Splits a CSS list at top-level commas. */

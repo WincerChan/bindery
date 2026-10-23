@@ -1,41 +1,51 @@
+import { SCREEN_PANELS, type ScreenPanelId } from "./panels";
+
 export type DeviceKind = "kindle" | "kobo";
 
-/** KPW3, firmware 5.16.2.1.1, 霞鹜文楷 轻便版 Medium, Kindle size 7. */
-const calibration = (width: number, measured: boolean) => {
-  const scale = (px: number) => Math.round(px * width / 1072);
+/** Measured at 300 ppi, then scaled by the panel's pixel density. */
+const calibration = (ppi: number, measured: boolean) => {
+  const scale = (px: number) => Math.round(px * ppi / 300);
   const sideMargins = { narrow: scale(80), medium: scale(137), wide: scale(220) };
   const vertical = (preset: keyof typeof sideMargins) => ({ top: scale(52), bottom: scale(70), measured: measured && preset === "narrow" });
   const verticalMargins = { narrow: vertical("narrow"), medium: vertical("medium"), wide: vertical("wide") };
-  return { emPx: 55 * width / 1072, lineHeight: 1.75, sideMargins, measured, verticalMargins };
+  return { emPx: 55 * ppi / 300, lineHeight: 1.75, sideMargins, measured, verticalMargins };
+};
+const kindleModel = (name: string, panel: ScreenPanelId, measured = false, inches?: number) => {
+  const screen = SCREEN_PANELS[panel];
+  return { name, width: screen.width, height: screen.height, ppi: screen.ppi, inches: inches ?? screen.inches, panel, typesetting: calibration(screen.ppi, measured) };
 };
 export const KINDLE_MODELS = {
-  KPW3: { name: "Kindle Paperwhite 3", width: 1072, height: 1448, ppi: 300, inches: 6, typesetting: calibration(1072, true) },
-  KO3: { name: "Kindle Oasis 3", width: 1264, height: 1680, ppi: 300, inches: 7, typesetting: calibration(1264, false) },
-  other: { name: "其他 Kindle", width: null, height: null, ppi: null, inches: null, typesetting: calibration(1072, false) },
+  KPW3: kindleModel("Kindle Paperwhite 3", "1072x1448", true),
+  KO3: kindleModel("Kindle Oasis 3", "1264x1680"),
+  other: { name: "其他 Kindle", width: null, height: null, ppi: null, inches: null, panel: null, typesetting: calibration(300, false) },
 } as const;
 export type KindleModel = keyof typeof KINDLE_MODELS;
 
-export interface KoboModelInfo { name: string; width: number | null; height: number | null; ppi: number | null; inches: number | null }
+export interface KoboModelInfo { name: string; width: number | null; height: number | null; ppi: number | null; inches: number | null; panel: ScreenPanelId | null }
+const koboModel = (name: string, panel: ScreenPanelId, inches?: number): KoboModelInfo => {
+  const screen = SCREEN_PANELS[panel];
+  return { name, width: screen.width, height: screen.height, ppi: screen.ppi, inches: inches ?? screen.inches, panel };
+};
 export const KOBO_MODELS = {
-  libra2: { name: "Kobo Libra 2", width: 1264, height: 1680, ppi: 300, inches: 7 },
-  libraH2O: { name: "Kobo Libra H2O", width: 1264, height: 1680, ppi: 300, inches: 7 },
-  sage: { name: "Kobo Sage", width: 1440, height: 1920, ppi: 300, inches: 8 },
-  elipsa: { name: "Kobo Elipsa", width: 1404, height: 1872, ppi: 227, inches: 10.3 },
-  claraHD: { name: "Kobo Clara HD", width: 1072, height: 1448, ppi: 300, inches: 6 },
-  clara2e: { name: "Kobo Clara 2E", width: 1072, height: 1448, ppi: 300, inches: 6 },
-  claraBW: { name: "Kobo Clara BW", width: 1072, height: 1448, ppi: 300, inches: 6 },
-  claraColour: { name: "Kobo Clara Colour", width: 1072, height: 1448, ppi: 300, inches: 6 },
-  libraColour: { name: "Kobo Libra Colour", width: 1264, height: 1680, ppi: 300, inches: 7 },
-  nia: { name: "Kobo Nia", width: 758, height: 1024, ppi: 212, inches: 6 },
-  forma: { name: "Kobo Forma", width: 1440, height: 1920, ppi: 300, inches: 8 },
-  auraOne: { name: "Kobo Aura ONE", width: 1404, height: 1872, ppi: 300, inches: 7.8 },
-  auraH2O: { name: "Kobo Aura H2O", width: 1080, height: 1430, ppi: 265, inches: 6.8 },
-  auraEdition2: { name: "Kobo Aura Edition 2", width: 758, height: 1024, ppi: 212, inches: 6 },
-  aura: { name: "Kobo Aura", width: 758, height: 1024, ppi: 212, inches: 6 },
-  glo: { name: "Kobo Glo", width: 758, height: 1024, ppi: 212, inches: 6 },
-  touch: { name: "Kobo Touch", width: 600, height: 800, ppi: 167, inches: 6 },
-  mini: { name: "Kobo Mini", width: 600, height: 800, ppi: 167, inches: 5 },
-  unknown: { name: "Kobo（未知型号）", width: null, height: null, ppi: null, inches: null },
+  libra2: koboModel("Kobo Libra 2", "1264x1680"),
+  libraH2O: koboModel("Kobo Libra H2O", "1264x1680"),
+  sage: koboModel("Kobo Sage", "1440x1920"),
+  elipsa: koboModel("Kobo Elipsa", "1404x1872@227"),
+  claraHD: koboModel("Kobo Clara HD", "1072x1448"),
+  clara2e: koboModel("Kobo Clara 2E", "1072x1448"),
+  claraBW: koboModel("Kobo Clara BW", "1072x1448"),
+  claraColour: koboModel("Kobo Clara Colour", "1072x1448"),
+  libraColour: koboModel("Kobo Libra Colour", "1264x1680"),
+  nia: koboModel("Kobo Nia", "758x1024"),
+  forma: koboModel("Kobo Forma", "1440x1920"),
+  auraOne: koboModel("Kobo Aura ONE", "1404x1872@300"),
+  auraH2O: koboModel("Kobo Aura H2O", "1080x1430"),
+  auraEdition2: koboModel("Kobo Aura Edition 2", "758x1024"),
+  aura: koboModel("Kobo Aura", "758x1024"),
+  glo: koboModel("Kobo Glo", "758x1024"),
+  touch: koboModel("Kobo Touch", "600x800"),
+  mini: koboModel("Kobo Mini", "600x800", 5),
+  unknown: { name: "Kobo（未知型号）", width: null, height: null, ppi: null, inches: null, panel: null },
 } as const satisfies Record<string, KoboModelInfo>;
 export type KoboModel = keyof typeof KOBO_MODELS;
 

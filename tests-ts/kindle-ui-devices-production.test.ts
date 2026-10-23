@@ -37,8 +37,8 @@ async function rpc(name, data, method = 'GET') {
   return request('/_serverFn/data/' + ids.get(name) + '?args=' + args, { method });
 }
 const settings = { marginX: null, marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: '' };
-const profile = { deviceId: 'device-a', name: '宽边距', settings };
-for (const [name, data, method] of [['listKindleProfiles', 'device-a', 'GET'], ['createKindleProfile', profile, 'POST'], ['updateKindleProfile', { ...profile, id: 'x' }, 'POST'], ['deleteKindleProfile', { deviceId: 'device-a', id: 'x' }, 'POST']]) {
+const profile = { name: '宽边距', settings };
+for (const [name, data, method] of [['listTypesetProfiles', undefined, 'GET'], ['createTypesetProfile', profile, 'POST'], ['updateTypesetProfile', { ...profile, id: 'x' }, 'POST'], ['deleteTypesetProfile', { id: 'x' }, 'POST']]) {
   const denied = await rpc(name, data, method); assert.equal(denied.status, 200, 'protected ' + name);
   assert.ok(denied.headers.get('X-Server-Function-Format')); assert.equal(denied.headers.get('Location'), null);
   const payload = await denied.json(); assert.equal(payload.error.isSerializedRedirect, true); assert.equal(payload.error.href, '/login?next=%2F');
@@ -53,13 +53,12 @@ for (const path of ['/devices', '/devices/connect', '/devices/transfer']) {
   if (path.endsWith('transfer')) { assert.match(html, /GNU GENERAL PUBLIC LICENSE/); assert.match(html, /crates.io\\/api\\/v1\\/crates\\/boko\\/0.5.0\\/download/); }
 }
 async function result(name, data, method = 'GET') { const response = await rpc(name, data, method); assert.equal(response.status, 200, name); return (await response.json()).result; }
-assert.equal((await result('listKindleProfiles', 'device-a')).length, 1);
-const created = await result('createKindleProfile', profile, 'POST'); assert.equal(created.name, '宽边距'); assert.ok(created.id);
-const updated = await result('updateKindleProfile', { ...profile, id: created.id, name: '更新后的方案', settings: { ...settings, marginX: 2 } }, 'POST'); assert.equal(updated.name, '更新后的方案'); assert.equal(updated.settings.marginX, 2);
-assert.equal((await result('listKindleProfiles', 'device-b')).length, 1);
-assert.equal((await result('listKindleProfiles', 'device-a')).length, 2);
-await result('deleteKindleProfile', { deviceId: 'device-a', id: created.id }, 'POST');
-assert.equal((await result('listKindleProfiles', 'device-a')).length, 1);
+assert.equal((await result('listTypesetProfiles')).length, 1);
+const created = await result('createTypesetProfile', profile, 'POST'); assert.equal(created.name, '宽边距'); assert.ok(created.id);
+const updated = await result('updateTypesetProfile', { ...profile, id: created.id, name: '更新后的方案', settings: { ...settings, marginX: 2 } }, 'POST'); assert.equal(updated.name, '更新后的方案'); assert.equal(updated.settings.marginX, 2);
+assert.equal((await result('listTypesetProfiles')).length, 2);
+await result('deleteTypesetProfile', { id: created.id }, 'POST');
+assert.equal((await result('listTypesetProfiles')).length, 1);
 await writeFile(join(root, 'result.txt'), 'Kindle production checks passed');
 } finally { await handler.shutdown(); }
 `;

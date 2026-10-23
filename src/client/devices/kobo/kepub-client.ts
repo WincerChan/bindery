@@ -1,9 +1,9 @@
-import type { EpubStripOptions } from "../../../core/epub-strip";
+import type { KoboProfile } from "../../../core/kobo-kepub";
 import type { KepubStats } from "../../../core/kepub";
 
 export type KepubStage = "inspecting" | "converting" | "done";
 export interface KepubConversionResult { data: Uint8Array<ArrayBuffer>; stats: KepubStats }
-export interface KepubConversionOptions { signal?: AbortSignal; progress?: (stage: KepubStage) => void; strip?: EpubStripOptions }
+export interface KepubConversionOptions { signal?: AbortSignal; progress?: (stage: KepubStage) => void; profile?: KoboProfile }
 export interface KepubConverter { convert(data: Uint8Array, options?: KepubConversionOptions): Promise<KepubConversionResult> }
 /** One Worker/job. Termination is the cancellation boundary because conversion is synchronous. */
 export class KepubWorkerConverter implements KepubConverter {
@@ -29,7 +29,7 @@ export class KepubWorkerConverter implements KepubConverter {
           else if (message.stage) options.progress?.(message.stage);
         };
         const input = new Uint8Array(data);
-        worker!.postMessage({ id, data: input.buffer, strip: options.strip, level: this.level }, [input.buffer]);
+        worker!.postMessage({ id, data: input.buffer, profile: options.profile, level: this.level }, [input.buffer]);
         if (options.signal?.aborted) { cleanup(); abort(); }
       });
     } finally { worker?.terminate(); this.active = false; }

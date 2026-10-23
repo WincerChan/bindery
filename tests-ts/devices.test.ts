@@ -14,6 +14,7 @@ import { LocalStorageDevicePreference, MemoryDevicePreference } from "../src/cli
 import type { DeviceFont } from "../src/client/devices/fonts";
 import { KoboTransferService } from "../src/client/devices/kobo/transfer";
 import { fakeKindle, fakeKobo, FakeFileSystem } from "./support/fake-fs";
+import { EMPTY_SETTINGS } from "../src/client/devices/profiles";
 
 class MemoryHandles implements HandleRepository {
   devices = new Map<string, RememberedDevice>();
@@ -94,12 +95,12 @@ describe("Kobo write policy, books, transfer, deletion and fonts", () => {
     const progress: string[] = [];
     const service = new KoboTransferService({
       fetch: async () => new Response(fixture, { headers: { "Content-Length": String(fixture.byteLength) } }),
-      converter: { convert: async (data, options) => { strips.push(options?.strip); return { data: convertToKepub(data).data, stats: convertToKepub(data).stats }; } },
+      converter: { convert: async (data, options) => { strips.push(options?.profile); return { data: convertToKepub(data).data, stats: convertToKepub(data).stats }; } },
     });
     const strips: unknown[] = [];
-    const record = await service.transferBook(device, "a".repeat(32), "default", { stripFonts: false, stripImages: false, stripPageMargins: true, progress: value => progress.push(`${value.phase}:${value.state}`) });
+    const record = await service.transferBook(device, "a".repeat(32), "default", { settings: { ...EMPTY_SETTINGS, stripPageMargins: true }, progress: value => progress.push(`${value.phase}:${value.state}`) });
     // Stripping happens inside the converter's worker; the service only forwards the choice.
-    expect(strips[0]).toEqual({ stripFonts: false, stripImages: false, stripPageMargins: true });
+    expect(strips[0]).toEqual({ settings: { ...EMPTY_SETTINGS, stripPageMargins: true }, css: "" });
     expect(record.filename).toBe("KEPUB fixture.kepub.epub");
     expect(progress).toContain("download:转换"); expect(progress).toContain("convert:转换"); expect(progress).toContain("finalize:完成");
     const bytes = await fs.bytes(`Bindery/${record.filename}`); expect(bytes.byteLength).toBe(record.size);
