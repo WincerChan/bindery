@@ -136,6 +136,9 @@ const input = (root: Element, id: string) => elements(root, "input").find(elemen
 const labels = (root: Element, tag: string, label: string) => elements(root, "label").find(element => element.firstChild?.textContent === label)!.getElementsByTagName(tag)[0]!;
 const withClass = (root: Element, name: string) => elements(root, "*").find(node => node.className.split(/\s+/).includes(name))!;
 const frame = (root: Element) => elements(root, "iframe")[0]!;
+const bookBox = (root: Element) => elements(root, "input").find(element => element.getAttribute("role") === "combobox") as HTMLInputElement;
+/** Open the book dropdown, type, then Enter: the way a person picks a book. */
+function pickBook(root: Element, text: string) { const box = bookBox(root); fire(box, "focus"); ui.flush(); setValue(box, text); fire(box, "keydown", { key: "Enter" }); ui.flush(); }
 
 it("renders one neutral page with both kinds available, no profile-owning device and the measured estimate", () => {
   const root = document.createElement("div"); root.innerHTML = ssr.markup(propsFor(null));
@@ -308,12 +311,34 @@ it("keeps a font-linked preview as an unsaved draft", async () => {
   expect(profiles.update).not.toHaveBeenCalled(); expect(profiles.create).not.toHaveBeenCalled();
 });
 
+it("picks the preview book from one searchable dropdown: open, type, Enter", async () => {
+  const chapters = vi.fn(async () => [{ title: "第一章", item_path: "Text/第一 章.xhtml" }]);
+  const mounted = mount(null, { chapters }); await settle();
+  const box = bookBox(mounted.root), options = () => elements(mounted.root, "li").filter(node => node.getAttribute("role") === "option");
+  expect(box.value).toBe("甲 · 作者"); expect(box.getAttribute("aria-expanded")).toBe("false"); expect(options()).toHaveLength(0);
+  fire(box, "focus"); ui.flush();
+  expect(box.getAttribute("aria-expanded")).toBe("true"); expect(box.value).toBe(""); expect(box.getAttribute("placeholder")).toBe("甲 · 作者");
+  expect(options().map(node => node.textContent)).toEqual(["甲 · 作者", "乙"]);
+  setValue(box, "乙"); expect(options().map(node => node.textContent)).toEqual(["乙"]);
+  fire(box, "keydown", { key: "Enter" }); ui.flush(); await settle();
+  expect(chapters).toHaveBeenCalledWith("b"); expect(box.getAttribute("aria-expanded")).toBe("false"); expect(box.value).toBe("乙");
+  // Arrow keys move the highlight; Escape closes without changing the book.
+  fire(box, "keydown", { key: "ArrowDown" }); ui.flush(); expect(box.getAttribute("aria-expanded")).toBe("true");
+  fire(box, "keydown", { key: "ArrowUp" }); ui.flush(); expect(box.getAttribute("aria-activedescendant")).toBe(options()[0]!.id);
+  fire(box, "keydown", { key: "Escape" }); ui.flush(); expect(box.value).toBe("乙"); expect(chapters).toHaveBeenCalledTimes(1);
+  setValue(box, "没有这本"); expect(mounted.root.textContent).toContain("没有匹配的书");
+  fire(box, "keydown", { key: "Enter" }); ui.flush(); expect(chapters).toHaveBeenCalledTimes(1);
+  // A click on an option picks it.
+  fire(box, "blur"); ui.flush(); fire(box, "focus"); ui.flush(); fire(options()[0]!, "click"); ui.flush(); await settle();
+  expect(chapters).toHaveBeenLastCalledWith("a"); expect(box.value).toBe("甲 · 作者");
+});
+
 it("ignores a stale chapter response after the book changed", async () => {
   let finish!: (value: { title: string; item_path: string }[]) => void;
   const chapters = vi.fn((id: string) => id === "b" ? new Promise<{ title: string; item_path: string }[]>(resolve => { finish = resolve; }) : Promise.resolve([{ title: "新第一章", item_path: "new.xhtml" }]));
   const mounted = mount(null, { chapters }); await settle();
   setValue(labels(mounted.root, "select", "预览型号"), "KO3", "change"); expect(frame(mounted.root).getAttribute("width")).toBe("1264");
-  const select = labels(mounted.root, "select", "预览书籍"); setValue(select, "b", "change"); setValue(select, "a", "change"); await settle();
+  pickBook(mounted.root, "乙"); pickBook(mounted.root, "甲"); await settle();
   finish([{ title: "过期第二章", item_path: "stale.xhtml" }]); await settle();
   expect(frame(mounted.root).getAttribute("src")).toBe("/book/a/epub/new.xhtml");
   expect(elements(mounted.root, "option").map(option => option.textContent)).not.toContain("过期第二章");

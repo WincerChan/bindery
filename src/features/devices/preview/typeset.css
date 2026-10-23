@@ -40,9 +40,16 @@
 .kt-preview-selectors { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 8px; min-width: 0; }
 .kt-page .kt-preview-selectors .field { min-width: 0; gap: 4px; font-size: 13px; color: var(--color-ink-2); }
 .kt-preview-selectors .field > span { white-space: nowrap; }
-.kt-book-picker { display: grid; gap: 6px; min-width: 0; }
-/* The device pages' `.field input` padding would cover the search icon. */
-.kt-page .kt-book-search input:not([type="checkbox"]) { height: 32px; min-height: 32px; padding-left: 36px; font-size: 13px; }
+.kt-preview-selectors .field > label { white-space: nowrap; }
+.kt-combobox { position: relative; min-width: 0; }
+/* Looks like the neighbouring selects: same height, padding and arrow. */
+.kt-page .kt-combobox input { height: 32px; min-height: 32px; padding: 0 30px 0 8px; font-size: 13px; text-overflow: ellipsis; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2361666D' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 12px 12px; }
+.kt-page .kt-combobox input[aria-expanded="true"] { cursor: text; }
+.kt-combobox-list { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; max-height: 320px; overflow: auto; margin: 0; padding: 4px 0; list-style: none; background: var(--color-bg); border: 1px solid var(--color-line); border-radius: 6px; box-shadow: 0 8px 24px rgb(0 0 0 / .08); }
+.kt-combobox-list [role="option"] { padding: 6px 10px; font-size: 13px; line-height: 1.4; color: var(--color-ink); cursor: pointer; overflow-wrap: anywhere; }
+.kt-combobox-list [role="option"].is-active { background: var(--color-line-soft); }
+.kt-combobox-list [role="option"][aria-selected="true"] { font-weight: 600; }
+.kt-combobox-note { padding: 6px 10px; font-size: 12px; color: var(--color-ink-3); }
 .kt-page .kt-preview-selectors select { --select-arrow-gap: 10px; height: 32px; min-height: 32px; padding: 0 30px 0 8px; min-width: 0; text-overflow: ellipsis; }
 .kt-calibration { min-height: 0; overflow: auto; }
 .kt-calibration p { padding-top: 6px; }
