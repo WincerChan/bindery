@@ -24,7 +24,7 @@ it("benchmarks indexed Kindle preview resources on a ~20 MB / 2241-member EPUB",
   const { id, library, cleanup } = readerFixture(); cleanups.push(cleanup);
   const book = obfuscatedEpub(2227, 9000, true), file = epubPath(library.base, id);
   writeFileSync(file, book.data);
-  const path = book.paths[0], mode = "11", prefix = `/devices/content/${id}/${mode}/epub/`;
+  const path = book.paths[0], mode = "11000", prefix = `/devices/content/${id}/${mode}/epub/`;
   const request = readerRequest(prefix + encodeEpubPath(path)), members = new Set(book.entries.map(entry => entry.name));
   const elapsed = async (work: () => unknown) => { const start = performance.now(); await work(); return performance.now() - start; };
   // The pre-integration resource path, with the signature mismatch corrected only

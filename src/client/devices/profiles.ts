@@ -3,11 +3,12 @@ import { MARGIN_X_UNITS, MAXIMUM_MARGIN_X, type MarginXUnit } from "./typeset";
 
 export interface ProfileSettings {
   marginX: number | null; marginXUnit: MarginXUnit; marginY: number | null; lineHeight: number | null;
-  paragraphSpacing: number | null; textIndent: number | null; justify: true | null;
+  paragraphSpacing: number | null; textIndent: number | null;
   fontFamily: string | null; customCss: string; stripFonts: boolean; stripImages: boolean; stripPageMargins: boolean;
+  stripLineHeight: boolean; stripParagraphSpacing: boolean;
 }
 export interface TypesettingProfile { id: string; name: string; settings: ProfileSettings; builtIn: boolean }
-export const EMPTY_SETTINGS: ProfileSettings = Object.freeze({ marginX: null, marginXUnit: "percent", marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: "", stripFonts: false, stripImages: false, stripPageMargins: false });
+export const EMPTY_SETTINGS: ProfileSettings = Object.freeze({ marginX: null, marginXUnit: "percent", marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, fontFamily: null, customCss: "", stripFonts: false, stripImages: false, stripPageMargins: false, stripLineHeight: false, stripParagraphSpacing: false });
 export const DEFAULT_PROFILE_ID = "default";
 export const defaultProfile = (): TypesettingProfile => ({ id: DEFAULT_PROFILE_ID, name: "默认", settings: { ...EMPTY_SETTINGS }, builtIn: true });
 export const isDefaultSettings = (settings: ProfileSettings) => JSON.stringify(profileSettings(settings)) === JSON.stringify(EMPTY_SETTINGS);
@@ -36,7 +37,7 @@ export function profileSettings(value: unknown): ProfileSettings {
   if (v.marginXUnit !== undefined && (typeof v.marginXUnit !== "string" || !Object.hasOwn(MARGIN_X_UNITS, v.marginXUnit))) throw new Error("无效的排版参数：marginXUnit");
   // Settings saved before marginXUnit existed stored em; keep their output unchanged.
   output.marginXUnit = (v.marginXUnit ?? (typeof v.marginX === "number" ? "em" : EMPTY_SETTINGS.marginXUnit)) as MarginXUnit;
-  for (const key of ["stripFonts", "stripImages", "stripPageMargins"] as const) {
+  for (const key of ["stripFonts", "stripImages", "stripPageMargins", "stripLineHeight", "stripParagraphSpacing"] as const) {
     if (v[key] !== undefined && typeof v[key] !== "boolean") throw new Error(`无效的排版参数：${key}`);
     output[key] = v[key] === true;
   }
@@ -53,12 +54,10 @@ export function profileSettings(value: unknown): ProfileSettings {
     }
     output[key] = (n ?? null) as number | null;
   }
-  if (v.justify !== undefined && v.justify !== null && typeof v.justify !== "boolean") throw new Error("无效的两端对齐设置");
   if (v.fontFamily !== undefined && v.fontFamily !== null && (typeof v.fontFamily !== "string" || !v.fontFamily.trim() || v.fontFamily.length > 200 || /[\x00-\x1f\x7f]/.test(v.fontFamily))) throw new Error("无效的字体名称");
   if (v.customCss !== undefined && typeof v.customCss !== "string") throw new Error("无效的自定义 CSS");
   const customCss = v.customCss ?? "", cssError = validateCss(customCss); if (cssError) throw new Error(cssError);
-  // Only justified text is ever imposed; `false` (a forced left alignment from older settings) follows the book.
-  output.justify = v.justify === true ? true : null; output.fontFamily = (v.fontFamily ?? null) as string | null; output.customCss = customCss;
+  output.fontFamily = (v.fontFamily ?? null) as string | null; output.customCss = customCss;
   return output;
 }
 /**
@@ -79,11 +78,10 @@ export function generateProfileCss(profile: TypesettingProfile): string {
     const margin = `${s.marginX}${MARGIN_X_UNITS[s.marginXUnit]}`;
     body.push(`margin-left: ${margin} !important;`, `margin-right: ${margin} !important;`);
   }
-  if (s.lineHeight !== null) paragraph.push(`line-height: ${s.lineHeight} !important;`);
-  if (s.paragraphSpacing !== null) paragraph.push(`margin-top: 0 !important;`, `margin-bottom: ${em(s.paragraphSpacing)} !important;`);
-  if (s.textIndent !== null) paragraph.push(`text-indent: ${em(s.textIndent)} !important;`);
-  if (s.justify) paragraph.push("text-align: justify !important;");
-  const font = s.fontFamily ? `body, body * {\n  font-family: "${s.fontFamily.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}" !important;\n}` : "";
+  if (s.lineHeight !== null) paragraph.push(`line-height: ${s.lineHeight};`);
+  if (s.paragraphSpacing !== null) paragraph.push(`margin-top: 0;`, `margin-bottom: ${em(s.paragraphSpacing)};`);
+  if (s.textIndent !== null) paragraph.push(`text-indent: ${em(s.textIndent)};`);
+  const font = s.fontFamily ? `body, body * {\n  font-family: "${s.fontFamily.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}";\n}` : "";
   return [body.length ? `body > * {\n  ${body.join("\n  ")}\n}` : "", paragraph.length ? `p {\n  ${paragraph.join("\n  ")}\n}` : "", font, s.customCss.trim()].filter(Boolean).join("\n\n");
 }
 export function profileInput(value: unknown) {

@@ -7,9 +7,10 @@ export interface PreviewChapter { title: string; item_path: string }
 export interface PreviewData { books: PreviewBook[]; bookId: string; sections: PreviewChapter[]; error: string }
 export function previewContentUrl(bookId: string, path: string, options: EpubStripOptions): string {
   const member = encodeEpubPath(path);
-  // Two flags for fonts/images; a third only when page margins are stripped (Kobo).
-  const mode = `${options.stripFonts ? 1 : 0}${options.stripImages ? 1 : 0}${options.stripPageMargins ? 1 : ""}`;
-  return options.stripFonts || options.stripImages || options.stripPageMargins
+  // Fixed five flags: fonts, images, page margins, line height and paragraph spacing.
+  const flags = [options.stripFonts, options.stripImages, options.stripPageMargins, options.stripLineHeight, options.stripParagraphSpacing];
+  const mode = flags.map(flag => flag ? "1" : "0").join("");
+  return flags.some(Boolean)
     ? `/devices/content/${bookId}/${mode}/epub/${member}`
     : `/book/${bookId}/epub/${member}`;
 }

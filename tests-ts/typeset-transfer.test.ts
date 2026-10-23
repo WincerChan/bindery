@@ -89,6 +89,29 @@ describe("snapshot default-id handling", () => {
     expect(entries.has("EPUB/bindery-profile.css")).toBe(true);
     expect([...entries.keys()]).not.toContain("EPUB/Images/art.png");
   });
+
+  it("applies line-height and paragraph-spacing snapshots on Kindle and Kobo", async () => {
+    const encode = (value: string) => new TextEncoder().encode(value), decode = (value: Uint8Array) => new TextDecoder().decode(value);
+    const styled = new Uint8Array(writeArchive(readArchive(assetEpub()).map(entry => entry.name.endsWith("book.css") ? { ...entry, data: encode("p { line-height: 2; margin: 1em 2em; }") } : entry.name.endsWith("container.xml") ? { ...entry, data: encode(decode(entry.data).replace("<container ", '<container version="1.0" ')) } : entry)));
+    const settings = { ...EMPTY_SETTINGS, stripLineHeight: true, stripParagraphSpacing: true };
+    const kindle = await fakeKindle(), kindleDevice = await pairDevice(kindle.root, "KPW3", "Kindle");
+    let captured: Uint8Array | undefined;
+    const kindleService = new KindleTransferService({ fetch: async () => new Response(styled), converter: { async convert(data) { captured = data; throw new Error("conversion stop"); } }, profile: async () => { throw new Error("must not load"); }, thumbnail: async () => new Uint8Array() });
+    await expect(kindleService.transferBook(kindleDevice, bookId, "default", { settings })).rejects.toThrow("conversion stop");
+    const kindleCss = decode(new EpubArchive(captured!).read("EPUB/Styles/book.css")!);
+    expect(kindleCss).not.toContain("line-height");
+    expect(kindleCss).toContain("margin-left: 2em; margin-right: 2em");
+
+    const kobo = await fakeKobo(), koboDevice = await pairDetectedDevice(kobo.root, await detectDevice(kobo.root), "libra2", "Libra");
+    let converted: Uint8Array | undefined;
+    const koboService = new KoboTransferService({ fetch: async () => new Response(styled), converter: { async convert(data, options) { const result = await convertForKobo(data, options); converted = result.data; return result; } }, fonts: async () => [] });
+    await koboService.transferBook(koboDevice, bookId, "default", { settings });
+    const koboCss = new Map(readKepubZip(converted!).map(entry => [entry.name, decode(kepubEntryBytes(entry))])).get("EPUB/Styles/book.css")!;
+    expect(koboCss).not.toContain("line-height");
+    expect(koboCss).toContain("margin-left: 2em; margin-right: 2em");
+    expect(JSON.parse(await kobo.text(".bindery/manifest.json")).books[0].settings).toEqual(settings);
+  });
+
   it("passes the original Kobo bytes to the converter for an empty snapshot with a non-default id", async () => {
     const fs = await fakeKobo(), device = await pairDetectedDevice(fs.root, await detectDevice(fs.root), "libra2", "Libra"), convert = vi.fn(async (data: Uint8Array, options?: KepubConversionOptions) => { expect(data).toEqual(fixture); expect(options?.profile).toEqual({ settings: EMPTY_SETTINGS, css: "" }); return convertToKepub(data); });
     const service = new KoboTransferService({ fetch: async () => new Response(fixture), converter: { convert }, fonts: async () => [] });

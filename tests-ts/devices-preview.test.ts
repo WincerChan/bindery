@@ -288,9 +288,13 @@ it("updates preview asset modes live and includes the strip toggles in reset, sa
   const toggle = (label: string) => elements(mounted.root, "label").find(node => node.textContent === label)!.getElementsByTagName("input")[0] as HTMLInputElement;
   const change = (label: string, checked: boolean) => { const node = toggle(label); node.checked = checked; fire(node, "change"); ui.flush(); };
   expect(elements(mounted.root, "label").some(node => node.textContent === "去掉书籍自带页边距")).toBe(true);
-  change("去掉书籍自带字体", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/10/epub/"); expect(onDirty).toHaveBeenLastCalledWith(true);
-  change("去掉所有图片", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/11/epub/");
-  change("去掉书籍自带页边距", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/111/epub/");
+  expect(elements(mounted.root, "label").some(node => node.textContent === "去掉书籍自带行高")).toBe(true);
+  expect(elements(mounted.root, "label").some(node => node.textContent === "去掉书籍自带段间距")).toBe(true);
+  change("去掉书籍自带字体", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/10000/epub/"); expect(onDirty).toHaveBeenLastCalledWith(true);
+  change("去掉所有图片", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/11000/epub/");
+  change("去掉书籍自带页边距", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/11100/epub/");
+  change("去掉书籍自带行高", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/11110/epub/");
+  change("去掉书籍自带段间距", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/11111/epub/");
   fire(button(mounted.root, "重置"), "click"); ui.flush(); expect(onDirty).toHaveBeenLastCalledWith(false); expect(frame(mounted.root).getAttribute("src")).toContain("/book/a/epub/");
   change("去掉所有图片", true); fire(button(mounted.root, "保存方案"), "click"); await settle();
   expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "custom", settings: expect.objectContaining({ stripImages: true }) }));
@@ -376,7 +380,7 @@ it("shows compact profile range rows, all strip toggles and advanced settings fo
   expect(advanced.hasAttribute("open")).toBe(false);
   expect(labels(advanced, "textarea", "生成的 CSS（只读）").hasAttribute("readonly")).toBe(true);
   expect(checkboxes.getAttribute("role")).toBe("group"); expect(checkboxes.getAttribute("aria-label")).toBe("正文样式");
-  expect(elements(checkboxes, "label").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片", "去掉书籍自带页边距"]);
+  expect(elements(checkboxes, "label").map(node => node.textContent)).toEqual(["去掉书籍自带字体", "去掉所有图片", "去掉书籍自带页边距", "去掉书籍自带行高", "去掉书籍自带段间距"]);
   expect(elements(checkboxes, "input").every(node => node.getAttribute("type") === "checkbox")).toBe(true);
   expect(elements(labels(editor, "select", "字体（预览设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
   expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "删除", "另存为方案", "保存方案"]);

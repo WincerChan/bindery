@@ -5,7 +5,8 @@ import { rewriteCssUrls, stripCss } from "./css-strip";
 import { appendElement, attr, child, children, descendants, OPF_NS, parseXml, serializeElementTree } from "./xml";
 import type { Element } from "./xml";
 
-export interface EpubStripOptions { stripFonts?: boolean; stripImages?: boolean; stripPageMargins?: boolean }
+export interface EpubStripOptions { stripFonts?: boolean; stripImages?: boolean; stripPageMargins?: boolean; stripLineHeight?: boolean; stripParagraphSpacing?: boolean }
+const stripRequested = (options: EpubStripOptions) => Boolean(options.stripFonts || options.stripImages || options.stripPageMargins || options.stripLineHeight || options.stripParagraphSpacing);
 const fontFile = /\.(?:ttf|otf|woff2?)$/i;
 const imageFile = /\.(?:jpe?g|png|gif|webp|avif|svg|bmp|tiff?|ico|apng|jxl)$/i;
 const fontMedia = /^(?:font\/|application\/(?:.*font.*|vnd\.ms-opentype))/i;
@@ -50,7 +51,7 @@ export function createEpubAssetStripper(
   const styles = new Set(items.filter(item => item.media_type === "text/css").map(item => resourcePath(opf, item.href)));
   const guideCovers = new Set(children(child(root, "guide") ?? root, "reference").filter(ref => attr(ref, "type") === "cover").map(ref => resourcePath(opf, attr(ref, "href"))));
   const isImage = (from: string, url: string) => /^data:image\//i.test(url) || images.has(resourcePath(from, url)) || imageFile.test(url.split(/[?#]/)[0]);
-  const css = (text: string, from: string, keepCover: boolean, pageRoot = false) => stripCss(text, { ...options, pageRoot, isImage: url => isImage(from, url) && !(keepCover && cover && resourcePath(from, url) === cover) });
+  const css = (text: string, from: string, keepCover: boolean, pageRoot = false, heading = false) => stripCss(text, { ...options, pageRoot, heading, isImage: url => isImage(from, url) && !(keepCover && cover && resourcePath(from, url) === cover) });
   const encoder = new TextEncoder(), decoder = new TextDecoder(), serializer = new XMLSerializer();
   const coverStyles = new Map<string, string>(), coverSources = new Map<string, string>();
   const rewriteCoverCss = (text: string, from: string) => rewriteCssUrls(text, url => {
@@ -111,7 +112,7 @@ export function createEpubAssetStripper(
     return serializeElementTree(root);
   }
   function transform(name: string, content: Uint8Array): Uint8Array | undefined {
-    if (!options.stripFonts && !options.stripImages && !options.stripPageMargins) return content;
+    if (!stripRequested(options)) return content;
     if (removed.has(name)) return undefined;
     if (name === opf) return packageDocument();
     if (name === "META-INF/encryption.xml") {
@@ -123,10 +124,13 @@ export function createEpubAssetStripper(
       content = encoder.encode(serializer.serializeToString(encryption));
     } else if (styles.has(name) || /\.css$/i.test(name)) content = encoder.encode(css(decoder.decode(content), name, false));
     else if ((docs.has(name) || /\.(?:xhtml|html?|svg)$/i.test(name)) && !options.stripFonts && !options.stripImages) {
-      // Page margins only touch <style> blocks and the html/body style attributes; skip the DOM round trip.
+      // CSS-only options touch stylesheets, <style> blocks and style attributes; skip the DOM round trip.
       const original = decoder.decode(content);
       const text = original.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style\s*>)/gi, (_match, open: string, body: string, close: string) => open + css(body, name, false) + close)
-        .replace(/<(?:html|body)\b[^>]*>/gi, tag => tag.replace(/(\sstyle\s*=\s*)(["'])([\s\S]*?)\2/i, (_match, prefix: string, quote: string, value: string) => prefix + quote + css(value, name, false, true) + quote));
+        .replace(/<([a-zA-Z][\w:-]*)\b[^>]*>/g, (tag: string, tagName: string) => {
+          const localName = tagName.slice(tagName.lastIndexOf(":") + 1);
+          return tag.replace(/(\sstyle\s*=\s*)(["'])([\s\S]*?)\2/i, (_match, prefix: string, quote: string, value: string) => prefix + quote + css(value, name, false, /^(?:html|body)$/i.test(localName), /^h[1-6]$/i.test(localName)) + quote);
+        });
       if (text !== original) content = encoder.encode(text);
     } else if (docs.has(name) || /\.(?:xhtml|html?|svg)$/i.test(name)) {
       const doc = parseXml(content), nodes = [doc, ...descendants(doc)];
@@ -137,7 +141,7 @@ export function createEpubAssetStripper(
           node.removeAttribute("font-family");
           if (node.localName === "font") node.removeAttribute("face");
         }
-        if (node.hasAttribute("style")) node.setAttribute("style", css(attr(node, "style"), name, coverPage, node.localName === "html" || node.localName === "body"));
+        if (node.hasAttribute("style")) node.setAttribute("style", css(attr(node, "style"), name, coverPage, node.localName === "html" || node.localName === "body", /^h[1-6]$/i.test(node.localName ?? "")));
         if (node.localName === "style") {
           const stripped = css(node.textContent ?? "", name, coverPage);
           node.textContent = coverPage ? rewriteCoverCss(stripped, name) : stripped;
@@ -198,7 +202,7 @@ export function createEpubAssetStripper(
 
 /** Shared by Kindle and Kobo transfer and the preview. Only the returned copy is changed; `deflate: null` stores members. */
 export function stripEpubAssets(data: Uint8Array, options: EpubStripOptions, deflate?: Deflater | null): Uint8Array<ArrayBuffer> {
-  if (!options.stripFonts && !options.stripImages && !options.stripPageMargins) return new Uint8Array(data);
+  if (!stripRequested(options)) return new Uint8Array(data);
   const archive = new EpubArchive(data);
   const stripper = createEpubAssetStripper(archive, archive.entries.map(entry => canonicalZipMember(entry.name)), options, options.stripImages ? extractCover(data)?.[1] ?? null : null);
   const entries: ArchiveMember[] = [];

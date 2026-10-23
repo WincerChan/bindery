@@ -71,7 +71,7 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
   const profileSummary = () => {
     const selected = profiles().find(item => item.id === profile()), settings = selected?.settings;
     if (selected?.builtIn) return "只用书籍自带样式";
-    return [settings?.stripFonts ? "去掉书籍自带字体" : "", settings?.stripImages ? "去掉所有图片（保留封面）" : "", settings?.stripPageMargins ? "去掉书籍自带页边距" : ""].filter(Boolean).join(" · ");
+    return [settings?.stripFonts ? "去掉书籍自带字体" : "", settings?.stripImages ? "去掉所有图片（保留封面）" : "", settings?.stripPageMargins ? "去掉书籍自带页边距" : "", settings?.stripLineHeight ? "去掉书籍自带行高" : "", settings?.stripParagraphSpacing ? "去掉书籍自带段间距" : ""].filter(Boolean).join(" · ");
   };
   const deviceId = createMemo(() => k.ready() && k.state().status === "granted" ? k.state().device?.identity.id || "" : "");
   const [resolver, setResolver] = createSignal<DeviceLibraryResolver | null>(null);

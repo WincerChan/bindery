@@ -61,10 +61,10 @@ describe("panels, device kinds and preview geometry", () => {
 });
 
 describe("global typesetting profiles", () => {
-  const owner = (settings: Record<string, unknown> = {}) => ({ marginX: -4.9, marginXUnit: "percent", marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: "", stripFonts: false, stripImages: true, ...settings });
+  const owner = (settings: Record<string, unknown> = {}) => ({ marginX: -4.9, marginXUnit: "percent", marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, fontFamily: null, customCss: "", stripFonts: false, stripImages: true, ...settings });
   it("keeps the owner's generated CSS byte-identical and accepts legacy device metadata", () => {
     const parsed = profileSettings({ deviceModel: "KPW3", kindleMargin: "narrow", ...owner() });
-    expect(parsed).toEqual(owner({ stripPageMargins: false }));
+    expect(parsed).toEqual(owner({ stripPageMargins: false, stripLineHeight: false, stripParagraphSpacing: false }));
     expect(generateProfileCss({ id: "custom", name: "我的排版", builtIn: false, settings: parsed })).toBe("body > * {\n  margin-left: -4.9% !important;\n  margin-right: -4.9% !important;\n}");
     expect(() => profileSettings({ ...owner(), deviceModel: 3 })).toThrow("deviceModel");
     expect(profileSettings({ ...owner({ marginX: -0.8, marginXUnit: undefined }) }).marginXUnit).toBe("em");
@@ -75,6 +75,7 @@ describe("global typesetting profiles", () => {
     expect(() => profileSettings(owner({ marginX: -41 }))).toThrow("−40–40%");
     expect(() => profileSettings(owner({ marginX: 20.1, marginXUnit: "em" }))).toThrow("−20–20em");
     expect(EMPTY_SETTINGS.stripPageMargins).toBe(false);
+    expect(EMPTY_SETTINGS.stripLineHeight).toBe(false); expect(EMPTY_SETTINGS.stripParagraphSpacing).toBe(false);
   });
   it("has a global built-in profile with no device fields and no CSS", () => {
     const value = defaultProfile();
@@ -124,7 +125,7 @@ it("keeps Kobo's device line height before the profile and only applies its font
   const sheet = head.lastChild!;
   expect(Array.from(head.childNodes).indexOf(base)).toBeLessThan(Array.from(head.childNodes).indexOf(book));
   expect(Array.from(head.childNodes).indexOf(book)).toBeLessThan(Array.from(head.childNodes).indexOf(sheet));
-  expect(sheet.textContent).toContain("line-height: 1.8 !important"); expect(sheet.textContent).not.toContain("font-family");
+  expect(sheet.textContent).toContain("line-height: 1.8;"); expect(sheet.textContent).not.toContain("!important;\n  line-height");
   await preview.update(profile({ lineHeight: 1.8, fontFamily: "Book" }), null);
   expect(sheet.textContent).toContain('font-family: "Book"');
   preview.destroy();

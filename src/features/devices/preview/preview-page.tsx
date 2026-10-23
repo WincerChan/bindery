@@ -231,10 +231,11 @@ function DevicePreviewPageInner(props: PreviewProps) {
         <For each={fonts()}>{font => <option value={font.name}>{font.name}</option>}</For>
       </Select>
       <div class="kt-checkboxes" role="group" aria-label="正文样式">
-        <Checkbox label="两端对齐" checked={draft().settings.justify === true} disabled={locked()} onChange={event => edit("justify", event.currentTarget.checked ? true : null)} />
         <Checkbox label="去掉书籍自带字体" checked={draft().settings.stripFonts} disabled={locked()} onChange={event => edit("stripFonts", event.currentTarget.checked)} />
         <Checkbox label="去掉所有图片" checked={draft().settings.stripImages} disabled={locked()} onChange={event => edit("stripImages", event.currentTarget.checked)} />
         <Checkbox label="去掉书籍自带页边距" checked={draft().settings.stripPageMargins} disabled={locked()} onChange={event => edit("stripPageMargins", event.currentTarget.checked)} />
+        <Checkbox label="去掉书籍自带行高" checked={draft().settings.stripLineHeight} disabled={locked()} onChange={event => edit("stripLineHeight", event.currentTarget.checked)} />
+        <Checkbox label="去掉书籍自带段间距" checked={draft().settings.stripParagraphSpacing} disabled={locked()} onChange={event => edit("stripParagraphSpacing", event.currentTarget.checked)} />
       </div>
       <details class="kt-advanced"><summary>更多设置</summary><div>
         <TextField label="方案名称" value={draft().name} disabled={locked()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />

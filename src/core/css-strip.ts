@@ -2,10 +2,43 @@ export interface StripCssOptions {
   stripFonts?: boolean; stripImages?: boolean; isImage: (url: string) => boolean;
   /** Drop margin/padding set on the page itself (`html`, `body`, `:root`), leaving the reader's own margins. */
   stripPageMargins?: boolean;
+  /** Remove line-height declarations, including only the `/line-height` part of a `font` shorthand. */
+  stripLineHeight?: boolean;
+  /** Remove vertical outer margins, except on heading rules and headings. */
+  stripParagraphSpacing?: boolean;
   /** The text is the inline style of an `html` or `body` element. */
   pageRoot?: boolean;
+  /** The text is the inline style of an `h1`–`h6` element. */
+  heading?: boolean;
 }
 const pageRootSelector = (selectors: string) => selectors.replace(/\/\*[\s\S]*?\*\//g, "").split(",").every(selector => /^\s*(?:html|body|:root)\s*$/i.test(selector));
+const headingType = /^h[1-6]$/i;
+const marginBlock = /^(?:margin-(?:top|bottom|block|block-start|block-end))$/;
+/** A heading is a type selector in any selector of the list, not `.h1`, `#h1`, an attribute value or a string. */
+function headingSelector(css: string): boolean {
+  const list = tokens(css);
+  let brackets = 0, parens = 0;
+  for (let i = 0; i < list.length; i++) {
+    const value = list[i].value;
+    if (value === "[") brackets++; else if (value === "]") brackets--; else if (value === "(") parens++; else if (value === ")") parens--;
+    if (brackets || parens || !headingType.test(value)) continue;
+    const previous = list[i - 1];
+    if (!previous || css.slice(previous.end, list[i].start) || [",", ">", "+", "~", "|"].includes(previous.value)) return true;
+  }
+  return false;
+}
+/** Group a declaration value into its top-level components; whitespace/comments separate them. */
+function valueGroups(css: string, list: ReturnType<typeof tokens>, from: number, to: number) {
+  const groups: Array<{ start: number; end: number }> = [];
+  let parens = 0, brackets = 0;
+  for (let i = from; i < to; i++) {
+    const token = list[i], value = token.value, gap = i > from ? css.slice(list[i - 1].end, token.start) : "";
+    if (!groups.length || (parens === 0 && brackets === 0 && gap !== "")) groups.push({ start: token.start, end: token.end });
+    else groups.at(-1)!.end = token.end;
+    if (value === "(") parens++; else if (value === ")") parens--; else if (value === "[") brackets++; else if (value === "]") brackets--;
+  }
+  return groups;
+}
 
 /** Decode CSS identifiers and URL strings, including escaped property / at-rule names. */
 function unescapeCss(text: string): string {
@@ -74,9 +107,9 @@ export function rewriteCssUrls(css: string, rewrite: (url: string) => string | u
 
 /** Token-aware removal preserves unrelated declarations, strings, comments and rule order. */
 export function stripCss(css: string, options: StripCssOptions): string {
-  if (!options.stripFonts && !options.stripImages && !options.stripPageMargins) return css;
-  const list = tokens(css), removed: Array<[number, number]> = [];
-  const declaration = (start: number, end: number, from: number, to: number, pageRoot: boolean) => {
+  if (!options.stripFonts && !options.stripImages && !options.stripPageMargins && !options.stripLineHeight && !options.stripParagraphSpacing) return css;
+  const list = tokens(css), removed: Array<[number, number]> = [], replacements: Array<[number, number, string]> = [];
+  const declaration = (start: number, end: number, from: number, to: number, pageRoot: boolean, heading: boolean) => {
     if (list[start + 1]?.value !== ":") return;
     const property = list[start].value.toLowerCase();
     // The font shorthand also sets font-family; leaving it would restore a publisher font.
@@ -90,10 +123,47 @@ export function stripCss(css: string, options: StripCssOptions): string {
       const url = unquote(list.slice(i + 2, close).map(token => token.value).join(""));
       if (options.isImage(url)) drop = true;
     }
-    if (drop) removed.push([from, to]);
+    if (drop) { removed.push([from, to]); return; }
+    let valueEnd = end;
+    const important = valueEnd - start >= 4 && list[valueEnd - 1]?.value.toLowerCase() === "important" && list[valueEnd - 2]?.value === "!";
+    if (important) valueEnd -= 2;
+    if (options.stripLineHeight && property === "line-height") { removed.push([from, to]); return; }
+    if (options.stripLineHeight && property === "font") {
+      let parens = 0, brackets = 0;
+      for (let i = start + 2; i < valueEnd; i++) {
+        const value = list[i].value;
+        if (value === "(") parens++; else if (value === ")") parens--; else if (value === "[") brackets++; else if (value === "]") brackets--;
+        else if (value === "/" && !parens && !brackets) {
+          // Drop only the line-height component, keeping the size and family (and any !important).
+          let last = i, depthParens = 0, depthBrackets = 0;
+          for (let j = i + 1; j < valueEnd; j++) {
+            const next = list[j].value, gap = css.slice(list[j - 1].end, list[j].start);
+            if (j > i + 1 && depthParens === 0 && depthBrackets === 0 && gap !== "") break;
+            last = j;
+            if (next === "(") depthParens++; else if (next === ")") depthParens--; else if (next === "[") depthBrackets++; else if (next === "]") depthBrackets--;
+          }
+          let removeFrom = list[i].start;
+          const previous = list[i - 1], gap = previous ? css.slice(previous.end, removeFrom) : "";
+          if (gap && /^\s*$/.test(gap)) removeFrom = previous.end;
+          replacements.push([removeFrom, list[last].end, ""]);
+          break;
+        }
+      }
+    }
+    if (options.stripParagraphSpacing && !heading) {
+      if (marginBlock.test(property)) { removed.push([from, to]); return; }
+      if (property === "margin") {
+        const groups = valueGroups(css, list, start + 2, valueEnd), count = groups.length;
+        if (count >= 1 && count <= 4) {
+          const values = groups.map(group => css.slice(group.start, group.end));
+          const right = values[count >= 2 ? 1 : 0], left = count === 4 ? values[3] : right, suffix = important ? " !important" : "";
+          replacements.push([list[start].start, list[end - 1].end, `margin-left: ${left}${suffix}; margin-right: ${right}${suffix}`]);
+        }
+      }
+    }
   };
   // Only rules whose every selector is the page root qualify: `body.cover` and `body p` keep their spacing.
-  function block(start: number, end: number, from: number, to: number, pageRoot: boolean) {
+  function block(start: number, end: number, from: number, to: number, pageRoot: boolean, heading: boolean) {
     let statement = start, statementFrom = from, parens = 0, brackets = 0;
     for (let i = start; i < end; i++) {
       const value = list[i].value;
@@ -104,16 +174,20 @@ export function stripCss(css: string, options: StripCssOptions): string {
         let close = i + 1, depth = 1;
         for (; close < end; close++) { if (list[close].value === "{") depth++; if (list[close].value === "}" && --depth === 0) break; }
         if (options.stripFonts && list[statement]?.value.toLowerCase() === "@font-face") removed.push([statementFrom, list[close]?.end ?? to]);
-        else block(i + 1, close, list[i].end, list[close]?.start ?? to, list[statement] !== undefined && statement < i && pageRootSelector(css.slice(list[statement].start, list[i].start)));
+        else {
+          const selector = list[statement] !== undefined && statement < i ? css.slice(list[statement].start, list[i].start) : "";
+          block(i + 1, close, list[i].end, list[close]?.start ?? to, pageRootSelector(selector), headingSelector(selector));
+        }
         i = close; statement = i + 1; statementFrom = list[i]?.end ?? to;
       } else if (value === ";") {
-        declaration(statement, i, statementFrom, list[i].end, pageRoot); statement = i + 1; statementFrom = list[i].end;
+        declaration(statement, i, statementFrom, list[i].end, pageRoot, heading); statement = i + 1; statementFrom = list[i].end;
       }
     }
-    declaration(statement, end, statementFrom, to, pageRoot);
+    declaration(statement, end, statementFrom, to, pageRoot, heading);
   }
-  block(0, list.length, 0, css.length, Boolean(options.pageRoot));
+  block(0, list.length, 0, css.length, Boolean(options.pageRoot), Boolean(options.heading));
+  const changes: Array<[number, number, string]> = [...removed.map(([from, to]): [number, number, string] => [from, to, ""]), ...replacements];
   let result = "", at = 0;
-  for (const [from, to] of removed.sort((a, b) => a[0] - b[0])) { result += css.slice(at, from); at = to; }
+  for (const [from, to, replacement] of changes.sort((a, b) => a[0] - b[0])) { result += css.slice(at, from) + replacement; at = to; }
   return result + css.slice(at);
 }

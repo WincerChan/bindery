@@ -36,7 +36,7 @@ async function rpc(name, data, method = 'GET') {
   const args = encodeURIComponent(JSON.stringify([{ data, method, context: {} }]));
   return request('/_serverFn/data/' + ids.get(name) + '?args=' + args, { method });
 }
-const settings = { marginX: null, marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: '' };
+const settings = { marginX: null, marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, fontFamily: null, customCss: '' };
 const profile = { name: '宽边距', settings };
 for (const [name, data, method] of [['listTypesetProfiles', undefined, 'GET'], ['createTypesetProfile', profile, 'POST'], ['updateTypesetProfile', { ...profile, id: 'x' }, 'POST'], ['deleteTypesetProfile', { id: 'x' }, 'POST']]) {
   const denied = await rpc(name, data, method); assert.equal(denied.status, 200, 'protected ' + name);

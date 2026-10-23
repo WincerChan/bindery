@@ -11,7 +11,7 @@ afterEach(() => { cleanups.splice(0).forEach(cleanup => cleanup()); });
 it("serves the transformed preview document and CSS, retains the cover, isolates URLs and leaves the library unchanged", async () => {
   const fixture = readerFixture(); cleanups.push(fixture.cleanup);
   const path = epubPath(fixture.library.base, fixture.id), original = assetEpub(); writeFileSync(path, original);
-  const get = (item: string, mode = "11", method = "GET") => {
+  const get = (item: string, mode = "11000", method = "GET") => {
     const url = `http://localhost/devices/content/${fixture.id}/${mode}/epub/${item}`;
     return kindlePreviewResource(new Request(url, { method }), fixture.id, mode, item, fixture.library);
   };
@@ -20,24 +20,27 @@ it("serves the transformed preview document and CSS, retains the cover, isolates
   expect(chapter.headers.get("Cache-Control")).toBe("no-store");
   expect(html).not.toMatch(/font-family|@font-face|<img|<image|<picture|<svg|background:/);
   expect(html).toContain("Text survives &amp; stays valid");
-  expect(html).toContain(`/devices/content/${fixture.id}/11/epub/EPUB/Styles/book.css`);
+  expect(html).toContain(`/devices/content/${fixture.id}/11000/epub/EPUB/Styles/book.css`);
   expect(await get("EPUB/Styles/book.css").text()).not.toMatch(/font-family|@font-face|art.png/);
   expect(await get("EPUB/Text/cover.xhtml").text()).toContain("<image");
   expect(new Uint8Array(await get("EPUB/Images/cover.png").arrayBuffer())).toEqual(assetCover);
   expect(() => get("EPUB/Images/art.png")).toThrow("资源不存在");
   expect(() => get("EPUB/Fonts/book.ttf")).toThrow("资源不存在");
-  expect(await get("EPUB/Text/chapter.xhtml", "01").text()).toContain("font-family");
-  expect(await get("EPUB/Text/chapter.xhtml", "10").text()).toContain("<img");
-  expect(await get("EPUB/Text/chapter.xhtml", "11", "HEAD").text()).toBe("");
+  expect(await get("EPUB/Text/chapter.xhtml", "01000").text()).toContain("font-family");
+  expect(await get("EPUB/Text/chapter.xhtml", "10000").text()).toContain("<img");
+  expect(await get("EPUB/Text/chapter.xhtml", "11000", "HEAD").text()).toBe("");
   expect(() => get("EPUB/Text/chapter.xhtml", "bad")).toThrow("资源不存在"); expect(() => get("EPUB/Text/chapter.xhtml", "110")).toThrow("资源不存在");
   // A third flag strips the book's page margins (Kobo) and keeps fonts and images.
-  const margins = await get("EPUB/Text/chapter.xhtml", "001").text(); expect(margins).toContain("font-family"); expect(margins).toContain("<img");
+  const margins = await get("EPUB/Text/chapter.xhtml", "00100").text(); expect(margins).toContain("font-family"); expect(margins).toContain("<img");
   expect(() => get("../content.opf")).toThrow("资源不存在");
   expect(readFileSync(path)).toEqual(Buffer.from(original)); expect(fixture.library.db.getReaderProgress(fixture.id)).toBeNull();
 });
 
 it("encodes preview member URLs with stable asset modes and preserves the original URL when disabled", () => {
   expect(previewContentUrl("book", "Text/第 一.xhtml", {})).toBe("/book/book/epub/Text/%E7%AC%AC%20%E4%B8%80.xhtml");
-  expect(previewContentUrl("book", "Text/ch.xhtml", { stripFonts: true })).toBe("/devices/content/book/10/epub/Text/ch.xhtml");
-  expect(previewContentUrl("book", "Text/ch.xhtml", { stripPageMargins: true })).toBe("/devices/content/book/001/epub/Text/ch.xhtml");
+  expect(previewContentUrl("book", "Text/ch.xhtml", { stripFonts: true })).toBe("/devices/content/book/10000/epub/Text/ch.xhtml");
+  expect(previewContentUrl("book", "Text/ch.xhtml", { stripPageMargins: true })).toBe("/devices/content/book/00100/epub/Text/ch.xhtml");
+  expect(previewContentUrl("book", "Text/ch.xhtml", { stripLineHeight: true })).toBe("/devices/content/book/00010/epub/Text/ch.xhtml");
+  expect(previewContentUrl("book", "Text/ch.xhtml", { stripParagraphSpacing: true })).toBe("/devices/content/book/00001/epub/Text/ch.xhtml");
+  expect(previewContentUrl("book", "Text/ch.xhtml", { stripFonts: true, stripImages: true, stripPageMargins: true, stripLineHeight: true, stripParagraphSpacing: true })).toBe("/devices/content/book/11111/epub/Text/ch.xhtml");
 });

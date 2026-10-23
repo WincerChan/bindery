@@ -15,7 +15,7 @@ import { obfuscatedEpub } from "./fixtures/reader/obfuscated";
 import { readerFixture, readerRequest } from "./fixtures/reader/support";
 import { assetEpub, coverStyleEpub } from "./support/kindle-assets";
 
-const modes = ["00", "01", "10", "11"];
+const modes = ["00000", "01000", "10000", "11000"];
 const cleanups: Array<() => void> = [];
 afterEach(() => { cleanups.splice(0).forEach(cleanup => cleanup()); readerArchives.clear(); vi.restoreAllMocks(); });
 function fixture(data: Uint8Array) {
@@ -80,7 +80,7 @@ it.each(modes)("serves obfuscated preview paths, CSS, fonts, images and footnote
 for (const [label, data] of [["obfuscated", () => obfuscatedEpub().data], ["assets/encryption", () => assetEpub(true)], ["transitive cover styles", coverStyleEpub]] as const) {
   it.each(modes)(`matches every whole-copy member before HTTP isolation (${label}, mode %s)`, async mode => {
     const original = data(), { archive, get, prefix } = fixture(original);
-    const expected = new Map(readArchive(stripEpubAssets(original, { stripFonts: mode[0] === "1", stripImages: mode[1] === "1" })).map(entry => [entry.name, entry.data]));
+    const expected = new Map(readArchive(stripEpubAssets(original, { stripFonts: mode[0] === "1", stripImages: mode[1] === "1", stripPageMargins: mode[2] === "1", stripLineHeight: mode[3] === "1", stripParagraphSpacing: mode[4] === "1" })).map(entry => [entry.name, entry.data]));
     const plan = kindlePreviewArchive(archive, mode);
     for (const name of new Set([...archive.members.keys(), ...expected.keys()])) {
       const member = expected.get(name), transformed = plan.read(name);
@@ -116,48 +116,48 @@ it("serves generated cover CSS directly, builds the dependency map once and read
   const { archive, get } = fixture(coverStyleEpub()), read = vi.spyOn(archive, "read");
   const generated = "EPUB/Styles/bindery-kindle-cover-2.css";
   // An initial direct CSS request is valid even before the cover document is fetched.
-  expect(await get(generated, "11").text()).toContain("bindery-kindle-cover-1.css");
+  expect(await get(generated, "11000").text()).toContain("bindery-kindle-cover-1.css");
   const weight = archive.weight; read.mockClear();
   for (let i = 0; i < 3; i++) {
-    expect(await get("EPUB/Text/cover.xhtml", "11").text()).toContain("bindery-kindle-cover-2.css");
-    expect(await get(generated, "11").text()).toContain("bindery-kindle-cover-1.css");
+    expect(await get("EPUB/Text/cover.xhtml", "11000").text()).toContain("bindery-kindle-cover-2.css");
+    expect(await get(generated, "11000").text()).toContain("bindery-kindle-cover-1.css");
   }
   expect(archive.weight).toBe(weight);
   expect(read.mock.calls.map(args => args[0])).toEqual(Array.from({ length: 3 }, () => ["EPUB/Text/cover.xhtml", "EPUB/Styles/book.css"]).flat());
-  expect(() => get("EPUB/Styles/bindery-kindle-cover-9999.css", "11")).toThrow("资源不存在");
+  expect(() => get("EPUB/Styles/bindery-kindle-cover-9999.css", "11000")).toThrow("资源不存在");
 });
 
 it("charges plan metadata to the reader LRU and invalidates plans on replacement or deletion", async () => {
   const book = obfuscatedEpub(), { archive, file, get, id, library } = fixture(book.data);
   const cache = new ReaderArchiveCache(archive.weight + 1), indexed = cache.get(file)!;
-  kindlePreviewArchive(indexed, "11"); expect(cache.size).toBe(0);
-  const first = kindlePreviewArchive(archive, "11");
+  kindlePreviewArchive(indexed, "11000"); expect(cache.size).toBe(0);
+  const first = kindlePreviewArchive(archive, "11000");
   const stat = statSync(file); utimesSync(file, stat.atime, new Date(stat.mtimeMs + 2000));
-  expect(kindlePreviewArchive(readBookArchive(id, library), "11")).not.toBe(first);
+  expect(kindlePreviewArchive(readBookArchive(id, library), "11000")).not.toBe(first);
   const replacement = obfuscatedEpub(1); writeFileSync(file, replacement.data);
-  expect(await get(replacement.paths[0], "11").text()).toContain("needle");
-  expect(() => get(book.paths[1], "11")).toThrow("资源不存在");
-  rmSync(file); expect(() => get(book.paths[0], "11")).toThrow("EPUB 不存在");
+  expect(await get(replacement.paths[0], "11000").text()).toContain("needle");
+  expect(() => get(book.paths[1], "11000")).toThrow("资源不存在");
+  rmSync(file); expect(() => get(book.paths[0], "11000")).toThrow("EPUB 不存在");
 });
 
 it("retries cover dependency discovery after a member read fails without caching partial state", async () => {
   const { archive, get } = fixture(coverStyleEpub());
-  kindlePreviewArchive(archive, "11");
+  kindlePreviewArchive(archive, "11000");
   const read = archive.read.bind(archive); let fail = true;
   vi.spyOn(archive, "read").mockImplementation(name => {
     if (name === "EPUB/Styles/book.css" && fail) { fail = false; throw new Error("member read failed"); }
     return read(name);
   });
   const generated = "EPUB/Styles/bindery-kindle-cover-2.css";
-  expect(() => get(generated, "11")).toThrow("member read failed");
-  expect(await get(generated, "11").text()).toContain("bindery-kindle-cover-1.css");
-  expect(await get("EPUB/Text/cover.xhtml", "11").text()).toContain("bindery-kindle-cover-2.css");
+  expect(() => get(generated, "11000")).toThrow("member read failed");
+  expect(await get(generated, "11000").text()).toContain("bindery-kindle-cover-1.css");
+  expect(await get("EPUB/Text/cover.xhtml", "11000").text()).toContain("bindery-kindle-cover-2.css");
 });
 
 it("does not resolve unsafe stored member names through aliases", () => {
   const book = obfuscatedEpub();
   const data = writeArchive([...book.entries, { name: "../escape.xhtml", data: new TextEncoder().encode("escape") }]);
   const { get } = fixture(data);
-  expect(() => get("../escape.xhtml", "11")).toThrow("资源不存在");
-  expect(() => get("escape.xhtml", "11")).toThrow("资源不存在");
+  expect(() => get("../escape.xhtml", "11000")).toThrow("资源不存在");
+  expect(() => get("escape.xhtml", "11000")).toThrow("资源不存在");
 });

@@ -7,16 +7,16 @@ export interface KoboProfile { settings: EpubStripOptions; css: string }
 export interface KoboConversionOptions extends KepubOptions, EpubStripOptions { profile?: KoboProfile }
 
 /**
- * Kobo's device pipeline: optional font/image/page-margin stripping, profile CSS, FAT-safe member names, then KEPUB.
+ * Kobo's device pipeline: optional book-style stripping, profile CSS, FAT-safe member names, then KEPUB.
  * Each pre-step writes an uncompressed intermediate archive and the converter deflates it once, so a plain EPUB
  * still reaches the converter untouched and keeps kepubify parity.
  */
 export async function convertForKobo(data: Uint8Array, options: KoboConversionOptions = {}): Promise<KepubResult> {
   if (options.signal?.aborted) throw new DOMException("操作已取消", "AbortError");
   options.progress?.("inspecting");
-  const settings = options.profile?.settings ?? { stripFonts: options.stripFonts, stripImages: options.stripImages, stripPageMargins: options.stripPageMargins };
+  const settings = options.profile?.settings ?? { stripFonts: options.stripFonts, stripImages: options.stripImages, stripPageMargins: options.stripPageMargins, stripLineHeight: options.stripLineHeight, stripParagraphSpacing: options.stripParagraphSpacing };
   const css = options.profile?.css ?? "";
-  const strip = Boolean(settings.stripFonts || settings.stripImages || settings.stripPageMargins), cssAdded = Boolean(css.trim());
+  const strip = Boolean(settings.stripFonts || settings.stripImages || settings.stripPageMargins || settings.stripLineHeight || settings.stripParagraphSpacing), cssAdded = Boolean(css.trim());
   let working = data;
   if (strip) working = stripEpubAssets(working, settings, null);
   if (cssAdded) working = appendProfileCss(working, css, null);

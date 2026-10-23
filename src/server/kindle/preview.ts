@@ -9,7 +9,7 @@ import type { LibraryStorage } from "../storage";
 // Weak keys share the reader's identity/invalidation and bounded LRU lifetime. Plans
 // retain only metadata/names; member bytes are read and transformed on demand.
 const plans = new WeakMap<ReaderArchive, Map<string, ReturnType<typeof createEpubAssetStripper>>>();
-const MODE = /^[01]{2}1?$/;
+const MODE = /^[01]{5}$/;
 export function kindlePreviewArchive(archive: ReaderArchive, mode: string) {
   if (!MODE.test(mode)) throw new HttpError(404, "资源不存在");
   let modes = plans.get(archive);
@@ -18,6 +18,7 @@ export function kindlePreviewArchive(archive: ReaderArchive, mode: string) {
   if (!plan) {
     plan = createEpubAssetStripper(archive, archive.members.keys(), {
       stripFonts: mode[0] === "1", stripImages: mode[1] === "1", stripPageMargins: mode[2] === "1",
+      stripLineHeight: mode[3] === "1", stripParagraphSpacing: mode[4] === "1",
     }, undefined, archive.resolve.bind(archive), bytes => archive.retainMetadata(bytes));
     modes.set(mode, plan);
     archive.retainMetadata(plan.weight());
