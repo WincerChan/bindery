@@ -182,7 +182,7 @@ describe("Kindle device reading pass", () => {
 import { kindleReadingSummary } from "../src/features/devices/kindle-sync";
 describe("Kindle reading summary", () => {
   it("reports synced, unreadable and older kept positions", () => {
-    expect(kindleReadingSummary({ synced: 5, skipped: 0, marked_read: 0, unchanged: 0, kept: 0, unmatched: 0 })).toBe("已同步 5 本书的阅读进度");
-    expect(kindleReadingSummary({ synced: 0, skipped: 2, marked_read: 0, unchanged: 3, kept: 1, unmatched: 4 })).toBe("已同步 3 本书的阅读进度 · 2 本无法读取 · 1 本设备进度较旧，已保留之前的记录");
+    expect(kindleReadingSummary({ synced: 5, skipped: 0, missing: 0, marked_read: 0, unchanged: 0, kept: 0, unmatched: 0 })).toBe("已同步 5 本书的阅读进度");
+    expect(kindleReadingSummary({ synced: 0, skipped: 2, missing: 3, marked_read: 0, unchanged: 3, kept: 1, unmatched: 4 })).toBe("已同步 3 本书的阅读进度 · 2 本无法读取 · 3 本不在书库中 · 1 本设备进度较旧，已保留之前的记录");
   });
 });
