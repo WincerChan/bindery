@@ -22,6 +22,7 @@ import { lprStore, miniKfx, positionString } from "./support/kindle-reading";
 import { detectDevice, pairDetectedDevice } from "../src/client/devices/identity";
 import { MemoryDevicePreference } from "../src/client/devices/preferences";
 import { clientDocument, elements, fire } from "./support/client-dom";
+import { bookFingerprint } from "../src/core/fingerprint";
 
 type Page = "books" | "connect" | "transfer";
 interface SyncResult { synced: number; skipped: number; marked_read: number; unchanged: number; kept: number; lagged: boolean; unmatched: number }
@@ -388,6 +389,25 @@ it("clears old inventory and selection when switching devices and prevents delet
   const m = mount("books", a.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "删除所选（1）"), "click"); m.flush();
   await a.manager.restore(saved(b.device)); await settle(m); expect((elements(m.root, "dialog")[0] as HTMLDialogElement).open).toBe(false); expect(button(m.root, "删除所选（0）")).toBeDefined();
   expect(text(m)).toContain("书库乙"); expect(await b.fs.text("documents/a.kfx")).toBe("BOOK");
+});
+
+it("matches a foreign-id device record by fingerprint across the books and transfer pages", async () => {
+  const foreign = "b".repeat(32), libraryId = "a".repeat(32), title = "三章书", libraryTitle = "三章书！", { data, positions } = await miniKfx();
+  const fingerprint = await bookFingerprint(title, null), chapter = positions.chapters[1]!, eid = [...chapter.eids][0]!;
+  const c = await connected([{ ...record(foreign, `${title}.kfx`, "wide"), fingerprint: fingerprint ?? undefined, size: data.length }]);
+  await c.fs.write(`documents/${title}.kfx`, data);
+  await c.fs.write(`documents/${title}.sdr/position.yjf`, lprStore(positionString(eid, 0, chapter.startPid), 1_792_748_847_039n));
+  c.input.books = [{ ...book(libraryId, libraryTitle), author: null }]; c.input.chapters = vi.fn(async () => ({ [libraryId]: "第一章" }));
+  const transfer = vi.fn(async () => { throw new Error("测试队列尚未接入转换服务"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
+  const m = mount("books", c.input); await settle(m);
+  expect(text(m)).toContain(libraryTitle);
+  expect(elements(m.root, "td", "data-device-progress")[0]!.getAttribute("title")).toBe("读到：第一章");
+  expect(elements(m.root, "a").find(a => a.getAttribute("aria-label") === `预览 ${libraryTitle}`)?.getAttribute("href")).toBe(`/devices/preview?book=${libraryId}`);
+  const resend = button(m.root, `重新传入 ${libraryTitle}`); expect(resend.hasAttribute("disabled")).toBe(false);
+  fire(resend, "click"); await settle(m);
+  expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), libraryId, "wide", expect.objectContaining({ overwrite: true }));
+  m.page("transfer"); await settle(m); fire(button(m.root, "全部"), "click"); m.flush();
+  expect(text(m)).toContain("已在设备");
 });
 
 it("enqueues a retransmission with the recorded profile and overwrite enabled", async () => {

@@ -1,4 +1,5 @@
 import { strip } from "../../core/text";
+import { normalizeIdentity } from "../../core/identity";
 
 // the legacy implementation's json.dumps(..., ensure_ascii=False) uses spaces after both separators.
 export function compatJson(value: unknown, indent?: number): string {
@@ -45,7 +46,7 @@ export function readTags(raw: unknown): string[] {
   }
 }
 export function wishIdentity(title: string | null, author: string | null): [string, string] {
-  return [title, author].map(value => strip(value || "").toLowerCase().replace(/[^0-9a-zA-Z\u4e00-\u9fff]+/gu, "")) as [string, string];
+  return [normalizeIdentity(title), normalizeIdentity(author)];
 }
 // datetime.now(timezone.utc).isoformat(): six fractional digits, explicit offset.
 export function nowIso(date = new Date()): string {

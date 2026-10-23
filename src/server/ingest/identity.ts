@@ -1,8 +1,9 @@
 import type { Metadata } from "../../core/models";
+import { normalizeIdentity } from "../../core/identity";
 import type { LibraryStorage } from "../storage";
 import { ensureTrackerConsistencyForMeta } from "../tracker";
 
-export const normalizeIdentity = (s: string | null) => (s || "").trim().toLowerCase().replace(/[^0-9a-z\u4e00-\u9fff]+/g, "");
+export { normalizeIdentity } from "../../core/identity";
 export const safeFilename = (s: string) => s.replace(/[^0-9a-zA-Z\u4e00-\u9fff]+/g, "_").replace(/^_+|_+$/g, "") || "book";
 export function resolveTxtIdentity(name: string, title: string | null, author: string | null): [string, string | null] {
   const trim = (s: string) => s.replace(/^[\s\-_.，。;；:：]+|[\s\-_.，。;；:：]+$/g, "");

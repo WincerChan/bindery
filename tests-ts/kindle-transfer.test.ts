@@ -39,6 +39,24 @@ const settleQueue = async (queue: TransferQueue) => {
   for (let i = 0; i < 1000; i++) { if (queue.snapshot().every(j => j.state === "完成" || j.state === "失败")) return; await Promise.resolve(); }
   throw new Error("queue did not settle");
 };
+// WebCrypto resolves outside fake timers, so advance again after each async boundary.
+const settleTimers = async <T>(pending: Promise<T>): Promise<T> => {
+  let settled = false;
+  const tracked = pending.then(value => { settled = true; return value; }, error => { settled = true; throw error; });
+  for (let i = 0; i < 50 && !settled; i++) { await vi.runAllTimersAsync(); await Promise.resolve(); }
+  return tracked;
+};
+const settleQueueTimers = async (queue: TransferQueue) => {
+  for (let i = 0; i < 50; i++) {
+    await vi.runAllTimersAsync(); await Promise.resolve();
+    if (queue.snapshot().every(j => j.state === "完成" || j.state === "失败")) return;
+  }
+  throw new Error("queue did not settle");
+};
+const settleQueueReal = async (queue: TransferQueue) => {
+  for (let i = 0; i < 1000; i++) { if (queue.snapshot().every(j => j.state === "完成" || j.state === "失败")) return; await new Promise(resolve => setTimeout(resolve, 0)); }
+  throw new Error("queue did not settle");
+};
 describe("transfer pipeline and device-side recovery", () => {
   it("passes both asset toggles to conversion while retaining the original cover for the Kindle thumbnail", async () => {
     const original = assetEpub(), before = original.slice(), fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle");
@@ -172,7 +190,7 @@ describe("real transfer progress", () => {
     } });
     const { transfer, inputs } = service({ fetch: async () => new Response(stream, { headers: known ? { "Content-Length": String(epub.length) } : {} }) });
     const pending = transfer.transferBook(device, bookId, "default", { progress: value => events.push({ value, at: Date.now() }) });
-    await vi.runAllTimersAsync(); await pending;
+    await settleTimers(pending);
     const downloads = events.filter(e => e.value.phase === "download" && e.value.loaded! > 0);
     expect(inputs[0]).toEqual(epub);
     expect(downloads.at(-1)!.value.loaded).toBe(epub.length);
@@ -226,7 +244,7 @@ describe("real transfer progress", () => {
     const pending = transfer.transferBook(device, bookId, "default", { signal: controller.signal, progress: value => events.push(value) });
     const failed = expect(pending).rejects.toMatchObject({ name: "AbortError" });
     setTimeout(() => controller.abort(), 200);
-    await vi.runAllTimersAsync(); await failed;
+    await settleTimers(failed);
     expect(cancelled).toHaveBeenCalledOnce(); expect(convert).not.toHaveBeenCalled();
     expect(events.some(value => value.phase === "download" && value.loaded === 100)).toBe(true);
     expect(fs.operations.some(o => o.operation === "createWritable")).toBe(false);
@@ -240,7 +258,7 @@ describe("real transfer progress", () => {
       if (operation.operation === "close" && operation.path.startsWith("/documents/")) expect(events.at(-1)).toMatchObject({ state: "写入", phase: "finalize", message: "正在完成写入", loaded: output.data.length });
     };
     const pending = transfer.transferBook(device, bookId, "default", { progress: value => events.push(value) });
-    await vi.runAllTimersAsync(); const record = await pending;
+    const record = await settleTimers(pending);
     const writes = events.filter(event => event.phase === "write");
     expect(writes.map(event => event.loaded)).toEqual([0, WRITE_CHUNK_SIZE, WRITE_CHUNK_SIZE * 2, WRITE_CHUNK_SIZE * 3, output.data.length]);
     expect(writes.every(event => event.total === output.data.length)).toBe(true);
@@ -276,7 +294,7 @@ describe("real transfer progress", () => {
     } } });
     const first: TransferProgress[] = [], second: TransferProgress[] = [];
     const pending = transfer.transferBook(device, bookId, "default", { progress: value => first.push(value) });
-    await vi.runAllTimersAsync(); await pending;
+    await settleTimers(pending);
     const initial = first.find(event => event.phase === "convert")!;
     expect(initial.etaSeconds).toBeCloseTo(0.3 + epub.length / (1024 * 1024) * 0.08);
     expect(initial.message).toContain("估计");
@@ -285,7 +303,7 @@ describe("real transfer progress", () => {
     expect(first.filter(event => event.phase === "convert").every(event => event.loaded === undefined && event.total === undefined && !event.message.includes("%"))).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
     const next = transfer.transferBook(device, bookId, "default", { progress: value => second.push(value) });
-    await vi.runAllTimersAsync(); await next;
+    await settleTimers(next);
     expect(second.find(event => event.phase === "convert")!.etaSeconds).toBeCloseTo(1.8);
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -294,7 +312,7 @@ describe("real transfer progress", () => {
     const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"); vi.useFakeTimers();
     const { transfer } = service({ converter: { async convert() { await delay(250); throw new Error("conversion failed"); } } });
     const failed = expect(transfer.transferBook(device, bookId, "default", { progress: () => {} })).rejects.toThrow("conversion failed");
-    await vi.runAllTimersAsync(); await failed; expect(vi.getTimerCount()).toBe(0);
+    await settleTimers(failed); expect(vi.getTimerCount()).toBe(0);
   });
 
   it.each(["write", "close"])("rolls back a cancelled overwrite during %s, retaining manifest, thumbnail and reading state", async during => {
@@ -319,7 +337,7 @@ describe("real transfer progress", () => {
     vi.useFakeTimers(); fs.writeLatencyMs = path => path.startsWith("/documents/") ? 120 : 0;
     let chunks = 0; fs.beforeOperation = operation => { if (operation.operation === "write" && operation.path.startsWith("/documents/") && ++chunks === 2) fs.unplug(); };
     const queue = new TransferQueue(transfer); queue.enqueue(device, bookId);
-    await vi.runAllTimersAsync(); await settleQueue(queue);
+    await settleQueueTimers(queue);
     expect(queue.snapshot()[0]).toMatchObject({ state: "失败", message: "Kindle 已断开，请重新插入后重试", writtenBytes: 0, writeTotal: largeConversion().data.length });
     fs.beforeOperation = undefined; fs.plug();
     expect(JSON.parse(await fs.text(".bindery/pending.json")).committed).toBe(false);
@@ -332,7 +350,7 @@ describe("real transfer progress", () => {
     const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"), { transfer } = service();
     const queue = new TransferQueue(transfer), snapshots: ReturnType<typeof queue.snapshot>[] = [];
     queue.subscribe(items => snapshots.push(items)); queue.enqueue(device, bookId); queue.enqueue(device, bookId);
-    await settleQueue(queue);
+    await settleQueueReal(queue);
     expect(queue.snapshot().map(item => [item.writtenBytes, item.writeTotal])).toEqual([[converted.data.length, converted.data.length], [converted.data.length, converted.data.length]]);
     expect(snapshots.some(items => items.some(item => item.state === "写入" && item.phase === "finalize" && item.writtenBytes === converted.data.length))).toBe(true);
   });

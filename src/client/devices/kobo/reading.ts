@@ -25,6 +25,7 @@ export interface KoboReading {
   unmatched: number;
 }
 export interface KoboFallbackBook { book_id: string; title: string }
+export type KoboBookResolver = (book: { book_id?: string | null; fingerprint?: string | null; filename: string }) => string | null;
 const contentPrefix = "file:///mnt/onboard/";
 const sqlitePath = ".kobo/KoboReader.sqlite";
 const contentQuery = `SELECT ContentID, ReadStatus, ___PercentRead, ChapterIDBookmarked, CurrentChapterProgress, DateLastRead, TimeSpentReading, RestOfBookEstimate FROM content WHERE ContentType = 6 AND ContentID LIKE 'file:///mnt/onboard/Bindery/%'`;
@@ -68,19 +69,27 @@ export async function parseKoboContent(data: Uint8Array, load: KoboDatabaseLoade
   } finally { db.close(); }
 }
 /** Manifest first; old transfers fall back only when one library title maps to the filename. */
-export function koboReadingBookIds(manifest: KoboManifest, books: readonly KoboFallbackBook[] = []): Map<string, string> {
-  const ids = new Map(manifest.books.map(book => [book.filename.toLowerCase(), book.book_id]));
+export function koboReadingBookIds(manifest: KoboManifest, books: readonly KoboFallbackBook[] = [], resolve?: KoboBookResolver): Map<string, string> {
+  const ids = new Map<string, string>();
+  if (resolve) {
+    for (const book of manifest.books) {
+      const id = resolve(book);
+      if (id) ids.set(book.filename.toLowerCase(), id);
+    }
+  } else for (const book of manifest.books) ids.set(book.filename.toLowerCase(), book.book_id);
   const fallback = new Map<string, string | null>();
   for (const book of books) {
-    const filename = `Bindery/${koboBookFilename(book.title)}`.toLowerCase(), current = fallback.get(filename);
-    if (current === undefined) fallback.set(filename, book.book_id);
-    else if (current !== book.book_id) fallback.set(filename, null);
+    const filename = `Bindery/${koboBookFilename(book.title)}`.toLowerCase();
+    const id = resolve ? resolve({ filename }) : book.book_id;
+    const current = fallback.get(filename);
+    if (current === undefined) fallback.set(filename, id);
+    else if (current !== id) fallback.set(filename, null);
   }
   for (const [filename, book_id] of fallback) if (book_id && !ids.has(filename)) ids.set(filename, book_id);
   return ids;
 }
-export function koboReadingEntries(rows: readonly KoboContentRow[], manifest: KoboManifest, books: readonly KoboFallbackBook[] = []) {
-  const bookIds = koboReadingBookIds(manifest, books), entries: KoboEntry[] = [];
+export function koboReadingEntries(rows: readonly KoboContentRow[], manifest: KoboManifest, books: readonly KoboFallbackBook[] = [], resolve?: KoboBookResolver) {
+  const bookIds = koboReadingBookIds(manifest, books, resolve), entries: KoboEntry[] = [];
   for (const row of rows) {
     const book_id = bookIds.get(row.filename.toLowerCase());
     if (!book_id) continue;
@@ -88,12 +97,12 @@ export function koboReadingEntries(rows: readonly KoboContentRow[], manifest: Ko
   }
   return { entries, bookIds, unmatched: rows.length - entries.length };
 }
-export async function readKoboReading(root: KindleDirectory, books: readonly KoboFallbackBook[] = [], load: KoboDatabaseLoader = loadKoboDatabase): Promise<KoboReading> {
+export async function readKoboReading(root: KindleDirectory, books: readonly KoboFallbackBook[] = [], load: KoboDatabaseLoader = loadKoboDatabase, resolve?: KoboBookResolver): Promise<KoboReading> {
   const manifest = await readKoboManifest(root), kobo = await entryOperation(root, ".kobo", () => root.getDirectoryHandle(".kobo"), "kobo");
   const entries = await directoryEntries(root, kobo, ".kobo", "kobo");
   const find = (name: string) => entries.find(entry => entry.kind === "file" && entry.name.toLowerCase() === name.toLowerCase());
   const database = find("KoboReader.sqlite"), walFile = find("KoboReader.sqlite-wal");
   const wal = walFile?.kind === "file" && (await walFile.getFile()).size > 0;
   const rows = database?.kind === "file" ? await parseKoboContent(new Uint8Array(await entryOperation(root, sqlitePath, async () => new Uint8Array(await (await database.getFile()).arrayBuffer()), "kobo")), load) : [];
-  return { manifest, rows, wal, ...koboReadingEntries(rows, manifest, books) };
+  return { manifest, rows, wal, ...koboReadingEntries(rows, manifest, books, resolve) };
 }

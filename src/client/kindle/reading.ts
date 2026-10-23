@@ -3,6 +3,9 @@ import { directoryEntries, entryOperation, type DeviceDirectory, type DeviceFile
 import { kindlePosition, readKfxPositions, type KindlePositions } from "./kfx-positions";
 import { decodeKindlePosition, parseReaderDataStore } from "./reading-store";
 import type { DeviceManifest, ManifestBook } from "./manifest";
+import { kindleFileFingerprint } from "./record-fingerprint";
+
+export type KindleBookResolver = (book: { book_id?: string | null; fingerprint?: string | null; filename: string }) => string | null;
 
 export interface KindleReading {
   entries: KindleEntry[];
@@ -49,7 +52,7 @@ async function cachedPositions(root: KindleDirectory, filename: string, file: De
 }
 
 /** Read-only pass over a Kindle: sidecars are never written and failures are counted per book. */
-export async function readKindleReading(root: KindleDirectory, manifest: DeviceManifest): Promise<KindleReading> {
+export async function readKindleReading(root: KindleDirectory, manifest: DeviceManifest, resolve?: KindleBookResolver): Promise<KindleReading> {
   const documents = await entryOperation(root, "documents", () => root.getDirectoryHandle("documents"));
   const entries = await directoryEntries(root, documents, "documents");
   const files = new Map(entries.filter((entry): entry is DeviceFile => entry.kind === "file").map(entry => [entry.name.toLowerCase(), entry]));
@@ -58,7 +61,7 @@ export async function readKindleReading(root: KindleDirectory, manifest: DeviceM
   let skipped = 0;
   for (const book of manifest.books) {
     try {
-      const entry = await readBook(root, files, sidecars, consumed, book);
+      const entry = await readBook(root, files, sidecars, consumed, book, resolve);
       if (entry === "failed") skipped++;
       else if (entry) result.push(entry);
     } catch { skipped++; }
@@ -66,7 +69,7 @@ export async function readKindleReading(root: KindleDirectory, manifest: DeviceM
   return { entries: result, skipped, unmatched: [...sidecars.keys()].filter(name => !consumed.has(name)).length };
 }
 /** null: the Kindle has no reading position for the book yet (never opened). */
-async function readBook(root: KindleDirectory, files: Map<string, DeviceFile>, sidecars: Map<string, DeviceDirectory>, consumed: Set<string>, book: ManifestBook): Promise<KindleEntry | "failed" | null> {
+async function readBook(root: KindleDirectory, files: Map<string, DeviceFile>, sidecars: Map<string, DeviceDirectory>, consumed: Set<string>, book: ManifestBook, resolve?: KindleBookResolver): Promise<KindleEntry | "failed" | null> {
   const stem = book.filename.replace(/\.kfx$/i, "");
   const candidates = [`${stem}.sdr`, `${stem}_${book.content_id}.sdr`].map(name => name.toLowerCase());
   const dirs: Array<[string, DeviceDirectory]> = [];
@@ -85,8 +88,10 @@ async function readBook(root: KindleDirectory, files: Map<string, DeviceFile>, s
   const decoded = decodeKindlePosition(newest.location), file = files.get(book.filename.toLowerCase());
   if (!file) return "failed";
   const positions = await cachedPositions(root, book.filename, file), position = kindlePosition(positions, decoded);
+  const fingerprint = resolve ? book.fingerprint ?? await kindleFileFingerprint(root, book.filename, await file.getFile()) : null;
+  const book_id = resolve?.({ book_id: book.book_id, fingerprint, filename: book.filename }) ?? book.book_id;
   return {
-    book_id: book.book_id, location: newest.location, chapter: position.chapter, kfx_section_count: positions.sectionCount,
+    book_id, location: newest.location, chapter: position.chapter, kfx_section_count: positions.sectionCount,
     chapter_fraction: position.chapter_fraction, percent: position.percent, last_read_at: newest.at,
   };
 }

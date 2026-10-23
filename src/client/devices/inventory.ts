@@ -7,6 +7,7 @@ import { readKindleReading } from "../kindle/reading";
 import { readKoboReading, type KoboContentRow, type KoboDatabaseLoader, type KoboFallbackBook } from "./kobo/reading";
 import type { KoboManifestBook } from "./kobo/manifest";
 import { withDeviceLock } from "./transaction";
+import { kindleFileFingerprint } from "../kindle/record-fingerprint";
 
 export interface DeviceBookRecord { book_id: string; profile_id: string; profile_name: string; transferred_at: string; thumbnail: string | null }
 export interface DeviceBookProgress { read_status: KoboContentRow["read_status"]; percent: number; last_read_at: string | null }
@@ -19,6 +20,8 @@ export interface DeviceBook {
   sidecar: string | null;
   source: "Bindery" | "其他";
   book_id: string | null;
+  /** Normalized title + author identity, from the record or derived from the device's KFX. */
+  fingerprint: string | null;
   record: ManifestBook | KoboManifestBook | null;
   progress: DeviceBookProgress | null;
 }
@@ -63,7 +66,8 @@ async function kindleInventory(root: DeviceDirectory, unreadable: UnreadableEntr
         const record = records.get(filename.toLowerCase()) ?? null; bookBytes += file.size;
         const readingEntry = record ? progressByBook.get(record.book_id) : undefined;
         const progress = readingEntry ? { read_status: 1 as const, percent: readingEntry.percent, last_read_at: readingEntry.last_read_at } : null;
-        books.push({ filename, format: entry.name.split(".").at(-1)!.toLowerCase(), size: file.size, modifiedAt: file.lastModified, sidecar: sidecars.get(entry.name.replace(/\.[^.]+$/, ".sdr").toLowerCase()) ?? null, source: record ? "Bindery" : "其他", book_id: record?.book_id ?? null, record, progress });
+        const fingerprint = record ? record.fingerprint ?? await kindleFileFingerprint(root, filename, file) : null;
+        books.push({ filename, format: entry.name.split(".").at(-1)!.toLowerCase(), size: file.size, modifiedAt: file.lastModified, sidecar: sidecars.get(entry.name.replace(/\.[^.]+$/, ".sdr").toLowerCase()) ?? null, source: record ? "Bindery" : "其他", book_id: record?.book_id ?? null, fingerprint, record, progress });
       } else other += file.size;
     }
   };
@@ -107,7 +111,7 @@ async function koboInventory(root: DeviceDirectory, unreadable: UnreadableEntry[
         const key = filename.toLowerCase(), record = records.get(key) ?? null, book_id = bookIds.get(key) ?? record?.book_id ?? null;
         const fallback = !record && book_id ? { book_id, filename, transferred_at: new Date(file.lastModified).toISOString() } satisfies KoboManifestBook : null;
         const row = progress.get(key), deviceProgress = row ? { read_status: row.read_status, percent: row.percent, last_read_at: row.last_read_at } : null;
-        books.push({ filename, format: formatOf(entry.name), size: file.size, modifiedAt: file.lastModified, sidecar: null, source: isBindery(filename) ? "Bindery" : "其他", book_id, record: record ?? fallback, progress: deviceProgress });
+        books.push({ filename, format: formatOf(entry.name), size: file.size, modifiedAt: file.lastModified, sidecar: null, source: isBindery(filename) ? "Bindery" : "其他", book_id, fingerprint: record?.fingerprint ?? null, record: record ?? fallback, progress: deviceProgress });
       } else other += file.size;
     }
   };

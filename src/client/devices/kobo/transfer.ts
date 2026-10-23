@@ -1,4 +1,5 @@
 import { extractEpubMetadata } from "../../../core/epub";
+import { bookFingerprint } from "../../../core/fingerprint";
 import { defaultProfile, DEFAULT_PROFILE_ID, generateProfileCss, profileSettings, resolveTransferProfile, type TypesettingProfile } from "../profiles";
 import { listFonts } from "../fonts";
 import { assertDevice, type PairedDevice } from "../identity";
@@ -7,13 +8,20 @@ import { PROGRESS_INTERVAL_MS, TransferProgressReporter } from "../progress";
 import type { TransferOptions, TransferResult, TransferService } from "../queue";
 import { applyDevicePatchesFor, withDeviceLock } from "../transaction";
 import { getKepubConverter, type KepubConverter } from "./kepub-client";
-import { koboManifestBytes, readKoboManifest, withKoboManifestBook } from "./manifest";
+import { koboManifestBytes, readKoboManifest, withKoboManifestBook, type KoboManifestBook } from "./manifest";
 
 export interface KoboTransferDependencies {
   converter: KepubConverter;
   fetch: typeof fetch;
   profile?: (profileId: string) => Promise<TypesettingProfile>;
   fonts?: typeof listFonts;
+}
+/** A record id wins; a fingerprint shared by several records is ambiguous and never guessed. */
+function overwriteTarget(books: KoboManifestBook[], bookId: string, fingerprint: string | null): KoboManifestBook | undefined {
+  const byId = books.find(book => book.book_id === bookId);
+  if (byId || !fingerprint) return byId;
+  const matches = books.filter(book => book.fingerprint === fingerprint);
+  return matches.length === 1 ? matches[0] : undefined;
 }
 async function loadProfile(profileId: string) {
   if (profileId === DEFAULT_PROFILE_ID) return defaultProfile();
@@ -57,7 +65,7 @@ export class KoboTransferService implements TransferService {
     let offset = 0; for (const chunk of chunks) { epub.set(chunk, offset); offset += chunk.byteLength; }
     chunks.length = 0;
     check();
-    const metadata = extractEpubMetadata(epub, bookId);
+    const metadata = extractEpubMetadata(epub, bookId), fingerprint = await bookFingerprint(metadata.title, metadata.author);
     const started = Date.now();
     const reportConversion = (message: string, etaSeconds?: number) => progress.report({ state: "转换", phase: "convert", message: `${message} · 已用 ${((Date.now() - started) / 1000).toFixed(1)} 秒`, etaSeconds });
     reportConversion("正在转换 KEPUB");
@@ -70,11 +78,14 @@ export class KoboTransferService implements TransferService {
       } });
     } finally { if (timer !== undefined) clearInterval(timer); }
     check();
-    const filename = koboBookFilename(metadata.title || bookId), path = `Bindery/${filename}`;
-    assertDeviceBookPath(path);
+    assertDeviceBookPath(`Bindery/${koboBookFilename(metadata.title || bookId)}`);
     return withDeviceLock(device, async () => {
       check(); progress.report({ state: "写入", phase: "write", message: "正在准备 Kobo 写入与恢复备份", loaded: 0, total: converted.data.byteLength });
-      const manifest = withKoboManifestBook(await readKoboManifest(device.root), { book_id: bookId, filename: `Bindery/${filename}`, transferred_at: new Date().toISOString() });
+      const current = await readKoboManifest(device.root), existing = options.overwrite ? overwriteTarget(current.books, bookId, fingerprint) : undefined;
+      const path = existing?.filename ?? `Bindery/${koboBookFilename(metadata.title || bookId)}`, filename = path.slice("Bindery/".length);
+      assertDeviceBookPath(path);
+      const record: KoboManifestBook = { book_id: bookId, filename: path, transferred_at: new Date().toISOString(), ...(fingerprint ? { fingerprint } : {}) };
+      const manifest = withKoboManifestBook(current, record);
       await applyDevicePatchesFor(device.root, "kobo", [{ path: ["Bindery", filename], data: converted.data }, { path: [".bindery", "manifest.json"], data: koboManifestBytes(manifest) }], options.signal, (patch, value) => {
         if (patch.path[0] !== "Bindery") return;
         progress.report({ state: "写入", phase: value.committing ? "finalize" : "write", message: value.committing ? "正在完成写入" : "正在写入 Kobo", loaded: value.loaded, total: value.total }, value.committing || value.loaded === value.total);

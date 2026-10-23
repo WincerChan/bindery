@@ -10,9 +10,9 @@ import { koboBookFilename } from "../../client/devices/paths";
 import { defaultProfile, DEFAULT_PROFILE_ID } from "../../client/devices/profiles";
 import { KindleIcon } from "../kindle/icons";
 import { Link } from "../../shared/spa-link";
-import type { DeviceLibraryBook } from "./library";
+import { createDeviceLibraryResolver, type DeviceLibraryBook, type DeviceLibraryResolver } from "./library";
 
-function DeviceCover(props: { book: DeviceBook; title: string; author: string | null; libraryCover?: string | null }) {
+function DeviceCover(props: { book: DeviceBook; title: string; author: string | null; libraryCover?: string | null; libraryId?: string | null }) {
   const k = useDevice(), [url, setUrl] = createSignal<string | null>(null);
   onSettled(() => {
     let alive = true, objectUrl: string | undefined;
@@ -28,7 +28,7 @@ function DeviceCover(props: { book: DeviceBook; title: string; author: string | 
     })();
     return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   });
-  return <BookCover book_id={props.book.book_id || props.book.record?.book_id || props.book.filename} title={props.title} author={props.author} cover_url={url() || props.libraryCover} class="kindle-book-cover" />;
+  return <BookCover book_id={props.libraryId || props.book.book_id || props.book.record?.book_id || props.book.filename} title={props.title} author={props.author} cover_url={url() || props.libraryCover} class="kindle-book-cover" />;
 }
 
 const bookTitle = (filename: string) => filename.split("/").at(-1)!.replace(/\.kepub\.epub$/i, "").replace(/\.[^.]+$/, "");
@@ -52,6 +52,13 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
   const kind = () => k.kind(), kindle = () => kind() === "kindle";
   const selectionDevice = createMemo(() => k.state().device?.identity.id || "");
   createEffect(selectionDevice, () => { setSelected([]); setPending(null); setNotice(""); setNotRemoved([]); });
+  const [resolver, setResolver] = createSignal<DeviceLibraryResolver | null>(null);
+  createEffect(() => [props.books, kind()] as const, ([books, deviceKind]) => {
+    let alive = true; setResolver(null);
+    createDeviceLibraryResolver(books, deviceKind).then(value => { if (alive) setResolver(() => value); }, () => { if (alive) setResolver(null); });
+    return () => { alive = false; };
+  });
+  const resolvedId = (book: DeviceBook) => resolver()?.match(book) ?? book.book_id ?? book.record?.book_id ?? null;
   // Positions reach the server through the reading sync, so chapters are fetched again after each pass.
   const [chapters, setChapters] = createSignal<Record<string, string>>({});
   const chapterSource = createMemo(() => k.ready() && k.state().status === "granted" && k.syncSummary() !== "正在同步阅读进度…" ? `${selectionDevice()}\n${k.syncSummary()}` : "");
@@ -63,7 +70,7 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
     props.chapters(deviceId).then(value => { if (current) setChapters(value); }, () => { /* The percentage alone still shows. */ });
     return () => { current = false; };
   });
-  const chapterTitle = (book: DeviceBook) => { const id = book.book_id || book.record?.book_id, chapter = book.progress && id ? chapters()[id] : undefined; return chapter ? `读到：${chapter}` : undefined; };
+  const chapterTitle = (book: DeviceBook) => { const id = resolvedId(book), chapter = book.progress && id ? chapters()[id] : undefined; return chapter ? `读到：${chapter}` : undefined; };
   const library = createMemo(() => new Map(props.books.map(b => [b.book_id, b])));
   const koboFallback = createMemo(() => {
     const groups = new Map<string, DeviceLibraryBook[]>();
@@ -73,7 +80,7 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
     }
     return new Map([...groups].filter(([, books]) => books.length === 1).map(([key, books]) => [key, books[0]!]));
   });
-  const metadata = (book: DeviceBook) => library().get(book.book_id || book.record?.book_id || "") ?? (kindle() ? undefined : koboFallback().get(book.filename.toLowerCase()));
+  const metadata = (book: DeviceBook) => library().get(resolvedId(book) || "") ?? (kindle() ? undefined : koboFallback().get(book.filename.toLowerCase()));
   const title = (book: DeviceBook) => metadata(book)?.title || bookTitle(book.filename);
   const all = () => k.inventory()?.books || [];
   const visible = () => all().filter(b => (source() === "全部" || b.source === source()) && `${title(b)} ${metadata(b)?.author || ""} ${b.filename}`.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase()));
@@ -98,10 +105,10 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
   }
   function resend(book: DeviceBook) {
     void k.run(async () => {
-      const record = book.record;
-      if (!record || !metadata(book)) throw new Error("这本书已不在当前书库，无法重新传入");
-      k.enqueue(record.book_id, "profile_id" in record ? record.profile_id : "default", { overwrite: true });
-      const copies = all().filter(b => b.record?.book_id === record.book_id).length;
+      const record = book.record, id = resolvedId(book);
+      if (!record || !id || !metadata(book)) throw new Error("这本书已不在当前书库，无法重新传入");
+      k.enqueue(id, "profile_id" in record ? record.profile_id : "default", { overwrite: true });
+      const copies = all().filter(b => resolvedId(b) === id).length;
       setNotice(`已加入传输队列：${title(book)}${copies > 1 ? "（将覆盖此书首份 Bindery 副本）" : ""}`);
     });
   }
@@ -127,9 +134,9 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
       <th scope="col">书籍</th><th scope="col">来源</th><th scope="col">格式</th><th scope="col">阅读进度</th><Show when={kindle()}><th scope="col">排版方案</th></Show><th scope="col">大小</th><Show when={kindle()}><th scope="col">传入时间</th></Show><th scope="col">操作</th>
     </tr></thead><tbody><Show when={connected() && k.inventory()}><For each={visible()}>{book => <tr data-device-book={book.filename}>
       <td><Checkbox label="" aria-label={`选择 ${title(book)}`} disabled={!deletable(book)} checked={selected().includes(book.filename)} onChange={e => setSelected(current => e.currentTarget.checked ? [...current.filter(n => n !== book.filename), book.filename] : current.filter(n => n !== book.filename))} /></td>
-      <td><div class="kindle-book-info"><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} /><div><strong title={book.filename}>{title(book)}</strong><p class="kindle-small">{metadata(book)?.author || book.filename}</p></div></div></td>
+      <td><div class="kindle-book-info"><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} libraryId={resolvedId(book)} /><div><strong title={book.filename}>{title(book)}</strong><p class="kindle-small">{metadata(book)?.author || book.filename}</p></div></div></td>
       <td>{book.source}</td><td class="kindle-mono">{book.format.toUpperCase()}</td><td class="kindle-mono" data-device-progress title={chapterTitle(book)}>{progressLabel(book, kind())}</td><Show when={kindle()}><td>{profileName(book) || "—"}</td></Show><td class="kindle-mono">{bytes(book.size)}</td><Show when={kindle()}><td class="kindle-mono kindle-time">{dateLabel(book.record?.transferred_at || null)}</td></Show>
-      <td><div class="kindle-row-actions"><Show when={book.record}><Link class="btn btn-icon" href={`/devices/preview?book=${encodeURIComponent(book.record!.book_id)}`} aria-label={`预览 ${title(book)}`} title={`预览 ${title(book)}`}><KindleIcon name="eye" /></Link><Button variant="icon" aria-label={`重新传入 ${title(book)}`} title="使用记录中的排版方案，覆盖此书首份 Bindery 副本并保留其阅读记录" disabled={k.busy() || !metadata(book)} onClick={() => resend(book)}><KindleIcon name="redo" /></Button></Show><Button variant="icon" aria-label={`从设备删除 ${title(book)}`} title={deletable(book) ? `从设备删除 ${title(book)}` : "只能删除 Bindery 管理的 KEPUB"} disabled={k.busy() || !deletable(book)} onClick={() => confirm([book])}><KindleIcon name="trash" /></Button></div></td>
+      <td><div class="kindle-row-actions"><Show when={book.record}><Show when={resolvedId(book)}><Link class="btn btn-icon" href={`/devices/preview?book=${encodeURIComponent(resolvedId(book)!)}`} aria-label={`预览 ${title(book)}`} title={`预览 ${title(book)}`}><KindleIcon name="eye" /></Link></Show><Button variant="icon" aria-label={`重新传入 ${title(book)}`} title="使用记录中的排版方案，覆盖此书首份 Bindery 副本并保留其阅读记录" disabled={k.busy() || !resolvedId(book) || !metadata(book)} onClick={() => resend(book)}><KindleIcon name="redo" /></Button></Show><Button variant="icon" aria-label={`从设备删除 ${title(book)}`} title={deletable(book) ? `从设备删除 ${title(book)}` : "只能删除 Bindery 管理的 KEPUB"} disabled={k.busy() || !deletable(book)} onClick={() => confirm([book])}><KindleIcon name="trash" /></Button></div></td>
     </tr>}</For></Show></tbody></table></div>
     <Show when={connected()} fallback={<EmptyState title={k.ready() ? "请先连接设备" : "检测中…"}><Link href="/devices/connect">连接并授权设备</Link>后，可查看和管理设备上的书籍。</EmptyState>}>
       <Show when={k.inventory()} fallback={<p class="muted" role="status">{k.inventoryError() || "正在读取设备书籍…"}</p>}>

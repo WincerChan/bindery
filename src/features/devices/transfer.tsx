@@ -1,11 +1,10 @@
 import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
 import { defaultProfile, type TypesettingProfile } from "../../client/devices/profiles";
 import type { DeviceBook } from "../../client/devices/inventory";
-import { koboBookFilename } from "../../client/devices/paths";
 import { BookCover, Button, Checkbox, Chip, EmptyState, Select, TextField } from "../../ui";
 import { useDevice } from "./context";
 import { byteProgressDetail, bytes, megabytes } from "./format";
-import type { DeviceLibraryBook } from "./library";
+import { createDeviceLibraryResolver, type DeviceLibraryBook, type DeviceLibraryResolver } from "./library";
 import { BokoLicense } from "../kindle/devices/boko-license";
 import { Link } from "../../shared/spa-link";
 import type { TransferItem } from "../../client/devices/queue";
@@ -75,6 +74,12 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
     return [settings?.stripFonts ? "去掉书籍自带字体" : "", settings?.stripImages ? "去掉所有图片（保留封面）" : "", settings?.stripPageMargins ? "去掉书籍自带页边距" : ""].filter(Boolean).join(" · ");
   };
   const deviceId = createMemo(() => k.ready() && k.state().status === "granted" ? k.state().device?.identity.id || "" : "");
+  const [resolver, setResolver] = createSignal<DeviceLibraryResolver | null>(null);
+  createEffect(() => [props.books, kind()] as const, ([books, deviceKind]) => {
+    let alive = true; setResolver(null);
+    createDeviceLibraryResolver(books, deviceKind).then(value => { if (alive) setResolver(() => value); }, () => { if (alive) setResolver(null); });
+    return () => { alive = false; };
+  });
   let profileRevision = 0;
   async function reloadProfiles(id: string) {
     const token = ++profileRevision; setProfileError(""); setProfiles([]); setProfile("default");
@@ -87,16 +92,14 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
   // A device switch clears the selection; the hand-over from the library survives until a device is ready.
   let pending = handed;
   createEffect(deviceId, id => { setSelected(pending); if (id) pending = []; void reloadProfiles(id); return () => { profileRevision++; }; });
-  const koboBooks = createMemo(() => {
-    const map = new Map<string, DeviceBook>();
-    if (kindle()) return map;
-    const byFile = new Map((k.inventory()?.books || []).filter(book => book.source === "Bindery").map(book => [book.filename.toLowerCase(), book]));
-    for (const book of props.books) { const found = byFile.get(`Bindery/${koboBookFilename(book.title)}`.toLowerCase()); if (found) map.set(book.book_id, found); }
-    return map;
-  });
   const onDevice = createMemo(() => {
-    if (!kindle()) return koboBooks();
-    return new Map((k.inventory()?.books || []).filter(b => b.record).map(b => [b.record!.book_id, b]));
+    const found = new Map<string, DeviceBook>(), match = resolver();
+    if (!match) return found;
+    for (const book of k.inventory()?.books || []) {
+      const book_id = match.match(book);
+      if (book_id && !found.has(book_id)) found.set(book_id, book);
+    }
+    return found;
   });
   const visible = () => props.books.filter(b => (filter() !== "不在设备" || !onDevice().has(b.book_id)) && (filter() !== "未读" || !b.read) && `${b.title} ${b.author || ""}`.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase()));
   const totalPages = () => Math.max(1, Math.ceil(visible().length / 24));

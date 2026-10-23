@@ -1,13 +1,15 @@
 import { getBokoConverter, type EpubConverter } from "../boko/client";
 import { ConversionEstimate } from "../boko/estimate";
 import { readKfxIdentity } from "../boko/kfx";
-import { extractCover } from "../../core/epub";
+import { extractCover, extractEpubMetadata } from "../../core/epub";
+import { bookFingerprint } from "../../core/fingerprint";
 import { applyTypesettingProfile } from "../../core/epub-profile-css";
 import { assertWindowsWritePath, directoryEntries, entryName, entryOperation, optionalDirectory, optionalEntry, type KindleDirectory } from "./fs";
 import { assertDevice } from "../devices/identity";
 import type { PairedDevice } from "../devices/identity";
 import type { TransferOptions as DeviceTransferOptions } from "../devices/queue";
 import { manifestBytes, readManifest, thumbnailName, type ManifestBook } from "./manifest";
+import { kindleRecordFingerprint } from "./record-fingerprint";
 import { defaultProfile, DEFAULT_PROFILE_ID, profileSettings, resolveTransferProfile, type TypesettingProfile } from "../devices/profiles";
 import { applyDevicePatchesFor, withDeviceLock, type DevicePatch } from "./transaction";
 import { makeThumbnail } from "./thumbnail";
@@ -45,6 +47,17 @@ async function loadProfile(profileId: string) {
   const { listTypesetProfiles } = await import("../../server/typeset/functions");
   const profile = (await listTypesetProfiles()).find(p => p.id === profileId);
   if (!profile) throw new Error("排版方案不存在"); return profile;
+}
+/** A shared fingerprint among device records is ambiguous, so no old copy is overwritten. */
+async function overwriteTarget(root: KindleDirectory, books: ManifestBook[], bookId: string, fingerprint: string | null): Promise<ManifestBook | undefined> {
+  const byId = books.find(book => book.book_id === bookId);
+  if (byId || !fingerprint) return byId;
+  const matches: ManifestBook[] = [];
+  for (const book of books) {
+    const value = book.fingerprint ?? await kindleRecordFingerprint(root, book);
+    if (value === fingerprint) matches.push(book);
+  }
+  return matches.length === 1 ? matches[0] : undefined;
 }
 export class KindleTransferService {
   private conversionEstimate = new ConversionEstimate();
@@ -84,6 +97,7 @@ export class KindleTransferService {
     let offset = 0; for (const chunk of chunks) { epub.set(chunk, offset); offset += chunk.byteLength; }
     chunks.length = 0;
     check();
+    const metadata = extractEpubMetadata(epub, bookId), fingerprint = await bookFingerprint(metadata.title, metadata.author);
     const copy = applyTypesettingProfile(epub, profile);
     const conversionStartedAt = Date.now(), estimateMs = this.conversionEstimate.durationMs(copy.byteLength);
     let conversionMessage = "正在转换 KFX", measuredStart = conversionStartedAt, measuredEnd: number | undefined;
@@ -114,7 +128,7 @@ export class KindleTransferService {
     return withDeviceLock(device, async () => {
       check(); progress.report({ state: "写入", phase: "write", message: "正在准备 Kindle 写入与恢复备份", loaded: 0, total: result.data.byteLength });
       const manifest = await readManifest(device.root), documents = await entryOperation(device.root, "documents", () => device.root.getDirectoryHandle("documents"));
-      const existing = options.overwrite ? manifest.books.find(b => b.book_id === bookId) : undefined;
+      const existing = options.overwrite ? await overwriteTarget(device.root, manifest.books, bookId, fingerprint) : undefined;
       let filename = existing?.filename;
       // A recorded filename occupied by a directory is never overwritten.
       if (filename) {
@@ -125,7 +139,7 @@ export class KindleTransferService {
       filename ??= await collisionSafeFilename(documents, result.bookInfo.title || bookId, device.root);
       assertBookFilename(filename);
       const thumb = thumbnail ? thumbnailName(identity.contentId, identity.cdeContentType) : null;
-      const record: ManifestBook = { book_id: bookId, filename, content_id: identity.contentId, cde_content_type: identity.cdeContentType, profile_id: profile.id, profile_name: profile.name, transferred_at: new Date().toISOString(), size: result.data.length, thumbnail: thumb };
+      const record: ManifestBook = { book_id: bookId, filename, content_id: identity.contentId, cde_content_type: identity.cdeContentType, profile_id: profile.id, profile_name: profile.name, transferred_at: new Date().toISOString(), size: result.data.length, thumbnail: thumb, ...(fingerprint ? { fingerprint } : {}) };
       const nextBooks = manifest.books.filter(b => b.filename.toLowerCase() !== filename!.toLowerCase());
       // Same EPUB ID may belong to several copies. Never overwrite a thumbnail we did not write.
       if (thumb) {
