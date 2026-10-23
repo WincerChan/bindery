@@ -5,7 +5,6 @@ export * from "./inventory";
 export * from "./manifest";
 export * from "./fonts";
 export * from "./operations";
-export * from "./profiles";
 export * from "./transfer";
 export { TransferQueue, getTransferQueue, useTransferQueue } from "./queue";
 export type { TransferItem, TransferResult, TransferService } from "./queue";

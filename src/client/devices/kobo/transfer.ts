@@ -1,5 +1,5 @@
 import { extractEpubMetadata } from "../../../core/epub";
-import { defaultProfile, DEFAULT_PROFILE_ID, generateProfileCss, profileSettings, type TypesettingProfile } from "../profiles";
+import { defaultProfile, DEFAULT_PROFILE_ID, generateProfileCss, profileSettings, resolveTransferProfile, type TypesettingProfile } from "../profiles";
 import { listFonts } from "../fonts";
 import { assertDevice, type PairedDevice } from "../identity";
 import { assertDeviceBookPath, koboBookFilename } from "../paths";
@@ -29,8 +29,7 @@ export class KoboTransferService implements TransferService {
     const check = () => { if (options.signal?.aborted) throw new DOMException("操作已取消", "AbortError"); };
     const progress = new TransferProgressReporter(options.progress);
     check(); await assertDevice(device);
-    const snapshot = options.settings ? { id: profileId, name: profileId === DEFAULT_PROFILE_ID ? defaultProfile().name : "发送时的排版", settings: profileSettings(options.settings), builtIn: profileId === DEFAULT_PROFILE_ID } : null;
-    const profileLoaded = snapshot ?? await (this.dependencies.profile ?? loadProfile)(profileId), profile = { ...profileLoaded, settings: profileSettings(profileLoaded.settings) };
+    const profileLoaded = await resolveTransferProfile(profileId, options.settings, this.dependencies.profile ?? loadProfile), profile = { ...profileLoaded, settings: profileSettings(profileLoaded.settings) };
     if (profile.settings.fontFamily && !(await (this.dependencies.fonts ?? listFonts)(device.root, undefined, "kobo")).some(font => font.name === profile.settings.fontFamily)) throw new Error(`Kobo 上未安装字体：${profile.settings.fontFamily}`);
     progress.report({ state: "转换", phase: "download", message: "正在读取书库 EPUB" });
     const response = await this.dependencies.fetch(`/book/${bookId}/download`, { credentials: "same-origin", redirect: "error", signal: options.signal });

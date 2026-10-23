@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
 import { kindlePreviewResource } from "../src/server/kindle/preview";
-import { previewContentUrl } from "../src/features/kindle/typeset/model";
+import { previewContentUrl } from "../src/features/devices/preview/model";
 import { epubPath } from "../src/server/storage";
 import { readerFixture } from "./fixtures/reader/support";
 import { assetCover, assetEpub } from "./support/kindle-assets";

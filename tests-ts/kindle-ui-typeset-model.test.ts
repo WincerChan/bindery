@@ -1,16 +1,18 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
-import { inspectFontBatch, previewAnchorPage, previewPagination, screenFor } from "../src/features/kindle/typeset/model";
-import { DocumentFonts, PreviewDocument } from "../src/features/kindle/typeset/frame";
-import { previewChapters, previewData } from "../src/features/kindle/typeset/preview.server";
+import { inspectFontBatch } from "../src/features/kindle/typeset/model";
+import { previewAnchorPage, previewPagination, screenFor } from "../src/features/devices/preview/model";
+import { DocumentFonts, PreviewDocument } from "../src/features/devices/preview/frame";
+import { previewChapters, previewData } from "../src/features/devices/preview/preview.server";
 import { listFonts } from "../src/client/kindle/fonts";
 import { pairDevice } from "../src/client/kindle/identity";
 import { epubPath } from "../src/server/storage";
 import { readerFixture } from "./fixtures/reader/support";
 import { fakeKindle } from "./support/fake-fs";
-import { convertMarginX, kindlePageGeometry, kindlePreviewMetrics, minimumMarginX } from "../src/client/kindle/margins";
+import { defaultReadingSettings, marginXPx, pageGeometry, previewTarget } from "../src/client/devices/typeset";
 import { previewDocumentFixture } from "./support/kindle-preview-dom";
-import { KOBO_LIBRA2_PAGE } from "../src/features/devices/kobo-page";
+const kindleGeometry = (model: string, preset = "narrow") => pageGeometry(previewTarget("kindle", model), { ...defaultReadingSettings("kindle"), margin: preset });
+const koboGeometry = (model = "libra2") => pageGeometry(previewTarget("kobo", model), defaultReadingSettings("kobo"));
 import { fire } from "./support/client-dom";
 
 const cleanups: (() => void)[] = [];
@@ -31,26 +33,6 @@ it("uses exact KPW3 / KO3 dimensions and explicitly falls back to KPW3 for other
   expect(screenFor("KPW3")).toMatchObject({ width: 1072, height: 1448, ppi: 300 });
   expect(screenFor("KO3")).toMatchObject({ width: 1264, height: 1680, ppi: 300 });
   expect(screenFor("other")).toEqual(screenFor("KPW3"));
-});
-it("matches all KPW3 observations and labels scaled KO3 / other calibration as estimates", () => {
-  expect(kindlePreviewMetrics("KPW3", "narrow", 0, "percent")).toMatchObject({ emPx: 55, deviceMarginPx: 80, contentWidthPx: 912, charsPerLine: 16, measured: true });
-  expect(kindlePreviewMetrics("KPW3", "narrow", -0.8, "em")).toMatchObject({ sideMarginPx: 36, contentWidthPx: 1000, charsPerLine: 18 });
-  expect(kindlePreviewMetrics("KPW3", "narrow", -4.8, "percent")).toMatchObject({ charsPerLine: 18 });
-  expect(kindlePreviewMetrics("KPW3", "narrow", -4.8, "percent").sideMarginPx).toBeCloseTo(80 - 0.048 * 912);
-  expect(kindlePreviewMetrics("KPW3", "medium", null, "percent").charsPerLine).toBe(14);
-  expect(kindlePreviewMetrics("KPW3", "wide", null, "em").charsPerLine).toBe(11);
-  expect(kindlePreviewMetrics("KPW3", "narrow", 1, "em").charsPerLine).toBe(14);
-  // Percent resolves against the column left by the Kindle's own margin, so it shrinks with wider presets.
-  expect(kindlePreviewMetrics("KPW3", "medium", -4.8, "percent").sideMarginPx).toBeCloseTo(137 - 0.048 * 798);
-  expect(convertMarginX("KPW3", "narrow", -4.8, "percent", "em")).toBeCloseTo(-0.8, 1);
-  expect(convertMarginX("KPW3", "narrow", -0.8, "em", "percent")).toBeCloseTo(-4.82, 2);
-  expect(convertMarginX("KPW3", "wide", 2, "percent", "percent")).toBe(2);
-  const oasis = kindlePreviewMetrics("KO3", "narrow", -0.8, "em");
-  expect(oasis.emPx).toBe(55);
-  expect(oasis.deviceMarginPx).toBe(80);
-  expect(oasis).toMatchObject({ charsPerLine: 21, measured: false });
-  expect(kindlePreviewMetrics("KO3", "narrow", -4.8, "percent")).toMatchObject({ charsPerLine: 21, measured: false });
-  expect(kindlePreviewMetrics("other", "narrow", 0, "percent")).toMatchObject({ charsPerLine: 16, measured: false });
 });
 it("groups inspected install batches by family and retains additional weights", async () => {
   const result = await inspectFontBatch([font("Book-Regular.ttf"), font("Book-Light.ttf"), font("Book-Medium.otf"), font("Second-Bold.ttf")]);
@@ -88,8 +70,8 @@ it("updates the profile stylesheet without altering book styles and clears docum
   expect(base.textContent).toContain("font-size: 55px");
   expect(base.textContent).toContain("margin: 52px 80px 70px !important"); expect(base.textContent).toContain("body { line-height: 1.75; }");
   expect(base.textContent).toContain("scrollbar-width: none !important");
-  preview.setDevice("KPW3", "medium"); expect(base.textContent).toContain("margin: 52px 137px 70px !important");
-  preview.setDevice("KO3", "wide"); expect(base.textContent).toContain("font-size: 55px");
+  preview.setGeometry(kindleGeometry("KPW3", "medium")); expect(base.textContent).toContain("margin: 52px 137px 70px !important");
+  preview.setGeometry(kindleGeometry("KO3", "wide")); expect(base.textContent).toContain("font-size: 55px");
   await preview.update("p { line-height: 1.6; }", device, family); expect(target.fonts.size).toBe(5);
   await preview.update("p { line-height: 1.8; }", device, family); expect(profile.textContent).toContain("1.8"); expect(target.fonts.size).toBe(5);
   await preview.update(null, null); expect(target.fonts.size).toBe(0); expect(profile.textContent).toContain("1.8");
@@ -115,26 +97,22 @@ it("pins device body geometry over author margins while keeping direct children,
     book.textContent = "html, body { margin: 9em !important; padding: 20% !important; } body { font: 60px/1.7 serif; color: red; }";
     head.appendChild(book); body.appendChild(p);
     body.style.setProperty("margin", "30px", "important"); body.style.setProperty("font-family", "Book");
-    const preview = new PreviewDocument(document), geometry = kindlePageGeometry(model, preset);
-    preview.setDevice(model, preset);
-    const metrics = kindlePreviewMetrics(model, preset, -4.8, "percent");
-    expect(geometry.column + geometry.gap).toBe(geometry.width);
+    const preview = new PreviewDocument(document), geometry = kindleGeometry(model, preset);
+    preview.setGeometry(geometry);
     expect(Number.isInteger(geometry.column)).toBe(true);
     expect(body.style.getPropertyValue("width")).toBe(`${geometry.column}px`);
-    expect(body.style.getPropertyValue("column-gap")).toBe(`${2 * geometry.side}px`);
+    expect(body.style.getPropertyValue("column-gap")).toBe(`${2 * geometry.width - geometry.column}px`);
     expect(body.style.getPropertyValue("margin")).toBe(`${geometry.top}px ${geometry.side}px ${geometry.bottom}px`);
     expect(body.style.getPropertyPriority("margin")).toBe("important");
     expect(body.style.getPropertyValue("font-family")).toBe("Book");
-    expect(metrics).toMatchObject({ topMarginPx: 52, bottomMarginPx: 70, verticalMeasured: model === "KPW3" && preset === "narrow" });
     expect(geometry.lineHeight).toBe(1.75);
     for (const [value, unit, suffix] of [[-4.8, "percent", "%"], [-0.8, "em", "em"], [5, "percent", "%"]] as const) {
       await preview.update(`body > * { margin-left: ${value}${suffix} !important; margin-right: ${value}${suffix} !important; }`, null);
-      const actual = kindlePreviewMetrics(model, preset, value, unit);
-      expect(actual.sideMarginPx).toBeCloseTo(geometry.side + (unit === "percent" ? geometry.column * value / 100 : value * geometry.emPx));
-      expect(actual.sideMarginPx < geometry.side).toBe(value < 0);
+      expect(geometry.side + marginXPx(geometry, value, unit)).toBeCloseTo(geometry.side + (unit === "percent" ? geometry.column * value / 100 : value * (geometry.baseEmPx ?? geometry.emPx)));
       expect(body.firstChild).toBe(p); expect(p.parentNode).toBe(body);
     }
-    expect(kindlePreviewMetrics(model, preset, minimumMarginX(model, preset, "percent"), "percent").sideMarginPx).toBeCloseTo(0);
+    // A profile may push text past the screen edge; the preview must not clamp it.
+    expect(geometry.side + marginXPx(geometry, -40, "percent")).toBeLessThan(0);
     expect(book.textContent).toContain("font: 60px/1.7 serif");
     preview.destroy(); expect(body.style.getPropertyValue("margin")).toBe("30px"); expect(book.parentNode).toBe(head);
   }
@@ -145,8 +123,8 @@ it("fills only the last gutter, ignores its old spacer on reflow and turns keys/
   const preview = new PreviewDocument(target.document, change, boundary);
   expect(change).toHaveBeenLastCalledWith({ page: 1, count: 3 });
   for (const key of ["ArrowRight", "PageDown"]) expect(target.dispatch("keydown", { key }).preventDefault).toHaveBeenCalled();
-  expect(target.root.scrollLeft).toBe(2144);
-  expect(target.root.style.getPropertyValue("--bindery-page-end")).toBe("3215px");
+  expect(target.root.scrollLeft).toBe(4288);
+  expect(target.root.style.getPropertyValue("--bindery-page-end")).toBe("6431px");
   target.dispatch("keydown", { key: "PageDown" }); expect(boundary).toHaveBeenLastCalledWith(1);
   target.dispatch("keydown", { key: "ArrowLeft" }); target.dispatch("keydown", { key: "PageUp" });
   expect(change).toHaveBeenLastCalledWith({ page: 1, count: 3 });
@@ -185,14 +163,14 @@ it("keeps a caret text offset through CSS, model, margin, font-ready and image r
     },
   });
   const change = vi.fn(), preview = new PreviewDocument(document, change);
-  preview.open(3); expect(root.scrollLeft).toBe(2144); // First visible text offset = 20.
-  // setDevice captures before mutating geometry; CSS then applies within the same reflow.
-  preview.setDevice("KPW3", "medium"); charsPerPage = 15; target.setExtent(3 * 1072 - 137);
+  preview.open(3); expect(root.scrollLeft).toBe(4288); // First visible text offset = 40 at the wider pitch.
+  // setGeometry captures before mutating geometry; CSS then applies within the same reflow.
+  preview.setGeometry(kindleGeometry("KPW3", "medium")); charsPerPage = 15; target.setExtent(3 * 2144 - 137);
   await preview.update("p { line-height: 2 }", null);
-  expect(change).toHaveBeenLastCalledWith({ page: 2, count: 3 }); // Offset 20, now first visible = 15.
-  preview.setDevice("KO3", "narrow"); charsPerPage = 10; target.setExtent(4 * 1264 - 94);
+  expect(change).toHaveBeenLastCalledWith({ page: 2, count: 3 }); // Offset 40, now first visible = 30.
+  preview.setGeometry(kindleGeometry("KO3", "narrow")); charsPerPage = 10; target.setExtent(4 * 2528 - 94);
   await preview.update("p { font-family: Book }", null);
-  expect(root.scrollLeft).toBe(1264); expect(change).toHaveBeenLastCalledWith({ page: 2, count: 4 }); // Offset 15, now first = 10.
+  expect(root.scrollLeft).toBe(2528); expect(change).toHaveBeenLastCalledWith({ page: 2, count: 4 }); // Offset 30, now first = 30.
   charsPerPage = 5; releaseFonts(); await Promise.resolve();
   expect(change).toHaveBeenLastCalledWith({ page: 3, count: 4 });
   charsPerPage = 8; fire(image, "load");
@@ -230,7 +208,7 @@ it("finds the first visible character with Range when caret APIs are absent and 
   for (let i = 0; i < 50 && pending.length !== 5; i++) await Promise.resolve();
   expect(pending).toHaveLength(5);
   charsPerPage = 15; pending.forEach(resolve => resolve()); await loading;
-  expect(selectedOffsets).toContain(20); expect(change).toHaveBeenLastCalledWith({ page: 2, count: 3 });
+  expect(selectedOffsets).toContain(40); expect(change).toHaveBeenLastCalledWith({ page: 2, count: 3 });
   expect(target.fonts.size).toBe(5); preview.destroy();
 });
 it("loads a requested real EPUB chapter list and defaults to the most recent book without changing reading progress or EPUB bytes", () => {
@@ -264,18 +242,50 @@ it("keeps the book's own html/body spacing on a Kobo page and redirects system f
     defaultView: { value: { getComputedStyle: computed } },
     styleSheets: { value: [{ cssRules: [rule("embedded"), { cssText: "@media screen { }", cssRules: [rule("system")] }] }] },
   });
-  const preview = new PreviewDocument(document); preview.setGeometry(KOBO_LIBRA2_PAGE);
+  const geometry = koboGeometry(), preview = new PreviewDocument(document); preview.setGeometry(geometry);
   const base = head.firstChild!;
   // 40px device margin + 26.75px html + 26.75px body on each side, every page.
   expect(body.style.getPropertyValue("margin")).toBe("96px 93.5px 160px");
-  expect(body.style.getPropertyValue("width")).toBe(`${1264 - 187}px`); expect(body.style.getPropertyValue("column-gap")).toBe("187px");
+  expect(body.style.getPropertyValue("width")).toBe(`${1264 - 187}px`); expect(body.style.getPropertyValue("column-gap")).toBe(`${2 * 1264 - (1264 - 187)}px`);
   // Top and bottom insets open and close the flow instead of repeating on each page.
   const spacers = Array.from(body.childNodes).filter(node => (node as Element).hasAttribute?.("data-bindery-inset")) as Element[];
   expect(spacers.map(spacer => /height: ([\d.]+px)/.exec(spacer.getAttribute("style")!)?.[1])).toEqual(["53.5px", "53.5px"]);
   expect(body.firstChild).toBe(spacers[0]); expect(body.lastChild).toBe(spacers[1]);
   expect(sources.get("embedded")).toBe('url("../Fonts/a.ttf")');
-  expect(sources.get("system")).toBe(KOBO_LIBRA2_PAGE.fallbackSources);
-  expect(base.textContent).toContain(`@font-face { font-family: "宋体"; src: ${KOBO_LIBRA2_PAGE.fallbackSources}; }`);
+  expect(sources.get("system")).toBe(geometry.fallbackSources);
+  expect(base.textContent).toContain(`@font-face { font-family: "宋体"; src: ${geometry.fallbackSources}; }`);
   expect(base.textContent).toContain("font-family: sans-serif;");
   preview.destroy(); expect(Array.from(body.childNodes)).toEqual([p]);
+});
+
+it("lay pages on a double-width pitch so negative profile margins cannot leak into the next page", () => {
+  const target = previewDocumentFixture(), geometry = koboGeometry(), preview = new PreviewDocument(target.document);
+  preview.setGeometry(geometry);
+  const column = Number.parseFloat(target.body.style.getPropertyValue("width")), gap = Number.parseFloat(target.body.style.getPropertyValue("column-gap")), pitch = 2 * geometry.width;
+  expect(column + gap).toBe(pitch);
+  // -20% on both sides expands the block by 40% of the column, still short of the next page's window.
+  expect(geometry.side + geometry.column * 1.4).toBeLessThan(pitch);
+  expect(geometry.side - geometry.column * 0.2).toBeLessThan(0);
+  preview.open(2); expect(target.root.scrollLeft).toBe(pitch);
+  expect(previewPagination(pitch, 3 * pitch - 80, 99)).toMatchObject({ count: 3, page: 3, left: 2 * pitch });
+  preview.destroy();
+});
+
+it("redirects desktop and local() fonts for both kinds while keeping the Kindle's built-in faces", () => {
+  const target = previewDocumentFixture(), { document, head } = target;
+  const sources = new Map([["Book", 'local("Songti SC"), url("../Fonts/book.ttf")'], ["宋体", 'local("宋体"), url("../Fonts/song.ttf")']]);
+  const rule = (family: string) => ({ cssText: `@font-face { font-family: ${family}; }`, style: {
+    getPropertyValue: (property: string) => property === "font-family" ? family : sources.get(family)!,
+    setProperty: (_property: string, value: string) => { sources.set(family, value); },
+  } });
+  Object.defineProperty(document, "styleSheets", { value: [{ cssRules: [rule("Book"), rule("宋体")] }], configurable: true });
+  const preview = new PreviewDocument(document), base = head.firstChild!;
+  preview.setGeometry(kindleGeometry("KPW3"));
+  expect(sources.get("Book")).toBe('url("../Fonts/book.ttf")');
+  expect(sources.get("宋体")).toBe('local("宋体"), url("../Fonts/song.ttf")');
+  expect(base.textContent).toContain(`@font-face { font-family: "SimSun"; src: ${kindleGeometry("KPW3").fallbackSources}; }`);
+  expect(base.textContent).not.toContain('@font-face { font-family: "宋体"');
+  preview.setGeometry(koboGeometry());
+  expect(sources.get("宋体")).toBe('url("../Fonts/song.ttf")');
+  preview.destroy();
 });

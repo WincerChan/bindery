@@ -6,7 +6,7 @@ import type { KindleDeviceManager } from "../../../client/kindle/device";
 import { Button, ConfirmDialog } from "../../../ui";
 import { useOptionalKindle } from "../context";
 import { usePageDevice } from "./device";
-import { FontSample } from "./frames";
+import { FontSample } from "../../devices/preview/frames";
 import { Link } from "../../../shared/spa-link";
 import { fileSize, inspectFontBatch } from "./model";
 import { KindleIcon } from "../icons";

@@ -10,6 +10,17 @@ export interface TypesettingProfile { id: string; name: string; settings: Profil
 export const EMPTY_SETTINGS: ProfileSettings = Object.freeze({ marginX: null, marginXUnit: "percent", marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, justify: null, fontFamily: null, customCss: "", stripFonts: false, stripImages: false, stripPageMargins: false });
 export const DEFAULT_PROFILE_ID = "default";
 export const defaultProfile = (): TypesettingProfile => ({ id: DEFAULT_PROFILE_ID, name: "默认（只用书籍自带样式）", settings: { ...EMPTY_SETTINGS }, builtIn: true });
+export const isDefaultSettings = (settings: ProfileSettings) => JSON.stringify(profileSettings(settings)) === JSON.stringify(EMPTY_SETTINGS);
+/** A sent snapshot wins over the default id; an empty one explicitly takes the default path. */
+export function snapshotProfile(profileId: string, settings: unknown): TypesettingProfile | null {
+  if (settings === undefined) return null;
+  const value = profileSettings(settings);
+  if (isDefaultSettings(value)) return defaultProfile();
+  return { id: profileId === DEFAULT_PROFILE_ID ? "snapshot" : profileId, name: "发送时的排版", settings: value, builtIn: false };
+}
+export async function resolveTransferProfile(profileId: string, settings: unknown, load: (id: string) => Promise<TypesettingProfile>): Promise<TypesettingProfile> {
+  return snapshotProfile(profileId, settings) ?? load(profileId);
+}
 export function deviceIdInput(value: unknown): string {
   if (typeof value !== "string" || !/^[\w-]{1,128}$/.test(value)) throw new Error("无效的设备 ID");
   return value;

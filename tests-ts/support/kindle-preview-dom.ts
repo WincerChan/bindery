@@ -33,7 +33,7 @@ export function previewDocumentFixture(path = "/book/a/epub/Text/%E7%AC%AC%E4%B8
     removeEventListener: vi.fn((type: string, listener: EventListener) => { listeners.get(type)?.delete(listener); }),
     getSelection: () => ({ isCollapsed: true }),
   });
-  let extent = 3 * 1072 - 80, left = 0;
+  let extent = 3 * 2144 - 80, left = 0;
   Object.defineProperties(root, {
     scrollWidth: { configurable: true, get: () => Math.max(extent, Number.parseFloat(root.style.getPropertyValue("--bindery-page-end") || "0") + 1) },
     scrollLeft: { configurable: true, get: () => left, set: (value: number) => { left = Math.max(0, Math.min(value, root.scrollWidth - Number.parseFloat(root.style.getPropertyValue("width") || "1072"))); } },

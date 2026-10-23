@@ -2,7 +2,6 @@ import { DeviceBodySkeleton } from "../ui/skeleton";
 import { createFileRoute } from "@tanstack/solid-router";
 import { loadLibrary } from "../features/library/functions";
 import { listTypesetProfiles } from "../server/typeset/functions";
-import { profileSettings as legacySettings } from "../client/kindle/profiles";
 import { loadDeviceLibrary } from "../features/devices/library";
 import { DeviceTransferPage } from "../features/devices/transfer";
 import { transferSelection } from "../features/library/search";
@@ -14,5 +13,5 @@ export const Route = createFileRoute("/_app/devices/transfer")({
 });
 function Transfer() {
   const books = Route.useLoaderData(), search = Route.useSearch();
-  return <DeviceTransferPage books={books()} preselected={transferSelection(search().books)} loadProfiles={async deviceId => (await listTypesetProfiles({ data: deviceId })).map(profile => ({ ...profile, deviceId, settings: legacySettings(profile.settings) }))} />;
+  return <DeviceTransferPage books={books()} preselected={transferSelection(search().books)} loadProfiles={() => listTypesetProfiles()} />;
 }

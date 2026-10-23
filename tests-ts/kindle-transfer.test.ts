@@ -8,7 +8,7 @@ import { readArchive } from "../src/core/archive";
 import { fakeKindle } from "./support/fake-fs";
 import { pairDevice } from "../src/client/kindle/identity";
 import { collisionSafeFilename, KindleTransferService, safeBookStem, type TransferDependencies } from "../src/client/kindle/transfer";
-import { defaultProfile, EMPTY_SETTINGS } from "../src/client/kindle/profiles";
+import { defaultProfile, EMPTY_SETTINGS } from "../src/client/devices/profiles";
 import { readManifest } from "../src/client/kindle/manifest";
 import { inventory } from "../src/client/kindle/inventory";
 import { deleteBook } from "../src/client/kindle/operations";
@@ -30,7 +30,7 @@ function service(overrides: Partial<TransferDependencies> = {}) {
   const dependencies: TransferDependencies = {
     converter: { async convert(data) { inputs.push(data); return converted; } },
     fetch: async (_url, options) => { fetched.push(options!); return new Response(epub); },
-    profile: async id => id === "default" ? defaultProfile("test") : { ...defaultProfile("test"), id, name: "自定义", builtIn: false, settings: { ...EMPTY_SETTINGS, textIndent: 3.25 } },
+    profile: async id => id === "default" ? defaultProfile() : { ...defaultProfile(), id, name: "自定义", builtIn: false, settings: { ...EMPTY_SETTINGS, textIndent: 3.25 } },
     thumbnail: async bytes => { expect(bytes).toEqual(new Uint8Array(cover)); return thumbnail; }, ...overrides,
   };
   return { transfer: new KindleTransferService(dependencies), fetched, inputs };
@@ -42,7 +42,7 @@ const settleQueue = async (queue: TransferQueue) => {
 describe("transfer pipeline and device-side recovery", () => {
   it("passes both asset toggles to conversion while retaining the original cover for the Kindle thumbnail", async () => {
     const original = assetEpub(), before = original.slice(), fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle");
-    const { transfer, inputs } = service({ fetch: async () => new Response(original), profile: async () => ({ ...defaultProfile("test"), id: "stripped", builtIn: false, settings: { ...EMPTY_SETTINGS, stripFonts: true, stripImages: true } }) });
+    const { transfer, inputs } = service({ fetch: async () => new Response(original), profile: async () => ({ ...defaultProfile(), id: "stripped", builtIn: false, settings: { ...EMPTY_SETTINGS, stripFonts: true, stripImages: true } }) });
     const record = await transfer.transferBook(device, bookId, "stripped"), archive = new EpubArchive(inputs[0]);
     expect(archive.entries.some(entry => entry.name.includes("/Fonts/"))).toBe(false);
     expect(archive.entries.filter(entry => entry.name.includes("/Images/")).map(entry => entry.name)).toEqual(["EPUB/Images/cover.png"]);
@@ -100,7 +100,7 @@ describe("transfer pipeline and device-side recovery", () => {
     await expect(service({ fetch: async () => new Response("", { status: 500 }) }).transfer.transferBook(device, bookId)).rejects.toThrow("500");
     await expect(service({ converter: { async convert() { throw new Error("bad EPUB"); } } }).transfer.transferBook(device, bookId)).rejects.toThrow("bad EPUB");
     const controller = new AbortController(), cancel = service({ converter: { async convert() { controller.abort(); return converted; } } }); await expect(cancel.transfer.transferBook(device, bookId, "default", { signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
-    const missingFont = service({ profile: async () => ({ ...defaultProfile("test"), id: "missing-font", builtIn: false, settings: { ...EMPTY_SETTINGS, fontFamily: "Not Installed" } }) }); await expect(missingFont.transfer.transferBook(device, bookId, "missing-font")).rejects.toThrow("未安装字体");
+    const missingFont = service({ profile: async () => ({ ...defaultProfile(), id: "missing-font", builtIn: false, settings: { ...EMPTY_SETTINGS, fontFamily: "Not Installed" } }) }); await expect(missingFont.transfer.transferBook(device, bookId, "missing-font")).rejects.toThrow("未安装字体");
     expect((await inventory(fs.root)).books).toEqual([]);
   });
   it("recovers permission revocation during write after explicit reauthorization", async () => {

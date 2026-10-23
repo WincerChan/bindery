@@ -9,7 +9,7 @@ import { solidOptions } from "../scripts/solid-options";
 import { KindleDeviceManager } from "../src/client/kindle/device";
 import { pairDevice, type PairedDevice } from "../src/client/kindle/identity";
 import { TransferQueue, type TransferItem } from "../src/client/kindle/queue";
-import { defaultProfile, type TypesettingProfile } from "../src/client/kindle/profiles";
+import { defaultProfile, type TypesettingProfile } from "../src/client/devices/profiles";
 import type { ManifestBook } from "../src/client/kindle/manifest";
 import type { RememberedDevice } from "../src/client/kindle/remembered";
 import { KindleTransferService, type TransferOptions } from "../src/client/kindle/transfer";
@@ -112,7 +112,7 @@ function repository(initial: RememberedDevice[] = []) {
 const saved = (d: PairedDevice): RememberedDevice => ({ id: d.identity.id, identity: d.identity, root: d.root });
 const record = (id: string, filename: string, profile = "default"): ManifestBook => ({ book_id: id, filename, content_id: `id_${id}`, cde_content_type: "EBOK", profile_id: profile, profile_name: profile === "default" ? "默认" : "宽边距", transferred_at: "2026-10-19T03:04:05Z", size: 4, thumbnail: null });
 function input(manager = new KindleDeviceManager(repository()), books = [book("a", "书库甲"), book("b", "书库乙", true)]): Input {
-  return { manager, books, queue: new TransferQueue({ transferBook: async () => { throw new Error("测试队列尚未接入转换服务"); } }), loadProfiles: async id => [defaultProfile(id)] };
+  return { manager, books, queue: new TransferQueue({ transferBook: async () => { throw new Error("测试队列尚未接入转换服务"); } }), loadProfiles: async id => [defaultProfile()] };
 }
 async function twoDevices() {
   const kindle = await fakeKindle(), kobo = await fakeKobo("N418");
@@ -267,7 +267,7 @@ it("carries streaming Content-Length through the real queue into download rows a
   const convert = vi.fn(async () => { throw new Error("download must be cancelled first"); });
   const queue = new TransferQueue(new KindleTransferService({
     fetch: () => new Promise<Response>(resolve => { deliver = resolve; }),
-    converter: { convert }, profile: async () => defaultProfile("test"), thumbnail: async () => new Uint8Array(),
+    converter: { convert }, profile: async () => defaultProfile(), thumbnail: async () => new Uint8Array(),
   }));
   const m = mount("transfer", { ...c.input, queue }); await settle(m);
   const id = queue.enqueue(c.device, "a".repeat(32));
@@ -398,8 +398,8 @@ it("enqueues a retransmission with the recorded profile and overwrite enabled", 
 
 it("loads device profiles, applies library filters/search and preserves selection across paging", async () => {
   const c = await connected([record("a", "a.kfx")]); c.input.books = [book("a", "书库甲"), book("b", "书库乙", true), ...Array.from({ length: 26 }, (_, i) => book(`x${i}`, `未读 ${i}`))];
-  c.input.loadProfiles = vi.fn(async id => [defaultProfile(id), { ...defaultProfile(id), id: "wide", name: "宽边距", builtIn: false }]);
-  const m = mount("transfer", c.input); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledWith(c.device.identity.id); expect(elements(m.root, "option").map(n => n.textContent)).toContain("宽边距");
+  c.input.loadProfiles = vi.fn(async () => [defaultProfile(), { ...defaultProfile(), id: "wide", name: "宽边距", builtIn: false }]);
+  const m = mount("transfer", c.input); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledWith(); expect(elements(m.root, "option").map(n => n.textContent)).toContain("宽边距");
   expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(24); expect(text(m)).not.toContain("已在设备");
   await c.manager.probe(); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledOnce();
   const checkbox = field(m.root, "选择 书库乙"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "下一页"), "click"); m.flush(); expect(text(m)).toContain("已选 1 本");
@@ -431,7 +431,7 @@ it("starts with the books sent from the library selected, under 全部, once the
 
 it("uses the selected profile and overwrite setting, shows failure, and retries profile loading", async () => {
   const c = await connected([record("a", "a.kfx")]); const transfer = vi.fn(async () => { throw new Error("Kindle 空间不足"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
-  let fail = true; c.input.loadProfiles = async id => { if (fail) throw new Error("配置服务暂时不可用"); const profile = defaultProfile(id); return [{ ...profile, id: "wide", name: "宽边距", builtIn: false, settings: { ...profile.settings, stripFonts: true, stripImages: true } }]; };
+  let fail = true; c.input.loadProfiles = async () => { if (fail) throw new Error("配置服务暂时不可用"); const profile = defaultProfile(); return [{ ...profile, id: "wide", name: "宽边距", builtIn: false, settings: { ...profile.settings, stripFonts: true, stripImages: true } }]; };
   const m = mount("transfer", c.input); await settle(m); expect(text(m)).toContain("配置服务暂时不可用"); fail = false; fire(button(m.root, "重试"), "click"); await settle(m);
   fire(button(m.root, "全部"), "click"); m.flush(); const select = elements(m.root, "label").find(label => label.firstChild?.textContent === "排版方案")!.getElementsByTagName("select")[0] as HTMLSelectElement; select.value = "wide"; fire(select, "change"); m.flush(); const overwrite = elements(m.root, "input").find(el => el.getAttribute("type") === "checkbox" && el.parentNode?.textContent === "覆盖设备上的同名书") as HTMLInputElement; overwrite.checked = true; fire(overwrite, "change"); m.flush();
   expect(elements(m.root, "p", "data-profile-summary")[0]!.textContent).toBe("去掉书籍自带字体 · 去掉所有图片（保留封面）");
@@ -510,11 +510,11 @@ it("loads every library query page and deduplicates records before exposing the 
 it("renders Kobo transfer controls without Kindle-only settings or licenses", async () => {
   const c = await connectedKobo(); const m = mount("transfer", c.input); await settle(m);
   expect(text(m)).toContain("我的 Libra 2"); expect(text(m)).toContain("Kobo");
-  expect(text(m)).toContain("去掉书籍自带字体"); expect(text(m)).toContain("去掉所有图片（保留封面）");
-  expect(text(m)).not.toContain("排版方案"); expect(text(m)).not.toContain("boko"); expect(text(m)).not.toContain("GPL-3.0");
+  expect(text(m)).not.toContain("去掉书籍自带字体"); expect(text(m)).not.toContain("去掉所有图片（保留封面）");
+  expect(text(m)).toContain("排版方案"); expect(text(m)).not.toContain("boko"); expect(text(m)).not.toContain("GPL-3.0");
   expect(text(m)).not.toContain("documents/"); expect(text(m)).not.toContain(".sdr"); expect(text(m)).not.toContain("KFX");
   expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(2);
-  expect(elements(m.root, "option").some(node => node.textContent === "默认（只用书籍自带样式）")).toBe(false);
+  expect(elements(m.root, "option").some(node => node.textContent === "默认（只用书籍自带样式）")).toBe(true);
 });
 
 it("auto-syncs Kobo reading once per connection and again after re-detection", async () => {

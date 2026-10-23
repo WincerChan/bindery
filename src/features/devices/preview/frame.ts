@@ -1,8 +1,7 @@
 import { loadPreviewFont, type FontFamily } from "../../../client/kindle/fonts";
-import type { KindleModel, PairedDevice } from "../../../client/kindle/identity";
-import { kindlePageGeometry, type KindleMarginPreset } from "../../../client/kindle/margins";
+import type { PairedDevice } from "../../../client/kindle/identity";
 import { previewAnchorPage, previewPagination } from "./model";
-import type { PageGeometry } from "../../../client/devices/typeset";
+import { defaultReadingSettings, pageGeometry, previewTarget, type PageGeometry } from "../../../client/devices/typeset";
 export type { PageGeometry } from "../../../client/devices/typeset";
 
 /** A font registration belongs to exactly one isolated document. Late loads cannot resurrect it. */
@@ -45,7 +44,7 @@ export class PreviewDocument {
   private base: HTMLStyleElement;
   private fonts: DocumentFonts;
   private fontKey = "";
-  private geometry: PageGeometry = kindlePageGeometry("KPW3", "narrow");
+  private geometry: PageGeometry = pageGeometry(previewTarget("kindle", "KPW3"), defaultReadingSettings("kindle"));
   private page = 1;
   private count = 1;
   private anchor?: TextAnchor;
@@ -57,7 +56,7 @@ export class PreviewDocument {
   private cleanups: (() => void)[] = [];
   private originalMarker: string | null;
   private spacers: HTMLElement[] = [];
-  private fontsDetached = false;
+  private fontSources = new Map<CSSStyleDeclaration, string>();
   private key = (event: KeyboardEvent) => previewTurnKey(event, direction => this.turn(direction));
   private click = (event: MouseEvent) => {
     if ((event.target as Element | null)?.closest?.("a")) { event.preventDefault(); return; }
@@ -79,7 +78,7 @@ export class PreviewDocument {
     // and inline body margins, while all author typography remains in the cascade.
     document.head.insertBefore(this.base, document.head.firstChild);
     document.head.append(this.style);
-    this.setDevice("KPW3", "narrow");
+    this.setGeometry(this.geometry);
     this.refresh();
     document.addEventListener("click", this.click);
     document.addEventListener("keydown", this.key);
@@ -95,7 +94,6 @@ export class PreviewDocument {
     this.cleanups.push(() => document.fonts.removeEventListener?.("loadingdone", refresh));
     void document.fonts.ready?.then(refresh);
   }
-  setDevice(model: KindleModel, preset: KindleMarginPreset) { this.setGeometry(kindlePageGeometry(model, preset)); }
   setGeometry(geometry: PageGeometry) {
     if (this.initialized && !this.layoutPending) this.anchor = this.capture() ?? this.anchor;
     this.layoutPending = true;
@@ -106,17 +104,19 @@ export class PreviewDocument {
       // Side insets repeat on every page; top and bottom ones open and close the chapter's flow.
       left = Math.max(0, side + inset.left); right = Math.max(0, side + inset.right); insetTop = inset.top; insetBottom = inset.bottom;
     }
-    const fallback = geometry.fallbackSources ?? 'url("data:,")';
-    if (geometry.embeddedFontsOnly) this.detachSystemFonts(fallback);
-    const column = Math.max(1, width - left - right), gap = left + right, contentHeight = height - top - bottom;
+    const fallback = geometry.fallbackSources ?? 'url("data:,")', builtin = new Set(geometry.builtinFamilies ?? []);
+    this.detachSystemFonts(fallback, builtin);
+    const column = Math.max(1, width - left - right), pitch = 2 * width, gap = Math.max(0, pitch - column), contentHeight = height - top - bottom;
     this.geometry = { ...geometry, column, gap, contentHeight };
     this.setSpacers(insetTop, insetBottom);
     const root = { width: `${width}px`, "min-width": "0", "max-width": "none", height: `${height}px`, "min-height": "0", "max-height": "none", margin: "0", padding: "0", border: "0", "box-sizing": "content-box", overflow: "hidden", position: "relative", "scroll-behavior": "auto", "scroll-snap-type": "none", "overflow-anchor": "none", "scrollbar-width": "none", direction: "ltr", "writing-mode": "horizontal-tb" };
     const body = { display: "block", position: "static", float: "none", width: `${column}px`, "min-width": "0", "max-width": "none", height: `${contentHeight}px`, "min-height": "0", "max-height": "none", margin: left === right ? `${top}px ${left}px ${bottom}px` : `${top}px ${right}px ${bottom}px ${left}px`, padding: "0", border: "0", "box-sizing": "content-box", overflow: "visible", "column-width": `${column}px`, "column-gap": `${gap}px`, "column-count": "auto", "column-fill": "auto", direction: "ltr", "writing-mode": "horizontal-tb" };
     const declarations = (values: Record<string, string>) => Object.entries(values).map(([key, value]) => `${key}: ${value} !important;`).join(" ");
+    // Kobo's own line spacing rule runs before the profile stylesheet, so a profile line height wins here
+    // (unverified on the device); Kindle leaves the body line height under book/profile CSS.
     this.base.textContent = `html { font-size: ${emPx}px; ${declarations(root)} } body { ${declarations(body)} overflow-wrap: anywhere; }
-      body { line-height: ${lineHeight};${fontFamily ? ` font-family: ${fontFamily};` : ""} }${geometry.embeddedFontsOnly ? `
-      ${SYSTEM_FAMILIES.map(family => `@font-face { font-family: "${family}"; src: ${fallback}; }`).join(" ")}` : ""}
+      ${geometry.readerLineSpacingOverridesBook ? `html body, html body * { line-height: ${lineHeight} !important; }` : `body { line-height: ${lineHeight}; }`}${fontFamily ? ` body { font-family: ${fontFamily}; }` : ""}
+      ${SYSTEM_FAMILIES.filter(family => !builtin.has(family)).map(family => `@font-face { font-family: "${family}"; src: ${fallback}; }`).join(" ")}
       html[data-bindery-kindle]::after { content: "" !important; display: block !important; position: absolute !important; left: var(--bindery-page-end, 0px) !important; top: 0 !important; width: 1px !important; height: 1px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; pointer-events: none !important; }
       ::-webkit-scrollbar { display: none !important; } img, svg { max-width: 100%; max-height: ${contentHeight}px; }`;
     this.force(this.document.documentElement, root);
@@ -150,19 +150,20 @@ export class PreviewDocument {
       this.spacers.push(spacer);
     }
   }
-  /** Drops `local()` sources from the book's @font-face rules; a rule left with none uses the reader's fallback. */
-  private detachSystemFonts(fallback: string) {
-    if (this.fontsDetached) return;
-    this.fontsDetached = true;
+  /** Redirects desktop/local() sources to the reader's fallback, keeping the reader's own built-in faces. */
+  private detachSystemFonts(fallback: string, builtin: Set<string>) {
     const visit = (rules: CSSRuleList) => {
       for (const rule of Array.from(rules)) {
         if (/^@font-face\b/i.test(rule.cssText)) {
-          const style = (rule as CSSFontFaceRule).style, sources = cssList(style.getPropertyValue("src")).filter(source => !/^local\(/i.test(source));
+          const style = (rule as CSSFontFaceRule).style, family = style.getPropertyValue("font-family").trim().replace(/^["']|["']$/g, "");
+          let original = this.fontSources.get(style);
+          if (original === undefined) { original = style.getPropertyValue("src"); this.fontSources.set(style, original); }
+          const sources = cssList(original).filter(source => !/^local\(/i.test(source) || builtin.has(family));
           style.setProperty("src", sources.length ? sources.join(", ") : fallback);
         } else if ("cssRules" in rule) visit((rule as CSSGroupingRule).cssRules);
       }
     };
-    for (const sheet of Array.from(this.document.styleSheets)) { try { visit(sheet.cssRules); } catch { /* Cross-origin sheets are not book CSS. */ } }
+    for (const sheet of Array.from(this.document.styleSheets ?? [])) { try { visit(sheet.cssRules); } catch { /* Cross-origin sheets are not book CSS. */ } }
   }
   private force(element: HTMLElement, values: Record<string, string>) {
     // Preserve the whole inline declaration block: shorthands can replace mixed-priority longhands.
@@ -186,7 +187,8 @@ export class PreviewDocument {
     if (this.disposed) return;
     const root = this.document.documentElement, scroller = this.document.scrollingElement ?? root;
     this.force(root, { "--bindery-page-end": "0px" });
-    const metrics = previewPagination(this.geometry.width, scroller.scrollWidth || this.geometry.width, this.lastPage ? Number.MAX_SAFE_INTEGER : this.page);
+    const pitch = Math.max(1, Math.round(2 * this.geometry.width));
+    const metrics = previewPagination(pitch, scroller.scrollWidth || pitch, this.lastPage ? Number.MAX_SAFE_INTEGER : this.page);
     let desired = metrics.page;
     if (!this.lastPage && this.anchor?.node.isConnected) {
       const range = this.document.createRange(), { node, offset } = this.anchor;
@@ -250,7 +252,7 @@ export class PreviewDocument {
     this.lastPage = false;
   }
   destroy() {
-    this.disposed = true; this.fonts.clear(); this.cleanups.forEach(cleanup => cleanup());
+    this.disposed = true; this.fonts.clear(); this.fontSources.clear(); this.cleanups.forEach(cleanup => cleanup());
     this.style.remove(); this.base.remove(); for (const spacer of this.spacers) spacer.remove(); this.document.removeEventListener("click", this.click); this.document.removeEventListener("keydown", this.key);
     for (const [element, css] of this.originalStyles) element.style.cssText = css;
     if (this.originalMarker === null) this.document.documentElement.removeAttribute("data-bindery-kindle");

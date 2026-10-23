@@ -7,7 +7,7 @@ import { readArchive, writeArchive } from "../src/core/archive";
 import { EpubArchive, extractCover, manifestFromOpf } from "../src/core/epub";
 import { attr, descendants, parseXml } from "../src/core/xml";
 import { applyTypesettingProfile } from "../src/client/kindle/epub";
-import { defaultProfile, EMPTY_SETTINGS } from "../src/client/kindle/profiles";
+import { defaultProfile, EMPTY_SETTINGS } from "../src/client/devices/profiles";
 import { convertEpub } from "../src/client/boko/conversion";
 import { parseKfxEntities, walkIon, type IonValue } from "../src/client/boko/kfx";
 import { assetCover, assetEpub, assetFont } from "./support/kindle-assets";
@@ -18,7 +18,7 @@ describe("Kindle EPUB asset stripping", () => {
   it("defaults to a byte-identical copy, never mutates input and produces deterministic output", () => {
     const epub = assetEpub(), before = epub.slice();
     expect(stripEpubAssets(epub, {})).toEqual(epub);
-    expect(applyTypesettingProfile(epub, defaultProfile("test"))).toEqual(epub);
+    expect(applyTypesettingProfile(epub, defaultProfile())).toEqual(epub);
     const options = { stripFonts: true, stripImages: true };
     expect(stripEpubAssets(epub, options)).toEqual(stripEpubAssets(epub, options)); expect(epub).toEqual(before);
   });
@@ -109,6 +109,6 @@ it("vendored WASM emits no font resources / publisher family and only the cover 
   expect(images.resources.filter(bytes => Buffer.from(bytes).equals(assetCover))).toHaveLength(1);
   const both = await inspect(stripEpubAssets(epub, { stripFonts: true, stripImages: true }));
   expect(both.resources).toHaveLength(1); expect(both.values).not.toContain("Publisher");
-  const profile = { ...defaultProfile("test"), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, stripFonts: true, fontFamily: "Device Serif" } };
+  const profile = { ...defaultProfile(), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, stripFonts: true, fontFamily: "Device Serif" } };
   expect((await inspect(applyTypesettingProfile(epub, profile))).values).toContain("Device Serif");
 });

@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { readArchive } from "../src/core/archive";
-import { convertToKepub } from "../src/core/kepub";
+import { readArchive, writeArchive } from "../src/core/archive";
+import { convertToKepub, kepubEntryBytes, readKepubZip } from "../src/core/kepub";
+import { convertForKobo } from "../src/core/kobo-kepub";
 import { KindleTransferService } from "../src/client/kindle/transfer";
 import { KoboTransferService } from "../src/client/devices/kobo/transfer";
 import type { KepubConversionOptions } from "../src/client/devices/kobo/kepub-client";
 import { detectDevice, pairDetectedDevice } from "../src/client/devices/identity";
 import { pairDevice } from "../src/client/kindle/identity";
 import { EMPTY_SETTINGS, defaultProfile } from "../src/client/devices/profiles";
+import { EpubArchive } from "../src/core/epub";
+import { assetEpub } from "./support/kindle-assets";
 import { fakeKindle, fakeKobo } from "./support/fake-fs";
 
 const bookId = "a".repeat(32), fixture = new Uint8Array(readFileSync(new URL("./fixtures/parity/kepub/input-mixed.epub", import.meta.url)));
@@ -54,5 +57,41 @@ describe("transfer settings snapshots", () => {
     const service = new KoboTransferService({ fetch, converter: { convert: async (data: Uint8Array) => convertToKepub(data) }, fonts: async () => [] });
     await expect(service.transferBook(device, bookId, "draft", { settings: { ...EMPTY_SETTINGS, fontFamily: "Missing Font" } })).rejects.toThrow("Kobo 上未安装字体：Missing Font");
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("snapshot default-id handling", () => {
+  it("applies a non-empty Kindle snapshot even when the profile id is default", async () => {
+    const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"), input = assetEpub();
+    let captured: Uint8Array | undefined;
+    const service = new KindleTransferService({ fetch: async () => new Response(input), converter: { async convert(data) { captured = data; throw new Error("conversion stop"); } }, profile: async () => { throw new Error("must not load"); }, thumbnail: async () => new Uint8Array() });
+    await expect(service.transferBook(device, bookId, "default", { settings: { ...EMPTY_SETTINGS, marginX: -4.9, stripImages: true } })).rejects.toThrow("conversion stop");
+    const archive = new EpubArchive(captured!), names = archive.entries.map(entry => entry.name);
+    expect(names).toContain("EPUB/bindery-profile.css");
+    expect(names).not.toContain("EPUB/Images/art.png");
+    expect(new TextDecoder().decode(archive.read("EPUB/bindery-profile.css")!)).toContain("margin-left: -4.9%");
+  });
+  it("returns the Kindle input bytes unchanged for an empty snapshot with a non-default id", async () => {
+    const fs = await fakeKindle(), device = await pairDevice(fs.root, "KPW3", "Kindle"), input = assetEpub();
+    let captured: Uint8Array | undefined;
+    const service = new KindleTransferService({ fetch: async () => new Response(input), converter: { async convert(data) { captured = data; throw new Error("conversion stop"); } }, profile: async () => profile("custom"), thumbnail: async () => new Uint8Array() });
+    await expect(service.transferBook(device, bookId, "custom", { settings: EMPTY_SETTINGS })).rejects.toThrow("conversion stop");
+    expect(captured).toEqual(input);
+  });
+  it("applies a non-empty Kobo snapshot even when the profile id is default", async () => {
+    const fs = await fakeKobo(), device = await pairDetectedDevice(fs.root, await detectDevice(fs.root), "libra2", "Libra");
+    const encode = (value: string) => new TextEncoder().encode(value), input = writeArchive(readArchive(assetEpub()).map(entry => entry.name.endsWith("container.xml") ? { ...entry, data: encode(new TextDecoder().decode(entry.data).replace("<container ", '<container version="1.0" ')) } : entry));
+    let converted: Uint8Array | undefined;
+    const service = new KoboTransferService({ fetch: async () => new Response(input as Uint8Array<ArrayBuffer>), converter: { async convert(data, options) { const result = await convertForKobo(data, options); converted = result.data; return result; } }, fonts: async () => [] });
+    await service.transferBook(device, bookId, "default", { settings: { ...EMPTY_SETTINGS, marginX: -4.9, stripImages: true } });
+    const entries = new Map(readKepubZip(converted!).map(entry => [entry.name, new TextDecoder().decode(kepubEntryBytes(entry))]));
+    expect(entries.has("EPUB/bindery-profile.css")).toBe(true);
+    expect([...entries.keys()]).not.toContain("EPUB/Images/art.png");
+  });
+  it("passes the original Kobo bytes to the converter for an empty snapshot with a non-default id", async () => {
+    const fs = await fakeKobo(), device = await pairDetectedDevice(fs.root, await detectDevice(fs.root), "libra2", "Libra"), convert = vi.fn(async (data: Uint8Array, options?: KepubConversionOptions) => { expect(data).toEqual(fixture); expect(options?.profile).toEqual({ settings: EMPTY_SETTINGS, css: "" }); return convertToKepub(data); });
+    const service = new KoboTransferService({ fetch: async () => new Response(fixture), converter: { convert }, fonts: async () => [] });
+    await service.transferBook(device, bookId, "custom", { settings: EMPTY_SETTINGS });
+    expect(convert).toHaveBeenCalledOnce();
   });
 });

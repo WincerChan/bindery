@@ -38,7 +38,7 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
           assert.ok(html.includes("/book/" + bookId + "/epub/" + encodePath(book.paths[0])), "iframe member path must round-trip");
           assert.match(html, /aria-label="预览翻页"/); assert.match(html, /aria-live="polite"/);
           assert.match(html, /上一页/); assert.match(html, /下一页/); assert.match(html, /正在分页/);
-          assert.match(html, /上下页边距按 KPW3 窄边距实测，其他档位与型号为估算/);
+          assert.match(html, /实测：Kindle Paperwhite 3 窄边距、Kobo Libra 2 最小边距/);
           assert.match(html, /class="kt-preview kt-preview-sticky"/);
           assert.ok(html.includes('<details class="kt-calibration"><summary>校准说明</summary>'));
           // The built-in profile renders no adjustable controls, only the new-profile action.

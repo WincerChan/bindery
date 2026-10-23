@@ -8,7 +8,7 @@ import { assertDevice } from "../devices/identity";
 import type { PairedDevice } from "../devices/identity";
 import type { TransferOptions as DeviceTransferOptions } from "../devices/queue";
 import { manifestBytes, readManifest, thumbnailName, type ManifestBook } from "./manifest";
-import { defaultProfile, DEFAULT_PROFILE_ID, profileSettings, type TypesettingProfile } from "../devices/profiles";
+import { defaultProfile, DEFAULT_PROFILE_ID, profileSettings, resolveTransferProfile, type TypesettingProfile } from "../devices/profiles";
 import { applyDevicePatchesFor, withDeviceLock, type DevicePatch } from "./transaction";
 import { makeThumbnail } from "./thumbnail";
 import { listFonts } from "./fonts";
@@ -46,10 +46,6 @@ async function loadProfile(profileId: string) {
   const profile = (await listTypesetProfiles()).find(p => p.id === profileId);
   if (!profile) throw new Error("排版方案不存在"); return profile;
 }
-function snapshotProfile(profileId: string, settings: TransferOptions["settings"]): TypesettingProfile | null {
-  if (!settings) return null;
-  return { id: profileId, name: profileId === DEFAULT_PROFILE_ID ? defaultProfile().name : "发送时的排版", settings: profileSettings(settings), builtIn: profileId === DEFAULT_PROFILE_ID };
-}
 export class KindleTransferService {
   private conversionEstimate = new ConversionEstimate();
   constructor(private dependencies: TransferDependencies) {}
@@ -58,7 +54,7 @@ export class KindleTransferService {
     const check = () => { if (options.signal?.aborted) throw new DOMException("操作已取消", "AbortError"); };
     const progress = new TransferProgressReporter(options.progress);
     check(); await assertDevice(device); progress.report({ state: "转换", phase: "download", message: "正在读取书库 EPUB" });
-    const snapshot = snapshotProfile(profileId, options.settings), profileLoaded = snapshot ?? await this.dependencies.profile(profileId);
+    const profileLoaded = await resolveTransferProfile(profileId, options.settings, this.dependencies.profile);
     const profile = { ...profileLoaded, settings: profileSettings(profileLoaded.settings) };
     if (profile.settings.fontFamily && !(await listFonts(device.root)).some(f => f.name === profile.settings.fontFamily)) throw new Error(`Kindle 上未安装字体：${profile.settings.fontFamily}`);
     const response = await this.dependencies.fetch(`/book/${bookId}/download`, { credentials: "same-origin", redirect: "error", signal: options.signal });

@@ -8,7 +8,7 @@ import { metadataFromDict } from "../src/core/models";
 import { parseBook } from "../src/core/parsing";
 import { readArchive } from "../src/core/archive";
 import { appendProfileCss } from "../src/client/kindle/epub";
-import { defaultProfile, EMPTY_SETTINGS, generateProfileCss } from "../src/client/kindle/profiles";
+import { defaultProfile, EMPTY_SETTINGS, generateProfileCss } from "../src/client/devices/profiles";
 
 const wasm = readFileSync(new URL("../vendor/boko/boko_bg.wasm", import.meta.url));
 const epub = buildEpub(parseBook("书名：Kindle test\n第一章 开始\nThis paragraph verifies typesetting. 第二段正文。", "test"), metadataFromDict({ book_id: "a".repeat(32), title: "Kindle test", identifier: "urn:uuid:kindle-self-contained", language: "en" }));
@@ -23,7 +23,7 @@ describe("vendored boko WASM and KFX metadata", () => {
     expect(result.bookInfo.title).toBe("Kindle test"); expect(new TextDecoder().decode(result.data.subarray(0, 4))).toBe("CONT");
   });
   it("appends deterministic profile CSS without changing original metadata or styles, and reaches KFX styles", async () => {
-    const profile = { ...defaultProfile("device"), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, textIndent: 3.25, fontFamily: "Kindle Test Serif", lineHeight: 1.75 } }, css = generateProfileCss(profile), before = epub.slice(), patched = appendProfileCss(epub, css);
+    const profile = { ...defaultProfile(), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, textIndent: 3.25, fontFamily: "Kindle Test Serif", lineHeight: 1.75 } }, css = generateProfileCss(profile), before = epub.slice(), patched = appendProfileCss(epub, css);
     expect(generateProfileCss(profile)).toBe(css); expect(epub).toEqual(before);
     const original = readArchive(epub), modified = readArchive(patched);
     expect(modified.filter(e => e.name.endsWith(".css"))).toHaveLength(original.filter(e => e.name.endsWith(".css")).length + 1);
@@ -35,7 +35,7 @@ describe("vendored boko WASM and KFX metadata", () => {
     const indents = values.map(v => ionField(v, 36));
     expect(JSON.stringify(indents)).toContain("3.25");
     expect(result.identity).toEqual(output.identity);
-    expect(appendProfileCss(epub, generateProfileCss(defaultProfile("device")))).toEqual(epub);
+    expect(appendProfileCss(epub, generateProfileCss(defaultProfile()))).toEqual(epub);
   });
   it("horizontal profile margins reach KFX styles (boko drops margins declared on body)", async () => {
     const marginsOf = async (css: string) => {
@@ -44,7 +44,7 @@ describe("vendored boko WASM and KFX metadata", () => {
       // $48 / $50 are margin-left / margin-right in KFX style fragments.
       return JSON.stringify([...values.map(v => ionField(v, 48)), ...values.map(v => ionField(v, 50))]);
     };
-    const profile = { ...defaultProfile("device"), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, marginX: 2.75, marginY: 1.5 } };
+    const profile = { ...defaultProfile(), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, marginX: 2.75, marginY: 1.5 } };
     const css = generateProfileCss(profile);
     expect(css).not.toMatch(/margin-(top|bottom)/);
     expect(await marginsOf(css)).toContain("2.75");
@@ -52,7 +52,7 @@ describe("vendored boko WASM and KFX metadata", () => {
   });
   // KFX margin-left/right ($48/$50) hold { $307: value, $306: unit }, where unit $308 = em and $314 = percent.
   it.each([["em", -0.8, 308], ["percent", -4.8, 314]] as const)("preserves a negative %s profile adjustment with its unit in both KFX margin fields", async (marginXUnit, marginX, unit) => {
-    const profile = { ...defaultProfile("device"), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, marginX, marginXUnit } };
+    const profile = { ...defaultProfile(), id: "custom", builtIn: false, settings: { ...EMPTY_SETTINGS, marginX, marginXUnit } };
     const result = await convertEpub(appendProfileCss(epub, generateProfileCss(profile)), wasm);
     const margins = new Map<number, IonValue[]>([[48, []], [50, []]]);
     for (const entity of parseKfxEntities(result.data, [157])) walkIon(entity.value, value => {

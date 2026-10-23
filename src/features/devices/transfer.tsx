@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
-import { defaultProfile, type TypesettingProfile } from "../../client/kindle/profiles";
+import { defaultProfile, type TypesettingProfile } from "../../client/devices/profiles";
 import type { DeviceBook } from "../../client/devices/inventory";
 import { koboBookFilename } from "../../client/devices/paths";
 import { BookCover, Button, Checkbox, Chip, EmptyState, Select, TextField } from "../../ui";
@@ -61,33 +61,31 @@ export function DeviceTransferQueueProgress(props: { items: readonly TransferIte
   }}</For></ol>;
 }
 
-export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselected?: string[]; loadProfiles: (deviceId: string) => Promise<TypesettingProfile[]> }) {
+export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselected?: string[]; loadProfiles: () => Promise<TypesettingProfile[]> }) {
   // Books sent from the library start selected, under "全部" so copies already on the device stay visible.
   const handed = untrack(() => (props.preselected ?? []).filter(id => props.books.some(book => book.book_id === id)));
   const k = useDevice(), [filter, setFilter] = createSignal(handed.length ? "全部" : "不在设备"), [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<string[]>(handed), [page, setPage] = createSignal(1);
   const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profile, setProfile] = createSignal("default"), [profileError, setProfileError] = createSignal("");
   const [profilesBusy, setProfilesBusy] = createSignal(false), [overwrite, setOverwrite] = createSignal(false);
-  const [stripFonts, setStripFonts] = createSignal(false), [stripImages, setStripImages] = createSignal(false), [stripMargins, setStripMargins] = createSignal(false);
   const kind = () => k.kind(), kindle = () => kind() === "kindle";
   const profileSummary = () => {
-    if (!kindle()) return [stripFonts() ? "去掉书籍自带字体" : "", stripImages() ? "去掉所有图片（保留封面）" : "", stripMargins() ? "去掉书籍自带页边距" : ""].filter(Boolean).join(" · ");
     const settings = profiles().find(item => item.id === profile())?.settings;
-    return [settings?.stripFonts ? "去掉书籍自带字体" : "", settings?.stripImages ? "去掉所有图片（保留封面）" : ""].filter(Boolean).join(" · ");
+    return [settings?.stripFonts ? "去掉书籍自带字体" : "", settings?.stripImages ? "去掉所有图片（保留封面）" : "", settings?.stripPageMargins ? "去掉书籍自带页边距" : ""].filter(Boolean).join(" · ");
   };
   const deviceId = createMemo(() => k.ready() && k.state().status === "granted" ? k.state().device?.identity.id || "" : "");
   let profileRevision = 0;
-  async function reloadProfiles(id: string, currentKind: string | null) {
+  async function reloadProfiles(id: string) {
     const token = ++profileRevision; setProfileError(""); setProfiles([]); setProfile("default");
-    if (!id || currentKind !== "kindle") { setProfilesBusy(false); return; }
-    setProfilesBusy(true); setProfiles([defaultProfile(id)]);
-    try { const result = await props.loadProfiles(id); if (token === profileRevision) setProfiles([defaultProfile(id), ...result.filter(p => p.id !== "default")]); }
+    if (!id) { setProfilesBusy(false); return; }
+    setProfilesBusy(true); setProfiles([defaultProfile()]);
+    try { const result = await props.loadProfiles(); if (token === profileRevision) setProfiles([defaultProfile(), ...result.filter(p => p.id !== "default")]); }
     catch (e) { if (token === profileRevision) setProfileError(e instanceof Error ? e.message : "排版方案读取失败"); }
     finally { if (token === profileRevision) setProfilesBusy(false); }
   }
   // A device switch clears the selection; the hand-over from the library survives until a device is ready.
   let pending = handed;
-  createEffect(deviceId, id => { setSelected(pending); if (id) pending = []; void reloadProfiles(id, kind()); return () => { profileRevision++; }; });
+  createEffect(deviceId, id => { setSelected(pending); if (id) pending = []; void reloadProfiles(id); return () => { profileRevision++; }; });
   const koboBooks = createMemo(() => {
     const map = new Map<string, DeviceBook>();
     if (kindle()) return map;
@@ -125,8 +123,7 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
     void k.run(async () => {
       if (!deviceId() || !k.inventory()) throw new Error("请先连接设备并等待书籍清单读取完成");
       for (const book of chosen()) {
-        if (kindle()) k.enqueue(book.book_id, profile(), { overwrite: overwrite() });
-        else k.enqueue(book.book_id, "default", { overwrite: true, settings: { ...defaultProfile("").settings, stripFonts: stripFonts(), stripImages: stripImages(), stripPageMargins: stripMargins() } });
+        k.enqueue(book.book_id, profile(), { overwrite: overwrite() });
       }
       setSelected([]);
     });
@@ -156,24 +153,15 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
             <div><span class="kindle-small">目标设备</span><span class="kindle-target-name"><strong>{target() || "尚未连接设备"}</strong><Show when={target()}><span aria-hidden="true" class={`kindle-dot ${deviceId() ? "connected" : ""}`} /><span class={`kindle-small ${deviceId() ? "is-connected" : "is-offline"}`}>{targetStatus()}</span></Show></span></div>
             <Link class="kindle-target-link" href="/devices/connect">{deviceId() ? "切换设备" : target() ? "重新连接" : "连接设备"}</Link>
           </div>
-          <Show when={kindle()} fallback={<>
-            <div class="kindle-check-group">
-              <Checkbox label="去掉书籍自带字体" checked={stripFonts()} onChange={e => setStripFonts(e.currentTarget.checked)} />
-              <Checkbox label="去掉所有图片（保留封面）" checked={stripImages()} onChange={e => setStripImages(e.currentTarget.checked)} />
-              <Checkbox label="去掉书籍自带页边距" checked={stripMargins()} onChange={e => setStripMargins(e.currentTarget.checked)} />
-            </div>
-            <p class="kindle-small">页边距只由 Kobo 的阅读设置决定；书里封面、简介等特殊页面的排版不受影响。同名书会覆盖设备上的旧文件。</p>
-          </>}>
-            <Select label="排版方案" value={profile()} disabled={!deviceId() || profilesBusy()} onChange={e => setProfile(e.currentTarget.value)}><For each={profiles()}>{p => <option value={p.id}>{p.name}</option>}</For></Select>
-            <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
-            <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId(), kind())}>重试</Button></p></Show>
-            <Link class="kindle-preview-link" href="/devices/preview">预览并调整排版方案</Link>
-            <div class="kindle-check-group">
-              <Checkbox label="写入封面缩略图（有封面时自动写入）" checked disabled />
-              <Checkbox label="覆盖设备上的同名书" checked={overwrite()} onChange={e => setOverwrite(e.currentTarget.checked)} />
-            </div>
-            <p class="kindle-small">覆盖仅替换 Bindery 记录的同一本书，保留原文件名与 .sdr 阅读记录。其他来源或不同书籍的同名文件会另存副本。</p>
-          </Show>
+          <Select label="排版方案" value={profile()} disabled={!deviceId() || profilesBusy()} onChange={e => setProfile(e.currentTarget.value)}><For each={profiles()}>{p => <option value={p.id}>{p.name}</option>}</For></Select>
+          <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
+          <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId())}>重试</Button></p></Show>
+          <Link class="kindle-preview-link" href="/devices/preview">预览并调整排版方案</Link>
+          <div class="kindle-check-group">
+            <Show when={kindle()}><Checkbox label="写入封面缩略图（有封面时自动写入）" checked disabled /></Show>
+            <Checkbox label="覆盖设备上的同名书" checked={overwrite()} onChange={e => setOverwrite(e.currentTarget.checked)} />
+          </div>
+          <p class="kindle-small">{kindle() ? "覆盖仅替换 Bindery 记录的同一本书，保留原文件名与 .sdr 阅读记录。" : "覆盖仅替换 Bindery 记录的同一本书。"}其他来源或不同书籍的同名文件会另存副本。</p>
           <div class="kindle-start">
             <Button class="kindle-start-transfer" variant={canStart() ? "primary" : "secondary"} disabled={!canStart()} onClick={start}>{chosen().length ? `开始传输 · ${chosen().length} 本` : "开始传输"}</Button>
             <Show when={startHint()}><p class="kindle-small" data-start-hint>{startHint()}</p></Show>

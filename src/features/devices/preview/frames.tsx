@@ -1,18 +1,17 @@
 import { createEffect, createMemo, createSignal, onCleanup, onSettled, Show } from "solid-js";
 import { errorMessage } from "../../../client/kindle/fs";
-import type { FontFamily, KindleModel, PairedDevice } from "../../../client/kindle";
-import { DocumentFonts, PreviewDocument, previewTurnKey, type PageGeometry } from "./frame";
-import { screenFor } from "./model";
-import type { KindleMarginPreset } from "../../../client/kindle/margins";
+import type { FontFamily, PairedDevice } from "../../../client/kindle";
+import { DocumentFonts, PreviewDocument, previewTurnKey } from "./frame";
+import type { PageGeometry } from "../../../client/devices/typeset";
 import { Button } from "../../../ui";
 
-/** `geometry` replaces the Kindle model/margin calibration, e.g. for Kobo's approximate page. */
-export function ChapterFrame(props: { src: string; model: KindleModel; marginPreset: KindleMarginPreset; geometry?: PageGeometry; label?: string; css: string | null; device: PairedDevice | null; family?: FontFamily; start: { page: number }; hasPrevious: boolean; hasNext: boolean; onChapter: (direction: -1 | 1) => void }) {
+/** A page whose column pitch is twice the screen width, so sideways overflow never leaks into the next page. */
+export function ChapterFrame(props: { src: string; geometry: PageGeometry; label?: string; css: string | null; device: PairedDevice | null; family?: FontFamily; start: { page: number }; hasPrevious: boolean; hasNext: boolean; onChapter: (direction: -1 | 1) => void }) {
   let frame!: HTMLIFrameElement, viewport!: HTMLDivElement, bezel!: HTMLDivElement, controller: PreviewDocument | undefined;
   let resizeFrame = () => {};
   let disposed = false, generation = 0;
   const [scale, setScale] = createSignal(0.4), [error, setError] = createSignal("");
-  const dimensions = () => props.geometry ?? screenFor(props.model), label = () => props.label ?? "Kindle";
+  const dimensions = () => props.geometry, label = () => props.label ?? "设备";
   const [loaded, setLoaded] = createSignal(0);
   const [position, setPosition] = createSignal({ page: 1, count: 1 }), [ready, setReady] = createSignal(false);
   let controlled: Document | null = null, loadedGeneration = -1;
@@ -53,10 +52,9 @@ export function ChapterFrame(props: { src: string; model: KindleModel; marginPre
   const source = createMemo(() => props.src);
   createEffect(source, () => { clear(); if (typeof window !== "undefined") watchParsing(); });
   function onLoad() { loadedGeneration = generation; attach(true); }
-  createEffect(() => ({ css: props.css, device: props.device, family: props.family, model: props.model, marginPreset: props.marginPreset, geometry: props.geometry, loaded: loaded() }), value => {
+  createEffect(() => ({ css: props.css, device: props.device, family: props.family, geometry: props.geometry, loaded: loaded() }), value => {
     if (!controller) return;
-    if (value.geometry) controller.setGeometry(value.geometry);
-    else if (value.css !== null) controller.setDevice(value.model, value.marginPreset);
+    controller.setGeometry(value.geometry);
     const current = generation;
     void controller.update(value.css, value.device, value.family).catch(error => { if (!disposed && current === generation) setError(`设备字体加载失败：${errorMessage(error)}`); });
   });
