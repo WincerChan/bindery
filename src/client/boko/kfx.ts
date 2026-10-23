@@ -4,7 +4,7 @@
 export type IonValue = null | boolean | number | string | Uint8Array | IonValue[] | { fields: Array<[number, IonValue]> } | { symbol: number };
 export function ionFields(value: IonValue): Array<[number, IonValue]> { return value !== null && typeof value === "object" && "fields" in value ? value.fields : []; }
 export const ionField = (value: IonValue, id: number): IonValue => ionFields(value).find(([key]) => key === id)?.[1] ?? null;
-class IonReader {
+export class IonReader {
   private at = 0;
   constructor(private bytes: Uint8Array) {}
   private take(n: number) {
