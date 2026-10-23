@@ -25,7 +25,7 @@ import { clientDocument, elements, fire } from "./support/client-dom";
 
 type Page = "books" | "connect" | "transfer";
 interface SyncResult { synced: number; skipped: number; marked_read: number; unchanged: number; kept: number; lagged: boolean; unmatched: number }
-interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; preselected?: string[]; syncKobo?: (device: PairedDevice) => Promise<SyncResult>; syncKindle?: (device: PairedDevice) => Promise<SyncResult> }
+interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; preselected?: string[]; syncKobo?: (device: PairedDevice) => Promise<SyncResult>; syncKindle?: (device: PairedDevice) => Promise<SyncResult>; chapters?: (deviceId: string) => Promise<Record<string, string>> }
 interface Mounted { context(): KindleContextValue; page(page: Page): void; books(books: KindleLibraryBook[]): void; flush(): void; dispose(): void }
 interface Probe {
   markup(page: Page, input: Input): string; mount(root: HTMLElement, page: Page, input: Input, hydrate: boolean): Mounted;
@@ -48,7 +48,7 @@ function Capture(props) { props.receive(useKindle()); return null; }
 function view(page, input, books, capture) {
   function child() {
     switch (page()) {
-      case 'books': return <KindleBooksPage books={books()} />;
+      case 'books': return <KindleBooksPage books={books()} chapters={input.chapters} />;
       case 'connect': return <KindleConnectPage />;
       case 'transfer': return <KindleTransferPage books={books()} preselected={input.preselected} loadProfiles={input.loadProfiles} />;
     }
@@ -550,11 +550,15 @@ it("shows Kindle reading progress and never calls a full position finished", asy
   await c.fs.write("documents/a.kfx", data);
   const last = positions.chapters.at(-1)!, location = positionString([...last.eids][0]!, 0, positions.totalPid - 1);
   await c.fs.write("documents/a.sdr/a673205bd7b6c0394b1593a9fbced79ec.yjf", lprStore(location, 1_792_748_847_039n));
+  c.input.chapters = vi.fn(async () => ({ a: "第三章 全景敞视主义" }));
   const m = mount("books", c.input); await settle(m);
-  const progress = elements(m.root, "td", "data-device-progress").map(node => node.textContent);
+  const cells = elements(m.root, "td", "data-device-progress"), progress = cells.map(node => node.textContent);
   expect(progress).toHaveLength(1);
   expect(progress[0]).toMatch(/^在读 \d+% · /);
   expect(progress[0]).not.toContain("已读完");
+  // The synced chapter is only a hover title, so the column keeps its width.
+  expect(c.input.chapters).toHaveBeenCalledWith(c.device.identity.id);
+  expect(cells[0]!.getAttribute("title")).toBe("读到：第三章 全景敞视主义");
 });
 
 it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs", async () => {

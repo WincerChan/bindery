@@ -43,7 +43,8 @@ const progressLabel = (book: DeviceBook, kind: string) => {
   return `在读 ${Math.round(progress.percent)}%${time ? ` · ${time}` : ""}`;
 };
 
-export function DeviceBooksPage(props: { books: DeviceLibraryBook[] }) {
+/** `chapters`: the chapter each book was last read at on a device, as synced to the server (shown on hover). */
+export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: (deviceId: string) => Promise<Record<string, string>> }) {
   const k = useDevice(), [source, setSource] = createSignal("全部"), [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<string[]>([]), [notice, setNotice] = createSignal("");
   const [notRemoved, setNotRemoved] = createSignal<import("../../client/devices/fs").UnreadableEntry[]>([]);
@@ -51,6 +52,18 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[] }) {
   const kind = () => k.kind(), kindle = () => kind() === "kindle";
   const selectionDevice = createMemo(() => k.state().device?.identity.id || "");
   createEffect(selectionDevice, () => { setSelected([]); setPending(null); setNotice(""); setNotRemoved([]); });
+  // Positions reach the server through the reading sync, so chapters are fetched again after each pass.
+  const [chapters, setChapters] = createSignal<Record<string, string>>({});
+  const chapterSource = createMemo(() => k.ready() && k.state().status === "granted" && k.syncSummary() !== "正在同步阅读进度…" ? `${selectionDevice()}\n${k.syncSummary()}` : "");
+  createEffect(chapterSource, source => {
+    const deviceId = source.split("\n")[0];
+    setChapters({});
+    if (!deviceId || !props.chapters) return;
+    let current = true;
+    props.chapters(deviceId).then(value => { if (current) setChapters(value); }, () => { /* The percentage alone still shows. */ });
+    return () => { current = false; };
+  });
+  const chapterTitle = (book: DeviceBook) => { const id = book.book_id || book.record?.book_id, chapter = book.progress && id ? chapters()[id] : undefined; return chapter ? `读到：${chapter}` : undefined; };
   const library = createMemo(() => new Map(props.books.map(b => [b.book_id, b])));
   const koboFallback = createMemo(() => {
     const groups = new Map<string, DeviceLibraryBook[]>();
@@ -115,7 +128,7 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[] }) {
     </tr></thead><tbody><Show when={connected() && k.inventory()}><For each={visible()}>{book => <tr data-device-book={book.filename}>
       <td><Checkbox label="" aria-label={`选择 ${title(book)}`} disabled={!deletable(book)} checked={selected().includes(book.filename)} onChange={e => setSelected(current => e.currentTarget.checked ? [...current.filter(n => n !== book.filename), book.filename] : current.filter(n => n !== book.filename))} /></td>
       <td><div class="kindle-book-info"><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} /><div><strong title={book.filename}>{title(book)}</strong><p class="kindle-small">{metadata(book)?.author || book.filename}</p></div></div></td>
-      <td>{book.source}</td><td class="kindle-mono">{book.format.toUpperCase()}</td><td class="kindle-mono" data-device-progress>{progressLabel(book, kind())}</td><Show when={kindle()}><td>{profileName(book) || "—"}</td></Show><td class="kindle-mono">{bytes(book.size)}</td><Show when={kindle()}><td class="kindle-mono kindle-time">{dateLabel(book.record?.transferred_at || null)}</td></Show>
+      <td>{book.source}</td><td class="kindle-mono">{book.format.toUpperCase()}</td><td class="kindle-mono" data-device-progress title={chapterTitle(book)}>{progressLabel(book, kind())}</td><Show when={kindle()}><td>{profileName(book) || "—"}</td></Show><td class="kindle-mono">{bytes(book.size)}</td><Show when={kindle()}><td class="kindle-mono kindle-time">{dateLabel(book.record?.transferred_at || null)}</td></Show>
       <td><div class="kindle-row-actions"><Show when={book.record}><Link class="btn btn-icon" href={`/devices/preview?book=${encodeURIComponent(book.record!.book_id)}`} aria-label={`预览 ${title(book)}`} title={`预览 ${title(book)}`}><KindleIcon name="eye" /></Link><Button variant="icon" aria-label={`重新传入 ${title(book)}`} title="使用记录中的排版方案，覆盖此书首份 Bindery 副本并保留其阅读记录" disabled={k.busy() || !metadata(book)} onClick={() => resend(book)}><KindleIcon name="redo" /></Button></Show><Button variant="icon" aria-label={`从设备删除 ${title(book)}`} title={deletable(book) ? `从设备删除 ${title(book)}` : "只能删除 Bindery 管理的 KEPUB"} disabled={k.busy() || !deletable(book)} onClick={() => confirm([book])}><KindleIcon name="trash" /></Button></div></td>
     </tr>}</For></Show></tbody></table></div>
     <Show when={connected()} fallback={<EmptyState title={k.ready() ? "请先连接设备" : "检测中…"}><Link href="/devices/connect">连接并授权设备</Link>后，可查看和管理设备上的书籍。</EmptyState>}>

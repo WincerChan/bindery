@@ -131,6 +131,9 @@ export class BinderyDatabase extends Connection {
   listDeviceReading(bookId: string): DeviceReading[] {
     return this.all("SELECT * FROM device_reading WHERE book_id = ? ORDER BY last_read_at DESC, device_id", bookId);
   }
+  listDeviceReadingForDevice(deviceId: string): DeviceReading[] {
+    return this.all("SELECT * FROM device_reading WHERE device_id = ? ORDER BY book_id", deviceId);
+  }
   createWish(wish: Wish): void {
     const identity = wishIdentity(wish.title, wish.author);
     this.run(`INSERT INTO wishlist(${WISH_COLUMNS.join(", ")}) VALUES (${WISH_COLUMNS.map(() => "?").join(", ")})`, wish.id, wish.title, strip(wish.library_book_id || "").toLowerCase() || null, wish.author, ...identity, wish.rating, Number(Boolean(wish.read)), wish.read_status, compatJson(wish.tags), wish.comment, wish.book_status, wish.created_at, wish.updated_at);

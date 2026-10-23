@@ -7,6 +7,7 @@ import { readBookArchive } from "../src/server/reader/service";
 import { mapKindlePosition } from "../src/server/reading/kindle";
 import { kindleReadingInput, syncKindleReading } from "../src/server/reading/sync";
 import { latestProgress } from "../src/server/reading/progress";
+import { deviceChapters } from "../src/server/reading/chapters";
 import { createBook, temporaryLibrary } from "./fixtures/library/support";
 import { readerFixture } from "./fixtures/reader/support";
 
@@ -141,6 +142,15 @@ describe("Kindle sync validation and storage", () => {
     expect(stored()).toMatchObject({ section: 1, section_fraction: 0.6, percent: 39, last_read_at: "2026-10-22T13:11:20Z" });
     expect(syncKindleReading(library, syncInput([kindleEntry(id, { chapter: 0, kfx_section_count: count, percent: 39 })]))).toMatchObject({ synced: 1, kept: 0 });
     expect(stored()).toMatchObject({ section: 0, section_fraction: 0 });
+  });
+});
+
+describe("Synced chapter per device", () => {
+  it("names the chapter each book was mapped to on one device only", () => {
+    const { library, id } = customBook(caseEpub({ cover: true })), spine = spineOf(library, id);
+    syncKindleReading(library, syncInput([kindleEntry(id, { chapter: 2, kfx_section_count: spine.length, chapter_fraction: 0.5, percent: 40 })]));
+    expect(deviceChapters(library, device.id)).toEqual({ [id]: sectionsOf(library, id)[2]!.title });
+    expect(deviceChapters(library, "another-device")).toEqual({});
   });
 });
 
