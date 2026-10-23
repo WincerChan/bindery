@@ -50,7 +50,9 @@ describe("Kobo conversion pipeline", () => {
   const members = (data: Uint8Array) => readKepubZip(data).map(entry => [entry.name, decode(kepubEntryBytes(entry))]);
 
   it("hands a plain EPUB to the converter untouched", async () => {
-    expect((await convertForKobo(fixture)).data).toEqual((await convertToKepubAsync(fixture)).data);
+    // Every ZIP field except the entry timestamps, which fflate takes from the clock at write time.
+    const packed = (data: Uint8Array) => readKepubZip(data).map(({ name, method, flags, crc, compressedSize, uncompressedSize, compressed }) => ({ name, method, flags, crc, compressedSize, uncompressedSize, compressed }));
+    expect(packed((await convertForKobo(fixture)).data)).toEqual(packed((await convertToKepubAsync(fixture)).data));
   });
 
   it("strips page margins in the same KEPUB and compresses the intermediate archive once", async () => {

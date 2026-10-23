@@ -9,13 +9,15 @@ import { assetEpub } from "./support/kindle-assets";
 const fixture = new Uint8Array(readFileSync(new URL("./fixtures/parity/kepub/input-mixed.epub", import.meta.url)));
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
 const members = (data: Uint8Array) => new Map(readKepubZip(data).map(entry => [entry.name, decode(kepubEntryBytes(entry))]));
+// Every ZIP field except the entry timestamps, which fflate takes from the clock at write time.
+const packed = (data: Uint8Array) => readKepubZip(data).map(({ name, method, flags, crc, compressedSize, uncompressedSize, compressed }) => ({ name, method, flags, crc, compressedSize, uncompressedSize, compressed }));
 const profile = { id: "custom", name: "正文", builtIn: false, settings: { ...EMPTY_SETTINGS, marginX: -4.9, textIndent: 2 } };
 
 describe("Kobo profile conversion", () => {
   it("keeps the plain and default-profile output byte-identical to the converter", async () => {
     const plain = await convertToKepubAsync(fixture);
-    expect((await convertForKobo(fixture)).data).toEqual(plain.data);
-    expect((await convertForKobo(fixture, { profile: { settings: EMPTY_SETTINGS, css: "" } })).data).toEqual(plain.data);
+    expect(packed((await convertForKobo(fixture)).data)).toEqual(packed(plain.data));
+    expect(packed((await convertForKobo(fixture, { profile: { settings: EMPTY_SETTINGS, css: "" } })).data)).toEqual(packed(plain.data));
   });
   it("adds bindery-profile.css and links it from content documents", async () => {
     const output = (await convertForKobo(fixture, { profile: { settings: EMPTY_SETTINGS, css: generateProfileCss(profile) } })).data, entries = members(output);
