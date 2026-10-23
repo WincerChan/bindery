@@ -239,14 +239,13 @@ function DevicePreviewPageInner(props: PreviewProps) {
         <For each={fonts()}>{font => <option value={font.name}>{font.name}</option>}</For>
       </Select>
       <div class="kt-checkboxes" role="group" aria-label="正文样式">
-        <Checkbox label="两端对齐" checked={draft().settings.justify === true} disabled={locked()} onChange={event => edit("justify", event.currentTarget.checked)} />
+        <Checkbox label="两端对齐" checked={draft().settings.justify === true} disabled={locked()} onChange={event => edit("justify", event.currentTarget.checked ? true : null)} />
         <Checkbox label="去掉书籍自带字体" checked={draft().settings.stripFonts} disabled={locked()} onChange={event => edit("stripFonts", event.currentTarget.checked)} />
         <Checkbox label="去掉所有图片" checked={draft().settings.stripImages} disabled={locked()} onChange={event => edit("stripImages", event.currentTarget.checked)} />
         <Checkbox label="去掉书籍自带页边距" checked={draft().settings.stripPageMargins} disabled={locked()} onChange={event => edit("stripPageMargins", event.currentTarget.checked)} />
       </div>
       <details class="kt-advanced"><summary>更多设置</summary><div>
         <TextField label="方案名称" value={draft().name} disabled={locked()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
-        <Button variant="quiet" disabled={locked() || draft().settings.justify === null} onClick={() => edit("justify", null)}>{draft().settings.justify === null ? "对齐方式沿用书籍" : "对齐方式恢复书籍设置"}</Button>
         <Textarea label="额外自定义 CSS" rows={6} value={draft().settings.customCss} disabled={locked()} error={cssError() ?? undefined} onInput={event => edit("customCss", event.currentTarget.value)} />
         <Textarea label="生成的 CSS（只读）" rows={8} class="kt-generated" readonly value={css() ?? "排版参数校验未通过，预览保留上次有效样式。"} />
       </div></details>

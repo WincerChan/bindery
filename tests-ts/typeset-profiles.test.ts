@@ -32,7 +32,7 @@ async function invoke(fn: unknown, input: unknown) {
 const root = mkdtempSync(join(tmpdir(), "bindery-typeset-profiles-")); let sequence = 0;
 beforeEach(() => { const path = join(root, String(sequence++)); scope.library = new LibraryStorage(join(path, "library"), new BinderyDatabase(join(path, "data.db"))); scope.library.ensure(); scope.request = new Request("http://localhost/devices"); });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
-const input = (settings: Record<string, unknown> = {}) => ({ name: "正文", settings: { ...EMPTY_SETTINGS, marginX: 0.5, marginXUnit: "em" as const, marginY: 0.75, paragraphSpacing: 0.25, lineHeight: 1.5, textIndent: 2, justify: true, fontFamily: "Book Serif", customCss: "h1 { text-align: center; }", ...settings } });
+const input = (settings: Record<string, unknown> = {}) => ({ name: "正文", settings: { ...EMPTY_SETTINGS, marginX: 0.5, marginXUnit: "em" as const, marginY: 0.75, paragraphSpacing: 0.25, lineHeight: 1.5, textIndent: 2, justify: true as const, fontFamily: "Book Serif", customCss: "h1 { text-align: center; }", ...settings } });
 const deviceInput = (settings: Record<string, unknown> = {}) => ({ deviceId: "device-a", kind: "kindle", settings: { margin: "narrow", scale: 1, lineHeight: 1.75, ...settings } });
 
 describe("shared profile validation and CSS", () => {
@@ -50,6 +50,10 @@ describe("shared profile validation and CSS", () => {
     expect(profileSettings(legacy)).toMatchObject({ marginX: -0.8, marginXUnit: "em" });
     expect(() => profileSettings({ ...legacy, deviceModel: 3 })).toThrow("deviceModel");
     expect(() => profileSettings({ ...legacy, kindleMargin: null })).toThrow("kindleMargin");
+    // Alignment is either justified or the book's own; a stored `false` never forces left alignment.
+    expect(profileSettings({ ...EMPTY_SETTINGS, justify: false }).justify).toBeNull();
+    expect(generateProfileCss({ id: "custom", name: "正文", builtIn: false, settings: { ...EMPTY_SETTINGS, justify: false } as never })).toBe("");
+    expect(() => profileSettings({ ...EMPTY_SETTINGS, justify: "left" })).toThrow("两端对齐");
   });
 });
 

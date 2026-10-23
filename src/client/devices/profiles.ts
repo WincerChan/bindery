@@ -3,7 +3,7 @@ import { MARGIN_X_UNITS, MAXIMUM_MARGIN_X, type MarginXUnit } from "./typeset";
 
 export interface ProfileSettings {
   marginX: number | null; marginXUnit: MarginXUnit; marginY: number | null; lineHeight: number | null;
-  paragraphSpacing: number | null; textIndent: number | null; justify: boolean | null;
+  paragraphSpacing: number | null; textIndent: number | null; justify: true | null;
   fontFamily: string | null; customCss: string; stripFonts: boolean; stripImages: boolean; stripPageMargins: boolean;
 }
 export interface TypesettingProfile { id: string; name: string; settings: ProfileSettings; builtIn: boolean }
@@ -57,7 +57,8 @@ export function profileSettings(value: unknown): ProfileSettings {
   if (v.fontFamily !== undefined && v.fontFamily !== null && (typeof v.fontFamily !== "string" || !v.fontFamily.trim() || v.fontFamily.length > 200 || /[\x00-\x1f\x7f]/.test(v.fontFamily))) throw new Error("无效的字体名称");
   if (v.customCss !== undefined && typeof v.customCss !== "string") throw new Error("无效的自定义 CSS");
   const customCss = v.customCss ?? "", cssError = validateCss(customCss); if (cssError) throw new Error(cssError);
-  output.justify = (v.justify ?? null) as boolean | null; output.fontFamily = (v.fontFamily ?? null) as string | null; output.customCss = customCss;
+  // Only justified text is ever imposed; `false` (a forced left alignment from older settings) follows the book.
+  output.justify = v.justify === true ? true : null; output.fontFamily = (v.fontFamily ?? null) as string | null; output.customCss = customCss;
   return output;
 }
 /**
@@ -81,7 +82,7 @@ export function generateProfileCss(profile: TypesettingProfile): string {
   if (s.lineHeight !== null) paragraph.push(`line-height: ${s.lineHeight} !important;`);
   if (s.paragraphSpacing !== null) paragraph.push(`margin-top: 0 !important;`, `margin-bottom: ${em(s.paragraphSpacing)} !important;`);
   if (s.textIndent !== null) paragraph.push(`text-indent: ${em(s.textIndent)} !important;`);
-  if (s.justify !== null) paragraph.push(`text-align: ${s.justify ? "justify" : "left"} !important;`);
+  if (s.justify) paragraph.push("text-align: justify !important;");
   const font = s.fontFamily ? `body, body * {\n  font-family: "${s.fontFamily.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}" !important;\n}` : "";
   return [body.length ? `body > * {\n  ${body.join("\n  ")}\n}` : "", paragraph.length ? `p {\n  ${paragraph.join("\n  ")}\n}` : "", font, s.customCss.trim()].filter(Boolean).join("\n\n");
 }
