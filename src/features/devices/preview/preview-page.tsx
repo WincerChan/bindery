@@ -66,7 +66,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const [chapterLoading, setChapterLoading] = createSignal(false), [chapterError, setChapterError] = createSignal(props.data.error);
   let disposed = false, profileRequest = 0, chapterRequest = 0, initialFontApplied = false, readingRequest = 0, saveTimer: ReturnType<typeof setTimeout> | undefined, followedId: string | undefined, modelOnlyByUser = false;
 
-  const previewName = () => target()?.name ?? `${deviceKindLabel(modelKind())} ${modelShortName(modelKind(), model())}`;
+  const previewName = () => target()?.name ?? modelShortName(modelKind(), model());
   const kind = () => target()?.kind ?? modelKind();
   const targetInfo = createMemo(() => previewTarget(kind(), target()?.model ?? model()));
   const geometry = createMemo(() => pageGeometry(targetInfo(), reading()));
@@ -192,7 +192,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
       <div class="kt-editor-heading"><h2>排版方案</h2><p class="muted">所有设备共用一套排版参数；传书时写入副本，书库里的 EPUB 不变。</p></div>
       <Select label="预览设备" value={target()?.id ?? ""} disabled={busy()} onChange={event => chooseTarget(event.currentTarget.value)}>
         <option value="">仅预览型号</option>
-        <For each={available()}>{identity => <option value={identity.id}>{identity.name} · {deviceKindLabel(identity.kind)} {modelShortName(identity.kind, identity.model)}</option>}</For>
+        <For each={available()}>{identity => <option value={identity.id}>{identity.name}</option>}</For>
       </Select>
       <Show when={!target()}><div class="kt-profile-controls">
         <Select label="设备种类" value={modelKind()} disabled={busy()} onChange={event => chooseModelKind(event.currentTarget.value as DeviceKind)}><option value="kindle">Kindle</option><option value="kobo">Kobo</option></Select>
@@ -271,7 +271,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
       <p class="muted" data-kindle-line-estimate data-typeset-estimate>{settingsError() ? "排版参数无效，预览保留上次有效样式。" : `预计每行约 ${estimate().charsPerLine} 字、每页 ${estimate().linesPerPage} 行（${estimate().measured ? "实测" : "估算"} · ${targetInfo().panel.width}×${targetInfo().panel.height}${targetInfo().fallbackPanel ? ` · 其他型号按 ${targetInfo().panel.width}×${targetInfo().panel.height} 预览` : ""}）`}</p>
       <Show when={overflow()}><p class="muted" data-overflow-note>左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。</p></Show>
       <details class="kt-calibration"><summary>校准说明</summary>
-        <p class="kt-spec">{deviceKindLabel(kind())} · {modelShortName(kind(), target()?.model ?? model())} · {targetInfo().panel.width}×{targetInfo().panel.height} · {targetInfo().panel.ppi} ppi</p>
+        <p class="kt-spec">{modelShortName(kind(), target()?.model ?? model())} · {targetInfo().panel.width}×{targetInfo().panel.height} · {targetInfo().panel.ppi} ppi</p>
         <p class="muted">设备阅读设置只影响预览，不会写入书籍；排版方案会写入 Kindle 和 Kobo 的传书副本。分页与真机会有少量差异，不模拟页眉页脚。</p>
         <p class="muted">实测：Kindle Paperwhite 3 窄边距、Kobo Libra 2 最小边距。其他型号与档位按屏幕像素密度估算。</p>
       </details>
