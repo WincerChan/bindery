@@ -134,6 +134,11 @@ export function writeArchive(entries: Iterable<ArchiveMember>, deflate: Deflater
   }
   return result;
 }
+/**
+ * Every member gets the same timestamp (the earliest a ZIP can hold) instead of the clock at write time, so the same
+ * input always produces the same bytes.
+ */
+export const ARCHIVE_TIME = new Date(1980, 0, 1);
 /** Synchronous sink provides backpressure (e.g. a complete write to a file descriptor). */
 export function writeArchiveToSink(
   entries: Iterable<ArchiveMember>,
@@ -147,6 +152,7 @@ export function writeArchiveToSink(
   try {
     for (const entry of entries) {
       const file = entry.name === "mimetype" || !deflate ? new ZipPassThrough(entry.name) : new VerifiedZipDeflate(entry.name, entry.data, deflate);
+      file.mtime = ARCHIVE_TIME;
       zip.add(file);
       file.push(entry.data, true);
     }

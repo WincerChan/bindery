@@ -6,7 +6,7 @@
  * XHTML is tokenized and rewritten in one pass (see `kepub-html.ts`).
  */
 import { Zip, ZipPassThrough, deflateSync, inflateSync } from "fflate";
-import { basename, dirname, joinpath } from "./archive";
+import { ARCHIVE_TIME, basename, dirname, joinpath } from "./archive";
 import { kepubTitlepageHasContent, transformKepubContent } from "./kepub-html";
 import { localName, parseXmlDocument, serializeXmlDocument, xmlAttribute, xmlChildren, xmlDescendants, type XmlElement } from "./kepub-xml";
 
@@ -206,14 +206,14 @@ function writeKepubZip(entries: WriteEntry[], compressionLevel: 1 | 2 | 3 | 4 | 
       const entry = entries[index];
       if (entry.raw) {
         const file = new RawZipEntry(entry.name, entry.raw);
-        zip.add(file);
+        file.mtime = ARCHIVE_TIME; zip.add(file);
         file.send();
       } else if (index === 0) {
         const file = new StoredZipEntry(entry.name);
-        zip.add(file); file.push(entry.data!, true);
+        file.mtime = ARCHIVE_TIME; zip.add(file); file.push(entry.data!, true);
       } else {
         const file = new DeflatedZipEntry(entry.name, entry.data!, compressionLevel);
-        zip.add(file); file.push(entry.data!, true);
+        file.mtime = ARCHIVE_TIME; zip.add(file); file.push(entry.data!, true);
       }
     }
     zip.end();
