@@ -70,7 +70,8 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
   const [profilesBusy, setProfilesBusy] = createSignal(false), [overwrite, setOverwrite] = createSignal(false);
   const kind = () => k.kind(), kindle = () => kind() === "kindle";
   const profileSummary = () => {
-    const settings = profiles().find(item => item.id === profile())?.settings;
+    const selected = profiles().find(item => item.id === profile()), settings = selected?.settings;
+    if (selected?.builtIn) return "只用书籍自带样式";
     return [settings?.stripFonts ? "去掉书籍自带字体" : "", settings?.stripImages ? "去掉所有图片（保留封面）" : "", settings?.stripPageMargins ? "去掉书籍自带页边距" : ""].filter(Boolean).join(" · ");
   };
   const deviceId = createMemo(() => k.ready() && k.state().status === "granted" ? k.state().device?.identity.id || "" : "");

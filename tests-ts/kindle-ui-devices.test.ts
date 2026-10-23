@@ -515,7 +515,7 @@ it("renders Kobo transfer controls without Kindle-only settings or licenses", as
   expect(text(m)).toContain("排版方案"); expect(text(m)).not.toContain("boko"); expect(text(m)).not.toContain("GPL-3.0");
   expect(text(m)).not.toContain("documents/"); expect(text(m)).not.toContain(".sdr"); expect(text(m)).not.toContain("KFX");
   expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(2);
-  expect(elements(m.root, "option").some(node => node.textContent === "默认（只用书籍自带样式）")).toBe(true);
+  expect(elements(m.root, "option").some(node => node.textContent === "默认")).toBe(true);
 });
 
 it("auto-syncs Kobo reading once per connection and again after re-detection", async () => {

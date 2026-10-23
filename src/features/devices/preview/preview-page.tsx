@@ -219,7 +219,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
         event.currentTarget.value = draft().id;
       }}>
         <Show when={!profiles().some(profile => profile.id === draft().id)}><option value={draft().id}>{draft().name}</option></Show>
-        <For each={profiles()}>{profile => <option value={profile.id}>{profile.builtIn ? "默认 · 书籍自带样式" : profile.name}</option>}</For>
+        <For each={profiles()}>{profile => <option value={profile.id}>{profile.builtIn ? "默认" : profile.name}</option>}</For>
       </Select></div>
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
       <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
