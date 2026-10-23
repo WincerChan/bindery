@@ -1,5 +1,7 @@
 import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
-import { defaultProfile, type TypesettingProfile } from "../../client/devices/profiles";
+import { defaultProfile, DEFAULT_PROFILE_ID, type TypesettingProfile } from "../../client/devices/profiles";
+import { defaultReadingSettings, readingSettings, type DeviceReadingSettings } from "../../client/devices/typeset";
+import type { DeviceKind } from "../../client/devices/models";
 import type { DeviceBook } from "../../client/devices/inventory";
 import { BookCover, Button, Checkbox, Chip, EmptyState, Select, TextField } from "../../ui";
 import { useDevice } from "./context";
@@ -60,12 +62,17 @@ export function DeviceTransferQueueProgress(props: { items: readonly TransferIte
   }}</For></ol>;
 }
 
-export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselected?: string[]; loadProfiles: () => Promise<TypesettingProfile[]> }) {
+export interface TransferReadingApi {
+  get(deviceId: string, kind: DeviceKind): Promise<DeviceReadingSettings>;
+  save(deviceId: string, kind: DeviceKind, settings: DeviceReadingSettings): Promise<unknown>;
+}
+export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselected?: string[]; loadProfiles: () => Promise<TypesettingProfile[]>; reading?: TransferReadingApi }) {
   // Books sent from the library start selected, under "全部" so copies already on the device stay visible.
   const handed = untrack(() => (props.preselected ?? []).filter(id => props.books.some(book => book.book_id === id)));
   const k = useDevice(), [filter, setFilter] = createSignal(handed.length ? "全部" : "不在设备"), [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<string[]>(handed), [page, setPage] = createSignal(1);
-  const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profile, setProfile] = createSignal("default"), [profileError, setProfileError] = createSignal("");
+  const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profile, setProfile] = createSignal(DEFAULT_PROFILE_ID), [profileError, setProfileError] = createSignal("");
+  const [deviceReading, setDeviceReading] = createSignal<DeviceReadingSettings>(defaultReadingSettings("kindle"));
   const [profilesBusy, setProfilesBusy] = createSignal(false), [overwrite, setOverwrite] = createSignal(false);
   const kind = () => k.kind(), kindle = () => kind() === "kindle";
   const profileSummary = () => {
@@ -82,10 +89,20 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
   });
   let profileRevision = 0;
   async function reloadProfiles(id: string) {
-    const token = ++profileRevision; setProfileError(""); setProfiles([]); setProfile("default");
+    const token = ++profileRevision; setProfileError(""); setProfiles([]); setProfile(DEFAULT_PROFILE_ID); setDeviceReading(defaultReadingSettings(kind()));
     if (!id) { setProfilesBusy(false); return; }
     setProfilesBusy(true); setProfiles([defaultProfile()]);
-    try { const result = await props.loadProfiles(); if (token === profileRevision) setProfiles([defaultProfile(), ...result.filter(p => p.id !== "default")]); }
+    try {
+      const [result, saved] = await Promise.all([
+        props.loadProfiles(),
+        props.reading ? props.reading.get(id, kind()).catch(() => null) : Promise.resolve(null),
+      ]);
+      if (token !== profileRevision) return;
+      const items = [defaultProfile(), ...result.filter(p => p.id !== DEFAULT_PROFILE_ID)];
+      const remembered = readingSettings(kind(), saved ?? defaultReadingSettings(kind()));
+      setProfiles(items); setDeviceReading(remembered);
+      setProfile(items.some(item => item.id === remembered.profileId) ? remembered.profileId : DEFAULT_PROFILE_ID);
+    }
     catch (e) { if (token === profileRevision) setProfileError(e instanceof Error ? e.message : "排版方案读取失败"); }
     finally { if (token === profileRevision) setProfilesBusy(false); }
   }
@@ -157,7 +174,14 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
             <div><span class="kindle-small">目标设备</span><span class="kindle-target-name"><strong>{target() || "尚未连接设备"}</strong><Show when={target()}><span aria-hidden="true" class={`kindle-dot ${deviceId() ? "connected" : ""}`} /><span class={`kindle-small ${deviceId() ? "is-connected" : "is-offline"}`}>{targetStatus()}</span></Show></span></div>
             <Link class="kindle-target-link" href="/devices/connect">{deviceId() ? "切换设备" : target() ? "重新连接" : "连接设备"}</Link>
           </div>
-          <Select label="排版方案" value={profile()} disabled={!deviceId() || profilesBusy()} onChange={e => setProfile(e.currentTarget.value)}><For each={profiles()}>{p => <option value={p.id}>{p.name}</option>}</For></Select>
+          <Select label="排版方案" value={profile()} disabled={!deviceId() || profilesBusy()} onChange={e => {
+            const id = e.currentTarget.value; setProfile(id);
+            const device = deviceId(), api = props.reading;
+            if (!device || !api) return;
+            const value = readingSettings(kind(), { ...deviceReading(), profileId: id });
+            setDeviceReading(value);
+            void api.save(device, kind(), value).catch(error => { if (device === deviceId()) setProfileError(error instanceof Error ? error.message : "排版方案保存失败"); });
+          }}><For each={profiles()}>{p => <option value={p.id}>{p.name}</option>}</For></Select>
           <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
           <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId())}>重试</Button></p></Show>
           <Link class="kindle-preview-link" href="/devices/preview">预览并调整排版方案</Link>

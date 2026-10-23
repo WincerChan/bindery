@@ -46,7 +46,11 @@ export class DeviceTypeset {
     const id = deviceIdInput(deviceId), key = kindInput(kind);
     const row = this.db.get<{ settings_json: string }>("SELECT settings_json FROM device_typeset WHERE device_id = ?", id);
     if (!row) return defaultReadingSettings(key);
-    try { return readingSettings(key, JSON.parse(row.settings_json)); } catch { return defaultReadingSettings(key); }
+    try {
+      const settings = readingSettings(key, JSON.parse(row.settings_json));
+      if (settings.profileId !== DEFAULT_PROFILE_ID && !this.db.get("SELECT 1 FROM typeset_profiles WHERE id = ?", settings.profileId)) return { ...settings, profileId: DEFAULT_PROFILE_ID };
+      return settings;
+    } catch { return defaultReadingSettings(key); }
   }
   save(input: unknown): DeviceReadingSettings {
     const value = deviceTypesetInput(input), now = new Date().toISOString();

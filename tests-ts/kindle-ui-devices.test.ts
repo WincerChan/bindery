@@ -10,6 +10,8 @@ import { KindleDeviceManager } from "../src/client/kindle/device";
 import { pairDevice, type PairedDevice } from "../src/client/kindle/identity";
 import { TransferQueue, type TransferItem } from "../src/client/kindle/queue";
 import { defaultProfile, EMPTY_SETTINGS, type TypesettingProfile } from "../src/client/devices/profiles";
+import type { DeviceKind } from "../src/client/devices/models";
+import type { DeviceReadingSettings } from "../src/client/devices/typeset";
 import type { ManifestBook } from "../src/client/kindle/manifest";
 import type { RememberedDevice } from "../src/client/kindle/remembered";
 import { KindleTransferService, type TransferOptions } from "../src/client/kindle/transfer";
@@ -26,7 +28,7 @@ import { bookFingerprint } from "../src/core/fingerprint";
 
 type Page = "books" | "connect" | "transfer";
 interface SyncResult { synced: number; skipped: number; marked_read: number; unchanged: number; kept: number; lagged: boolean; unmatched: number }
-interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; preselected?: string[]; syncKobo?: (device: PairedDevice) => Promise<SyncResult>; syncKindle?: (device: PairedDevice) => Promise<SyncResult>; chapters?: (deviceId: string) => Promise<Record<string, string>> }
+interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; reading?: { get: (deviceId: string, kind: DeviceKind) => Promise<DeviceReadingSettings>; save: (deviceId: string, kind: DeviceKind, settings: DeviceReadingSettings) => Promise<unknown> }; preselected?: string[]; syncKobo?: (device: PairedDevice) => Promise<SyncResult>; syncKindle?: (device: PairedDevice) => Promise<SyncResult>; chapters?: (deviceId: string) => Promise<Record<string, string>> }
 interface Mounted { context(): KindleContextValue; page(page: Page): void; books(books: KindleLibraryBook[]): void; flush(): void; dispose(): void }
 interface Probe {
   markup(page: Page, input: Input): string; mount(root: HTMLElement, page: Page, input: Input, hydrate: boolean): Mounted;
@@ -51,7 +53,7 @@ function view(page, input, books, capture) {
     switch (page()) {
       case 'books': return <KindleBooksPage books={books()} chapters={input.chapters} />;
       case 'connect': return <KindleConnectPage />;
-      case 'transfer': return <KindleTransferPage books={books()} preselected={input.preselected} loadProfiles={input.loadProfiles} />;
+      case 'transfer': return <KindleTransferPage books={books()} preselected={input.preselected} loadProfiles={input.loadProfiles} reading={input.reading} />;
     }
   }
   return <Loading><KindleProvider manager={input.manager} queue={input.queue} koboReadingSync={input.syncKobo} kindleReadingSync={input.syncKindle}><Capture receive={capture} /><KindleDeviceBar />{child()}</KindleProvider></Loading>;
@@ -460,6 +462,19 @@ it("loads device profiles, applies library filters/search and preserves selectio
   await c.manager.probe(); await settle(m); expect(text(m)).toContain("已选 1 本");
   fire(button(m.root, "未读"), "click"); m.flush(); expect(elements(m.root, "li", "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).not.toContain("b"); expect(text(m)).toContain("已在设备");
   const search = field(m.root, "搜索书库"); search.value = "书库甲"; fire(search, "input"); m.flush(); expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(1); expect(text(m)).toContain("估计大小：待转换后确定");
+});
+
+it("starts at the connected device's remembered profile and remembers a change", async () => {
+  const c = await connected([record("a", "a.kfx")]);
+  c.input.loadProfiles = vi.fn(async () => [defaultProfile(), { ...defaultProfile(), id: "wide", name: "宽边距", builtIn: false }]);
+  const save = vi.fn(async () => ({}));
+  c.input.reading = { get: vi.fn(async () => ({ margin: "narrow", profileId: "wide" })), save };
+  const m = mount("transfer", c.input); await settle(m);
+  expect(c.input.reading.get).toHaveBeenCalledWith(c.device.identity.id, "kindle");
+  const select = () => elements(m.root, "label").find(label => label.firstChild?.textContent === "排版方案")!.getElementsByTagName("select")[0] as HTMLSelectElement;
+  expect(select().value).toBe("wide");
+  select().value = "default"; fire(select(), "change"); await settle(m);
+  expect(save).toHaveBeenCalledWith(c.device.identity.id, "kindle", { margin: "narrow", profileId: "default" });
 });
 
 it("keeps the queue running while moving among Kindle pages, supports cancel and clear, and renders notices", async () => {

@@ -94,6 +94,19 @@ describe("global profile CRUD", () => {
   });
 });
 
+describe("per-device profile links", () => {
+  it("round-trips a profile id, reads old rows as default and falls back after a profile is deleted", () => {
+    const profiles = new TypesetProfiles(scope.library!.db), settings = new DeviceTypeset(scope.library!.db), created = profiles.create(input());
+    expect(settings.save({ deviceId: "device-a", kind: "kindle", settings: { margin: "wide", profileId: created.id } })).toEqual({ margin: "wide", profileId: created.id });
+    expect(settings.get("device-a", "kindle")).toEqual({ margin: "wide", profileId: created.id });
+    scope.library!.db.run("INSERT INTO device_typeset(device_id, settings_json, updated_at) VALUES (?, ?, ?)", "old-device", JSON.stringify({ margin: "medium" }), new Date().toISOString());
+    expect(settings.get("old-device", "kindle")).toEqual({ margin: "medium", profileId: "default" });
+    profiles.delete({ id: created.id });
+    expect(settings.get("device-a", "kindle")).toEqual({ margin: "wide", profileId: "default" });
+    expect(() => settings.save({ deviceId: "device-a", kind: "kindle", settings: { margin: "wide", profileId: "bad id" } })).toThrow("无效的排版方案 ID");
+  });
+});
+
 describe("typeset RPCs", () => {
   it("checks real authentication before all six handlers and persists authenticated changes", async () => {
     const calls: Array<[unknown, unknown]> = [[listTypesetProfiles, undefined], [createTypesetProfile, input()], [updateTypesetProfile, { ...input(), id: "missing" }], [deleteTypesetProfile, { id: "missing" }], [getDeviceTypeset, { deviceId: "device-a", kind: "kindle" }], [saveDeviceTypeset, deviceInput()]];
@@ -103,8 +116,8 @@ describe("typeset RPCs", () => {
     const created = await invoke(createTypesetProfile, input()) as TypesettingProfile; expect(created.name).toBe("正文");
     const updated = await invoke(updateTypesetProfile, { ...input(), id: created.id, name: "RPC 更新" }) as TypesettingProfile; expect(updated.name).toBe("RPC 更新");
     expect((await invoke(listTypesetProfiles, undefined) as TypesettingProfile[])[1]).toEqual(updated);
-    await invoke(saveDeviceTypeset, deviceInput({ margin: "wide" })); expect(await invoke(getDeviceTypeset, { deviceId: "device-a", kind: "kindle" })).toEqual({ margin: "wide" });
-    expect(new DeviceTypeset(scope.library!.db).get("device-a", "kindle")).toEqual({ margin: "wide" });
+    await invoke(saveDeviceTypeset, deviceInput({ margin: "wide", profileId: created.id })); expect(await invoke(getDeviceTypeset, { deviceId: "device-a", kind: "kindle" })).toEqual({ margin: "wide", profileId: created.id });
+    expect(new DeviceTypeset(scope.library!.db).get("device-a", "kindle")).toEqual({ margin: "wide", profileId: created.id });
     await invoke(deleteTypesetProfile, { id: created.id }); expect(await invoke(listTypesetProfiles, undefined) as TypesettingProfile[]).toHaveLength(1);
   });
 });

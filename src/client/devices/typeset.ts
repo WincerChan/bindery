@@ -44,15 +44,25 @@ export function devicePresets(kind: DeviceKind, panel?: ScreenPanel): DevicePres
   return DEVICE_TYPESET[kind].presets.map(preset => ({ ...preset, px: Math.round(preset.px * scale) }));
 }
 
-/** The device's own margin setting; font size and line spacing are previewed at the measured values. */
-export interface DeviceReadingSettings { margin: string }
-export function defaultReadingSettings(kind: DeviceKind): DeviceReadingSettings {
-  return { margin: DEVICE_TYPESET[kind].presets[0].id };
+/** The built-in profile is shared by every device; a device remembers a profile by this id. */
+export const DEFAULT_PROFILE_ID = "default";
+export function profileIdInput(value: unknown): string {
+  if (typeof value !== "string" || !/^[\w-]{1,128}$/.test(value)) throw new Error("无效的排版方案 ID");
+  return value;
 }
-/** Accepts stored or edited values; an unknown preset falls back to the measured default. */
+
+/** The device's own margin setting and remembered profile; font size and line spacing are previewed at the measured values. */
+export interface DeviceReadingSettings { margin: string; profileId: string }
+export function defaultReadingSettings(kind: DeviceKind): DeviceReadingSettings {
+  return { margin: DEVICE_TYPESET[kind].presets[0].id, profileId: DEFAULT_PROFILE_ID };
+}
+/** Accepts stored or edited values; an unknown preset falls back to the measured default and an absent profile to the built-in one. */
 export function readingSettings(kind: DeviceKind, raw: unknown): DeviceReadingSettings {
   const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-  return { margin: typeof value.margin === "string" && DEVICE_TYPESET[kind].presets.some(preset => preset.id === value.margin) ? value.margin : defaultReadingSettings(kind).margin };
+  return {
+    margin: typeof value.margin === "string" && DEVICE_TYPESET[kind].presets.some(preset => preset.id === value.margin) ? value.margin : defaultReadingSettings(kind).margin,
+    profileId: value.profileId === undefined ? DEFAULT_PROFILE_ID : profileIdInput(value.profileId),
+  };
 }
 
 /**

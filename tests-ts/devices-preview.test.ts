@@ -185,7 +185,7 @@ it("persists device reading settings for a paired device, debounced, and keeps m
   expect(input(mounted.root, "kt-reading-scale")).toBeUndefined(); expect(input(mounted.root, "kt-reading-line-height")).toBeUndefined();
   setValue(labels(mounted.root, "select", "设备页边距"), "wide", "change");
   await new Promise(resolve => setTimeout(resolve, 560)); await settle();
-  expect(reading.save).toHaveBeenCalledWith(id, "kindle", { margin: "wide" });
+  expect(reading.save).toHaveBeenCalledWith(id, "kindle", { margin: "wide", profileId: "default" });
   const calls = reading.save.mock.calls.length;
   setValue(labels(mounted.root, "select", "预览设备"), "", "change");
   setValue(labels(mounted.root, "select", "设备页边距"), "medium", "change");
@@ -280,6 +280,84 @@ it("keeps a manually chosen remembered preview target across probes and blocks s
   expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(second.id);
   expect(mounted.root.textContent).toContain("预览的是 我的 Libra，请切换到这台设备后发送。");
   expect((button(mounted.root, "发送到 我的 Paperwhite") as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("switches to a reconnected device after a manual device choice", async () => {
+  const first = await paired(), second = await paired("kobo");
+  await first.repo.put((await second.manager.remembered())[0]!);
+  const mounted = mount(first.manager); await settle();
+  setValue(labels(mounted.root, "select", "预览设备"), second.id, "change"); await settle();
+  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(second.id);
+  first.fs.unplug(); await first.manager.probe(); await settle();
+  first.fs.plug(); await first.manager.probe(); await settle();
+  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(first.id);
+  expect(frame(mounted.root).getAttribute("width")).toBe("1072");
+});
+
+it("switches a model-only preview to a different device that becomes granted", async () => {
+  const first = await paired(), second = await paired("kobo"), reading = readingApi();
+  await first.repo.put((await second.manager.remembered())[0]!);
+  reading.store.set(`${second.id}:kobo`, { ...defaultReadingSettings("kobo"), profileId: "custom" });
+  const mounted = mount(first.manager, { reading: reading.api }); await settle();
+  setValue(labels(mounted.root, "select", "预览设备"), "", "change"); await settle();
+  await first.manager.restore(second.id); await settle();
+  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(second.id);
+  expect(frame(mounted.root).getAttribute("width")).toBe("1264");
+  expect((labels(mounted.root, "select", "方案") as HTMLSelectElement).value).toBe("custom");
+});
+
+it("keeps a dirty draft and offers to switch when a different device becomes granted", async () => {
+  const first = await paired(), second = await paired("kobo");
+  await first.repo.put((await second.manager.remembered())[0]!);
+  const mounted = mount(first.manager); await settle();
+  setValue(input(mounted.root, "kt-marginX"), "2.5");
+  await first.manager.restore(second.id); await settle();
+  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(first.id);
+  expect(frame(mounted.root).getAttribute("width")).toBe("1072");
+  const notice = button(mounted.root, "切换到 我的 Libra"); expect(notice).toBeDefined();
+  fire(notice, "click"); await settle();
+  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(second.id);
+  expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("2.5");
+});
+
+it("does not let a restored but ungranted device override a manual choice", async () => {
+  const first = await paired(), second = await paired("kobo");
+  await first.repo.put((await second.manager.remembered())[0]!);
+  const mounted = mount(first.manager); await settle();
+  setValue(labels(mounted.root, "select", "预览设备"), first.id, "change");
+  second.fs.permission = "prompt";
+  await first.manager.restore(second.id); await settle();
+  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(first.id);
+  expect(frame(mounted.root).getAttribute("width")).toBe("1072");
+});
+
+it("selects each paired device's remembered profile and saves a manual choice only for that device", async () => {
+  const first = await paired(), second = await paired("kobo"), reading = readingApi();
+  await first.repo.put((await second.manager.remembered())[0]!);
+  reading.store.set(`${first.id}:kindle`, { ...defaultReadingSettings("kindle"), profileId: "default" });
+  reading.store.set(`${second.id}:kobo`, { ...defaultReadingSettings("kobo"), profileId: "custom" });
+  const mounted = mount(first.manager, { reading: reading.api }); await settle();
+  const deviceSelect = () => labels(mounted.root, "select", "预览设备") as HTMLSelectElement;
+  const profileSelect = () => labels(mounted.root, "select", "方案") as HTMLSelectElement;
+  expect(profileSelect().value).toBe("default");
+  setValue(deviceSelect(), second.id, "change"); await settle();
+  expect(profileSelect().value).toBe("custom");
+  setValue(deviceSelect(), first.id, "change"); await settle();
+  expect(profileSelect().value).toBe("default");
+  setValue(deviceSelect(), second.id, "change"); await settle();
+  setValue(profileSelect(), "default", "change");
+  await new Promise(resolve => setTimeout(resolve, 560)); await settle();
+  expect(reading.save).toHaveBeenLastCalledWith(second.id, "kobo", { margin: "min", profileId: "default" });
+  setValue(deviceSelect(), first.id, "change"); await settle();
+  expect(profileSelect().value).toBe("default");
+  expect(reading.store.get(`${first.id}:kindle`)).toEqual({ margin: "narrow", profileId: "default" });
+});
+
+it("reads a device's deleted profile id as the default profile", async () => {
+  const { manager, id } = await paired(), reading = readingApi();
+  reading.store.set(`${id}:kindle`, { ...defaultReadingSettings("kindle"), profileId: "deleted-profile" });
+  const mounted = mount(manager, { reading: reading.api }); await settle();
+  expect((labels(mounted.root, "select", "方案") as HTMLSelectElement).value).toBe("default");
 });
 
 it("updates preview asset modes live and includes the strip toggles in reset, save and dirty state", async () => {

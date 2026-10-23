@@ -40,10 +40,11 @@ describe("panels, device kinds and preview geometry", () => {
   });
 
   it("keeps only the device margin preset, percent against the column and em against the measured face", () => {
-    expect(defaultReadingSettings("kindle")).toEqual({ margin: "narrow" });
-    expect(defaultReadingSettings("kobo")).toEqual({ margin: "min" });
-    expect(readingSettings("kindle", { margin: "missing" })).toEqual({ margin: "narrow" });
-    expect(readingSettings("kindle", { margin: "wide" })).toEqual({ margin: "wide" });
+    expect(defaultReadingSettings("kindle")).toEqual({ margin: "narrow", profileId: DEFAULT_PROFILE_ID });
+    expect(defaultReadingSettings("kobo")).toEqual({ margin: "min", profileId: DEFAULT_PROFILE_ID });
+    expect(readingSettings("kindle", { margin: "missing" })).toEqual({ margin: "narrow", profileId: DEFAULT_PROFILE_ID });
+    expect(readingSettings("kindle", { margin: "wide", profileId: "custom" })).toEqual({ margin: "wide", profileId: "custom" });
+    expect(() => readingSettings("kindle", { margin: "wide", profileId: "bad id" })).toThrow("无效的排版方案 ID");
     const geometry = pageGeometry(kindleTarget("KPW3"), defaultReadingSettings("kindle"));
     expect(geometry.emPx).toBe(55);
     expect(marginXPx(geometry, 1, "em")).toBe(55);
@@ -95,7 +96,7 @@ describe("Kobo approximate preview settings", () => {
   it("previews at the measured font size and line spacing, ignoring older stored values", () => {
     const geometry = pageGeometry(koboTarget("libra2"), readingSettings("kobo", { margin: "min", scale: 1.2, lineHeight: 1.8 }));
     expect(geometry).toMatchObject({ emPx: 53.5, lineHeight: 1.54, column: 1184, contentHeight: 1424 });
-    expect(readingSettings("kobo", { margin: "bogus", scale: 9 })).toEqual({ margin: "min" });
+    expect(readingSettings("kobo", { margin: "bogus", scale: 9 })).toEqual({ margin: "min", profileId: DEFAULT_PROFILE_ID });
     expect(readingSettings("kobo", "garbage")).toEqual(defaultReadingSettings("kobo"));
   });
 });

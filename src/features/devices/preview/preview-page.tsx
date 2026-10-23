@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { errorMessage } from "../../../client/devices/fs";
 import { deviceKindLabel, kindleModelInfo, koboModelInfo, modelShortName, type DeviceKind } from "../../../client/devices/models";
 import { defaultProfile, DEFAULT_PROFILE_ID, EMPTY_SETTINGS, generateProfileCss, profileSettings, type ProfileSettings, type TypesettingProfile } from "../../../client/devices/profiles";
@@ -57,15 +57,15 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const currentIdentity = () => state()?.device?.identity ?? null;
   const [target, setTarget] = createSignal<Target | null>(null), [modelKind, setModelKind] = createSignal<DeviceKind>("kindle"), [model, setModel] = createSignal("KPW3");
   const [reading, setReading] = createSignal<DeviceReadingSettings>(defaultReadingSettings("kindle"));
-  const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [draft, setDraft] = createSignal<TypesettingProfile>(defaultProfile());
+  const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profilesReady, setProfilesReady] = createSignal(false), [draft, setDraft] = createSignal<TypesettingProfile>(defaultProfile());
   const [baseline, setBaseline] = createSignal(JSON.stringify(defaultProfile())), [sent, setSent] = createSignal<string | null>(null);
   const [fonts, setFonts] = createSignal<FontFamily[]>([]);
   const [busy, setBusy] = createSignal(false), [loading, setLoading] = createSignal(false);
-  const [error, setError] = createSignal(""), [notice, setNotice] = createSignal("");
+  const [error, setError] = createSignal(""), [notice, setNotice] = createSignal(""), [switchNotice, setSwitchNotice] = createSignal<Target | null>(null);
   const [saveAs, setSaveAs] = createSignal(false), [saveName, setSaveName] = createSignal(""), [deleting, setDeleting] = createSignal(false);
   const [bookId, setBookId] = createSignal(props.data.bookId), [sections, setSections] = createSignal(props.data.sections), [chapter, setChapter] = createSignal(0), [chapterStart, setChapterStart] = createSignal({ page: 1 });
   const [chapterLoading, setChapterLoading] = createSignal(false), [chapterError, setChapterError] = createSignal(props.data.error);
-  let disposed = false, profileRequest = 0, chapterRequest = 0, initialFontApplied = false, readingRequest = 0, saveTimer: ReturnType<typeof setTimeout> | undefined, followedId: string | undefined, modelOnlyByUser = false;
+  let disposed = false, profileRequest = 0, chapterRequest = 0, initialFontApplied = false, readingRequest = 0, saveTimer: ReturnType<typeof setTimeout> | undefined, followedId: string | undefined, modelOnlyByUser = false, lastGrant: { id: string; root: unknown } | null = null;
 
   const previewName = () => target()?.name ?? modelShortName(modelKind(), model());
   const kind = () => target()?.kind ?? modelKind();
@@ -110,6 +110,21 @@ function DevicePreviewPageInner(props: PreviewProps) {
   };
   function openChapter(index: number, page = 1) { setChapter(index); setChapterStart({ page }); }
   function selectProfile(profile: TypesettingProfile) { const selected = copyProfile(profile); setDraft(selected); setBaseline(JSON.stringify(selected)); setSent(null); setError(""); setNotice(""); }
+  function resolveProfileId(id: string) { return id === DEFAULT_PROFILE_ID || profiles().some(profile => profile.id === id) ? id : DEFAULT_PROFILE_ID; }
+  function applyRememberedProfile(value: DeviceReadingSettings) {
+    if (!profilesReady() || blockerDirty() || !target()?.id) return;
+    const profileId = resolveProfileId(value.profileId);
+    if (profileId !== value.profileId) setReading(current => ({ ...current, profileId }));
+    if (profileId === draft().id) return;
+    selectProfile(profiles().find(profile => profile.id === profileId) ?? defaultProfile());
+  }
+  function rememberProfile(profileId: string) {
+    const selected = target();
+    if (!selected?.id || !props.reading) return;
+    const value = readingSettings(selected.kind, { ...reading(), profileId });
+    setReading(value);
+    scheduleReadingSave(value);
+  }
   function edit<K extends keyof ProfileSettings>(key: K, value: ProfileSettings[K]) { if (!locked()) setDraft(old => ({ ...old, settings: { ...old.settings, [key]: value } })); }
   function editMargin(value: number | null) { if (!locked()) setDraft(old => ({ ...old, settings: { ...old.settings, marginX: value, ...(value === null ? {} : { marginXUnit: "percent" as const }) } })); }
   function editReading(patch: Partial<DeviceReadingSettings>) { const value = readingSettings(kind(), { ...reading(), ...patch }); setReading(value); scheduleReadingSave(value); }
@@ -122,13 +137,18 @@ function DevicePreviewPageInner(props: PreviewProps) {
   function chooseTarget(id: string) {
     if (busy()) return;
     const identity = available().find(value => value.id === id);
-    modelOnlyByUser = !identity; followedId = undefined;
+    modelOnlyByUser = !identity; followedId = undefined; setSwitchNotice(null);
     setTarget(identity ? { id: identity.id, kind: identity.kind, model: identity.model, name: identity.name } : null);
   }
   function chooseModelKind(value: DeviceKind) {
     if (busy()) return;
-    modelOnlyByUser = true; setModelKind(value); setModel(defaultModel(value)); setTarget(null);
+    modelOnlyByUser = true; setSwitchNotice(null); setModelKind(value); setModel(defaultModel(value)); setTarget(null);
     const fallback = defaultReadingSettings(value); setReading(fallback);
+  }
+  function switchToPendingGrant() {
+    const pending = switchNotice();
+    if (!pending) return;
+    setSwitchNotice(null); followedId = pending.id; modelOnlyByUser = false; setTarget(pending);
   }
   function openSaveAs() { setSaveName(draft().builtIn && draft().name === defaultProfile().name ? "我的排版" : draft().name); setSaveAs(true); }
   function reset() { if (!dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？")) selectProfile(JSON.parse(baseline()) as TypesettingProfile); }
@@ -151,18 +171,21 @@ function DevicePreviewPageInner(props: PreviewProps) {
     try {
       await props.profiles.delete(current.id);
       if (disposed) return;
-      setProfiles(items => items.filter(item => item.id !== current.id)); selectProfile(defaultProfile()); setNotice("排版方案已删除。");
+      setProfiles(items => items.filter(item => item.id !== current.id));
+      if (reading().profileId === current.id) setReading(value => ({ ...value, profileId: DEFAULT_PROFILE_ID }));
+      selectProfile(defaultProfile()); setNotice("排版方案已删除。");
     } catch (error) { if (!disposed) setError(errorMessage(error)); }
     finally { if (!disposed) setBusy(false); }
   }
   async function loadProfiles() {
-    const request = ++profileRequest; setLoading(true); setError("");
+    const request = ++profileRequest; setLoading(true); setError(""); setProfilesReady(false);
     try {
       const items = await props.profiles.list();
       if (disposed || request !== profileRequest) return;
-      setProfiles(items); selectProfile(items.find(item => item.builtIn) ?? defaultProfile());
+      setProfiles(items); setProfilesReady(true); selectProfile(items.find(item => item.builtIn) ?? defaultProfile());
       if (props.initialFont && !initialFontApplied) { initialFontApplied = true; setDraft({ id: "draft", name: "字体预览", builtIn: false, settings: { ...EMPTY_SETTINGS, fontFamily: props.initialFont } }); }
-    } catch (error) { if (!disposed && request === profileRequest) { selectProfile(defaultProfile()); setError(errorMessage(error)); } }
+      applyRememberedProfile(reading());
+    } catch (error) { if (!disposed && request === profileRequest) { setProfilesReady(false); selectProfile(defaultProfile()); setError(errorMessage(error)); } }
     finally { if (!disposed && request === profileRequest) setLoading(false); }
   }
   async function chooseBook(id: string) {
@@ -172,14 +195,32 @@ function DevicePreviewPageInner(props: PreviewProps) {
     finally { if (!disposed && request === chapterRequest) setChapterLoading(false); }
   }
   createEffect(() => props.data, data => { chapterRequest++; setBookId(data.bookId); setSections(data.sections); openChapter(0); setChapterLoading(false); setChapterError(data.error); });
+  createEffect(state, () => {
+    // `restore()` briefly keeps the previous status; checkedAt confirms a completed probe.
+    const current = state(), grant = current?.status === "granted" && current.checkedAt !== null ? current.device : null;
+    if (!grant) { lastGrant = null; return; }
+    if (lastGrant?.id === grant.identity.id && lastGrant.root === grant.root) return;
+    lastGrant = { id: grant.identity.id, root: grant.root };
+    const identity = { id: grant.identity.id, kind: grant.identity.kind, model: grant.identity.model, name: grant.identity.name };
+    // A new connection or reconnect always becomes the preview target, unless an unsaved, unsent draft would be lost.
+    if (untrack(blockerDirty)) {
+      if (untrack(target)?.id !== identity.id) setSwitchNotice(identity);
+      return;
+    }
+    followedId = identity.id; modelOnlyByUser = false; setSwitchNotice(null); setTarget(identity);
+  });
   createEffect(currentIdentity, identity => {
-    if (!identity || modelOnlyByUser || (target() && target()!.id !== followedId)) return;
+    // A restored but not granted device keeps the old rule: only the default target follows it.
+    if (!identity || state()?.status === "granted" || modelOnlyByUser || (target() && target()!.id !== followedId)) return;
     followedId = identity.id; setTarget({ id: identity.id, kind: identity.kind, model: identity.model, name: identity.name });
   });
   createEffect(readingKey, () => {
     const selected = target(), request = ++readingRequest;
-    if (!selected?.id || !props.reading) { setReading(defaultReadingSettings(kind())); return; }
-    void props.reading.get(selected.id, selected.kind).then(value => { if (!disposed && request === readingRequest) setReading(value); }, error => { if (!disposed && request === readingRequest) { setReading(defaultReadingSettings(selected.kind)); setError(errorMessage(error)); } });
+    if (!selected?.id || !props.reading) { const value = defaultReadingSettings(kind()); setReading(value); applyRememberedProfile(value); return; }
+    void props.reading.get(selected.id, selected.kind).then(value => {
+      if (disposed || request !== readingRequest) return;
+      const normalized = readingSettings(selected.kind, value); setReading(normalized); applyRememberedProfile(normalized);
+    }, error => { if (!disposed && request === readingRequest) { setReading(defaultReadingSettings(selected.kind)); setError(errorMessage(error)); } });
   });
   createEffect(() => fontDevice()?.identity.id, () => {
     const current = fontDevice();
@@ -210,7 +251,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
       </section>
       <div class="kt-profile-controls"><Select label="方案" value={draft().id} disabled={busy() || loading()} onChange={event => {
         const selected = profiles().find(profile => profile.id === event.currentTarget.value);
-        if (selected && (!dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？"))) selectProfile(selected);
+        if (selected && (!dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？"))) { selectProfile(selected); rememberProfile(selected.id); }
         event.currentTarget.value = draft().id;
       }}>
         <Show when={!profiles().some(profile => profile.id === draft().id)}><option value={draft().id}>{draft().name}{dirty() ? " · 已调整（未保存）" : ""}</option></Show>
@@ -219,6 +260,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
       <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
       <Show when={notice()}><p role="status">{notice()}</p></Show>
+      <Show when={switchNotice()}>{pending => <p role="status" class="notice">已连接「{pending().name}」，当前排版有未保存的修改。<Button variant="quiet" disabled={busy()} onClick={switchToPendingGrant}>切换到 {pending().name}</Button></p>}</Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={dirty()}><p role="status">有未保存的修改</p></Show>
       <Show when={draft().settings.fontFamily && !family()}><p class="muted">所选字体当前预览设备不可用，预览暂用替代字体；发送前请确认目标设备已安装。</p></Show>

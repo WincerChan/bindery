@@ -72,9 +72,9 @@ describe("typeset storage migration", () => {
 describe("device reading settings", () => {
   it("stores per device, validates values and defaults by kind", () => {
     const { db } = legacyDatabase(), settings = new DeviceTypeset(db);
-    expect(settings.get("other-device", "kobo")).toEqual({ margin: "min" });
-    expect(settings.save({ deviceId: "other-device", kind: "kobo", settings: { margin: "bogus", scale: 9 } })).toEqual({ margin: "min" });
-    expect(settings.save({ deviceId: "kindle-device", kind: "kindle", settings: { margin: "wide" } })).toEqual({ margin: "wide" });
-    expect(settings.get("kindle-device", "kindle")).toEqual({ margin: "wide" });
+    expect(settings.get("other-device", "kobo")).toEqual({ margin: "min", profileId: "default" });
+    expect(settings.save({ deviceId: "other-device", kind: "kobo", settings: { margin: "bogus", scale: 9 } })).toEqual({ margin: "min", profileId: "default" });
+    expect(settings.save({ deviceId: "kindle-device", kind: "kindle", settings: { margin: "wide", profileId: "default" } })).toEqual({ margin: "wide", profileId: "default" });
+    expect(settings.get("kindle-device", "kindle")).toEqual({ margin: "wide", profileId: "default" });
   });
 });
