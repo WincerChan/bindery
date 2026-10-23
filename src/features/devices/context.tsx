@@ -2,7 +2,8 @@ import { createContext, createSignal, onSettled, useContext } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { DeviceManager, assertReachable, deviceInventory, errorMessage, getTransferQueue, type DeviceInventory, type DeviceState, type RememberedDevice, type TransferItem, type TransferQueue, type TransferRequestOptions } from "../../client/devices";
 import type { DeviceKind } from "../../client/devices/models";
-import { koboReadingSummary, type KoboReadingSync } from "./kobo-summary";
+import { koboReadingSummary, type KoboAutoSyncResult, type KoboReadingSync } from "./kobo-summary";
+import { kindleReadingSummary, type KindleAutoSyncResult, type KindleReadingSync } from "./kindle-summary";
 
 // One inert manager per runtime. SSR never calls its browser / File System Access APIs.
 let shared: DeviceManager | null = null;
@@ -13,7 +14,7 @@ export const kindleManager = deviceManager;
 
 const neutral = (): DeviceState => ({ status: "unpaired", device: null, detected: null, checkedAt: null, now: 0, message: "" });
 
-function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue, koboReadingSync?: KoboReadingSync) {
+function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue, koboReadingSync?: KoboReadingSync, kindleReadingSync?: KindleReadingSync) {
   const [ready, setReady] = createSignal(false), [supported, setSupported] = createSignal(false);
   const [state, setState] = createSignal<DeviceState>(neutral());
   const [inventory, setInventory] = createSignal<DeviceInventory | null>(null);
@@ -67,31 +68,36 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue,
     catch (e) { if (alive && !(e instanceof Error && e.name === "AbortError")) setError(errorMessage(e, kind())); }
     finally { if (alive) setBusy(false); }
   }
-  /** Once per Kobo connection; a reconnect or an explicit refresh starts another pass. */
-  async function runKoboReadingSync(next: DeviceState, force = false) {
+  /** Once per device connection; a reconnect or an explicit refresh starts another pass. */
+  async function runReadingSync(next: DeviceState, force = false) {
     const device = next.status === "granted" ? next.device : null;
-    if (!device || device.identity.kind !== "kobo") {
+    const kind = device?.identity.kind;
+    const sync = kind === "kobo" ? koboReadingSync : kind === "kindle" ? kindleReadingSync : undefined;
+    if (!device || !sync) {
       syncKey = ""; syncQueued = false;
       if (!force) { setSyncSummary(""); setSyncError(""); }
       return;
     }
-    if (!koboReadingSync || !force && syncKey === device.identity.id) return;
+    if (!force && syncKey === device.identity.id) return;
     if (syncRunning) { if (force) syncQueued = true; return; }
     const key = device.identity.id;
     syncKey = key; syncRunning = true; syncQueued = false;
     setSyncError(""); setSyncSummary("正在同步阅读进度…");
     const current = () => alive && manager.snapshot().status === "granted" && manager.snapshot().device?.identity.id === key;
-    try { const result = await koboReadingSync(device); if (current()) setSyncSummary(koboReadingSummary(result)); }
-    catch (e) { if (current()) { setSyncSummary(""); setSyncError(`阅读进度同步失败：${errorMessage(e, "kobo")}`); } }
+    try {
+      const result = await sync(device);
+      if (current()) setSyncSummary(kind === "kobo" ? koboReadingSummary(result as KoboAutoSyncResult) : kindleReadingSummary(result as KindleAutoSyncResult));
+    }
+    catch (e) { if (current()) { setSyncSummary(""); setSyncError(`阅读进度同步失败：${errorMessage(e, kind ?? "kindle")}`); } }
     finally {
       syncRunning = false;
-      if (syncQueued && alive) { syncQueued = false; void runKoboReadingSync(manager.snapshot(), true); }
+      if (syncQueued && alive) { syncQueued = false; void runReadingSync(manager.snapshot(), true); }
     }
   }
   function receive(next: DeviceState) {
     const previous = observed; observed = next; setState(next);
     if (previous.status !== next.status || previous.device?.identity.id !== next.device?.identity.id || previous.device?.root !== next.device?.root) { setInventory(null); void refreshInventory(); }
-    void runKoboReadingSync(next);
+    void runReadingSync(next);
   }
   function start() {
     setSupported(typeof (globalThis as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === "function");
@@ -121,7 +127,7 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue,
       else await manager.requestPermission();
       await loadRemembered();
     }),
-    refresh: () => run(async () => { await manager.probe(); await runKoboReadingSync(manager.snapshot(), true); await refreshInventory(); await loadRemembered(); }),
+    refresh: () => run(async () => { await manager.probe(); await runReadingSync(manager.snapshot(), true); await refreshInventory(); await loadRemembered(); }),
     forget: (id: string) => run(async () => { await manager.forget(id); await loadRemembered(); }),
     switchDevice: (id: string) => run(async () => {
       const saved = (await manager.remembered()).find(device => device.id === id);
@@ -145,8 +151,8 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue,
 export type DeviceContextValue = ReturnType<typeof createDeviceContext>;
 const DeviceContext = createContext<DeviceContextValue | null>(null);
 /** Shared across device tabs; navigating never cancels the SPA queue. */
-export function DeviceProvider(props: { children: JSX.Element; manager?: DeviceManager; queue?: TransferQueue; koboReadingSync?: KoboReadingSync }) {
-  const value = createDeviceContext(props.manager ?? deviceManager(), () => props.queue ?? getTransferQueue(), props.koboReadingSync);
+export function DeviceProvider(props: { children: JSX.Element; manager?: DeviceManager; queue?: TransferQueue; koboReadingSync?: KoboReadingSync; kindleReadingSync?: KindleReadingSync }) {
+  const value = createDeviceContext(props.manager ?? deviceManager(), () => props.queue ?? getTransferQueue(), props.koboReadingSync, props.kindleReadingSync);
   onSettled(() => value.start());
   return <DeviceContext value={value}>{props.children}</DeviceContext>;
 }

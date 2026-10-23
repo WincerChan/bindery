@@ -21,7 +21,7 @@ export function DeviceConnectPage() {
         <h1>连接你的设备</h1>
         <Show when={detection()} fallback={<p class="muted">用 USB 线连上电脑后，在浏览器里选中设备根目录。Bindery 会根据根目录结构自动识别 Kindle 或 Kobo；设备身份保存在 .bindery/。</p>}>
           <Show when={detectedKind() === "kindle"} fallback={<p class="muted">Kobo 的书写入 Bindery/，字体写入 fonts/，设备身份保存在 .bindery/。只读取阅读进度，不会修改 KoboReader.sqlite。</p>}>
-            <p class="muted">Kindle 的书写入 documents/、封面写入 system/thumbnails/，字体写入 fonts/，设备身份保存在 .bindery/。</p>
+            <p class="muted">Kindle 的书写入 documents/、封面写入 system/thumbnails/，字体写入 fonts/，设备身份保存在 .bindery/。只读取阅读位置，不会修改 Kindle 上的任何文件。</p>
           </Show>
         </Show>
       </div>

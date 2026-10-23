@@ -3,6 +3,7 @@ import { listFonts, type FontFamily } from "./fonts";
 import { assertDevice, type PairedDevice } from "./identity";
 import type { DeviceKind } from "./models";
 import { readManifest, type ManifestBook } from "../kindle/manifest";
+import { readKindleReading } from "../kindle/reading";
 import { readKoboReading, type KoboContentRow, type KoboDatabaseLoader, type KoboFallbackBook } from "./kobo/reading";
 import type { KoboManifestBook } from "./kobo/manifest";
 import { withDeviceLock } from "./transaction";
@@ -45,6 +46,9 @@ async function kindleInventory(root: DeviceDirectory, unreadable: UnreadableEntr
   const reader = new EntryReader(root, unreadable), documents = await entryOperation(root, "documents", () => root.getDirectoryHandle("documents"));
   const manifest = await reader.read(".bindery/manifest.json", () => readManifest(root));
   const records = new Map(manifest?.books.map(b => [b.filename.toLowerCase(), b])), books: DeviceBook[] = [];
+  let reading: Awaited<ReturnType<typeof readKindleReading>> | null = null;
+  try { reading = await readKindleReading(root, manifest ?? { version: 1, books: [] }); } catch { /* A damaged sidecar must not hide the device's books. */ }
+  const progressByBook = new Map((reading?.entries ?? []).map(entry => [entry.book_id, entry]));
   let bookBytes = 0, other = 0;
   const visitDocuments = async (dir: DeviceDirectory, prefix = "") => {
     const dirPath = `documents/${prefix}`.replace(/\/$/, "");
@@ -57,7 +61,9 @@ async function kindleInventory(root: DeviceDirectory, unreadable: UnreadableEntr
       if (!file) continue;
       if (isBook(entry.name)) {
         const record = records.get(filename.toLowerCase()) ?? null; bookBytes += file.size;
-        books.push({ filename, format: entry.name.split(".").at(-1)!.toLowerCase(), size: file.size, modifiedAt: file.lastModified, sidecar: sidecars.get(entry.name.replace(/\.[^.]+$/, ".sdr").toLowerCase()) ?? null, source: record ? "Bindery" : "其他", book_id: record?.book_id ?? null, record, progress: null });
+        const readingEntry = record ? progressByBook.get(record.book_id) : undefined;
+        const progress = readingEntry ? { read_status: 1 as const, percent: readingEntry.percent, last_read_at: readingEntry.last_read_at } : null;
+        books.push({ filename, format: entry.name.split(".").at(-1)!.toLowerCase(), size: file.size, modifiedAt: file.lastModified, sidecar: sidecars.get(entry.name.replace(/\.[^.]+$/, ".sdr").toLowerCase()) ?? null, source: record ? "Bindery" : "其他", book_id: record?.book_id ?? null, record, progress });
       } else other += file.size;
     }
   };

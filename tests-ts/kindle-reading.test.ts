@@ -111,3 +111,48 @@ describe("KFX position maps", () => {
     await expect(readKfxPositions(new Blob([encoder.encode("CONT")]))).rejects.toBeInstanceOf(KfxPositionsError);
   });
 });
+
+import { fakeKindle } from "./support/fake-fs";
+import { lprStore, miniKfx, positionString } from "./support/kindle-reading";
+import { readManifest, type DeviceManifest, type ManifestBook } from "../src/client/kindle/manifest";
+import { readKindleReading } from "../src/client/kindle/reading";
+
+const bookId = (value: string) => value.repeat(32).slice(0, 32);
+const record = (book_id: string, filename: string, content_id: string, size = 0): ManifestBook => ({ book_id, filename, content_id, cde_content_type: "EBOK", profile_id: "default", profile_name: "默认", transferred_at: "2026-10-22T13:12:00Z", size, thumbnail: null });
+
+describe("Kindle device reading pass", () => {
+  it("reads the newest sidecar without writing, counts unreadable and unmatched books", async () => {
+    const fs = await fakeKindle(), { data, positions } = await miniKfx();
+    const first = positions.chapters[1]!, eid = [...first.eids][0]!, newer = positionString(eid, 0, first.startPid);
+    const older = positionString([...positions.chapters[0]!.eids][0]!, 0, positions.chapters[0]!.startPid);
+    const jia = record(bookId("1"), "甲.kfx", "content_jia", data.length), yi = record(bookId("2"), "乙.kfx", "content_yi", data.length);
+    const bing = record(bookId("3"), "丙.kfx", "content_bing", data.length), ding = record(bookId("4"), "丁.kfx", "content_ding", data.length);
+    const manifest: DeviceManifest = { version: 1, books: [jia, yi, bing, ding] };
+    for (const book of manifest.books) await fs.write(`documents/${book.filename}`, book === ding ? "not a KFX" : data);
+    await fs.write(`documents/甲.sdr/甲673205bd7b6c0394b1593a9fbced79ec.yjf`, lprStore(older, 1_792_748_800_000n));
+    await fs.write(`documents/甲.sdr/甲673205bd7b6c0394b1593a9fbced79ec.yjf.bad_file`, "ignored");
+    await fs.write(`documents/甲_content_jia.sdr/甲_content_jia673205bd7b6c0394b1593a9fbced79ec.yjf`, lprStore(newer, 1_792_748_847_039n));
+    await fs.write(`documents/丙.sdr/丙673205bd7b6c0394b1593a9fbced79ec.yjf`, "broken");
+    await fs.write(`documents/丁.sdr/丁673205bd7b6c0394b1593a9fbced79ec.yjf`, lprStore(newer, 1_792_748_847_039n));
+    await fs.write(`documents/戊.sdr/戊673205bd7b6c0394b1593a9fbced79ec.yjf`, lprStore(newer, 1_792_748_847_039n));
+    await fs.write(".bindery/manifest.json", JSON.stringify(manifest));
+    fs.operations = [];
+    const reading = await readKindleReading(fs.root, await readManifest(fs.root));
+    const expected = { chapter: first.index, chapter_fraction: 0, percent: first.startPid / positions.totalPid * 100 };
+    expect(reading).toEqual({
+      entries: [{ book_id: jia.book_id, location: newer, chapter_count: positions.chapters.length, last_read_at: "2026-10-23T09:47:27.039Z", ...expected }],
+      skipped: 3,
+      unmatched: 1,
+    });
+    expect(fs.operations.filter(operation => /createWritable|write|close|remove|get:directory:create|get:file:create|abort/.test(operation.operation))).toEqual([]);
+    expect((await readKindleReading(fs.root, manifest)).entries).toEqual(reading.entries);
+  });
+});
+
+import { kindleReadingSummary } from "../src/features/devices/kindle-sync";
+describe("Kindle reading summary", () => {
+  it("reports synced, unreadable and older kept positions", () => {
+    expect(kindleReadingSummary({ synced: 5, skipped: 0, marked_read: 0, unchanged: 0, kept: 0, unmatched: 0 })).toBe("已同步 5 本书的阅读进度");
+    expect(kindleReadingSummary({ synced: 0, skipped: 2, marked_read: 0, unchanged: 3, kept: 1, unmatched: 4 })).toBe("已同步 3 本书的阅读进度 · 2 本无法读取 · 1 本设备进度较旧，已保留之前的记录");
+  });
+});

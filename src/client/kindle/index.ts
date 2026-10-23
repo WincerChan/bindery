@@ -3,6 +3,7 @@ export * from "./identity";
 export * from "./remembered";
 export * from "./inventory";
 export * from "./manifest";
+export * from "./reading";
 export * from "./fonts";
 export * from "./operations";
 export * from "./transfer";

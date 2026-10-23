@@ -18,13 +18,14 @@ import type { KindleLibraryBook } from "../src/features/kindle/devices/library";
 import { loadKindleLibrary } from "../src/features/kindle/devices/library";
 import type { LibraryPageData } from "../src/server/library/queries";
 import { fakeKindle, fakeKobo } from "./support/fake-fs";
+import { lprStore, miniKfx, positionString } from "./support/kindle-reading";
 import { detectDevice, pairDetectedDevice } from "../src/client/devices/identity";
 import { MemoryDevicePreference } from "../src/client/devices/preferences";
 import { clientDocument, elements, fire } from "./support/client-dom";
 
 type Page = "books" | "connect" | "transfer";
-interface SyncResult { synced: number; skipped: number; marked_read: number; unchanged: number; lagged: boolean; unmatched: number }
-interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; preselected?: string[]; syncKobo?: (device: PairedDevice) => Promise<SyncResult> }
+interface SyncResult { synced: number; skipped: number; marked_read: number; unchanged: number; kept: number; lagged: boolean; unmatched: number }
+interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; preselected?: string[]; syncKobo?: (device: PairedDevice) => Promise<SyncResult>; syncKindle?: (device: PairedDevice) => Promise<SyncResult> }
 interface Mounted { context(): KindleContextValue; page(page: Page): void; books(books: KindleLibraryBook[]): void; flush(): void; dispose(): void }
 interface Probe {
   markup(page: Page, input: Input): string; mount(root: HTMLElement, page: Page, input: Input, hydrate: boolean): Mounted;
@@ -52,7 +53,7 @@ function view(page, input, books, capture) {
       case 'transfer': return <KindleTransferPage books={books()} preselected={input.preselected} loadProfiles={input.loadProfiles} />;
     }
   }
-  return <Loading><KindleProvider manager={input.manager} queue={input.queue} koboReadingSync={input.syncKobo}><Capture receive={capture} /><KindleDeviceBar />{child()}</KindleProvider></Loading>;
+  return <Loading><KindleProvider manager={input.manager} queue={input.queue} koboReadingSync={input.syncKobo} kindleReadingSync={input.syncKindle}><Capture receive={capture} /><KindleDeviceBar />{child()}</KindleProvider></Loading>;
 }
 export function markup(page, input) { return renderToString(() => view(() => page, input, () => input.books, () => {})); }
 export function mount(root, initial, input, hydrating) {
@@ -181,7 +182,7 @@ it("keeps the device identity hierarchy and the complete books toolbar/table in 
   expect(button(actions, "删除所选（0）").hasAttribute("disabled")).toBe(true);
   expect(elements(actions, "a")[0]!.className).toContain("btn-primary");
   const table = withClass(root, "kindle-book-table");
-  expect(elements(table, "th").map(node => node.textContent)).toEqual(["", "书籍", "来源", "格式", "排版方案", "大小", "传入时间", "操作"]);
+  expect(elements(table, "th").map(node => node.textContent)).toEqual(["", "书籍", "来源", "格式", "阅读进度", "排版方案", "大小", "传入时间", "操作"]);
   for (const cell of elements(table, "th")) expect(cell.getAttribute("scope")).toBe("col");
   expect(elements(table, "tbody")).toHaveLength(1); expect(elements(table, "tr", "data-device-book")).toHaveLength(0);
   const nodes = elements(root, "*"); expect(nodes.indexOf(table)).toBeLessThan(nodes.indexOf(withClass(root, "empty-state")));
@@ -333,7 +334,7 @@ it("pairs a selected root with the chosen model/name and forgets only the browse
   const fs = await fakeKindle(), manager = new KindleDeviceManager(repository(), async () => fs.root), m = mount("connect", input(manager));
   await settle(m);
   expect(elements(m.root, "input").some(el => el.getAttribute("value") === "KO3")).toBe(false);
-  fire(button(m.root, "选择设备目录"), "click"); await settle(m); expect(text(m)).toContain("完成首次配对");
+  fire(button(m.root, "选择设备目录"), "click"); await settle(m); expect(text(m)).toContain("完成首次配对"); expect(text(m)).toContain("只读取阅读位置，不会修改 Kindle 上的任何文件");
   expect(elements(m.root, "input").filter(el => el.getAttribute("type") === "radio").map(el => el.getAttribute("value"))).toEqual(["KPW3", "KO3", "other"]);
   const ko3 = elements(m.root, "input").find(el => el.getAttribute("value") === "KO3")!; fire(ko3, "change"); m.flush();
   const name = field(m.root, "显示名称"); name.value = "我的 Oasis"; fire(name, "input"); m.flush();
@@ -391,7 +392,7 @@ it("enqueues a retransmission with the recorded profile and overwrite enabled", 
     .toEqual(["预览 书库甲", "重新传入 书库甲", "从设备删除 书库甲"]);
   expect(elements(actions, "svg")).toHaveLength(3);
   for (const icon of elements(actions, "svg")) expect(icon.getAttribute("aria-hidden")).toBe("true");
-  for (const index of [3, 5, 6]) expect(elements(row, "td")[index]!.className).toContain("kindle-mono");
+  for (const index of [3, 6, 7]) expect(elements(row, "td")[index]!.className).toContain("kindle-mono");
   fire(button(m.root, "重新传入 书库甲"), "click"); await settle(m); expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), "a", "wide", expect.objectContaining({ overwrite: true }));
   expect(text(m)).toContain("已加入传输队列：书库甲");
 });
@@ -518,13 +519,36 @@ it("renders Kobo transfer controls without Kindle-only settings or licenses", as
 });
 
 it("auto-syncs Kobo reading once per connection and again after re-detection", async () => {
-  const c = await connectedKobo(), sync = vi.fn(async (_device: PairedDevice): Promise<SyncResult> => ({ synced: 5, skipped: 0, marked_read: 1, unchanged: 0, lagged: false, unmatched: 0 }));
+  const c = await connectedKobo(), sync = vi.fn(async (_device: PairedDevice): Promise<SyncResult> => ({ synced: 5, skipped: 0, marked_read: 1, unchanged: 0, kept: 0, lagged: false, unmatched: 0 }));
   c.input.syncKobo = sync;
   const m = mount("books", c.input); await settle(m);
   expect(sync).toHaveBeenCalledTimes(1);
   expect(text(m)).toContain("已同步 5 本书的阅读进度 · 1 本标为已读");
   fire(button(m.root, "重新检测"), "click"); await settle(m);
   expect(sync).toHaveBeenCalledTimes(2);
+});
+
+it("auto-syncs Kindle reading once per connection and again after re-detection", async () => {
+  const c = await connected([record("a", "a.kfx", "content_a")]);
+  const sync = vi.fn(async (_device: PairedDevice): Promise<SyncResult> => ({ synced: 2, skipped: 1, marked_read: 0, unchanged: 0, kept: 1, lagged: false, unmatched: 0 }));
+  c.input.syncKindle = sync;
+  const m = mount("books", c.input); await settle(m);
+  expect(sync).toHaveBeenCalledTimes(1);
+  expect(text(m)).toContain("已同步 2 本书的阅读进度 · 1 本无法读取 · 1 本设备进度较旧，已保留之前的记录");
+  fire(button(m.root, "重新检测"), "click"); await settle(m);
+  expect(sync).toHaveBeenCalledTimes(2);
+});
+
+it("shows Kindle reading progress and never calls a full position finished", async () => {
+  const c = await connected([record("a", "a.kfx", "content_a")]), { data, positions } = await miniKfx();
+  await c.fs.write("documents/a.kfx", data);
+  const last = positions.chapters.at(-1)!, location = positionString([...last.eids][0]!, 0, positions.totalPid - 1);
+  await c.fs.write("documents/a.sdr/a673205bd7b6c0394b1593a9fbced79ec.yjf", lprStore(location, 1_792_748_847_039n));
+  const m = mount("books", c.input); await settle(m);
+  const progress = elements(m.root, "td", "data-device-progress").map(node => node.textContent);
+  expect(progress).toHaveLength(1);
+  expect(progress[0]).toMatch(/^在读 \d+% · /);
+  expect(progress[0]).not.toContain("已读完");
 });
 
 it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs", async () => {
