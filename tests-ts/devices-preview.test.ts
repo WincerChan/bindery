@@ -14,6 +14,7 @@ import { defaultReadingSettings, type DeviceReadingSettings } from "../src/clien
 import type { ProfileApi, ReadingApi } from "../src/features/devices/preview/preview-page";
 import type { PreviewData } from "../src/features/devices/preview/model";
 import { clientDocument, elements, fire } from "./support/client-dom";
+import { previewDocumentFixture } from "./support/kindle-preview-dom";
 import { fakeKindle, fakeKobo } from "./support/fake-fs";
 
 type Props = { manager: DeviceManager | null; data: PreviewData; profiles: ProfileApi; reading: ReadingApi; chapters: (book: string) => Promise<{ title: string; item_path: string }[]>; initialFont?: string; onDirty?: (dirty: boolean) => void; queue?: unknown };
@@ -27,6 +28,7 @@ class Handles implements HandleRepository {
   async put(device: RememberedDevice) { this.devices.set(device.id, device); }
   async remove(id: string) { this.devices.delete(id); }
 }
+const font = (name: string) => new File([new Uint8Array([...(name.endsWith(".otf") ? [79, 84, 84, 79] : [0, 1, 0, 0]), 0, 0, 0, 0, 0, 0, 0, 0])], name);
 const data: PreviewData = { books: [{ id: "a", title: "甲", author: "作者" }, { id: "b", title: "乙", author: null }], bookId: "a", sections: [{ title: "第一章", item_path: "Text/第一 章.xhtml" }], error: "" };
 const custom = (settings = { ...EMPTY_SETTINGS, marginX: 1, lineHeight: 1.6 }): TypesettingProfile => ({ id: "custom", name: "正文", builtIn: false, settings });
 function api(): ProfileApi {
@@ -113,9 +115,10 @@ beforeAll(async () => {
 afterEach(() => { disposers.splice(0).reverse().forEach(dispose => dispose()); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
 const settle = async () => { for (let i = 0; i < 5; i++) { await new Promise(resolve => setTimeout(resolve, 0)); ui.flush(); } };
-async function paired(kind: DeviceKind = "kindle") {
+async function paired(kind: DeviceKind = "kindle", files: string[] = []) {
   const fs = kind === "kobo" ? await fakeKobo() : await fakeKindle(), repo = new Handles(), manager = new DeviceManager(repo, async () => fs.root);
   await manager.pick(); await manager.pair(kind === "kobo" ? "libra2" : "KPW3", kind === "kobo" ? "我的 Libra" : "我的 Paperwhite");
+  for (const name of files) await fs.write(`fonts/${name}`, new Uint8Array(await font(name).arrayBuffer()));
   return { fs, repo, manager, id: manager.snapshot().device!.identity.id };
 }
 function propsFor(manager: DeviceManager | null, extra: Partial<Props> = {}): Props {
@@ -140,10 +143,19 @@ it("renders one neutral page with both kinds available, no profile-owning device
   expect(elements(root, "h3").map(node => node.textContent)).toContain("设备阅读设置（只用于预览）");
   expect(root.textContent).not.toContain("方案所属设备");
   expect(labels(root, "select", "预览设备")).toBeDefined(); expect(labels(root, "select", "方案")).toBeDefined();
-  expect(labels(root, "select", "设备种类")).toBeDefined(); expect(labels(root, "select", "预览型号")).toBeDefined();
+  expect(labels(root, "select", "设备种类")).toBeDefined(); expect(elements(labels(root, "select", "设备种类"), "option").map(option => option.textContent)).toEqual(["Kindle", "Kobo"]);
+  expect(labels(root, "select", "预览型号")).toBeDefined(); expect(elements(labels(root, "select", "预览型号"), "option").find(option => option.hasAttribute("selected"))?.getAttribute("value")).toBe("KPW3");
   expect(frame(root).getAttribute("width")).toBe("1072");
   expect(elements(root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("1072×1448");
   expect(elements(root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("实测");
+  expect(elements(root, "input").some(node => node.id === "kt-marginX")).toBe(false);
+  expect(elements(root, "button").filter(node => node.textContent === "保存方案" || node.textContent === "删除")).toHaveLength(0);
+  expect(elements(withClass(root, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["新建方案"]);
+  expect(root.textContent).toContain("默认方案只使用书籍自带样式，不做任何调整");
+  expect(withClass(root, "kt-preview-sticky")).toBeDefined();
+  expect(withClass(root, "kt-device-space").parentElement).toBe(withClass(root, "kt-frame-wrap"));
+  expect(frame(root).getAttribute("sandbox")).toBe("allow-same-origin");
+  expect(withClass(root, "kt-calibration").hasAttribute("open")).toBe(false);
 });
 
 it("switches the preview device between Kindle and Kobo and updates geometry and preset controls", async () => {
@@ -227,8 +239,9 @@ it("protects a dirty draft while changing the preview device", async () => {
   await first.repo.put((await second.manager.remembered())[0]!);
   const mounted = mount(first.manager, { profiles }); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change"); setValue(input(mounted.root, "kt-marginX"), "3");
-  setValue(labels(mounted.root, "select", "预览设备"), second.id, "change");
-  expect(frame(mounted.root).getAttribute("width")).toBe("1264");
+  first.fs.operations = [];
+  setValue(labels(mounted.root, "select", "预览设备"), second.id, "change"); await settle();
+  expect(frame(mounted.root).getAttribute("width")).toBe("1264"); expect(first.fs.operations).toEqual([]);
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("3");
   expect(mounted.root.textContent).toContain("有未保存的修改");
 });
@@ -279,8 +292,285 @@ it("ignores a stale chapter response after the book changed", async () => {
   let finish!: (value: { title: string; item_path: string }[]) => void;
   const chapters = vi.fn((id: string) => id === "b" ? new Promise<{ title: string; item_path: string }[]>(resolve => { finish = resolve; }) : Promise.resolve([{ title: "新第一章", item_path: "new.xhtml" }]));
   const mounted = mount(null, { chapters }); await settle();
+  setValue(labels(mounted.root, "select", "预览型号"), "KO3", "change"); expect(frame(mounted.root).getAttribute("width")).toBe("1264");
   const select = labels(mounted.root, "select", "预览书籍"); setValue(select, "b", "change"); setValue(select, "a", "change"); await settle();
   finish([{ title: "过期第二章", item_path: "stale.xhtml" }]); await settle();
   expect(frame(mounted.root).getAttribute("src")).toBe("/book/a/epub/new.xhtml");
   expect(elements(mounted.root, "option").map(option => option.textContent)).not.toContain("过期第二章");
+});
+
+it("shows compact profile range rows, all strip toggles and advanced settings for an editable profile", async () => {
+  const { manager, id } = await paired(), profiles = api();
+  vi.mocked(profiles.list).mockImplementation(async () => [defaultProfile(), { ...custom(), settings: { ...EMPTY_SETTINGS } }]);
+  const mounted = mount(manager, { profiles }); await settle();
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  const editor = withClass(mounted.root, "kt-editor");
+  expect(elements(editor, "input").filter(node => node.getAttribute("type") === "range" && node.id.startsWith("kt-") && !node.id.startsWith("kt-reading")).map(node => node.id))
+    .toEqual(["kt-marginX", "kt-lineHeight", "kt-paragraphSpacing", "kt-textIndent"]);
+  for (const [key, label, min, max, step, fallback] of [
+    ["marginX", "左右边距调整（%）", "-10", "20", "0.1", "0"],
+    ["lineHeight", "行高", "1.2", "2.4", "0.05", "1.6"],
+    ["paragraphSpacing", "段间距（em）", "0", "1.5", "0.1", "0"],
+    ["textIndent", "首行缩进（em）", "0", "3", "0.5", "2"],
+  ]) {
+    const slider = input(editor, `kt-${key}`), row = slider.parentElement!, output = elements(row, "output")[0]!;
+    expect(Array.from(row.childNodes).filter(node => node.nodeType === 1).map(node => node.nodeName)).toEqual(["LABEL", "INPUT", "SPAN"]);
+    const cell = Array.from(row.childNodes).filter(node => node.nodeType === 1).at(-1) as Element;
+    expect(cell.getAttribute("class")).toBe("kt-range-value");
+    expect(Array.from(cell.childNodes).filter(node => node.nodeType === 1).map(node => node.nodeName)).toEqual(["OUTPUT", "BUTTON"]);
+    expect(["aria-label", "min", "max", "step", "value"].map(attr => slider.getAttribute(attr))).toEqual([label, min, max, step, fallback]);
+    expect(elements(row, "label")[0]!.getAttribute("for")).toBe(slider.id); expect(output.getAttribute("for")).toBe(slider.id);
+    expect(output.textContent).toBe(key === "marginX" ? "默认" : "书籍"); expect(output.className).toBe("is-inherited");
+    const reset = elements(row, "button")[0]!;
+    expect(reset.textContent).toBe("↺"); expect(reset.getAttribute("aria-label")).toBe(key === "marginX" ? "恢复默认" : "恢复沿用书籍");
+    expect(reset.getAttribute("title")).toBe(reset.getAttribute("aria-label"));
+    expect(reset.hasAttribute("hidden")).toBe(true); expect(reset.hasAttribute("disabled")).toBe(true);
+  }
+  const advanced = withClass(editor, "kt-advanced"), checkboxes = withClass(editor, "kt-checkboxes");
+  expect(advanced.hasAttribute("open")).toBe(false);
+  expect(labels(advanced, "textarea", "生成的 CSS（只读）").hasAttribute("readonly")).toBe(true);
+  expect(checkboxes.getAttribute("role")).toBe("group"); expect(checkboxes.getAttribute("aria-label")).toBe("正文样式");
+  expect(elements(checkboxes, "label").map(node => node.textContent)).toEqual(["两端对齐", "去掉书籍自带字体", "去掉所有图片", "去掉书籍自带页边距"]);
+  expect(elements(checkboxes, "input").every(node => node.getAttribute("type") === "checkbox")).toBe(true);
+  expect(elements(labels(editor, "select", "字体（预览设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
+  expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "删除", "另存为", "保存方案"]);
+});
+
+it("fits the frame to the smaller width/height constraint after mount, resize and panel changes, and releases layout listeners", async () => {
+  const observers: LayoutObserver[] = [];
+  class LayoutObserver {
+    targets = new Set<Element>();
+    disconnect = vi.fn(() => { this.targets.clear(); });
+    constructor(readonly callback: () => void) { observers.push(this); }
+    observe(target: Element) { this.targets.add(target); }
+  }
+  const notify = (target: Element) => { for (const observer of observers) if (observer.targets.has(target)) observer.callback(); ui.flush(); };
+  vi.stubGlobal("ResizeObserver", LayoutObserver);
+  const media = Object.assign(new EventTarget(), { matches: true });
+  vi.mocked(window.matchMedia).mockReturnValue(media as unknown as MediaQueryList);
+  let width = 720, height = 500;
+  Object.assign(window, { innerHeight: 900 });
+  const mounted = mount(null, {}, root => {
+    const viewport = withClass(root, "kt-device-space"), preview = withClass(root, "kt-preview");
+    Object.defineProperties(viewport, { clientWidth: { get: () => width }, clientHeight: { get: () => height } });
+    Object.defineProperty(preview, "clientWidth", { value: 720 });
+    expect(elements(root, "iframe")[0]!.getAttribute("style")).toContain("scale(0.4)");
+  });
+  await settle();
+  const viewport = withClass(mounted.root, "kt-device-space"), preview = withClass(mounted.root, "kt-preview"), screen = frame(mounted.root) as HTMLIFrameElement;
+  const scale = () => Number(/scale\(([^)]+)\)/.exec(screen.style.getPropertyValue("transform"))![1]);
+  expect(window.matchMedia).toHaveBeenCalledWith("(min-width: 944px)");
+  expect(scale()).toBeCloseTo((height - 80) / 1448);
+  expect((preview as HTMLElement).getAttribute("style")).toBeNull();
+  width = 260; height = 900; notify(viewport); expect(scale()).toBeCloseTo((width - 44) / 1072);
+  width = 720; height = 300; notify(viewport); expect(scale()).toBeCloseTo((height - 80) / 1448);
+  setValue(labels(mounted.root, "select", "预览型号"), "KO3", "change"); await settle();
+  expect(scale()).toBeCloseTo((height - 80) / 1680);
+  expect(screen.getAttribute("height")).toBe("1680");
+  width = 400; height = 120; media.matches = false; media.dispatchEvent(new Event("change")); ui.flush();
+  expect(scale()).toBeCloseTo((width - 44) / 1264);
+  width = 1200; notify(viewport); expect(scale()).toBeCloseTo(640 / 1680);
+  mounted.dispose();
+  expect(observers).toHaveLength(1); expect(observers.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true);
+});
+
+it("hydrates preview with chapter URLs, device fonts, profile CSS and survives going offline", async () => {
+  const { fs, manager } = await paired("kindle", ["Book-Regular.ttf"]), profiles = api();
+  const mounted = mount(manager, { profiles }); await settle();
+  expect(profiles.list).toHaveBeenCalledWith();
+  expect(mounted.root.textContent).toContain("正文");
+  expect(frame(mounted.root).getAttribute("src")).toBe("/book/a/epub/Text/%E7%AC%AC%E4%B8%80%20%E7%AB%A0.xhtml");
+  expect(frame(mounted.root).getAttribute("width")).toBe("1072");
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  expect(elements(mounted.root, "option").map(option => option.textContent)).toContain("Book");
+  setValue(input(mounted.root, "kt-marginX"), "2.5");
+  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: 2.5% !important");
+  fs.unplug(); await manager.probe(); await settle();
+  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(manager.snapshot().device?.identity.id ?? "");
+  expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("2.5");
+  expect(frame(mounted.root).getAttribute("src")).toBe("/book/a/epub/Text/%E7%AC%AC%E4%B8%80%20%E7%AB%A0.xhtml");
+});
+
+it("edits and resets signed margins with compact values, previews calibrated counts and persists the device preset", async () => {
+  const { manager, id } = await paired(), profiles = api(), reading = readingApi();
+  let stored = custom();
+  vi.mocked(profiles.list).mockImplementation(async () => [defaultProfile(), stored]);
+  vi.mocked(profiles.update).mockImplementation(async value => { stored = { ...value, builtIn: false }; return stored; });
+  const mounted = mount(manager, { profiles, reading: reading.api }); await settle();
+  const estimate = () => elements(mounted.root, "p", "data-kindle-line-estimate")[0]!.textContent;
+  expect(estimate()).toBe("预计每行约 16 字、每页 13 行（实测 · 1072×1448）");
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  const margin = input(mounted.root, "kt-marginX"), output = elements(margin.parentElement!, "output")[0]!, reset = button(margin.parentElement!, "恢复默认");
+  expect(output.textContent).toBe("1%"); expect(reset.hasAttribute("hidden")).toBe(false);
+  expect(margin.getAttribute("aria-label")).toBe("左右边距调整（%）"); expect(margin.getAttribute("min")).toBe("-10"); expect(margin.getAttribute("step")).toBe("0.1");
+  fire(button(mounted.root, "恢复默认"), "click"); ui.flush();
+  expect(estimate()).toContain("约 16 字"); expect(output.textContent).toBe("默认"); expect(reset.hasAttribute("hidden")).toBe(true);
+  setValue(margin, "-4.8");
+  expect((margin as HTMLInputElement).value).toBe("-4.8"); expect(estimate()).toContain("约 18 字");
+  expect(output.textContent).toBe("-4.8%"); expect(reset.hasAttribute("hidden")).toBe(false);
+  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: -4.8% !important");
+  fire(button(mounted.root, "恢复默认"), "click"); ui.flush();
+  setValue(labels(mounted.root, "select", "设备页边距"), "medium", "change"); expect(estimate()).toContain("约 14 字");
+  setValue(labels(mounted.root, "select", "设备页边距"), "wide", "change"); expect(estimate()).toContain("约 11 字");
+  expect(margin.getAttribute("min")).toBe("-10");
+  await new Promise(resolve => setTimeout(resolve, 560)); await settle();
+  expect(reading.save).toHaveBeenLastCalledWith(id, "kindle", expect.objectContaining({ margin: "wide" }));
+  mounted.dispose();
+  const reloaded = mount(manager, { profiles, reading: reading.api }); await settle();
+  expect((labels(reloaded.root, "select", "设备页边距") as HTMLSelectElement).value).toBe("wide");
+  expect(elements(reloaded.root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("约 11 字");
+});
+
+it("shows one book-following value per compact range and hides each reset again after restoring null", async () => {
+  const { manager } = await paired(), mounted = mount(manager); await settle();
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  for (const [key, value, text] of [["lineHeight", "1.85", "1.85"], ["paragraphSpacing", "0", "0em"], ["textIndent", "2", "2em"]]) {
+    const slider = input(mounted.root, `kt-${key}`), row = slider.parentElement!, output = elements(row, "output")[0]!, reset = button(row, "恢复沿用书籍");
+    setValue(slider, value!);
+    expect(output.textContent).toBe(text); expect(output.className).not.toContain("is-inherited");
+    expect(reset.getAttribute("title")).toBe("恢复沿用书籍"); expect(reset.textContent).toBe("↺");
+    expect(reset.hasAttribute("hidden")).toBe(false); expect(reset.hasAttribute("disabled")).toBe(false);
+    fire(reset, "click"); ui.flush();
+    expect(output.textContent).toBe("书籍"); expect(output.className).toBe("is-inherited");
+    expect(row.textContent).not.toContain("沿用书籍"); expect(reset.hasAttribute("hidden")).toBe(true); expect(reset.hasAttribute("disabled")).toBe(true);
+  }
+});
+
+it("keeps a legacy em margin until edited, then switches the adjustment to percent", async () => {
+  const { manager, id } = await paired(), profiles = api();
+  let stored: TypesettingProfile = { ...custom(), settings: { ...custom().settings, marginX: 1, marginXUnit: "em" } };
+  vi.mocked(profiles.list).mockImplementation(async () => [defaultProfile(), stored]);
+  vi.mocked(profiles.update).mockImplementation(async value => { stored = { ...value, builtIn: false }; return stored; });
+  const mounted = mount(manager, { profiles }); await settle();
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  const css = () => (labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value;
+  const output = elements(input(mounted.root, "kt-marginX").parentElement!, "output")[0]!;
+  expect(output.textContent).toBe("1em"); expect(output.getAttribute("title")).toContain("随字号缩放");
+  expect(css()).toContain("margin-left: 1em !important");
+  expect(Number((input(mounted.root, "kt-marginX") as HTMLInputElement).value)).toBeCloseTo(6); expect(mounted.root.textContent).not.toContain("有未保存的修改");
+  setValue(input(mounted.root, "kt-marginX"), "-4.8");
+  expect(output.textContent).toBe("-4.8%"); expect(output.hasAttribute("title")).toBe(false);
+  expect(css()).toContain("margin-left: -4.8% !important");
+  fire(button(mounted.root, "保存方案"), "click"); await settle();
+  expect(stored.settings).toMatchObject({ marginX: -4.8, marginXUnit: "percent" });
+});
+
+it("keeps the saved profile selected after saving when the browser drops the re-rendered option", async () => {
+  const { manager, id } = await paired(), profiles = api();
+  let stored = custom();
+  vi.mocked(profiles.list).mockImplementation(async () => [defaultProfile(), stored]);
+  vi.mocked(profiles.update).mockImplementation(async value => { stored = { ...value, builtIn: false }; return stored; });
+  const mounted = mount(manager, { profiles }); await settle();
+  const profileSelect = () => labels(mounted.root, "select", "方案") as HTMLSelectElement;
+  setValue(profileSelect(), "custom", "change"); setValue(input(mounted.root, "kt-lineHeight"), "1.8");
+  fire(button(mounted.root, "保存方案"), "click"); await settle();
+  expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "custom", settings: expect.objectContaining({ lineHeight: 1.8 }) }));
+  profileSelect().value = "default";
+  setValue(input(mounted.root, "kt-lineHeight"), "1.9");
+  expect(profileSelect().value).toBe("custom"); expect(elements(mounted.root, "input").some(node => node.id === "kt-lineHeight")).toBe(true);
+});
+
+it("accepts margins past the device edge, shows the overflow note and labels unmeasured panels as estimates", async () => {
+  const { manager } = await paired(), mounted = mount(manager); await settle();
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  setValue(input(mounted.root, "kt-marginX"), "-20");
+  expect((button(mounted.root, "保存方案") as HTMLButtonElement).disabled).toBe(false);
+  expect(mounted.root.textContent).toContain("左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。");
+  setValue(labels(mounted.root, "select", "预览设备"), "", "change");
+  setValue(labels(mounted.root, "select", "设备种类"), "kobo", "change");
+  setValue(labels(mounted.root, "select", "预览型号"), "nia", "change");
+  expect(elements(mounted.root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("估算");
+  expect(elements(mounted.root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("758×1024");
+});
+
+it("takes over a chapter already loaded before hydration and applies CSS and device fonts only inside its frame", async () => {
+  const { manager, fs } = await paired("kindle", ["Book-Regular.ttf"]), { document: doc, head, fonts } = previewDocumentFixture(), appFonts = new Set<FontFace>();
+  Object.defineProperty(document, "fonts", { value: appFonts, configurable: true });
+  const bookStyle = doc.createElement("style"); bookStyle.textContent = "p { color: black; }"; head.appendChild(bookStyle);
+  vi.stubGlobal("FontFace", class { load() { return Promise.resolve(this); } });
+  const mounted = mount(manager, {}, root => { Object.defineProperty(frame(root), "contentDocument", { value: doc }); }); await settle();
+  expect(elements(head, "style", "data-bindery-profile")).toHaveLength(1);
+  expect(Array.from(head.childNodes).map(node => node.textContent)).toEqual([expect.stringContaining("font-size: 55px"), bookStyle.textContent, ""]);
+  setValue(labels(mounted.root, "select", "设备页边距"), "medium", "change");
+  expect(head.firstChild!.textContent).toContain("margin: 52px 137px 70px !important");
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  setValue(labels(mounted.root, "select", "字体（预览设备上已安装）"), "Book", "change"); await settle();
+  expect(elements(head, "style", "data-bindery-profile")[0]!.textContent).toContain('font-family: "Book"');
+  expect(bookStyle.textContent).toBe("p { color: black; }"); expect(fonts.size).toBe(1); expect(appFonts.size).toBe(0);
+  setValue(labels(mounted.root, "textarea", "额外自定义 CSS"), "p {"); fs.unplug(); await manager.probe(); await settle(); expect(fonts.size).toBe(0);
+  mounted.dispose(); expect(elements(head, "style", "data-bindery-profile")).toHaveLength(0); expect(bookStyle.parentNode).toBe(head);
+});
+
+it("hydrates neutral page controls in place and turns pages, chapter boundaries and selector resets", async () => {
+  const bookData = { ...data, sections: [...data.sections, { title: "第二章", item_path: "Text/b.xhtml" }] };
+  let current = previewDocumentFixture();
+  let originalControls!: Element, originalScreen!: Element, originalButtons!: Element[];
+  const mounted = mount(null, { data: bookData }, root => {
+    originalControls = withClass(root, "kt-page-controls"); originalScreen = withClass(root, "kt-screen"); originalButtons = elements(originalControls, "button");
+    expect(originalControls.textContent).toBe("上一页正在分页…下一页");
+    expect(originalButtons.every(button => button.hasAttribute("disabled"))).toBe(true);
+    expect(elements(originalControls, "span")[0]!.getAttribute("aria-live")).toBe("polite"); expect(originalScreen.getAttribute("tabindex")).toBe("0");
+    Object.defineProperty(frame(root), "contentDocument", { configurable: true, get: () => current.document });
+  });
+  await settle();
+  const { root } = mounted, status = () => elements(root, "span", "data-kindle-page-status")[0]!.textContent;
+  const previous = () => button(root, "上一页") as HTMLButtonElement, next = () => button(root, "下一页") as HTMLButtonElement, iframe = frame(root);
+  expect(withClass(root, "kt-page-controls")).toBe(originalControls); expect(withClass(root, "kt-screen")).toBe(originalScreen);
+  expect(elements(originalControls, "button")).toEqual(originalButtons);
+  expect(status()).toBe("第 1 / 3 页"); expect(previous().disabled).toBe(true); expect(next().disabled).toBe(false);
+  fire(next(), "click"); ui.flush(); expect(status()).toBe("第 2 / 3 页");
+  fire(originalScreen, "keydown", { key: "PageDown" }); ui.flush(); expect(status()).toBe("第 3 / 3 页");
+  fire(next(), "click"); ui.flush();
+  expect(iframe.getAttribute("src")).toBe("/book/a/epub/Text/b.xhtml"); expect(next().disabled).toBe(true);
+  current = previewDocumentFixture("/book/a/epub/Text/b.xhtml"); current.setExtent(2 * 2144 - 80);
+  fire(iframe, "load"); await settle(); expect(status()).toBe("第 1 / 2 页"); expect(previous().disabled).toBe(false);
+  current.dispatch("keydown", { key: "ArrowRight" }); ui.flush(); expect(status()).toBe("第 2 / 2 页"); expect(next().disabled).toBe(true);
+  current.dispatch("keydown", { key: "PageUp" }); ui.flush(); expect(status()).toBe("第 1 / 2 页");
+  fire(previous(), "click"); ui.flush();
+  current = previewDocumentFixture(); fire(iframe, "load"); await settle();
+  expect(status()).toBe("第 3 / 3 页"); expect((labels(root, "select", "章节") as HTMLSelectElement).value).toBe("0");
+  setValue(labels(root, "select", "章节"), "0", "change"); expect(status()).toBe("第 1 / 3 页");
+  fire(originalScreen, "keydown", { key: "ArrowLeft" }); ui.flush(); expect(status()).toBe("第 1 / 3 页"); expect(previous().disabled).toBe(true);
+  setValue(labels(root, "select", "章节"), "1", "change");
+  current = previewDocumentFixture("/book/a/epub/Text/b.xhtml"); fire(iframe, "load"); await settle(); expect(status()).toBe("第 1 / 3 页");
+  mounted.dispose(); expect(current.document.removeEventListener).toHaveBeenCalledWith("keydown", expect.any(Function));
+});
+
+it("guards profile switching and reset while keeping a dirty draft", async () => {
+  const { manager } = await paired(), mounted = mount(manager); await settle();
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change"); setValue(input(mounted.root, "kt-marginX"), "3");
+  vi.mocked(window.confirm).mockReturnValue(false); setValue(labels(mounted.root, "select", "方案"), "default", "change");
+  expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("3");
+  expect((labels(mounted.root, "select", "方案") as HTMLSelectElement).value).toBe("custom");
+  fire(button(mounted.root, "重置"), "click"); ui.flush(); expect(mounted.root.textContent).toContain("有未保存的修改");
+  vi.mocked(window.confirm).mockReturnValue(true); fire(button(mounted.root, "重置"), "click"); ui.flush();
+  expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("1");
+});
+
+it("supports a remembered Oasis without FSA permission and applies a font link to an unsaved preview copy", async () => {
+  const { manager, fs } = await paired(), saved = (await manager.remembered())[0]!;
+  saved.identity.model = "KO3"; fs.permission = "prompt"; await manager.restore(saved);
+  const profiles = api(), mounted = mount(manager, { profiles, initialFont: "Book" }); await settle();
+  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(manager.snapshot().device!.identity.id);
+  expect(frame(mounted.root).getAttribute("width")).toBe("1264");
+  expect(mounted.root.textContent).toContain("字体预览"); expect(mounted.root.textContent).toContain("有未保存的修改");
+  expect(profiles.update).not.toHaveBeenCalled(); expect(profiles.create).not.toHaveBeenCalled();
+});
+
+it("chooses a remembered device's model and profiles without selecting or opening its handle", async () => {
+  const { repo, fs, id } = await paired(); repo.devices.get(id)!.identity.model = "KO3";
+  const manager = new DeviceManager(repo);
+  const mounted = mount(manager); await settle(); fs.operations = [];
+  setValue(labels(mounted.root, "select", "预览设备"), id, "change"); await settle();
+  expect(frame(mounted.root).getAttribute("width")).toBe("1264");
+  expect(mounted.props.profiles.list).toHaveBeenCalledWith(); expect(fs.operations).toEqual([]);
+});
+
+it("unsubscribes page listeners and ignores a profile response arriving after disposal", async () => {
+  const { manager } = await paired(); let finish!: (profiles: TypesettingProfile[]) => void;
+  const profiles = api(); vi.mocked(profiles.list).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const subscribe = vi.spyOn(manager, "subscribe"), mounted = mount(manager, { profiles }); await settle();
+  expect(subscribe).toHaveBeenCalledTimes(1); mounted.dispose();
+  finish([defaultProfile(), custom()]); await settle();
+  expect(mounted.root.textContent).not.toContain("正文");
 });

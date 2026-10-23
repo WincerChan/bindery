@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DEVICE_TYPESET, SCREEN_PANELS, convertMarginX, defaultReadingSettings, devicePresets, marginXPx, pageGeometry, previewEstimate, previewTarget, readingSettings } from "../src/client/devices/typeset";
 import { EMPTY_SETTINGS, defaultProfile, generateProfileCss, profileSettings, DEFAULT_PROFILE_ID } from "../src/client/devices/profiles";
+import { PreviewDocument } from "../src/features/devices/preview/frame";
+import { previewDocumentFixture } from "./support/kindle-preview-dom";
 
 const kindleTarget = (model: string) => previewTarget("kindle", model);
 const koboTarget = (model: string) => previewTarget("kobo", model);
+const koboGeometry = (model = "libra2") => pageGeometry(koboTarget(model), defaultReadingSettings("kobo"));
 
 describe("panels, device kinds and preview geometry", () => {
   it("maps every model to a panel and keeps unknown models on the Kindle/Kobo fallback", () => {
@@ -80,4 +83,53 @@ describe("global typesetting profiles", () => {
     expect(value.settings).not.toHaveProperty("deviceModel");
     expect(generateProfileCss(value)).toBe("");
   });
+});
+
+describe("Kobo approximate preview settings", () => {
+  it("matches the Libra 2 measurement at the defaults", () => {
+    const geometry = pageGeometry(koboTarget("libra2"), defaultReadingSettings("kobo"));
+    expect(previewEstimate(geometry, { marginX: null, marginXUnit: "percent" })).toMatchObject({ charsPerLine: 22, linesPerPage: 17 });
+    expect(geometry).toMatchObject({ emPx: 53.5, lineHeight: 1.54, width: 1264, height: 1680, column: 1184 });
+  });
+  it("scales the font and line spacing while the panel stays fixed", () => {
+    const geometry = pageGeometry(koboTarget("libra2"), readingSettings("kobo", { margin: "min", scale: 1.2, lineHeight: 1.8 }));
+    expect(geometry).toMatchObject({ emPx: 64.2, lineHeight: 1.8, column: 1184, contentHeight: 1424 });
+    expect(previewEstimate(geometry, { marginX: null, marginXUnit: "percent" })).toMatchObject({ charsPerLine: 18, linesPerPage: 12 });
+  });
+  it("clamps or drops unusable stored values", () => {
+    expect(readingSettings("kobo", { margin: "bogus", scale: 9, lineHeight: 0.2 })).toEqual({ margin: "min", scale: 1.6, lineHeight: 1 });
+    expect(readingSettings("kobo", "garbage")).toEqual(defaultReadingSettings("kobo"));
+    expect(readingSettings("kobo", { margin: "min", scale: Number.NaN, lineHeight: "2" })).toEqual(defaultReadingSettings("kobo"));
+  });
+});
+
+it("keeps neighbouring page text outside the visible Kobo window with a -20% profile margin", () => {
+  const target = previewDocumentFixture(), geometry = koboGeometry(), pitch = 2 * geometry.width, scroll = (page: number) => (page - 1) * pitch;
+  const side = geometry.side + marginXPx(geometry, -20, "percent"), p1 = target.document.createElement("p"), p2 = target.document.createElement("p");
+  const first = target.document.createTextNode("页"), second = target.document.createTextNode("邻");
+  p1.appendChild(first); p2.appendChild(second); target.body.appendChild(p1); target.body.appendChild(p2);
+  const rect = (node: Text) => ({ left: (node === first ? 0 : pitch) + side, right: (node === first ? 0 : pitch) + side + 55, top: 0, bottom: 10 });
+  const inWindow = (node: Text, start: number) => { const value = rect(node); return value.right > start && value.left < start + geometry.width; };
+  target.setExtent(2 * pitch - 80);
+  const preview = new PreviewDocument(target.document); preview.setGeometry(geometry);
+  preview.open(1); expect(target.root.scrollLeft).toBe(scroll(1)); expect(inWindow(second, scroll(1))).toBe(false);
+  preview.open(2); expect(target.root.scrollLeft).toBe(scroll(2)); expect(inWindow(first, scroll(2))).toBe(false);
+  preview.destroy();
+});
+
+it("keeps Kobo's device line height before the profile and only applies its font when chosen", async () => {
+  const target = previewDocumentFixture(), { document, head } = target, book = document.createElement("style");
+  book.textContent = "body { line-height: 2; }"; head.appendChild(book);
+  const preview = new PreviewDocument(document), base = head.firstChild!;
+  preview.setGeometry(koboGeometry());
+  expect(base.textContent).toContain("html body, html body * { line-height: 1.54 !important; }");
+  const profile = (settings: Record<string, unknown>) => generateProfileCss({ id: "custom", name: "正文", builtIn: false, settings: { ...EMPTY_SETTINGS, ...settings } });
+  await preview.update(profile({ lineHeight: 1.8 }), null);
+  const sheet = head.lastChild!;
+  expect(Array.from(head.childNodes).indexOf(base)).toBeLessThan(Array.from(head.childNodes).indexOf(book));
+  expect(Array.from(head.childNodes).indexOf(book)).toBeLessThan(Array.from(head.childNodes).indexOf(sheet));
+  expect(sheet.textContent).toContain("line-height: 1.8 !important"); expect(sheet.textContent).not.toContain("font-family");
+  await preview.update(profile({ lineHeight: 1.8, fontFamily: "Book" }), null);
+  expect(sheet.textContent).toContain('font-family: "Book"');
+  preview.destroy();
 });
