@@ -33,7 +33,7 @@ const root = mkdtempSync(join(tmpdir(), "bindery-typeset-profiles-")); let seque
 beforeEach(() => { const path = join(root, String(sequence++)); scope.library = new LibraryStorage(join(path, "library"), new BinderyDatabase(join(path, "data.db"))); scope.library.ensure(); scope.request = new Request("http://localhost/devices"); });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 const input = (settings: Record<string, unknown> = {}) => ({ name: "正文", settings: { ...EMPTY_SETTINGS, marginX: 0.5, marginXUnit: "em" as const, marginY: 0.75, paragraphSpacing: 0.25, lineHeight: 1.5, textIndent: 2, justify: true as const, fontFamily: "Book Serif", customCss: "h1 { text-align: center; }", ...settings } });
-const deviceInput = (settings: Record<string, unknown> = {}) => ({ deviceId: "device-a", kind: "kindle", settings: { margin: "narrow", scale: 1, lineHeight: 1.75, ...settings } });
+const deviceInput = (settings: Record<string, unknown> = {}) => ({ deviceId: "device-a", kind: "kindle", settings: { margin: "narrow", ...settings } });
 
 describe("shared profile validation and CSS", () => {
   it("round-trips ranges, custom CSS and font-name quoting through the shared validator", () => {
@@ -97,8 +97,8 @@ describe("typeset RPCs", () => {
     const created = await invoke(createTypesetProfile, input()) as TypesettingProfile; expect(created.name).toBe("正文");
     const updated = await invoke(updateTypesetProfile, { ...input(), id: created.id, name: "RPC 更新" }) as TypesettingProfile; expect(updated.name).toBe("RPC 更新");
     expect((await invoke(listTypesetProfiles, undefined) as TypesettingProfile[])[1]).toEqual(updated);
-    await invoke(saveDeviceTypeset, deviceInput({ margin: "wide", scale: 1.2, lineHeight: 1.8 })); expect(await invoke(getDeviceTypeset, { deviceId: "device-a", kind: "kindle" })).toEqual({ margin: "wide", scale: 1.2, lineHeight: 1.8 });
-    expect(new DeviceTypeset(scope.library!.db).get("device-a", "kindle")).toEqual({ margin: "wide", scale: 1.2, lineHeight: 1.8 });
+    await invoke(saveDeviceTypeset, deviceInput({ margin: "wide" })); expect(await invoke(getDeviceTypeset, { deviceId: "device-a", kind: "kindle" })).toEqual({ margin: "wide" });
+    expect(new DeviceTypeset(scope.library!.db).get("device-a", "kindle")).toEqual({ margin: "wide" });
     await invoke(deleteTypesetProfile, { id: created.id }); expect(await invoke(listTypesetProfiles, undefined) as TypesettingProfile[]).toHaveLength(1);
   });
 });

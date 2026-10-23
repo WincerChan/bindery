@@ -34,7 +34,7 @@ describe("typeset storage migration", () => {
     expect(profileSettings(parsed).marginXUnit).toBe("percent");
     expect(generateProfileCss({ id, name: "我的排版", builtIn: false, settings: profileSettings(parsed) })).toBe("body > * {\n  margin-left: -4.9% !important;\n  margin-right: -4.9% !important;\n}");
     expect(db.get("SELECT value FROM app_settings WHERE key = 'typeset_profiles_migrated'")).toMatchObject({ value: expect.any(String) });
-    expect(JSON.parse(db.get<{ settings_json: string }>("SELECT settings_json FROM device_typeset WHERE device_id = ?", deviceId)!.settings_json)).toEqual({ margin: "narrow", scale: 1, lineHeight: 1.75 });
+    expect(JSON.parse(db.get<{ settings_json: string }>("SELECT settings_json FROM device_typeset WHERE device_id = ?", deviceId)!.settings_json)).toEqual({ margin: "narrow" });
     expect(raw(db)).toEqual(before);
   });
   it("does not re-copy a profile deleted after migration", () => {
@@ -50,7 +50,7 @@ describe("typeset storage migration", () => {
     const profile = new TypesetProfiles(db).list().find(value => value.id === "em-profile")!;
     expect(profile.settings.marginXUnit).toBe("em");
     expect(generateProfileCss(profile)).toBe("body > * {\n  margin-left: -0.8em !important;\n  margin-right: -0.8em !important;\n}");
-    expect(JSON.parse(db.get<{ settings_json: string }>("SELECT settings_json FROM device_typeset WHERE device_id = ?", deviceId)!.settings_json)).toEqual({ margin: "narrow", scale: 1, lineHeight: 1.75 });
+    expect(JSON.parse(db.get<{ settings_json: string }>("SELECT settings_json FROM device_typeset WHERE device_id = ?", deviceId)!.settings_json)).toEqual({ margin: "narrow" });
   });
   it("skips an invalid row with one warning while copying the valid ones", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -72,9 +72,9 @@ describe("typeset storage migration", () => {
 describe("device reading settings", () => {
   it("stores per device, validates values and defaults by kind", () => {
     const { db } = legacyDatabase(), settings = new DeviceTypeset(db);
-    expect(settings.get("other-device", "kobo")).toEqual({ margin: "min", scale: 1, lineHeight: 1.54 });
-    expect(settings.save({ deviceId: "other-device", kind: "kobo", settings: { margin: "bogus", scale: 9, lineHeight: 0.1 } })).toEqual({ margin: "min", scale: 1.6, lineHeight: 1 });
-    expect(settings.get("other-device", "kobo")).toEqual({ margin: "min", scale: 1.6, lineHeight: 1 });
-    expect(settings.get("kindle-device", "kindle")).toEqual({ margin: "narrow", scale: 1, lineHeight: 1.75 });
+    expect(settings.get("other-device", "kobo")).toEqual({ margin: "min" });
+    expect(settings.save({ deviceId: "other-device", kind: "kobo", settings: { margin: "bogus", scale: 9 } })).toEqual({ margin: "min" });
+    expect(settings.save({ deviceId: "kindle-device", kind: "kindle", settings: { margin: "wide" } })).toEqual({ margin: "wide" });
+    expect(settings.get("kindle-device", "kindle")).toEqual({ margin: "wide" });
   });
 });

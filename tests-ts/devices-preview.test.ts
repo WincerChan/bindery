@@ -181,16 +181,17 @@ it("switches the preview device between Kindle and Kobo and updates geometry and
 it("persists device reading settings for a paired device, debounced, and keeps model-only settings in memory", async () => {
   const { manager, id } = await paired(), reading = readingApi(), mounted = mount(manager, { reading: reading.api }); await settle();
   expect(reading.get).toHaveBeenCalledWith(id, "kindle");
-  setValue(input(mounted.root, "kt-reading-scale"), "120");
-  setValue(input(mounted.root, "kt-reading-line-height"), "1.8");
+  // Only the device margin is a reading setting; font size and line spacing are not offered.
+  expect(input(mounted.root, "kt-reading-scale")).toBeUndefined(); expect(input(mounted.root, "kt-reading-line-height")).toBeUndefined();
+  setValue(labels(mounted.root, "select", "设备页边距"), "wide", "change");
   await new Promise(resolve => setTimeout(resolve, 560)); await settle();
-  expect(reading.save).toHaveBeenCalledWith(id, "kindle", { margin: "narrow", scale: 1.2, lineHeight: 1.8 });
+  expect(reading.save).toHaveBeenCalledWith(id, "kindle", { margin: "wide" });
   const calls = reading.save.mock.calls.length;
   setValue(labels(mounted.root, "select", "预览设备"), "", "change");
-  setValue(labels(mounted.root, "select", "设备种类"), "kobo", "change");
-  setValue(input(mounted.root, "kt-reading-scale"), "80");
+  setValue(labels(mounted.root, "select", "设备页边距"), "medium", "change");
   await new Promise(resolve => setTimeout(resolve, 560)); await settle();
   expect(reading.save).toHaveBeenCalledTimes(calls);
+  setValue(labels(mounted.root, "select", "设备种类"), "kobo", "change");
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
 });
 

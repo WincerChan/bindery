@@ -29,7 +29,7 @@ function migrate(db: DatabaseSync) {
         const raw = JSON.parse(latest?.settings_json ?? "{}") as { kindleMargin?: unknown };
         if (typeof raw.kindleMargin === "string" && KINDLE_MARGINS.has(raw.kindleMargin)) margin = raw.kindleMargin;
       } catch { /* Invalid legacy JSON keeps the measured default. */ }
-      insertDevice.run(row.device_id, JSON.stringify({ margin, scale: 1, lineHeight: 1.75 }), now);
+      insertDevice.run(row.device_id, JSON.stringify({ margin }), now);
     }
     db.prepare("INSERT OR REPLACE INTO app_settings(key, value) VALUES (?, ?)").run("typeset_profiles_migrated", now);
   });

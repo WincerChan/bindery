@@ -44,20 +44,15 @@ export function devicePresets(kind: DeviceKind, panel?: ScreenPanel): DevicePres
   return DEVICE_TYPESET[kind].presets.map(preset => ({ ...preset, px: Math.round(preset.px * scale) }));
 }
 
-export interface DeviceReadingSettings { margin: string; scale: number; lineHeight: number }
-export const READING_SCALE_RANGE = { min: 0.7, max: 1.6, step: 0.05 } as const;
-export const READING_LINE_HEIGHT_RANGE = { min: 1, max: 2.4, step: 0.02 } as const;
-const clamp = (value: unknown, range: { min: number; max: number }, fallback: number) =>
-  typeof value === "number" && Number.isFinite(value) ? Math.min(range.max, Math.max(range.min, value)) : fallback;
+/** The device's own margin setting; font size and line spacing are previewed at the measured values. */
+export interface DeviceReadingSettings { margin: string }
 export function defaultReadingSettings(kind: DeviceKind): DeviceReadingSettings {
-  const device = DEVICE_TYPESET[kind];
-  return { margin: device.presets[0].id, scale: 1, lineHeight: device.lineHeight };
+  return { margin: DEVICE_TYPESET[kind].presets[0].id };
 }
-/** Accepts stored or edited values; unknown presets and unusable numbers fall back to the measured defaults. */
+/** Accepts stored or edited values; an unknown preset falls back to the measured default. */
 export function readingSettings(kind: DeviceKind, raw: unknown): DeviceReadingSettings {
-  const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {}, fallback = defaultReadingSettings(kind);
-  const margin = typeof value.margin === "string" && DEVICE_TYPESET[kind].presets.some(preset => preset.id === value.margin) ? value.margin : fallback.margin;
-  return { margin, scale: clamp(value.scale, READING_SCALE_RANGE, fallback.scale), lineHeight: clamp(value.lineHeight, READING_LINE_HEIGHT_RANGE, fallback.lineHeight) };
+  const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  return { margin: typeof value.margin === "string" && DEVICE_TYPESET[kind].presets.some(preset => preset.id === value.margin) ? value.margin : defaultReadingSettings(kind).margin };
 }
 
 /**
@@ -74,9 +69,9 @@ export function pageGeometry(target: PreviewTarget, reading: DeviceReadingSettin
   const device = DEVICE_TYPESET[target.kind], scale = scaleFor(target.panel), normalized = readingSettings(target.kind, reading), margin = normalized.margin;
   const side = devicePresets(target.kind, target.panel).find(preset => preset.id === margin)!.px;
   const top = Math.round(device.top * scale), bottom = Math.round(device.bottom * scale);
-  const baseEmPx = device.emPx * scale, emPx = baseEmPx * normalized.scale;
+  const baseEmPx = device.emPx * scale, emPx = baseEmPx;
   return {
-    width: target.panel.width, height: target.panel.height, emPx, lineHeight: normalized.lineHeight, side, top, bottom,
+    width: target.panel.width, height: target.panel.height, emPx, lineHeight: device.lineHeight, side, top, bottom,
     column: target.panel.width - 2 * side, gap: 2 * side, contentHeight: target.panel.height - top - bottom,
     baseEmPx, measured: target.model === device.measured.model && margin === device.measured.margin,
     fontFamily: device.fontFamily, bookInsets: device.bookInsets, embeddedFontsOnly: target.kind === "kobo",

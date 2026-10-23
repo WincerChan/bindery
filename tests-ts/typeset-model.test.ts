@@ -39,13 +39,13 @@ describe("panels, device kinds and preview geometry", () => {
     expect(nia.emPx).toBeCloseTo(53.5 * 212 / 300);
   });
 
-  it("scales reading settings, keeps percent against the column and em against the baseline face", () => {
-    expect(defaultReadingSettings("kindle")).toEqual({ margin: "narrow", scale: 1, lineHeight: 1.75 });
-    expect(defaultReadingSettings("kobo")).toEqual({ margin: "min", scale: 1, lineHeight: 1.54 });
-    expect(readingSettings("kindle", { margin: "missing", scale: 9, lineHeight: 0.2 })).toEqual({ margin: "narrow", scale: 1.6, lineHeight: 1 });
-    expect(readingSettings("kobo", { margin: "min", scale: 0.75, lineHeight: 2.2 })).toEqual({ margin: "min", scale: 0.75, lineHeight: 2.2 });
-    const reading = { ...defaultReadingSettings("kindle"), scale: 1.2 }, geometry = pageGeometry(kindleTarget("KPW3"), reading);
-    expect(geometry.emPx).toBeCloseTo(66);
+  it("keeps only the device margin preset, percent against the column and em against the measured face", () => {
+    expect(defaultReadingSettings("kindle")).toEqual({ margin: "narrow" });
+    expect(defaultReadingSettings("kobo")).toEqual({ margin: "min" });
+    expect(readingSettings("kindle", { margin: "missing" })).toEqual({ margin: "narrow" });
+    expect(readingSettings("kindle", { margin: "wide" })).toEqual({ margin: "wide" });
+    const geometry = pageGeometry(kindleTarget("KPW3"), defaultReadingSettings("kindle"));
+    expect(geometry.emPx).toBe(55);
     expect(marginXPx(geometry, 1, "em")).toBe(55);
     expect(marginXPx(geometry, 10, "percent")).toBeCloseTo(91.2);
     expect(convertMarginX(geometry, -4.9, "percent", "em")).toBeCloseTo(-0.8125, 4);
@@ -91,15 +91,11 @@ describe("Kobo approximate preview settings", () => {
     expect(previewEstimate(geometry, { marginX: null, marginXUnit: "percent" })).toMatchObject({ charsPerLine: 22, linesPerPage: 17 });
     expect(geometry).toMatchObject({ emPx: 53.5, lineHeight: 1.54, width: 1264, height: 1680, column: 1184 });
   });
-  it("scales the font and line spacing while the panel stays fixed", () => {
+  it("previews at the measured font size and line spacing, ignoring older stored values", () => {
     const geometry = pageGeometry(koboTarget("libra2"), readingSettings("kobo", { margin: "min", scale: 1.2, lineHeight: 1.8 }));
-    expect(geometry).toMatchObject({ emPx: 64.2, lineHeight: 1.8, column: 1184, contentHeight: 1424 });
-    expect(previewEstimate(geometry, { marginX: null, marginXUnit: "percent" })).toMatchObject({ charsPerLine: 18, linesPerPage: 12 });
-  });
-  it("clamps or drops unusable stored values", () => {
-    expect(readingSettings("kobo", { margin: "bogus", scale: 9, lineHeight: 0.2 })).toEqual({ margin: "min", scale: 1.6, lineHeight: 1 });
+    expect(geometry).toMatchObject({ emPx: 53.5, lineHeight: 1.54, column: 1184, contentHeight: 1424 });
+    expect(readingSettings("kobo", { margin: "bogus", scale: 9 })).toEqual({ margin: "min" });
     expect(readingSettings("kobo", "garbage")).toEqual(defaultReadingSettings("kobo"));
-    expect(readingSettings("kobo", { margin: "min", scale: Number.NaN, lineHeight: "2" })).toEqual(defaultReadingSettings("kobo"));
   });
 });
 

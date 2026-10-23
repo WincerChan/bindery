@@ -3,7 +3,7 @@ import { errorMessage } from "../../../client/devices/fs";
 import { deviceKindLabel, kindleModelInfo, koboModelInfo, modelShortName, type DeviceKind } from "../../../client/devices/models";
 import { defaultProfile, DEFAULT_PROFILE_ID, EMPTY_SETTINGS, generateProfileCss, profileSettings, type ProfileSettings, type TypesettingProfile } from "../../../client/devices/profiles";
 import {
-  READING_LINE_HEIGHT_RANGE, READING_SCALE_RANGE, convertMarginX, defaultReadingSettings, devicePresets, marginXPx, pageGeometry,
+  convertMarginX, defaultReadingSettings, devicePresets, marginXPx, pageGeometry,
   previewEstimate, previewTarget, readingSettings, type DeviceReadingSettings,
 } from "../../../client/devices/typeset";
 import type { PairedDevice } from "../../../client/devices/identity";
@@ -111,7 +111,6 @@ function DevicePreviewPageInner(props: PreviewProps) {
   function edit<K extends keyof ProfileSettings>(key: K, value: ProfileSettings[K]) { if (!locked()) setDraft(old => ({ ...old, settings: { ...old.settings, [key]: value } })); }
   function editMargin(value: number | null) { if (!locked()) setDraft(old => ({ ...old, settings: { ...old.settings, marginX: value, ...(value === null ? {} : { marginXUnit: "percent" as const }) } })); }
   function editReading(patch: Partial<DeviceReadingSettings>) { const value = readingSettings(kind(), { ...reading(), ...patch }); setReading(value); scheduleReadingSave(value); }
-  function resetReading() { const value = defaultReadingSettings(kind()); setReading(value); scheduleReadingSave(value); }
   function scheduleReadingSave(value: DeviceReadingSettings) {
     if (saveTimer !== undefined) clearTimeout(saveTimer);
     const selected = target(), api = props.reading;
@@ -206,13 +205,6 @@ function DevicePreviewPageInner(props: PreviewProps) {
             <For each={presets()}>{preset => <option value={preset.id}>{preset.label}</option>}</For>
           </Select>
         </Show>
-        <div class="kt-range"><label for="kt-reading-scale">字号</label>
-          <input id="kt-reading-scale" aria-label="字号（%）" type="range" min={READING_SCALE_RANGE.min * 100} max={READING_SCALE_RANGE.max * 100} step={READING_SCALE_RANGE.step * 100} value={reading().scale * 100} disabled={busy()} onInput={event => editReading({ scale: Number(event.currentTarget.value) / 100 })} />
-          <span class="kt-range-value"><output for="kt-reading-scale">{Math.round(reading().scale * 100)}%</output></span></div>
-        <div class="kt-range"><label for="kt-reading-line-height">行距</label>
-          <input id="kt-reading-line-height" aria-label="行距" type="range" min={READING_LINE_HEIGHT_RANGE.min} max={READING_LINE_HEIGHT_RANGE.max} step={READING_LINE_HEIGHT_RANGE.step} value={reading().lineHeight} disabled={busy()} onInput={event => editReading({ lineHeight: Number(event.currentTarget.value) })} />
-          <span class="kt-range-value"><output for="kt-reading-line-height">{reading().lineHeight.toFixed(2)} 倍</output></span></div>
-        <Button variant="quiet" class="kindle-text-button" disabled={busy() || JSON.stringify(reading()) === JSON.stringify(defaultReadingSettings(kind()))} onClick={resetReading}>恢复实测设置</Button>
       </section>
       <div class="kt-profile-controls"><Select label="方案" value={draft().id} disabled={busy() || loading()} onChange={event => {
         const selected = profiles().find(profile => profile.id === event.currentTarget.value);
