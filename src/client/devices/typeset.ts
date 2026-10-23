@@ -17,14 +17,14 @@ export const DEVICE_TYPESET = {
   kindle: {
     presets: [{ id: "narrow", label: "窄", px: 80 }, { id: "medium", label: "中", px: 137 }, { id: "wide", label: "宽", px: 220 }],
     top: 52, bottom: 70, emPx: 55, lineHeight: 1.75, measured: { model: "KPW3", margin: "narrow" },
-    bookInsets: false, readerLineSpacingOverridesBook: false, fontFamily: "serif",
+    bookInsets: false, readerLineSpacingOverridesBook: false, sumAdjacentMargins: true, fontFamily: "serif",
     fallbackSources: ["Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", "Source Han Serif SC"].map(name => `local("${name}")`).join(", "),
     builtinFamilies: ["宋体", "黑体", "楷体", "圆体", "STSong", "STHeiti", "STKai", "STKaiti", "STYuan"],
   },
   kobo: {
     presets: [{ id: "min", label: "最小", px: 40 }],
     top: 96, bottom: 160, emPx: 53.5, lineHeight: 1.54, measured: { model: "libra2", margin: "min" },
-    bookInsets: true, readerLineSpacingOverridesBook: true, fontFamily: "sans-serif",
+    bookInsets: true, readerLineSpacingOverridesBook: true, sumAdjacentMargins: false, fontFamily: "sans-serif",
     fallbackSources: ["Microsoft YaHei", "Microsoft YaHei UI", "PingFang SC", "PingFangSC-Regular", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "WenQuanYi Micro Hei"].map(name => `local("${name}")`).join(", "),
     builtinFamilies: [] as string[],
   },
@@ -58,11 +58,13 @@ export function readingSettings(kind: DeviceKind, raw: unknown): DeviceReadingSe
 /**
  * A device page in device pixels; `fontFamily` is the reader's default face, still overridable by the book.
  * `bookInsets`: the reader keeps the book's own html/body margin and padding (Kobo), unlike boko for Kindle.
+ * `sumAdjacentMargins`: Kindle adds adjacent sibling margins instead of collapsing them like a browser/Kobo.
  */
 export interface PageGeometry {
   width: number; height: number; emPx: number; lineHeight: number; side: number; top: number; bottom: number; column: number; gap: number; contentHeight: number;
   baseEmPx?: number; measured?: boolean;
   fontFamily?: string; bookInsets?: boolean; embeddedFontsOnly?: boolean; readerLineSpacingOverridesBook?: boolean;
+  sumAdjacentMargins?: boolean;
   fallbackSources?: string; builtinFamilies?: readonly string[];
 }
 export function pageGeometry(target: PreviewTarget, reading: DeviceReadingSettings): PageGeometry {
@@ -75,7 +77,7 @@ export function pageGeometry(target: PreviewTarget, reading: DeviceReadingSettin
     column: target.panel.width - 2 * side, gap: 2 * side, contentHeight: target.panel.height - top - bottom,
     baseEmPx, measured: target.model === device.measured.model && margin === device.measured.margin,
     fontFamily: device.fontFamily, bookInsets: device.bookInsets, embeddedFontsOnly: target.kind === "kobo",
-    readerLineSpacingOverridesBook: device.readerLineSpacingOverridesBook,
+    readerLineSpacingOverridesBook: device.readerLineSpacingOverridesBook, sumAdjacentMargins: device.sumAdjacentMargins,
     fallbackSources: device.fallbackSources, builtinFamilies: device.builtinFamilies,
   };
 }

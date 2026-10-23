@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { convertEpub } from "../src/client/boko/conversion";
-import { ionField, parseKfxEntities, type IonValue } from "../src/client/boko/kfx";
+import { ionField, parseKfxEntities, walkIon, type IonValue } from "../src/client/boko/kfx";
 import { readArchive, writeArchive } from "../src/core/archive";
 import { prepareEpubForBoko } from "../src/core/kfx-prepare";
+import { descendants, parseXml } from "../src/core/xml";
 import { assetCover } from "./support/kindle-assets";
 
 const wasm = readFileSync(new URL("../vendor/boko/boko_bg.wasm", import.meta.url));
@@ -35,6 +36,7 @@ function calibreEpub(titlepage = calibreTitlepage, body = "<h1>第一章</h1><p>
   ]);
 }
 const member = (data: Uint8Array, name: string) => decoder.decode(readArchive(data).find(entry => entry.name === name)!.data);
+const blocks = (xml: string, name: string) => descendants(parseXml(xml), name);
 /** Sections whose storyline holds neither text nor a resource: what boko made of the SVG cover page. */
 function emptySections(kfx: Uint8Array) {
   const entities = parseKfxEntities(kfx), symbol = (value: IonValue) => (value as { symbol: number }).symbol;
@@ -61,9 +63,43 @@ describe("EPUB preparation for boko", () => {
     expect(emptySections(converted.data)).toBe(0);
     expect(parseKfxEntities(converted.data).filter(e => e.type === 417)).toHaveLength(1);
   });
-  it("leaves SVG that draws anything besides one image untouched", () => {
+  it("removes collapsible leading/trailing whitespace from blocks through inline elements", () => {
+    const book = calibreEpub(calibreTitlepage, `<p>\n  <span> 段落 </span>\n</p><div>\n  区块\n</div><h2>\n  <a> 标题 </a>\n</h2><ul><li> <em> 项目 </em> </li></ul>`);
+    const xml = member(prepareEpubForBoko(book), "OEBPS/Text/c1.xhtml");
+    expect(blocks(xml, "p")[0]!.textContent).toBe("段落");
+    expect(blocks(xml, "div")[0]!.textContent).toBe("区块");
+    expect(blocks(xml, "h2")[0]!.textContent).toBe("标题");
+    expect(blocks(xml, "li")[0]!.textContent).toBe("项目");
+    for (const name of ["p", "div", "h2", "li"]) expect(blocks(xml, name)[0]!.textContent).not.toMatch(/^\s|\s$/);
+  });
+  it("trims each line box at <br> like a browser but leaves pre and white-space: pre* untouched", () => {
+    const book = calibreEpub(calibreTitlepage, `<p>前文 <br/>\n  后文 </p><p>  <br/>  </p><p><span>甲</span> <br/> <span>乙</span></p><pre>\n  保留\n</pre><p style="white-space: pre">\n  保留 \n</p><div style="white-space:pre-wrap"><p> 保留 </p></div>`);
+    const xml = member(prepareEpubForBoko(book), "OEBPS/Text/c1.xhtml"), paragraphs = blocks(xml, "p");
+    expect(paragraphs.slice(0, 3).map(paragraph => paragraph.textContent)).toEqual(["前文后文", "", "甲乙"]);
+    expect(blocks(xml, "pre")[0]!.textContent).toBe("\n  保留\n");
+    expect(paragraphs[3]!.textContent).toBe("\n  保留 \n");
+    expect(paragraphs[4]!.textContent).toBe(" 保留 ");
+  });
+  it("keeps identical bytes for a document whose block whitespace already matches a browser", () => {
+    const tightTitlepage = `<?xml version='1.0' encoding='utf-8'?>\n<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Cover</title></head><body><div><img src="../Images/cover.png"/></div></body></html>`;
+    const plain = calibreEpub(tightTitlepage, "<p>正文</p><div>块</div>");
+    expect(prepareEpubForBoko(plain)).toBe(plain);
+  });
+  it("converts a fixture paragraph without the leading space boko used to keep", async () => {
+    const converted = await convertEpub(calibreEpub(calibreTitlepage, "<p>\n  黑暗的房间内。\n</p><p>下一段</p><p>中文  空格\n换行</p>"), wasm);
+    const texts: string[] = [];
+    for (const entity of parseKfxEntities(converted.data, [145])) walkIon(entity.value, value => { if (typeof value === "string") texts.push(value); });
+    expect(texts).toContain("黑暗的房间内。");
+    expect(texts).toContain("下一段");
+    // boko already collapses runs inside one text node to a single space, like the browser preview.
+    expect(texts).toContain("中文 空格 换行");
+    expect(texts.some(text => /^\s/.test(text))).toBe(false);
+  });
+  it("leaves SVG that draws anything besides one image untouched while still trimming its block whitespace", () => {
     const drawing = calibreTitlepage.replace("</svg>", `<text x="10" y="20">书名</text></svg>`), book = calibreEpub(drawing);
-    expect(prepareEpubForBoko(book)).toBe(book);
+    const page = member(prepareEpubForBoko(book), "OEBPS/Text/titlepage.xhtml");
+    expect(page).toMatch(/<svg\b/); expect(page).toMatch(/<text[^>]*>书名<\/text>/);
+    expect(page).not.toMatch(/<img [^>]*cover\.png/);
   });
   it("returns the original bytes when there is no inline SVG or the document is not well-formed", () => {
     const plain = calibreEpub(chapter("<p>封面</p>"));

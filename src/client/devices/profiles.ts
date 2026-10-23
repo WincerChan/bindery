@@ -80,6 +80,8 @@ export function generateProfileCss(profile: TypesettingProfile): string {
   }
   if (s.lineHeight !== null) paragraph.push(`line-height: ${s.lineHeight};`);
   if (s.paragraphSpacing !== null) paragraph.push(`margin-top: 0;`, `margin-bottom: ${em(s.paragraphSpacing)};`);
+  // Without the book's own margin, boko/browser UA `p { margin: 1em 0 }` would surface on the device.
+  else if (s.stripParagraphSpacing) paragraph.push(`margin-top: 0;`, `margin-bottom: 0;`);
   if (s.textIndent !== null) paragraph.push(`text-indent: ${em(s.textIndent)};`);
   const font = s.fontFamily ? `body, body * {\n  font-family: "${s.fontFamily.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}";\n}` : "";
   return [body.length ? `body > * {\n  ${body.join("\n  ")}\n}` : "", paragraph.length ? `p {\n  ${paragraph.join("\n  ")}\n}` : "", font, s.customCss.trim()].filter(Boolean).join("\n\n");

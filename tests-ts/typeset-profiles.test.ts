@@ -36,6 +36,13 @@ const input = (settings: Record<string, unknown> = {}) => ({ name: "正文", set
 const deviceInput = (settings: Record<string, unknown> = {}) => ({ deviceId: "device-a", kind: "kindle", settings: { margin: "narrow", ...settings } });
 
 describe("shared profile validation and CSS", () => {
+  it("zeroes the UA paragraph margins when the book spacing is stripped and no value replaces it", () => {
+    const css = (settings: Record<string, unknown>) => generateProfileCss({ id: "custom", name: "正文", builtIn: false, settings: { ...EMPTY_SETTINGS, ...settings } });
+    expect(css({ stripParagraphSpacing: true })).toBe("p {\n  margin-top: 0;\n  margin-bottom: 0;\n}");
+    expect(css({ stripParagraphSpacing: true })).not.toContain("!important");
+    expect(css({ stripParagraphSpacing: true, paragraphSpacing: 0.75 })).toBe("p {\n  margin-top: 0;\n  margin-bottom: 0.75em;\n}");
+    expect(css({ paragraphSpacing: 0.75 })).toBe("p {\n  margin-top: 0;\n  margin-bottom: 0.75em;\n}");
+  });
   it("round-trips ranges, custom CSS and font-name quoting through the shared validator", () => {
     const value = input();
     expect(profileInput(value)).toEqual({ name: "正文", settings: value.settings });

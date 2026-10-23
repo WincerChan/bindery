@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DEVICE_TYPESET, SCREEN_PANELS, convertMarginX, defaultReadingSettings, devicePresets, marginXPx, pageGeometry, previewEstimate, previewTarget, readingSettings } from "../src/client/devices/typeset";
 import { EMPTY_SETTINGS, defaultProfile, generateProfileCss, profileSettings, DEFAULT_PROFILE_ID } from "../src/client/devices/profiles";
 import { PreviewDocument } from "../src/features/devices/preview/frame";
@@ -129,4 +129,54 @@ it("keeps Kobo's device line height before the profile and only applies its font
   await preview.update(profile({ lineHeight: 1.8, fontFamily: "Book" }), null);
   expect(sheet.textContent).toContain('font-family: "Book"');
   preview.destroy();
+});
+
+it("sums adjacent block margins on Kindle geometry, recomputes them and restores the book's Kobo/collapsed margins", async () => {
+  const target = previewDocumentFixture(), { document, body } = target;
+  const computed = (element: Element) => {
+    const style = (element as HTMLElement).style;
+    const read = (name: string, fallback: string) => style.getPropertyValue(name) || fallback;
+    return { getPropertyValue: (name: string) => name === "display" ? read("display", ["p", "div", "body"].includes(element.localName) ? "block" : "inline")
+      : name === "position" ? read("position", "static") : name === "float" ? read("float", "none") : style.getPropertyValue(name) };
+  };
+  Object.defineProperty(document, "defaultView", { value: { getComputedStyle: computed }, configurable: true });
+  const change = vi.fn(), preview = new PreviewDocument(document, change);
+  // No vertical margins: the Kindle margin-sum pass must not change pagination.
+  expect(change).toHaveBeenLastCalledWith({ page: 1, count: 3 });
+  const styled = (element: Element) => {
+    const values = new Map<string, { value: string; priority: string }>();
+    Object.defineProperty(element, "style", { configurable: true, value: {
+      setProperty: (name: string, value: string, priority = "") => { values.set(name, { value, priority }); },
+      getPropertyValue: (name: string) => values.get(name)?.value ?? "",
+      getPropertyPriority: (name: string) => values.get(name)?.priority ?? "",
+      removeProperty: (name: string) => { values.delete(name); },
+    } });
+    return element as HTMLElement;
+  };
+  const p1 = styled(document.createElement("p")), p2 = styled(document.createElement("p")), p3 = styled(document.createElement("p"));
+  p1.style.setProperty("margin-bottom", "20px");
+  p2.style.setProperty("margin-top", "10px"); p2.style.setProperty("margin-bottom", "-5px");
+  p3.style.setProperty("margin-top", "-8px");
+  body.appendChild(p1); body.appendChild(p2); body.appendChild(p3);
+  await preview.update(null, null);
+  // Kindle adds bottom + top, including two negative margins, instead of the browser's collapsed value.
+  expect(p2.style.getPropertyValue("margin-top")).toBe("30px");
+  expect(p2.style.getPropertyPriority("margin-top")).toBe("important");
+  expect(p3.style.getPropertyValue("margin-top")).toBe("-13px");
+  preview.setGeometry(pageGeometry(kindleTarget("KO3"), defaultReadingSettings("kindle")));
+  await preview.update(null, null);
+  expect(p2.style.getPropertyValue("margin-top")).toBe("30px"); // Recomputed, never compounded.
+  preview.setGeometry(koboGeometry());
+  await preview.update(null, null);
+  // Kobo's WebKit renderer collapses adjacent margins: the book's own declarations stay untouched.
+  expect(p2.style.getPropertyValue("margin-top")).toBe("10px");
+  expect(p2.style.getPropertyPriority("margin-top")).toBe("");
+  expect(p3.style.getPropertyValue("margin-top")).toBe("-8px");
+  preview.setGeometry(pageGeometry(kindleTarget("KPW3"), defaultReadingSettings("kindle")));
+  await preview.update(null, null);
+  expect(p2.style.getPropertyValue("margin-top")).toBe("30px");
+  preview.destroy();
+  expect(p2.style.getPropertyValue("margin-top")).toBe("10px");
+  expect(p3.style.getPropertyValue("margin-top")).toBe("-8px");
+  expect(document.defaultView!.getComputedStyle(p2).getPropertyValue("margin-top")).toBe("10px");
 });

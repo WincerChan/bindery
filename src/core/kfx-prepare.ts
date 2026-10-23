@@ -1,11 +1,98 @@
 import { XMLSerializer } from "@xmldom/xmldom";
 import { writeArchive, type ArchiveMember } from "./archive";
 import { EpubArchive } from "./epub";
-import { attr, descendants, parseXml, type Element } from "./xml";
+import { attr, descendants, parseXml, type Element, type Node } from "./xml";
 
 const XHTML_NS = "http://www.w3.org/1999/xhtml", XLINK_NS = "http://www.w3.org/1999/xlink";
 // Anything else drawn by the SVG means it is more than a wrapped picture.
 const DRAWN = new Set(["path", "rect", "circle", "ellipse", "line", "polygon", "polyline", "use", "text", "foreignObject", "image"]);
+
+/**
+ * HTML block-level elements whose line boxes start/end with collapsed whitespace. `pre` is listed
+ * because it is a block boundary for its parent, but is itself skipped as preformatted.
+ */
+const BLOCK_ELEMENTS = new Set([
+  "address", "article", "aside", "blockquote", "body", "caption", "center", "dd", "details", "dialog", "dir", "div",
+  "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header",
+  "hgroup", "hr", "li", "main", "menu", "nav", "ol", "p", "pre", "section", "summary", "table", "tbody", "td",
+  "tfoot", "th", "thead", "tr", "ul",
+]);
+const PREFORMATTED_ELEMENTS = new Set(["pre", "textarea", "listing", "xmp", "plaintext"]);
+// Inline replaced/atomic content: a line box does not trim through its own contents.
+const ATOMIC_ELEMENTS = new Set(["img", "svg", "math", "video", "audio", "canvas", "iframe", "object", "embed", "input", "select", "textarea", "button", "meter", "progress"]);
+const COLLAPSIBLE_START = /^[ \t\n\r\f]+/, COLLAPSIBLE_END = /[ \t\n\r\f]+$/;
+const WHITE_SPACE_PRE = /(?:^|;)\s*white-space\s*:\s*pre\b/i;
+
+function isPreformatted(element: Element): boolean {
+  return PREFORMATTED_ELEMENTS.has((element.localName ?? "").toLowerCase()) || WHITE_SPACE_PRE.test(attr(element, "style"));
+}
+
+function insidePreformatted(node: Node): boolean {
+  for (let current: Node | null = node; current && current.nodeType === 1; current = current.parentNode) {
+    if (isPreformatted(current as Element)) return true;
+  }
+  return false;
+}
+
+type InlineItem = { text: Node } | { content: Node };
+/** Inline runs between line/block boundaries. Each run is one browser line box for whitespace purposes. */
+function lineSegments(block: Element): InlineItem[][] {
+  const segments: InlineItem[][] = [[]];
+  const walk = (node: Node) => {
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      if (child.nodeType === 3) {
+        segments.at(-1)!.push({ text: child });
+        continue;
+      }
+      if (child.nodeType !== 1) {
+        // Comments and processing instructions are not rendered; other node types are atomic.
+        if (child.nodeType !== 7 && child.nodeType !== 8 && child.nodeValue?.trim()) segments.at(-1)!.push({ content: child });
+        continue;
+      }
+      const element = child as Element, name = (element.localName ?? "").toLowerCase();
+      if (name === "br" || BLOCK_ELEMENTS.has(name)) {
+        // A line break or a nested block ends this line box; the block is trimmed separately.
+        segments.push([]);
+        continue;
+      }
+      if (isPreformatted(element) || ATOMIC_ELEMENTS.has(name)) {
+        segments.at(-1)!.push({ content: element });
+        continue;
+      }
+      walk(element);
+    }
+  };
+  walk(block);
+  return segments;
+}
+
+/** Removes the collapsible whitespace at both ends of every line box in one block. */
+function trimBlock(block: Element): boolean {
+  if (insidePreformatted(block)) return false;
+  let changed = false;
+  for (const segment of lineSegments(block)) {
+    for (const item of segment) {
+      if (!("text" in item)) break;
+      const value = item.text.nodeValue ?? "", trimmed = value.replace(COLLAPSIBLE_START, "");
+      if (trimmed !== value) {
+        item.text.nodeValue = trimmed;
+        changed = true;
+      }
+      if (trimmed) break;
+    }
+    for (let index = segment.length - 1; index >= 0; index--) {
+      const item = segment[index]!;
+      if (!("text" in item)) break;
+      const value = item.text.nodeValue ?? "", trimmed = value.replace(COLLAPSIBLE_END, "");
+      if (trimmed !== value) {
+        item.text.nodeValue = trimmed;
+        changed = true;
+      }
+      if (trimmed) break;
+    }
+  }
+  return changed;
+}
 
 /** The single raster image an inline SVG shows, or null when it draws anything else. */
 function wrappedImage(svg: Element): string | null {
@@ -27,6 +114,9 @@ function rewriteDocument(text: string): string | null {
     svg.parentNode.replaceChild(img, svg);
     changed = true;
   }
+  for (const block of descendants(root)) {
+    if (BLOCK_ELEMENTS.has((block.localName ?? "").toLowerCase()) && trimBlock(block)) changed = true;
+  }
   return changed ? new XMLSerializer().serializeToString(root.ownerDocument!) : null;
 }
 
@@ -34,7 +124,14 @@ function rewriteDocument(text: string): string | null {
  * boko renders inline `<svg>` as empty containers, so an SVG-wrapped cover page (the usual Calibre/Sigil
  * `titlepage.xhtml`) becomes a page with no content, and a Kindle Oasis 3 on firmware 5.18.1 hangs opening the
  * book until it restarts. An SVG that only shows one raster image is rewritten to an equivalent `<img>`; other
- * SVG is left alone. Returns the input unchanged when nothing needs rewriting, so boko sees identical bytes.
+ * SVG is left alone.
+ *
+ * boko also keeps one collapsible space at the start/end of a block where a browser drops it, which turns a
+ * profile text indent into "indent + space" on the device. Leading/trailing whitespace is removed per browser
+ * line box (across inline elements, at `<br>` and nested-block boundaries); `pre` and `white-space: pre*` are
+ * untouched. Runs *inside* a text node need no work: boko already collapses them to one space like a browser.
+ *
+ * Returns the input unchanged when nothing needs rewriting, so boko sees identical bytes.
  */
 export function prepareEpubForBoko(data: Uint8Array): Uint8Array {
   const archive = new EpubArchive(data), decoder = new TextDecoder(), encoder = new TextEncoder();
@@ -42,7 +139,6 @@ export function prepareEpubForBoko(data: Uint8Array): Uint8Array {
   const entries: ArchiveMember[] = archive.entries.map(entry => {
     if (!/\.(?:xhtml|html?)$/i.test(entry.name)) return entry;
     const text = decoder.decode(entry.data);
-    if (!/<svg\b/i.test(text) || !/<image\b/i.test(text)) return entry;
     const rewritten = rewriteDocument(text);
     if (rewritten === null) return entry;
     changed = true;

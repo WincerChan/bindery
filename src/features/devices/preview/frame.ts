@@ -25,6 +25,10 @@ export class DocumentFonts {
 }
 
 interface TextAnchor { node: Text; offset: number }
+// Block-level siblings whose vertical margins collapse in a browser. Tables keep their margins.
+const COLLAPSING_DISPLAYS = new Set(["block", "list-item", "flow-root", "flex", "grid"]);
+const NO_CHILD_COLLAPSE = /^(?:inline-)?(?:flex|grid)$/;
+const pixels = (value: string) => Number.parseFloat(value) || 0;
 // Desktop CJK families a book may name without embedding; an e-reader does not have them.
 const SYSTEM_FAMILIES = ["宋体", "SimSun", "新宋体", "NSimSun", "黑体", "SimHei", "楷体", "KaiTi", "楷体_GB2312", "仿宋", "FangSong", "仿宋_GB2312", "微软雅黑", "Microsoft YaHei", "华文宋体", "STSong", "华文楷体", "STKaiti", "华文仿宋", "STFangsong", "华文黑体", "STHeiti", "Songti SC", "Kaiti SC", "Heiti SC"];
 /** Splits a CSS list at top-level commas. */
@@ -56,6 +60,8 @@ export class PreviewDocument {
   private cleanups: (() => void)[] = [];
   private originalMarker: string | null;
   private spacers: HTMLElement[] = [];
+  private marginTops = new Map<HTMLElement, { value: string; priority: string }>();
+  private adjustedMargins = new Set<HTMLElement>();
   private fontSources = new Map<CSSStyleDeclaration, string>();
   private key = (event: KeyboardEvent) => previewTurnKey(event, direction => this.turn(direction));
   private click = (event: MouseEvent) => {
@@ -138,6 +144,52 @@ export class PreviewDocument {
     this.base.textContent = base;
     return total;
   }
+  private restoreMargin(element: HTMLElement) {
+    const original = this.marginTops.get(element);
+    if (!original) return;
+    element.style.removeProperty("margin-top");
+    if (original.value) element.style.setProperty("margin-top", original.value, original.priority);
+  }
+  /**
+   * Kindle adds the previous sibling's bottom margin to the next one's top margin; browsers (and Kobo's WebKit
+   * renderer) collapse them to one. Measured after the book/profile CSS applies, the sum replaces the next
+   * sibling's top margin so the collapsed outcome is the device's gap. Negative margins work in every sign mix.
+   * The original inline declaration is restored on every re-layout and in destroy().
+   */
+  private applySiblingMargins() {
+    for (const element of this.adjustedMargins) this.restoreMargin(element);
+    this.adjustedMargins.clear();
+    if (!this.geometry.sumAdjacentMargins) return;
+    const body = this.document.body, view = this.document.defaultView;
+    if (!body || !view?.getComputedStyle) return;
+    const computed = (element: Element) => view.getComputedStyle(element);
+    const inFlowBlock = (element: Element) => {
+      const style = computed(element);
+      return COLLAPSING_DISPLAYS.has(style.getPropertyValue("display")) &&
+        !["absolute", "fixed"].includes(style.getPropertyValue("position")) && style.getPropertyValue("float") === "none";
+    };
+    const walk = (parent: Element) => {
+      const children = Array.from(parent.children ?? []).filter(child => !child.hasAttribute("data-bindery-inset"));
+      if (!NO_CHILD_COLLAPSE.test(computed(parent).getPropertyValue("display"))) {
+        for (let index = 1; index < children.length; index++) {
+          const previous = children[index - 1]!, next = children[index]!;
+          if (!inFlowBlock(previous) || !inFlowBlock(next)) continue;
+          const bottom = pixels(computed(previous).getPropertyValue("margin-bottom"));
+          if (!bottom) continue;
+          const top = pixels(computed(next).getPropertyValue("margin-top")), sum = Math.round((bottom + top) * 10000) / 10000;
+          // Mixed signs already add up in a browser; only equal-sign margins differ from the device.
+          const collapsed = bottom >= 0 && top >= 0 ? Math.max(bottom, top) : bottom <= 0 && top <= 0 ? Math.min(bottom, top) : sum;
+          if (collapsed === sum) continue;
+          const target = next as HTMLElement;
+          if (!this.marginTops.has(target)) this.marginTops.set(target, { value: target.style.getPropertyValue("margin-top"), priority: target.style.getPropertyPriority("margin-top") });
+          target.style.setProperty("margin-top", `${sum}px`, "important");
+          this.adjustedMargins.add(target);
+        }
+      }
+      for (const child of children) walk(child);
+    };
+    walk(body);
+  }
   private setSpacers(top: number, bottom: number) {
     for (const spacer of this.spacers) spacer.remove();
     this.spacers = [];
@@ -187,6 +239,7 @@ export class PreviewDocument {
     if (this.disposed) return;
     const root = this.document.documentElement, scroller = this.document.scrollingElement ?? root;
     this.force(root, { "--bindery-page-end": "0px" });
+    this.applySiblingMargins();
     const pitch = Math.max(1, Math.round(2 * this.geometry.width));
     const metrics = previewPagination(pitch, scroller.scrollWidth || pitch, this.lastPage ? Number.MAX_SAFE_INTEGER : this.page);
     let desired = metrics.page;
@@ -254,6 +307,8 @@ export class PreviewDocument {
   destroy() {
     this.disposed = true; this.fonts.clear(); this.fontSources.clear(); this.cleanups.forEach(cleanup => cleanup());
     this.style.remove(); this.base.remove(); for (const spacer of this.spacers) spacer.remove(); this.document.removeEventListener("click", this.click); this.document.removeEventListener("keydown", this.key);
+    for (const element of this.marginTops.keys()) this.restoreMargin(element);
+    this.marginTops.clear(); this.adjustedMargins.clear();
     for (const [element, css] of this.originalStyles) element.style.cssText = css;
     if (this.originalMarker === null) this.document.documentElement.removeAttribute("data-bindery-kindle");
     else this.document.documentElement.setAttribute("data-bindery-kindle", this.originalMarker);
