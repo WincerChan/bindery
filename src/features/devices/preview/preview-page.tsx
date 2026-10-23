@@ -53,6 +53,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const state = () => device?.state() ?? null;
   const remembered = () => device?.remembered() ?? [];
   const connected = () => state()?.status === "granted" ? state()!.device : null;
+  const currentIdentity = () => state()?.device?.identity ?? null;
   const [target, setTarget] = createSignal<Target | null>(null), [modelKind, setModelKind] = createSignal<DeviceKind>("kindle"), [model, setModel] = createSignal("KPW3");
   const [reading, setReading] = createSignal<DeviceReadingSettings>(defaultReadingSettings("kindle"));
   const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [draft, setDraft] = createSignal<TypesettingProfile>(defaultProfile());
@@ -98,7 +99,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
   };
   const available = () => {
     const seen = new Set<string>(), list = remembered().map(value => value.identity);
-    const current = connected()?.identity;
+    const current = currentIdentity();
     if (current && !list.some(value => value.id === current.id)) list.unshift(current);
     const selected = target();
     if (selected && !list.some(value => value.id === selected.id)) list.push({ id: selected.id, kind: selected.kind, model: selected.model, name: selected.name, created_at: "" });
@@ -169,7 +170,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
     finally { if (!disposed && request === chapterRequest) setChapterLoading(false); }
   }
   createEffect(() => props.data, data => { chapterRequest++; setBookId(data.bookId); setSections(data.sections); openChapter(0); setChapterLoading(false); setChapterError(data.error); });
-  createEffect(() => connected()?.identity, identity => {
+  createEffect(currentIdentity, identity => {
     if (!identity || modelOnlyByUser || (target() && target()!.id !== followedId)) return;
     followedId = identity.id; setTarget({ id: identity.id, kind: identity.kind, model: identity.model, name: identity.name });
   });
