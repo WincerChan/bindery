@@ -20,7 +20,7 @@ const BLOCK_ELEMENTS = new Set([
 const PREFORMATTED_ELEMENTS = new Set(["pre", "textarea", "listing", "xmp", "plaintext"]);
 // Inline replaced/atomic content: a line box does not trim through its own contents.
 const ATOMIC_ELEMENTS = new Set(["img", "svg", "math", "video", "audio", "canvas", "iframe", "object", "embed", "input", "select", "textarea", "button", "meter", "progress"]);
-const COLLAPSIBLE_START = /^[ \t\n\r\f]+/, COLLAPSIBLE_END = /[ \t\n\r\f]+$/;
+const COLLAPSIBLE_START = /^[ \t\n\r\f]+/, COLLAPSIBLE_END = /[ \t\n\r\f]+$/, COLLAPSIBLE_RUN = /[ \t\n\r\f]+/g;
 const WHITE_SPACE_PRE = /(?:^|;)\s*white-space\s*:\s*pre\b/i;
 
 function isPreformatted(element: Element): boolean {
@@ -90,6 +90,23 @@ function trimBlock(block: Element): boolean {
       }
       if (trimmed) break;
     }
+    // boko collapses runs inside one text node but keeps the extra spaces when a run crosses an
+    // inline element boundary (`A <span>  B</span>`); a browser still renders one space.
+    let previousSpace = false;
+    for (const item of segment) {
+      if (!("text" in item)) {
+        previousSpace = false;
+        continue;
+      }
+      const value = item.text.nodeValue ?? "";
+      let normalized = value.replace(COLLAPSIBLE_RUN, " ");
+      if (previousSpace && normalized.startsWith(" ")) normalized = normalized.slice(1);
+      if (normalized !== value) {
+        item.text.nodeValue = normalized;
+        changed = true;
+      }
+      if (normalized) previousSpace = normalized.endsWith(" ");
+    }
   }
   return changed;
 }
@@ -129,7 +146,8 @@ function rewriteDocument(text: string): string | null {
  * boko also keeps one collapsible space at the start/end of a block where a browser drops it, which turns a
  * profile text indent into "indent + space" on the device. Leading/trailing whitespace is removed per browser
  * line box (across inline elements, at `<br>` and nested-block boundaries); `pre` and `white-space: pre*` are
- * untouched. Runs *inside* a text node need no work: boko already collapses them to one space like a browser.
+ * untouched. Runs inside one text node are already collapsed by boko, but runs crossing inline element boundaries
+ * are not, so all collapsible runs become one space as the browser renders them.
  *
  * Returns the input unchanged when nothing needs rewriting, so boko sees identical bytes.
  */

@@ -72,6 +72,11 @@ describe("EPUB preparation for boko", () => {
     expect(blocks(xml, "li")[0]!.textContent).toBe("项目");
     for (const name of ["p", "div", "h2", "li"]) expect(blocks(xml, name)[0]!.textContent).not.toMatch(/^\s|\s$/);
   });
+  it("collapses whitespace runs across inline element boundaries as a browser does", () => {
+    const book = calibreEpub(calibreTitlepage, `<p>A <span>  B  </span> C</p><p>中文  <em>  强调  </em> 后文</p>`);
+    const xml = member(prepareEpubForBoko(book), "OEBPS/Text/c1.xhtml"), paragraphs = blocks(xml, "p");
+    expect(paragraphs.map(paragraph => paragraph.textContent)).toEqual(["A B C", "中文 强调 后文"]);
+  });
   it("trims each line box at <br> like a browser but leaves pre and white-space: pre* untouched", () => {
     const book = calibreEpub(calibreTitlepage, `<p>前文 <br/>\n  后文 </p><p>  <br/>  </p><p><span>甲</span> <br/> <span>乙</span></p><pre>\n  保留\n</pre><p style="white-space: pre">\n  保留 \n</p><div style="white-space:pre-wrap"><p> 保留 </p></div>`);
     const xml = member(prepareEpubForBoko(book), "OEBPS/Text/c1.xhtml"), paragraphs = blocks(xml, "p");
@@ -86,13 +91,14 @@ describe("EPUB preparation for boko", () => {
     expect(prepareEpubForBoko(plain)).toBe(plain);
   });
   it("converts a fixture paragraph without the leading space boko used to keep", async () => {
-    const converted = await convertEpub(calibreEpub(calibreTitlepage, "<p>\n  黑暗的房间内。\n</p><p>下一段</p><p>中文  空格\n换行</p>"), wasm);
+    const converted = await convertEpub(calibreEpub(calibreTitlepage, "<p>\n  黑暗的房间内。\n</p><p>下一段</p><p>中文  空格\n换行</p><p>A <span>  B  </span> C</p>"), wasm);
     const texts: string[] = [];
     for (const entity of parseKfxEntities(converted.data, [145])) walkIon(entity.value, value => { if (typeof value === "string") texts.push(value); });
     expect(texts).toContain("黑暗的房间内。");
     expect(texts).toContain("下一段");
-    // boko already collapses runs inside one text node to a single space, like the browser preview.
+    // boko already collapses runs inside one text node; the inline-boundary run is collapsed before conversion.
     expect(texts).toContain("中文 空格 换行");
+    expect(texts).toContain("A B C");
     expect(texts.some(text => /^\s/.test(text))).toBe(false);
   });
   it("leaves SVG that draws anything besides one image untouched while still trimming its block whitespace", () => {
