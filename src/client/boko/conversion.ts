@@ -1,5 +1,6 @@
 import init, { book_info, convert } from "../../../vendor/boko/boko.js";
 import type { InitInput } from "../../../vendor/boko/boko.js";
+import { prepareEpubForBoko } from "../../core/kfx-prepare";
 import { readKfxIdentity, type KfxIdentity } from "./kfx";
 
 export type ConversionStage = "loading" | "inspecting" | "converting" | "metadata" | "done";
@@ -11,6 +12,7 @@ export async function convertEpub(data: Uint8Array, wasm: InitInput, progress: (
   initialized ??= init({ module_or_path: wasm }).catch(error => { initialized = undefined; throw error; });
   await initialized;
   progress("inspecting");
+  data = prepareEpubForBoko(data);
   const bookInfo = JSON.parse(book_info(data, "epub"));
   progress("converting");
   const converted = new Uint8Array(convert(data, "epub", "kfx"));

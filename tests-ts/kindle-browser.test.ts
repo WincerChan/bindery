@@ -61,7 +61,9 @@ describe("browser packaging and handle persistence", () => {
       const files = readdirSync(join(root, "assets")), wasm = files.find(name => name.endsWith(".wasm")), worker = files.find(name => name.startsWith("worker-") && name.endsWith(".js"));
       expect(wasm).toBeDefined(); expect(worker).toBeDefined();
       expect(readFileSync(join(root, "assets", wasm!))).toEqual(readFileSync("vendor/boko/boko_bg.wasm"));
-      const code = readFileSync(join(root, "assets", worker!), "utf8"); expect(code).toContain(wasm); expect(code).not.toContain("node:"); expect(code).not.toContain("/server/");
+      const code = readFileSync(join(root, "assets", worker!), "utf8"); expect(code).toContain(wasm); expect(code).not.toContain("/server/");
+      // Only module specifiers count: xmldom, used by the EPUB preparation in the Worker, has `{ node: … }` literals.
+      expect(code).not.toMatch(/(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*)["']node:/); expect(code).toContain("prepareEpubForBoko");
       expect(readFileSync(join(root, "client.js"), "utf8")).toContain(worker);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
