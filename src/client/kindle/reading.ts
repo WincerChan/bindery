@@ -45,7 +45,6 @@ async function cachedPositions(root: KindleDirectory, filename: string, file: De
   cache.set(key, { size: snapshot.size, modified: snapshot.lastModified, positions });
   return positions;
 }
-const chapterCount = (positions: KindlePositions) => positions.chapters.reduce((count, chapter) => Math.max(count, chapter.index + 1), 0);
 
 /** Read-only pass over a Kindle: sidecars are never written and failures are counted per book. */
 export async function readKindleReading(root: KindleDirectory, manifest: DeviceManifest): Promise<KindleReading> {
@@ -82,7 +81,7 @@ async function readBook(root: KindleDirectory, files: Map<string, DeviceFile>, s
   if (!file) return null;
   const positions = await cachedPositions(root, book.filename, file), position = kindlePosition(positions, decoded);
   return {
-    book_id: book.book_id, location: newest.location, chapter: position.chapter, chapter_count: chapterCount(positions),
+    book_id: book.book_id, location: newest.location, chapter: position.chapter, kfx_section_count: positions.sectionCount,
     chapter_fraction: position.chapter_fraction, percent: position.percent, last_read_at: newest.at,
   };
 }

@@ -4,6 +4,7 @@ import { convertEpub } from "../src/client/boko/conversion";
 import { writeArchive } from "../src/core/archive";
 import { decodeKindlePosition, parseReaderDataStore, ReaderDataStoreError, type ReaderStoreValue } from "../src/client/kindle/reading-store";
 import { KfxPositionsError, kindlePosition, readKfxPositions } from "../src/client/kindle/kfx-positions";
+import { assetCover } from "./support/kindle-assets";
 
 const wasm = readFileSync(new URL("../vendor/boko/boko_bg.wasm", import.meta.url)), encoder = new TextEncoder();
 const object = (name: string | null, values: ReaderStoreValue[]): ReaderStoreValue => ({ name, values });
@@ -44,6 +45,23 @@ function miniEpub() {
     { name: "OEBPS/content.opf", data: encoder.encode(opf) },
     { name: "OEBPS/nav.xhtml", data: encoder.encode(nav) },
     ...titles.map((body, index) => ({ name: `OEBPS/Text/c${index}.xhtml`, data: chapter(index + 1, body) })),
+  ]);
+}
+function coverCaseEpub(withCoverPage: boolean) {
+  const cover = encoder.encode(`<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Cover</title></head><body><div><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100%" height="100%" viewBox="0 0 292 425" preserveAspectRatio="none"><image width="292" height="425" xlink:href="../Images/cover.png"/></svg></div></body></html>`);
+  const docs = [
+    ...(withCoverPage ? [{ id: "titlepage", href: "Text/titlepage.xhtml", data: cover }] : []),
+    ...[1, 2, 3].map(number => ({ id: `c${number}`, href: `Text/c${number}.xhtml`, data: chapter(number, "文".repeat(10)) })),
+  ];
+  const opf = `<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">urn:uuid:kindle-cover-case</dc:identifier><dc:title>封面测试</dc:title><dc:language>zh</dc:language><meta name="cover" content="cover"/></metadata><manifest><item id="cover" href="Images/cover.png" media-type="image/png" properties="cover-image"/><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>${docs.map(doc => `<item id="${doc.id}" href="${doc.href}" media-type="application/xhtml+xml"/>`).join("")}</manifest><spine>${docs.map(doc => `<itemref idref="${doc.id}"/>`).join("")}</spine><guide><reference type="cover" href="Text/titlepage.xhtml"/></guide></package>`;
+  const nav = `<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>目录</title></head><body><nav epub:type="toc"><ol>${docs.map(doc => `<li><a href="${doc.href}">${doc.id}</a></li>`).join("")}</ol></nav></body></html>`;
+  return writeArchive([
+    { name: "mimetype", data: encoder.encode("application/epub+zip") },
+    { name: "META-INF/container.xml", data: encoder.encode(`<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`) },
+    { name: "OEBPS/content.opf", data: encoder.encode(opf) },
+    { name: "OEBPS/nav.xhtml", data: encoder.encode(nav) },
+    { name: "OEBPS/Images/cover.png", data: assetCover },
+    ...docs.map(doc => ({ name: `OEBPS/${doc.href}`, data: doc.data })),
   ]);
 }
 class RecordingBlob extends Blob {
@@ -91,6 +109,8 @@ describe("KFX position maps", () => {
     const file = new RecordingBlob([converted.data, new Uint8Array(6 * 1024 * 1024)]);
     const positions = await readKfxPositions(file);
     expect(positions.chapters.map(chapter => chapter.index)).toEqual([0, 1, 2]);
+    expect(positions.sectionCount).toBe(3);
+    expect(positions.chapters.every(chapter => !chapter.cover)).toBe(true);
     expect(positions.totalPid).toBeGreaterThan(0);
     for (const chapter of positions.chapters) {
       expect(chapter.startPid).toBeLessThanOrEqual(chapter.endPid);
@@ -105,6 +125,15 @@ describe("KFX position maps", () => {
     expect(kindlePosition(positions, { eid, pid: middle }).chapter_fraction).toBeCloseTo((middle - target.startPid) / (target.endPid - target.startPid), 10);
     expect(kindlePosition(positions, { eid: 0xffffffff, pid: middle })).toEqual({ chapter: null, chapter_fraction: null, percent: middle / positions.totalPid * 100 });
     expect(kindlePosition(positions, { eid, pid: positions.totalPid + 10 }).percent).toBe(100);
+  });
+  it("numbers sections including boko's cover for both spine layouts", async () => {
+    for (const withCoverPage of [true, false]) {
+      const converted = await convertEpub(coverCaseEpub(withCoverPage), wasm), positions = await readKfxPositions(new Blob([converted.data]));
+      expect(positions.sectionCount).toBe(4);
+      expect(positions.chapters.map(chapter => chapter.index)).toEqual([0, 1, 2, 3]);
+      expect(positions.chapters[0]?.cover).toBe(true);
+      expect(positions.chapters.filter(chapter => !chapter.cover)).toHaveLength(3);
+    }
   });
   it("rejects a malformed or non-boko KFX with a typed error", async () => {
     await expect(readKfxPositions(new Blob([new Uint8Array(64)]))).rejects.toBeInstanceOf(KfxPositionsError);
@@ -140,7 +169,7 @@ describe("Kindle device reading pass", () => {
     const reading = await readKindleReading(fs.root, await readManifest(fs.root));
     const expected = { chapter: first.index, chapter_fraction: 0, percent: first.startPid / positions.totalPid * 100 };
     expect(reading).toEqual({
-      entries: [{ book_id: jia.book_id, location: newer, chapter_count: positions.chapters.length, last_read_at: "2026-10-23T09:47:27.039Z", ...expected }],
+      entries: [{ book_id: jia.book_id, location: newer, kfx_section_count: positions.sectionCount, last_read_at: "2026-10-23T09:47:27.039Z", ...expected }],
       skipped: 3,
       unmatched: 1,
     });

@@ -4,8 +4,8 @@ import { IonReader, ionField, type IonValue } from "../boko/kfx";
 export class KfxPositionsError extends Error {
   constructor(message: string, options?: ErrorOptions) { super(message, options); this.name = "KfxPositionsError"; }
 }
-export interface KindleChapter { index: number; startPid: number; endPid: number; eids: Set<number> }
-export interface KindlePositions { chapters: KindleChapter[]; totalPid: number }
+export interface KindleChapter { index: number; startPid: number; endPid: number; eids: Set<number>; cover: boolean }
+export interface KindlePositions { chapters: KindleChapter[]; totalPid: number; sectionCount: number }
 const fail = (message: string): never => { throw new KfxPositionsError(message); };
 const symbolId = (value: IonValue): number | null => value !== null && typeof value === "object" && "symbol" in value ? value.symbol : null;
 const integer = (value: IonValue, name: string): number => {
@@ -24,18 +24,6 @@ function symbolNames(table: IonValue): Array<string | null> {
   if (!locals.length) return fail("KFX 文档符号表为空");
   return names;
 }
-const chapterName = (name: string | null): number | null => {
-  const match = name === null ? null : /^c(\d+)$/.exec(name);
-  if (!match) return null;
-  const index = Number(match[1]);
-  return Number.isSafeInteger(index) && index >= 0 ? index : null;
-};
-const storylineName = (name: string | null): number | null => {
-  const match = name === null ? null : /^story_c(\d+)$/.exec(name);
-  if (!match) return null;
-  const index = Number(match[1]);
-  return Number.isSafeInteger(index) && index >= 0 ? index : null;
-};
 interface EntityRecord { id: number; type: number; offset: number; size: number }
 
 /** Reads only the container header, symbol table, index and the position/section entities. */
@@ -57,7 +45,7 @@ export async function readKfxPositions(file: Blob): Promise<KindlePositions> {
     const indexStart = integer(ionField(info, 413), "索引偏移"), indexLength = integer(ionField(info, 414), "索引长度");
     if (!indexLength || indexLength % 24 || indexStart < 18 || indexStart + indexLength > headerLength) return fail("无效的 KFX 索引");
     const symbolStart = integer(ionField(info, 415), "符号表偏移"), symbolLength = integer(ionField(info, 416), "符号表长度");
-    const names = symbolNames(new IonReader(await read(symbolStart, symbolLength)).read());
+    symbolNames(new IonReader(await read(symbolStart, symbolLength)).read());
     const index = await read(indexStart, indexLength), indexView = view(index), records: EntityRecord[] = [];
     for (let at = 0; at < indexLength; at += 24) {
       const id = indexView.getUint32(at, true), type = indexView.getUint32(at + 4, true);
@@ -74,22 +62,14 @@ export async function readKfxPositions(file: Blob): Promise<KindlePositions> {
       if (ionField(encoding, 410) !== 0 || ionField(encoding, 411) !== 0) return fail("不支持压缩或加密的 KFX 实体");
       return new IonReader(bytes.subarray(entityHeader)).read();
     };
-    const sections = new Map<number, { name: number; cover: boolean; storyline: number | null }>();
-    const eidsBySection = new Map<number, Set<number>>(), pidByEid = new Map<number, number>();
+    const sections = new Map<number, { cover: boolean }>(), pidByEid = new Map<number, number>();
     let positionMap: IonValue | null = null;
     for (const record of records) {
       const value = await entity(record);
       if (record.type === 260) {
-        const name = symbolId(ionField(value, 174)), index = chapterName(name === null ? null : names[name] ?? null);
-        if (name !== null && index !== null) {
-          const pages = ionField(value, 141);
-          if (!Array.isArray(pages) || !pages.length) return fail("KFX 章节没有页面");
-          const first = pages[0], cover = pages.every(page => symbolId(ionField(page, 159)) === 270);
-          const storyline = symbolId(ionField(first, 176));
-          const actual = storyline === null ? null : storylineName(names[storyline] ?? null);
-          if (actual !== index) return fail("KFX 章节与 storyline 编号不一致");
-          sections.set(index, { name, cover, storyline });
-        }
+        const symbol = symbolId(ionField(value, 174)), pages = ionField(value, 141);
+        if (symbol === null || !Array.isArray(pages) || !pages.length || sections.has(symbol)) return fail("无效的 KFX 章节");
+        sections.set(symbol, { cover: pages.every(page => symbolId(ionField(page, 159)) === 270) });
       } else if (record.type === 264) positionMap = value;
       else {
         for (const entry of Array.isArray(value) ? value : []) {
@@ -99,27 +79,24 @@ export async function readKfxPositions(file: Blob): Promise<KindlePositions> {
         }
       }
     }
-    if (!sections.size || !positionMap) return fail("KFX 缺少章节或位置映射");
-    for (const [index, section] of sections) if (chapterName(names[section.name] ?? null) !== index) return fail("KFX 章节编号不连续");
-    for (let index = 0; index < sections.size; index++) if (!sections.has(index)) return fail("KFX 章节编号不连续");
-    for (const entry of Array.isArray(positionMap) ? positionMap : []) {
-      const name = symbolId(ionField(entry, 174)), index = name === null ? null : chapterName(names[name] ?? null);
-      const eids = ionField(entry, 181);
-      if (index === null || !Array.isArray(eids)) continue;
-      eidsBySection.set(index, new Set(eids.map(eid => integer(eid, "章节 eid"))));
+    if (!sections.size || !positionMap || !Array.isArray(positionMap)) return fail("KFX 缺少章节或位置映射");
+    // The position map is in boko's reading order, including the cover section.
+    const ordered: Array<{ cover: boolean; eids: Set<number> }> = [], seen = new Set<number>();
+    for (const entry of positionMap) {
+      const symbol = symbolId(ionField(entry, 174)), info = symbol === null ? undefined : sections.get(symbol), raw = ionField(entry, 181);
+      if (symbol === null || !info || seen.has(symbol) || !Array.isArray(raw)) return fail("KFX 章节顺序无效");
+      seen.add(symbol);
+      ordered.push({ cover: info.cover, eids: new Set(raw.map(eid => integer(eid, "章节 eid"))) });
     }
-    if (!pidByEid.size) return fail("KFX 缺少位置映射");
+    if (seen.size !== sections.size || !pidByEid.size) return fail("KFX 章节顺序无效");
     let largestPid = 0;
     for (const pid of pidByEid.values()) largestPid = Math.max(largestPid, pid);
-    const chapters: KindleChapter[] = [];
-    for (let index = 0; index < sections.size; index++) {
-      const section = sections.get(index)!;
-      if (section.cover) continue;
-      const eids = eidsBySection.get(index) ?? new Set<number>();
-      const pids = [...eids].map(eid => pidByEid.get(eid)).filter((pid): pid is number => pid !== undefined);
-      chapters.push({ index, startPid: pids.length ? Math.min(...pids) : 0, endPid: pids.length ? Math.max(...pids) : 0, eids });
-    }
-    return { chapters, totalPid: largestPid + 1 };
+    const totalPid = largestPid + 1, chapters: KindleChapter[] = ordered.map((section, index) => {
+      const pids = [...section.eids].map(eid => pidByEid.get(eid)).filter((pid): pid is number => pid !== undefined);
+      return { index, startPid: pids.length ? Math.min(...pids) : 0, endPid: 0, eids: section.eids, cover: section.cover };
+    });
+    for (let index = 0; index < chapters.length; index++) chapters[index]!.endPid = index + 1 < chapters.length ? chapters[index + 1]!.startPid : totalPid;
+    return { chapters, totalPid, sectionCount: chapters.length };
   } catch (error) {
     if (error instanceof KfxPositionsError) throw error;
     throw new KfxPositionsError("无法读取 KFX 阅读位置", { cause: error });
@@ -131,5 +108,5 @@ export function kindlePosition(positions: KindlePositions, decoded: { eid: numbe
   const percent = positions.totalPid > 0 ? Math.max(0, Math.min(100, decoded.pid / positions.totalPid * 100)) : 0;
   if (!chapter) return { chapter: null, chapter_fraction: null, percent };
   const span = chapter.endPid - chapter.startPid;
-  return { chapter: chapter.index, chapter_fraction: span > 0 ? clamp((decoded.pid - chapter.startPid) / span) : 0, percent };
+  return { chapter: chapter.index, chapter_fraction: chapter.cover ? 0 : span > 0 ? clamp((decoded.pid - chapter.startPid) / span) : 0, percent };
 }

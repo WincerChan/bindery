@@ -14,7 +14,7 @@ export interface KindleEntry {
   book_id: string;
   location: string;
   chapter: number | null;
-  chapter_count: number;
+  kfx_section_count: number;
   chapter_fraction: number | null;
   percent: number;
   last_read_at: string;
@@ -62,15 +62,15 @@ function kindleEntry(value: unknown): KindleEntry {
   if (!row) return invalid();
   const book_id = text(row.book_id, /^[a-f0-9]{32}$/, 32);
   const location = text(row.location, /^[^\0]+$/, 4096);
-  if (!Number.isInteger(row.chapter_count) || (row.chapter_count as number) < 0) return invalid();
-  if (row.chapter !== null && (!Number.isInteger(row.chapter) || (row.chapter as number) < 0 || (row.chapter as number) >= (row.chapter_count as number))) return invalid();
+  if (!Number.isInteger(row.kfx_section_count) || (row.kfx_section_count as number) < 0) return invalid();
+  if (row.chapter !== null && (!Number.isInteger(row.chapter) || (row.chapter as number) < 0 || (row.chapter as number) >= (row.kfx_section_count as number))) return invalid();
   if (!nullableFinite(row.chapter_fraction) || !finite(row.percent)) return invalid();
   if (typeof row.last_read_at !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(row.last_read_at) || !Number.isFinite(Date.parse(row.last_read_at))) return invalid();
   return {
     book_id,
     location,
     chapter: row.chapter as number | null,
-    chapter_count: row.chapter_count as number,
+    kfx_section_count: row.kfx_section_count as number,
     chapter_fraction: row.chapter_fraction as number | null,
     percent: row.percent as number,
     last_read_at: row.last_read_at,

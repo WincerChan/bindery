@@ -423,6 +423,16 @@ export function manifestFromOpf(path: string, root: Element, resolve = resolveOp
     };
   });
 }
+/** boko's reading order: OPF spine documents, skipping non-linear items and navigation documents. */
+export function linearSpineDocumentPaths(archive: EpubSource): string[] {
+  const [path, root] = archive.opf(), items = manifestFromOpf(path, root, archive.resolve?.bind(archive)), spine = child(root, "spine");
+  if (!spine) return [];
+  const byId = new Map(items.filter(item => item.item_id).map(item => [item.item_id, item]));
+  return children(spine, "itemref").flatMap(node => {
+    const item = byId.get(strip(attr(node, "idref")));
+    return item && isDocumentMediaType(item.media_type) && !isNavItem(item) && strip(attr(node, "linear")).toLowerCase() !== "no" ? [item.member_path] : [];
+  });
+}
 export function spineDocumentItems(
   root: Element,
   items: ManifestItem[],
