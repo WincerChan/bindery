@@ -150,7 +150,7 @@ const bookId = (value: string) => value.repeat(32).slice(0, 32);
 const record = (book_id: string, filename: string, content_id: string, size = 0): ManifestBook => ({ book_id, filename, content_id, cde_content_type: "EBOK", profile_id: "default", profile_name: "默认", transferred_at: "2026-10-22T13:12:00Z", size, thumbnail: null });
 
 describe("Kindle device reading pass", () => {
-  it("reads the newest sidecar without writing, counts unreadable and unmatched books", async () => {
+  it("reads the newest sidecar without writing, counts unreadable and unmatched books but not unopened ones", async () => {
     const fs = await fakeKindle(), { data, positions } = await miniKfx();
     const first = positions.chapters[1]!, eid = [...first.eids][0]!, newer = positionString(eid, 0, first.startPid);
     const older = positionString([...positions.chapters[0]!.eids][0]!, 0, positions.chapters[0]!.startPid);
@@ -170,7 +170,8 @@ describe("Kindle device reading pass", () => {
     const expected = { chapter: first.index, chapter_fraction: 0, percent: first.startPid / positions.totalPid * 100 };
     expect(reading).toEqual({
       entries: [{ book_id: jia.book_id, location: newer, kfx_section_count: positions.sectionCount, last_read_at: "2026-10-23T09:47:27.039Z", ...expected }],
-      skipped: 3,
+      // 乙 was never opened (no sidecar); 丙 has a broken position file and 丁 a broken KFX.
+      skipped: 2,
       unmatched: 1,
     });
     expect(fs.operations.filter(operation => /createWritable|write|close|remove|get:directory:create|get:file:create|abort/.test(operation.operation))).toEqual([]);

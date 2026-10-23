@@ -6,7 +6,7 @@ import type { DeviceManifest, ManifestBook } from "./manifest";
 
 export interface KindleReading {
   entries: KindleEntry[];
-  /** Manifest books whose sidecar or KFX could not be read; the pass continues. */
+  /** Manifest books whose sidecar or KFX could not be read; the pass continues. Never-opened books are not counted. */
   skipped: number;
   /** Sidecars on the device that do not belong to a manifest book. */
   unmatched: number;
@@ -24,17 +24,19 @@ function lastRead(store: ReturnType<typeof parseReaderDataStore>): LastRead | nu
   const date = new Date(Number(lpr[2]));
   return Number.isFinite(date.getTime()) ? { location: lpr[1], at: date.toISOString(), when: lpr[2] } : null;
 }
-async function readSidecar(root: KindleDirectory, dir: DeviceDirectory, path: string): Promise<LastRead | null> {
-  let newest: LastRead | null = null;
+/** `damaged`: a position file exists but could not be read, which is a failure rather than an unopened book. */
+async function readSidecar(root: KindleDirectory, dir: DeviceDirectory, path: string): Promise<{ newest: LastRead | null; damaged: boolean }> {
+  let newest: LastRead | null = null, damaged = false;
   for (const entry of await directoryEntries(root, dir, path)) {
     if (entry.kind !== "file" || !/\.yjf$/i.test(entry.name)) continue;
     try {
       const bytes = await entryOperation(root, `${path}/${entry.name}`, async () => new Uint8Array(await (await entry.getFile()).arrayBuffer()));
       const value = lastRead(parseReaderDataStore(bytes));
-      if (value && (!newest || value.when > newest.when)) newest = value;
-    } catch { /* A damaged sidecar must not hide the other one. */ }
+      if (!value) damaged = true;
+      else if (!newest || value.when > newest.when) newest = value;
+    } catch { damaged = true; /* A damaged sidecar must not hide the other one. */ }
   }
-  return newest;
+  return { newest, damaged };
 }
 async function cachedPositions(root: KindleDirectory, filename: string, file: DeviceFile): Promise<KindlePositions> {
   const snapshot = await file.getFile(), cache = caches.get(root) ?? new Map<string, CachedPositions>(), key = filename.toLowerCase();
@@ -57,12 +59,14 @@ export async function readKindleReading(root: KindleDirectory, manifest: DeviceM
   for (const book of manifest.books) {
     try {
       const entry = await readBook(root, files, sidecars, consumed, book);
-      if (entry) result.push(entry); else skipped++;
+      if (entry === "failed") skipped++;
+      else if (entry) result.push(entry);
     } catch { skipped++; }
   }
   return { entries: result, skipped, unmatched: [...sidecars.keys()].filter(name => !consumed.has(name)).length };
 }
-async function readBook(root: KindleDirectory, files: Map<string, DeviceFile>, sidecars: Map<string, DeviceDirectory>, consumed: Set<string>, book: ManifestBook): Promise<KindleEntry | null> {
+/** null: the Kindle has no reading position for the book yet (never opened). */
+async function readBook(root: KindleDirectory, files: Map<string, DeviceFile>, sidecars: Map<string, DeviceDirectory>, consumed: Set<string>, book: ManifestBook): Promise<KindleEntry | "failed" | null> {
   const stem = book.filename.replace(/\.kfx$/i, "");
   const candidates = [`${stem}.sdr`, `${stem}_${book.content_id}.sdr`].map(name => name.toLowerCase());
   const dirs: Array<[string, DeviceDirectory]> = [];
@@ -71,14 +75,15 @@ async function readBook(root: KindleDirectory, files: Map<string, DeviceFile>, s
     if (dir) { consumed.add(name); dirs.push([`documents/${dir.name}`, dir]); }
   }
   if (!dirs.length) return null;
-  let newest: LastRead | null = null;
+  let newest: LastRead | null = null, damaged = false;
   for (const [path, dir] of dirs) {
     const value = await readSidecar(root, dir, path);
-    if (value && (!newest || value.when > newest.when)) newest = value;
+    damaged ||= value.damaged;
+    if (value.newest && (!newest || value.newest.when > newest.when)) newest = value.newest;
   }
-  if (!newest) return null;
+  if (!newest) return damaged ? "failed" : null;
   const decoded = decodeKindlePosition(newest.location), file = files.get(book.filename.toLowerCase());
-  if (!file) return null;
+  if (!file) return "failed";
   const positions = await cachedPositions(root, book.filename, file), position = kindlePosition(positions, decoded);
   return {
     book_id: book.book_id, location: newest.location, chapter: position.chapter, kfx_section_count: positions.sectionCount,
