@@ -91,6 +91,16 @@ describe("LexiTrace push worker", () => {
     expect(library.db.listVocabulary().every(row => row.push_state === "pushed")).toBe(true);
   });
 
+  it("keeps every request under the 256 KiB ingest limit", async () => {
+    const { library } = configured();
+    addWords(library, [word("large", 1, { context: { sentence: "𠀀".repeat(16384), previous: Array.from({ length: 32 }, () => "𠀀".repeat(4096)), following: Array.from({ length: 32 }, () => "𠀀".repeat(4096)) } })]);
+    let body = "";
+    const result = await pushVocabulary(library, { fetcher: async (_url, init) => { body = String(init!.body); return jsonResponse(202); } });
+    expect(result).toMatchObject({ pushed: 1 });
+    expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(256 * 1024);
+    expect(JSON.parse(body).context.sentence.length).toBeGreaterThan(0);
+  });
+
   it("clamps overlong words while keeping a stable lookup id on replay", async () => {
     const { library } = configured();
     addWords(library, [word("w".repeat(600), 1)]);

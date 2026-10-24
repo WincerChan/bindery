@@ -42,6 +42,7 @@ import { Route as AppDevicesConnectRouteImport } from './routes/_app.devices.con
 import { Route as AppDevicesFontsRouteImport } from './routes/_app.devices.fonts'
 import { Route as AppDevicesPreviewRouteImport } from './routes/_app.devices.preview'
 import { Route as AppDevicesTransferRouteImport } from './routes/_app.devices.transfer'
+import { Route as AppDevicesVocabularyRouteImport } from './routes/_app.devices.vocabulary'
 import { Route as AppKindleIndexRouteImport } from './routes/_app.kindle.index'
 import { Route as AppKindleConnectRouteImport } from './routes/_app.kindle.connect'
 import { Route as AppKindleFontsRouteImport } from './routes/_app.kindle.fonts'
@@ -238,6 +239,11 @@ const AppDevicesPreviewRoute = AppDevicesPreviewRouteImport.update({
 const AppDevicesTransferRoute = AppDevicesTransferRouteImport.update({
   id: '/transfer',
   path: '/transfer',
+  getParentRoute: () => AppDevicesRoute,
+} as any)
+const AppDevicesVocabularyRoute = AppDevicesVocabularyRouteImport.update({
+  id: '/vocabulary',
+  path: '/vocabulary',
   getParentRoute: () => AppDevicesRoute,
 } as any)
 const AppKindleIndexRoute = AppKindleIndexRouteImport.update({
@@ -442,6 +448,7 @@ export interface FileRoutesByFullPath {
   '/devices/fonts': typeof AppDevicesFontsRoute
   '/devices/preview': typeof AppDevicesPreviewRoute
   '/devices/transfer': typeof AppDevicesTransferRoute
+  '/devices/vocabulary': typeof AppDevicesVocabularyRoute
   '/kindle/connect': typeof AppKindleConnectRoute
   '/kindle/fonts': typeof AppKindleFontsRoute
   '/kindle/preview': typeof AppKindlePreviewRoute
@@ -507,6 +514,7 @@ export interface FileRoutesByTo {
   '/devices/fonts': typeof AppDevicesFontsRoute
   '/devices/preview': typeof AppDevicesPreviewRoute
   '/devices/transfer': typeof AppDevicesTransferRoute
+  '/devices/vocabulary': typeof AppDevicesVocabularyRoute
   '/kindle/connect': typeof AppKindleConnectRoute
   '/kindle/fonts': typeof AppKindleFontsRoute
   '/kindle/preview': typeof AppKindlePreviewRoute
@@ -576,6 +584,7 @@ export interface FileRoutesById {
   '/_app/devices/fonts': typeof AppDevicesFontsRoute
   '/_app/devices/preview': typeof AppDevicesPreviewRoute
   '/_app/devices/transfer': typeof AppDevicesTransferRoute
+  '/_app/devices/vocabulary': typeof AppDevicesVocabularyRoute
   '/_app/kindle/connect': typeof AppKindleConnectRoute
   '/_app/kindle/fonts': typeof AppKindleFontsRoute
   '/_app/kindle/preview': typeof AppKindlePreviewRoute
@@ -645,6 +654,7 @@ export interface FileRouteTypes {
     | '/devices/fonts'
     | '/devices/preview'
     | '/devices/transfer'
+    | '/devices/vocabulary'
     | '/kindle/connect'
     | '/kindle/fonts'
     | '/kindle/preview'
@@ -710,6 +720,7 @@ export interface FileRouteTypes {
     | '/devices/fonts'
     | '/devices/preview'
     | '/devices/transfer'
+    | '/devices/vocabulary'
     | '/kindle/connect'
     | '/kindle/fonts'
     | '/kindle/preview'
@@ -778,6 +789,7 @@ export interface FileRouteTypes {
     | '/_app/devices/fonts'
     | '/_app/devices/preview'
     | '/_app/devices/transfer'
+    | '/_app/devices/vocabulary'
     | '/_app/kindle/connect'
     | '/_app/kindle/fonts'
     | '/_app/kindle/preview'
@@ -1087,6 +1099,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AppDevicesTransferRouteImport
       parentRoute: typeof AppDevicesRoute
     }
+    '/_app/devices/vocabulary': {
+      id: '/_app/devices/vocabulary'
+      path: '/vocabulary'
+      fullPath: '/devices/vocabulary'
+      preLoaderRoute: typeof AppDevicesVocabularyRouteImport
+      parentRoute: typeof AppDevicesRoute
+    }
     '/_app/kindle/': {
       id: '/_app/kindle/'
       path: '/'
@@ -1326,6 +1345,7 @@ interface AppDevicesRouteChildren {
   AppDevicesFontsRoute: typeof AppDevicesFontsRoute
   AppDevicesPreviewRoute: typeof AppDevicesPreviewRoute
   AppDevicesTransferRoute: typeof AppDevicesTransferRoute
+  AppDevicesVocabularyRoute: typeof AppDevicesVocabularyRoute
   AppDevicesIndexRoute: typeof AppDevicesIndexRoute
 }
 
@@ -1334,6 +1354,7 @@ const AppDevicesRouteChildren: AppDevicesRouteChildren = {
   AppDevicesFontsRoute: AppDevicesFontsRoute,
   AppDevicesPreviewRoute: AppDevicesPreviewRoute,
   AppDevicesTransferRoute: AppDevicesTransferRoute,
+  AppDevicesVocabularyRoute: AppDevicesVocabularyRoute,
   AppDevicesIndexRoute: AppDevicesIndexRoute,
 }
 

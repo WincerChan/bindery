@@ -3,7 +3,7 @@ import type { LibraryStorage } from "../storage";
 import { lexTraceSettings } from "./settings";
 import type { VocabularyContext } from "./input";
 
-const MAX_ATTEMPTS = 5, BASE_DELAY_MS = 5000, MAX_DELAY_MS = 60 * 60 * 1000;
+const MAX_ATTEMPTS = 5, BASE_DELAY_MS = 5000, MAX_DELAY_MS = 60 * 60 * 1000, MAX_BODY_BYTES = 256 * 1024;
 export interface PushPayload {
   lookup_id: string;
   source_text: string;
@@ -52,6 +52,22 @@ function titleOf(library: LibraryStorage, row: VocabularyRow): string {
   }
   return row.source_title;
 }
+const encodedLength = (value: string) => new TextEncoder().encode(value).length;
+function requestBody(payload: PushPayload): string {
+  let body = JSON.stringify(payload);
+  if (encodedLength(body) <= MAX_BODY_BYTES) return body;
+  const context: VocabularyContext = { sentence: payload.context.sentence, previous: [...payload.context.previous], following: [...payload.context.following] };
+  const sized = () => JSON.stringify({ ...payload, context });
+  while (encodedLength(body = sized()) > MAX_BODY_BYTES && (context.previous.length || context.following.length)) {
+    if (context.following.length) context.following.pop();
+    else context.previous.shift();
+  }
+  while (encodedLength(body) > MAX_BODY_BYTES && context.sentence.length) {
+    context.sentence = context.sentence.slice(0, Math.floor(context.sentence.length * 0.75));
+    body = sized();
+  }
+  return body;
+}
 export function vocabularyPushPayload(library: LibraryStorage, row: VocabularyRow): PushPayload {
   const title = titleOf(library, row), sourceText = (row.word || row.raw_word).slice(0, 512).trim() || "word";
   const parsed = Date.parse(row.looked_up_at);
@@ -89,7 +105,7 @@ async function pushOne(library: LibraryStorage, row: VocabularyRow, options: Pus
     const response = await (options.fetcher ?? fetch)(`${config.baseUrl}/api/integrations/llplayer/lookups`, {
       method: "POST",
       headers: { Authorization: `Bearer ${config.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: requestBody(payload),
       redirect: "error",
     });
     http = response.status;
@@ -183,4 +199,4 @@ export function retryVocabularyPush(library: LibraryStorage, ids?: string[]): nu
   void kickVocabularyPush(library);
   return changed;
 }
-export { MAX_ATTEMPTS, BASE_DELAY_MS, MAX_DELAY_MS };
+export { MAX_ATTEMPTS, BASE_DELAY_MS, MAX_DELAY_MS, MAX_BODY_BYTES };

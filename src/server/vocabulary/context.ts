@@ -108,7 +108,11 @@ export function computeKoboContexts(library: LibraryStorage, deviceId: string, b
     const bound = readingBound(library, book, bookId, deviceId);
     let previous = -1;
     for (const row of rows) {
-      const existing = row.context_json ? JSON.parse(row.context_json) as StoredVocabularyContext : null;
+      let existing: StoredVocabularyContext | null = null;
+      if (row.context_json) {
+        try { existing = JSON.parse(row.context_json) as StoredVocabularyContext; }
+        catch { existing = null; }
+      }
       if (existing) {
         previous = contextOffset(book, existing, row.word) ?? previous;
         continue;

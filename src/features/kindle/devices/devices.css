@@ -187,3 +187,27 @@
   .kindle-device-switch { width: 100%; }
   .kindle-device-switch select { max-width: none; width: 100%; }
 }
+
+.vocabulary-page .kindle-toolbar { align-items: end; }
+.vocabulary-settings { margin: 16px 0 22px; border-top: 1px solid var(--color-line); border-bottom: 1px solid var(--color-line); padding: 12px 0; }
+.vocabulary-settings > summary { cursor: pointer; font-size: 14px; font-weight: 600; padding: 4px 0; }
+.vocabulary-settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; padding: 14px 0 4px; }
+.vocabulary-settings-fields .field:nth-child(3) { grid-column: 1 / -1; }
+.vocabulary-settings-actions { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; }
+.vocabulary-settings-actions .checkbox { flex: 0 0 auto; }
+.vocabulary-settings-fields > p { grid-column: 1 / -1; margin: 0; }
+.vocabulary-toolbar { align-items: end; padding-bottom: 14px; }
+.vocabulary-toolbar .kindle-filters { flex: 1 1 auto; flex-wrap: wrap; align-items: end; }
+.vocabulary-toolbar .field { width: auto; min-width: 132px; }
+.vocabulary-table { min-width: 1040px; }
+.vocabulary-table th:nth-child(1), .vocabulary-table td:nth-child(1) { width: 130px; }
+.vocabulary-table th:nth-child(2), .vocabulary-table td:nth-child(2) { min-width: 150px; }
+.vocabulary-table th:nth-child(3), .vocabulary-table td:nth-child(3) { min-width: 120px; }
+.vocabulary-table th:nth-child(4), .vocabulary-table td:nth-child(4) { width: 150px; }
+.vocabulary-table th:nth-child(6), .vocabulary-table td:nth-child(6) { width: 100px; }
+.vocabulary-table th:nth-child(7), .vocabulary-table td:nth-child(7) { width: 70px; text-align: right; }
+.vocabulary-context details { max-width: 420px; }
+.vocabulary-context summary { cursor: pointer; color: var(--color-ink-2); }
+.vocabulary-context p { margin: 8px 0 0; color: var(--color-ink-2); line-height: 1.7; }
+.vocabulary-context p.kindle-small { color: var(--color-ink-3); }
+@media (max-width: 760px) { .vocabulary-settings-fields { grid-template-columns: minmax(0, 1fr); } .vocabulary-settings-fields .field:nth-child(3) { grid-column: auto; } }

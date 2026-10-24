@@ -9,6 +9,13 @@ export const syncVocabulary = createServerFn({ method: "POST" }).middleware([aut
     return result;
   });
 
+export const listVocabulary = createServerFn({ method: "GET" }).middleware([authenticated]).validator((value: unknown) => value)
+  .handler(async ({ context, data }) => {
+    const page = (await import("./query")).listVocabularyPage(context.library, data);
+    void (await import("./push")).kickVocabularyPush(context.library);
+    return page;
+  });
+
 export const getLexiTraceSettings = createServerFn({ method: "GET" }).middleware([authenticated]).validator((value: unknown) => value)
   .handler(async ({ context }) => (await import("./settings")).lexTraceSettingsView(context.library.db));
 
@@ -26,5 +33,6 @@ export const retryVocabularyPush = createServerFn({ method: "POST" }).middleware
   .handler(async ({ context, data }) => {
     const value = data !== null && typeof data === "object" && !Array.isArray(data) ? data as { ids?: unknown } : {};
     const ids = Array.isArray(value.ids) ? value.ids.filter((id): id is string => typeof id === "string" && /^[0-9a-f-]{36}$/.test(id)) : undefined;
-    return { retried: (await import("./push")).retryVocabularyPush(context.library, ids) };
+    const retried = (await import("./push")).retryVocabularyPush(context.library, ids);
+    return { retried, page: (await import("./query")).listVocabularyPage(context.library) };
   });
