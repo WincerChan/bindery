@@ -47,6 +47,28 @@ export interface DeviceReading {
   rest_estimate_seconds: number | null;
   synced_at: string;
 }
+export interface VocabularyRow {
+  id: string;
+  device_id: string;
+  device_kind: string;
+  device_name: string;
+  word: string;
+  raw_word: string;
+  lang: string | null;
+  book_id: string | null;
+  source_title: string;
+  looked_up_at: string;
+  device_context_json: string | null;
+  context_json: string | null;
+  context_state: string;
+  push_state: string;
+  push_status_json: string | null;
+  pushed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+const VOCABULARY_COLUMNS = ["id", "device_id", "device_kind", "device_name", "word", "raw_word", "lang", "book_id", "source_title", "looked_up_at", "device_context_json", "context_json", "context_state", "push_state", "push_status_json", "pushed_at", "created_at", "updated_at"] as const;
+export interface VocabularyFilter { deviceId?: string; bookId?: string; pushState?: string; query?: string; limit?: number }
 const DEVICE_READING_COLUMNS = ["book_id", "device_id", "device_kind", "device_name", "section", "section_fraction", "percent", "location", "read_status", "last_read_at", "time_spent_seconds", "rest_estimate_seconds", "synced_at"] as const;
 function rowToWish(row: Row): Wish {
   let readStatus = row.read_status ? strip(String(row.read_status)).toLowerCase() : "unread";
@@ -133,6 +155,46 @@ export class BinderyDatabase extends Connection {
   }
   listDeviceReadingForDevice(deviceId: string): DeviceReading[] {
     return this.all("SELECT * FROM device_reading WHERE device_id = ? ORDER BY book_id", deviceId);
+  }
+  upsertVocabulary(row: VocabularyRow): void {
+    this.run(`INSERT INTO vocabulary(${VOCABULARY_COLUMNS.join(", ")}) VALUES (${VOCABULARY_COLUMNS.map(() => "?").join(", ")})
+      ON CONFLICT(id) DO UPDATE SET
+        device_id=excluded.device_id, device_kind=excluded.device_kind, device_name=excluded.device_name,
+        word=excluded.word, raw_word=excluded.raw_word, lang=excluded.lang, book_id=excluded.book_id,
+        source_title=excluded.source_title, looked_up_at=excluded.looked_up_at,
+        device_context_json=excluded.device_context_json,
+        context_json=CASE WHEN vocabulary.context_json IS NOT NULL THEN vocabulary.context_json ELSE excluded.context_json END,
+        context_state=CASE WHEN vocabulary.context_json IS NOT NULL THEN vocabulary.context_state ELSE excluded.context_state END,
+        updated_at=excluded.updated_at`, ...VOCABULARY_COLUMNS.map(column => row[column]));
+  }
+  getVocabulary(id: string): VocabularyRow | null {
+    return this.get<VocabularyRow>("SELECT * FROM vocabulary WHERE id = ?", id);
+  }
+  listVocabulary(filter: VocabularyFilter = {}): VocabularyRow[] {
+    const conditions: string[] = [], values: Value[] = [];
+    if (filter.deviceId) { conditions.push("device_id = ?"); values.push(filter.deviceId); }
+    if (filter.bookId) { conditions.push("book_id = ?"); values.push(filter.bookId); }
+    if (filter.pushState) { conditions.push("push_state = ?"); values.push(filter.pushState); }
+    if (filter.query) { conditions.push("(lower(word) LIKE ? OR lower(source_title) LIKE ? OR lower(device_name) LIKE ?)"); const query = `%${filter.query.toLowerCase()}%`; values.push(query, query, query); }
+    const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "", limit = Math.max(1, Math.min(50000, Math.trunc(filter.limit ?? 50000)));
+    return this.all<VocabularyRow>(`SELECT * FROM vocabulary${where} ORDER BY looked_up_at DESC, id LIMIT ?`, ...values, limit);
+  }
+  listVocabularyForBookDevice(bookId: string, deviceId: string): VocabularyRow[] {
+    return this.all<VocabularyRow>("SELECT * FROM vocabulary WHERE book_id = ? AND device_id = ? ORDER BY looked_up_at, id", bookId, deviceId);
+  }
+  listVocabularyForPush(): VocabularyRow[] {
+    return this.all<VocabularyRow>("SELECT * FROM vocabulary WHERE push_state IN ('pending', 'error') ORDER BY looked_up_at, id");
+  }
+  updateVocabularyContext(id: string, contextJson: string, contextState: string, updatedAt: string): void {
+    this.run("UPDATE vocabulary SET context_json = ?, context_state = ?, updated_at = ? WHERE id = ?", contextJson, contextState, updatedAt, id);
+  }
+  updateVocabularyPush(id: string, pushState: string, pushStatusJson: string | null, pushedAt: string | null, updatedAt: string): void {
+    this.run("UPDATE vocabulary SET push_state = ?, push_status_json = ?, pushed_at = ?, updated_at = ? WHERE id = ?", pushState, pushStatusJson, pushedAt, updatedAt, id);
+  }
+  resetVocabularyPush(ids?: string[]): number {
+    if (ids && !ids.length) return 0;
+    return ids ? this.run(`UPDATE vocabulary SET push_state = 'pending', push_status_json = NULL, pushed_at = NULL WHERE id IN (${ids.map(() => "?").join(", ")})`, ...ids)
+      : this.run("UPDATE vocabulary SET push_state = 'pending', push_status_json = NULL, pushed_at = NULL WHERE push_state IN ('error', 'conflict')");
   }
   createWish(wish: Wish): void {
     const identity = wishIdentity(wish.title, wish.author);
