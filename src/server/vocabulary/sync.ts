@@ -1,6 +1,7 @@
 import { nowIso, type VocabularyRow } from "../db";
 import { HttpError } from "../http";
 import type { LibraryStorage } from "../storage";
+import { computeKoboContexts } from "./context";
 import { vocabularyId } from "./id";
 import { vocabularyInput as parseVocabularyInput, type VocabularyInput, type VocabularyWord } from "./input";
 
@@ -27,6 +28,7 @@ function storedContext(word: VocabularyWord): { json: string | null; state: stri
 export function syncVocabulary(library: LibraryStorage, value: unknown): VocabularySyncResult {
   const { device, words } = vocabularyInput(value), now = nowIso();
   const result: VocabularySyncResult = { synced: 0, unchanged: 0, skipped: 0, context_found: 0, context_not_found: 0, context_pending: 0 };
+  const ids: string[] = [], bookIds: string[] = [];
   for (const word of words) {
     try {
       const id = vocabularyId(device.id, word.raw_word, word.looked_up_at, word.lookup_id), existing = library.db.getVocabulary(id);
@@ -52,14 +54,22 @@ export function syncVocabulary(library: LibraryStorage, value: unknown): Vocabul
         updated_at: now,
       };
       library.db.upsertVocabulary(row);
+      ids.push(id);
+      if (word.book_id) bookIds.push(word.book_id);
       if (existing) result.unchanged++; else result.synced++;
-      const state = library.db.getVocabulary(id)?.context_state ?? context.state;
-      if (state === "found") result.context_found++;
-      else if (state === "not_found") result.context_not_found++;
-      else result.context_pending++;
     } catch {
       result.skipped++;
     }
+  }
+  if (device.kind === "kobo" && bookIds.length) {
+    try { computeKoboContexts(library, device.id, bookIds, now); }
+    catch { /* A damaged book leaves its contexts pending for the next sync. */ }
+  }
+  for (const id of ids) {
+    const state = library.db.getVocabulary(id)?.context_state;
+    if (state === "found") result.context_found++;
+    else if (state === "not_found") result.context_not_found++;
+    else result.context_pending++;
   }
   return result;
 }
