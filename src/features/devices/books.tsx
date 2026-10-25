@@ -123,7 +123,7 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
       <div class="kindle-section-heading"><h2>书籍</h2><span class="kindle-count kindle-mono">{all().length} 本 · {bytes(k.inventory()?.usage.books || 0)}</span></div>
       <div class="kindle-filters" role="group" aria-label="按来源筛选"><For each={["全部", "Bindery", "其他"]}>{value => <Chip variant="filter" selected={source() === value} onClick={() => { setSource(value); setSelected([]); }}>{value === "Bindery" ? "来自 Bindery" : value}{value !== "全部" ? ` ${all().filter(b => b.source === value).length}` : ""}</Chip>}</For></div>
       <div class="kindle-toolbar-actions">
-        <TextField class="kindle-search" label="搜索设备上的书" labelHidden type="search" placeholder="搜索书名或作者" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />
+        <TextField class="kindle-search search-field" label="搜索设备上的书" labelHidden type="search" placeholder="搜索书名或作者" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />
         <Button variant="quiet-danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button><Link class="btn btn-primary" href="/devices/transfer">从书库传书</Link>
       </div>
     </div>
@@ -135,7 +135,7 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
         <ul><For each={notRemoved()}>{entry => <li><span class="kindle-mono">{entry.path}</span>（{entry.reason}；{entry.likelyCause}）</li>}</For></ul>
       </details>
     </Show>
-    <div class="kindle-table-scroll"><table class="kindle-book-table"><thead><tr>
+    <div class="kindle-table-scroll" tabindex={0} role="region" aria-label="设备书籍列表，可横向滚动"><table class="kindle-book-table"><thead><tr>
       <th scope="col"><Checkbox label="" aria-label="全选当前筛选书籍" disabled={!connected() || !deletableVisible().length || k.busy()} checked={deletableVisible().length > 0 && deletableVisible().every(b => selected().includes(b.filename))} indeterminate={deletableVisible().some(b => selected().includes(b.filename)) && !deletableVisible().every(b => selected().includes(b.filename))} onChange={e => setSelected(e.currentTarget.checked ? deletableVisible().map(b => b.filename) : [])} /></th>
       <th scope="col">书籍</th><th scope="col">来源</th><th scope="col">格式</th><th scope="col">阅读进度</th><Show when={kindle()}><th scope="col">排版方案</th></Show><th scope="col">大小</th><Show when={kindle()}><th scope="col">传入时间</th></Show><th scope="col">操作</th>
     </tr></thead><tbody><Show when={connected() && k.inventory()}><For each={visible()}>{book => <tr data-device-book={book.filename}>

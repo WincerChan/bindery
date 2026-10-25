@@ -2,7 +2,7 @@ import { isRedirect, useRouter } from "@tanstack/solid-router";
 import { createSignal, For, onSettled, Show } from "solid-js";
 import { browserSupportsWebAuthn, deletePasskey, passkeyMessage, PasskeyRequestError, postJson, reauthenticateWithPasskey, registerPasskey } from "../../client/passkeys";
 import { showToast } from "../../client/toast";
-import { PageHeader } from "../../ui";
+import { ConfirmDialog, PageHeader } from "../../ui";
 
 export interface SecurityPasskey {
   credential_id: string;
@@ -29,7 +29,8 @@ export function SecurityScreen(props: { data: SecurityScreenData }) {
     [message, setMessage] = createSignal(""),
     [usePassword, setUsePassword] = createSignal(false),
     [name, setName] = createSignal(""),
-    [password, setPassword] = createSignal("");
+    [password, setPassword] = createSignal(""),
+    [deleting, setDeleting] = createSignal<SecurityPasskey | null>(null);
   const hasPasskeys = () => props.data.passkeys.length > 0,
     needsPassword = () => !hasPasskeys() || usePassword();
   onSettled(() => {
@@ -77,11 +78,11 @@ export function SecurityScreen(props: { data: SecurityScreenData }) {
       setBusy(false);
     }
   }
-  async function remove(event: SubmitEvent, id: string) {
-    event.preventDefault();
-    if (busy() || !window.confirm("删除后将无法再用它登录。确定删除？")) return;
+  async function remove() {
+    const key = deleting();
+    if (busy() || !key) return;
     setBusy(true); setMessage("");
-    try { await deletePasskey(id); showToast("已删除通行密钥"); await router.invalidate(); }
+    try { await deletePasskey(key.credential_id); setDeleting(null); showToast("已删除通行密钥"); await router.invalidate(); }
     catch (error) { await failure(error); }
     finally { setBusy(false); }
   }
@@ -98,7 +99,7 @@ export function SecurityScreen(props: { data: SecurityScreenData }) {
           <label>名称<input name="name" value={key.name} maxlength={40} disabled={busy() || !props.data.passkey_configured} /></label>
           <button type="submit" class="btn btn-secondary" disabled={busy() || !props.data.passkey_configured}>重命名</button>
         </form>
-        <form action={`/security/passkeys/${encodeURIComponent(key.credential_id)}/delete`} method="post" onSubmit={e => { void remove(e, key.credential_id); }}><button type="submit" class="quiet danger" disabled={busy() || !props.data.passkey_configured}>删除通行密钥</button></form>
+        <form action={`/security/passkeys/${encodeURIComponent(key.credential_id)}/delete`} method="post" onSubmit={event => { event.preventDefault(); setDeleting(key); }}><button type="submit" class="quiet danger" disabled={busy() || !props.data.passkey_configured}>删除通行密钥</button></form>
       </article>}</For>
     </section>
     <Show when={props.data.passkey_configured && supported()}><section><h2>添加通行密钥</h2>
@@ -114,5 +115,8 @@ export function SecurityScreen(props: { data: SecurityScreenData }) {
       </form>
     </section></Show>
     <section><h2>密码</h2><p class="muted">密码始终可作为备用登录方式。修改密码请更新 BINDERY_PASSWORD_HASH 并重启服务。</p></section>
+    <ConfirmDialog open={Boolean(deleting())} title="删除通行密钥？" danger confirmLabel="删除" onClose={() => { if (!busy()) setDeleting(null); }} onConfirm={remove}>
+      <p>删除「{deleting()?.name}」后，将无法再使用它登录。此操作不会影响其他通行密钥或密码登录。</p>
+    </ConfirmDialog>
   </div>;
 }

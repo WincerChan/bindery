@@ -9,7 +9,8 @@
 .kindle-page .field input, .kindle-page .field select, .kindle-page .field textarea { font-size: 13.5px; border-color: var(--color-control-line); }
 .kindle-page .field input, .kindle-page .field select { height: 40px; padding: 0 12px; }
 .kindle-page .field select { padding-right: 36px; }
-.kindle-page .checkbox { min-height: 24px; font-size: 13.5px; gap: 10px; }
+.kindle-page .field.search-field input { height: 44px; padding-left: 40px; padding-right: 36px; }
+.kindle-page .checkbox { min-height: 36px; font-size: 13.5px; gap: 10px; }
 .kindle-page .empty-state { border: 0; padding: 48px 16px; }
 .kindle-page .empty-state h2 { margin-bottom: 12px; font-size: 16px; }
 .kindle-device-bar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 16px 40px; padding: 0 0 20px; }
@@ -49,7 +50,8 @@
 .kindle-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; min-width: 0; }
 .kindle-search { width: 240px; max-width: 100%; }
 .kindle-toolbar > .kindle-search { margin-left: auto; }
-.kindle-table-scroll { max-width: 100%; overflow-x: auto; }
+.kindle-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+.kindle-table-scroll:focus-visible { outline-offset: 4px; }
 .kindle-book-table { border-collapse: collapse; width: 100%; min-width: 900px; text-align: left; font-size: 13.5px; }
 .kindle-book-table thead { border-top: 1px solid var(--color-ink); border-bottom: 1px solid var(--color-line); }
 .kindle-book-table th { color: var(--color-ink-3); font-size: 12px; font-weight: 500; padding: 10px 12px; white-space: nowrap; }
@@ -69,23 +71,26 @@
 .kindle-table-note { margin: 0; padding: 12px 0; font-size: 12.5px; color: var(--color-ink-3); }
 .kindle-select-page { margin-bottom: 8px; }
 .kindle-library-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--color-ink); }
-.kindle-library-list li { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--color-line-soft); }
+.kindle-library-list li { display: flex; align-items: center; gap: 16px; margin-inline: -10px; padding: 12px 10px; border-bottom: 1px solid var(--color-line-soft); cursor: pointer; transition: background-color .15s ease; }
+.kindle-library-list li:hover { background: var(--color-surface-subtle); }
+.kindle-library-list li.is-selected { background: var(--color-accent-soft); }
 .kindle-library-title { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13.5px; display: flex; flex-direction: column; gap: 2px; }
 .kindle-library-title strong { font-weight: 500; }
 .kindle-library-list .is-selected strong { font-weight: 700; }
 .kindle-on-device { width: 72px; font-size: 12.5px; color: var(--color-ink-3); }
 .kindle-list-size { width: 64px; text-align: right; font-size: 12.5px; color: var(--color-ink-3); }
 .kindle-transfer .form-stack { margin-top: 16px; gap: 16px; }
-.kindle-preview-link { font-size: 13px; }
+.kindle-preview-link { display: inline-flex; align-items: center; min-height: 36px; font-size: 13px; }
 .kindle-target { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-block: 1px solid var(--color-line-soft); }
 .kindle-target > div { display: grid; min-width: 0; }
 .kindle-target-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .kindle-target-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kindle-target-name .is-connected { color: var(--color-ok); }
 .kindle-target-name .is-offline { color: var(--color-warning); }
-.kindle-target-link { flex-shrink: 0; font-size: 13px; }
+.kindle-target-link { display: inline-flex; align-items: center; flex-shrink: 0; min-height: 36px; font-size: 13px; }
 .kindle-check-group { display: grid; gap: 12px; }
 .kindle-start { display: grid; gap: 6px; }
+.kindle-mobile-start { display: none; }
 /* Text buttons share the column's left and right edges instead of their padded box. */
 .kindle-text-button { min-height: 32px; padding-inline: 0; font-size: 13px; }
 .kindle-text-button:hover { color: var(--color-accent); }
@@ -162,14 +167,21 @@
   .app-main:has(> .kindle-connect-page) { padding-top: 32px; }
   .kindle-device-bar { gap: 16px; }
   .kindle-device-actions { margin-left: 0; }
-  .kindle-tabs { gap: 0; justify-content: space-between; }
-  .kindle-tab { font-size: 13px; }
+  .kindle-tabs { gap: 24px; justify-content: flex-start; overflow-x: auto; overscroll-behavior-inline: contain; }
+  .kindle-tab { flex: none; font-size: 13px; }
+  .kindle-page .checkbox { min-height: 40px; }
   .kindle-toolbar-actions { margin-left: 0; width: 100%; }
   .kindle-toolbar > .kindle-search { margin-left: 0; }
+  .kindle-toolbar > .kindle-search, .kindle-toolbar-actions .kindle-search { width: 100%; max-width: none; }
   .kindle-split { gap: 32px; }
   .kindle-library-list li { gap: 10px; }
   .kindle-on-device { width: 50px; font-size: 12px; }
   .kindle-list-size { width: 52px; font-size: 12px; }
+  .kindle-table-scroll { margin-inline: -16px; padding-inline: 16px; }
+  .kindle-transfer:has(.kindle-mobile-start) { padding-bottom: 72px; }
+  .kindle-mobile-start { position: fixed; inset: auto 0 calc(60px + env(safe-area-inset-bottom)); z-index: 25; display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--color-line-soft); background: var(--color-surface); box-shadow: 0 -6px 20px rgb(21 23 26 / 7%); color: var(--color-ink-2); font-size: 13px; }
+  .kindle-mobile-start strong { color: var(--color-ink); font-family: var(--font-mono); }
+  .kindle-mobile-start .btn { width: auto; min-width: 144px; margin-left: auto; }
 }
 
 .kindle-device-switch select {

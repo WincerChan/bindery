@@ -462,7 +462,7 @@ it("refreshes the real security page after passkey reauth, add, rename and manua
   const registration = vi.fn(async () => ({ id: "new-key" })); vi.stubGlobal("__binderyTestRegistration", registration);
   const authentication = vi.fn(async () => ({ id: "old-key" })); vi.stubGlobal("__binderyTestAuthentication", authentication);
   vi.stubGlobal("location", { href: "http://localhost/security", pathname: "/security", search: "", assign: vi.fn() });
-  const confirm = vi.fn(() => true); vi.stubGlobal("window", { confirm, location, addEventListener() {}, removeEventListener() {} });
+  vi.stubGlobal("window", { location, addEventListener() {}, removeEventListener() {} });
   vi.stubGlobal("FormData", class extends FormData { constructor(form?: Element) { super(); if (form) for (const input of elements(form, "input")) { const name = input.getAttribute("name"); if (name) this.set(name, (input as HTMLInputElement).value); } } });
   let failDelete = false;
   const fetch = vi.fn(async (url: string, init: RequestInit) => {
@@ -484,6 +484,7 @@ it("refreshes the real security page after passkey reauth, add, rename and manua
   vi.stubGlobal("fetch", fetch);
   const node = root(), mounted = await ui.securityNavigation(node); disposers.push(mounted.dispose);
   const submit = (form: Element) => { const preventDefault = vi.fn(); fire(form, "submit", { preventDefault }); mounted.flush(); expect(preventDefault).toHaveBeenCalledOnce(); };
+  const clickButton = (label: string) => { const control = elements(node, "button").find(item => item.textContent === label)!; fire(control, "click"); mounted.flush(); };
   const renameForm = () => elements(node, "form").find(form => form.getAttribute("class") === "inline-form")!;
   const name = elements(node, "input").find(input => input.getAttribute("placeholder") === "例如：我的电脑") as HTMLInputElement;
   name.value = "新密钥"; fire(name, "input"); mounted.flush();
@@ -496,13 +497,12 @@ it("refreshes the real security page after passkey reauth, add, rename and manua
   await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(3); expect((elements(renameForm(), "input")[0] as HTMLInputElement).value).toBe("已重命名"); });
   const deletion = elements(node, "form").find(form => form.getAttribute("action")?.endsWith("old-key/delete"))!;
   expect(deletion.getAttribute("method")).toBe("post");
-  confirm.mockReturnValueOnce(false); submit(deletion); expect(fetch).toHaveBeenCalledTimes(5);
-  failDelete = true; submit(deletion);
+  submit(deletion); clickButton("取消"); expect(fetch).toHaveBeenCalledTimes(5);
+  failDelete = true; submit(deletion); clickButton("删除");
   await vi.waitFor(() => { mounted.flush(); expect(node.textContent).toContain("删除写入失败"); });
   expect(load).toHaveBeenCalledTimes(3); expect(elements(node, "article")).toHaveLength(2);
-  failDelete = false; submit(deletion);
+  failDelete = false; submit(deletion); clickButton("删除");
   await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(4); expect(elements(node, "article")).toHaveLength(1); });
-  expect(confirm).toHaveBeenCalledTimes(3);
   const toast = vi.mocked(document.body.dispatchEvent).mock.calls.map(([event]) => (event as CustomEvent).detail.message);
   expect(toast).toEqual(expect.arrayContaining(["已添加通行密钥", "已重命名通行密钥", "删除写入失败", "已删除通行密钥"]));
   expect(location.assign).not.toHaveBeenCalled(); expect(mounted.router.state.location.href).toBe("/security");

@@ -126,12 +126,12 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
         </Select>
       </div>
       <div class="kindle-toolbar-actions">
-        <TextField class="kindle-search" label="搜索生词" labelHidden type="search" placeholder="搜索生词、书籍或设备" value={query()} onInput={event => setQuery(event.currentTarget.value)} />
+        <TextField class="kindle-search search-field" label="搜索生词" labelHidden type="search" placeholder="搜索生词、书籍或设备" value={query()} onInput={event => setQuery(event.currentTarget.value)} />
         <Button variant="quiet" disabled={busy()} onClick={resetFilters}>清除筛选</Button>
         <Button variant="secondary" disabled={busy() || !retryable()} onClick={() => retry()}>{busy() ? "处理中…" : "重试全部失败"}</Button>
       </div>
     </div>
-    <div class="kindle-table-scroll"><table class="kindle-book-table vocabulary-table"><thead><tr>
+    <div class="kindle-table-scroll" tabindex={0} role="region" aria-label="生词列表，可横向滚动"><table class="kindle-book-table vocabulary-table"><thead><tr>
       <th scope="col">生词</th><th scope="col">书籍</th><th scope="col">设备</th><th scope="col">查询时间</th><th scope="col">例句</th><th scope="col">推送状态</th><th scope="col">操作</th>
     </tr></thead><tbody><For each={visible()}>{item => <tr data-vocabulary-word={item.id}>
       <td><strong>{item.word}</strong><Show when={item.raw_word !== item.word}><p class="kindle-small">原文：{item.raw_word}</p></Show></td>

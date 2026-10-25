@@ -61,6 +61,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const [baseline, setBaseline] = createSignal(JSON.stringify(defaultProfile())), [sent, setSent] = createSignal<string | null>(null);
   const [fonts, setFonts] = createSignal<FontFamily[]>([]);
   const [busy, setBusy] = createSignal(false), [loading, setLoading] = createSignal(false);
+  const [mobilePanel, setMobilePanel] = createSignal<"settings" | "preview">("settings");
   const [error, setError] = createSignal(""), [notice, setNotice] = createSignal(""), [switchNotice, setSwitchNotice] = createSignal<Target | null>(null);
   const [saveAs, setSaveAs] = createSignal(false), [saveName, setSaveName] = createSignal(""), [deleting, setDeleting] = createSignal(false);
   const [bookId, setBookId] = createSignal(props.data.bookId), [sections, setSections] = createSignal(props.data.sections), [chapter, setChapter] = createSignal(0), [chapterStart, setChapterStart] = createSignal({ page: 1 });
@@ -231,7 +232,11 @@ function DevicePreviewPageInner(props: PreviewProps) {
   onCleanup(() => { disposed = true; profileRequest++; chapterRequest++; readingRequest++; if (saveTimer !== undefined) clearTimeout(saveTimer); });
   const src = () => { const section = sections()[chapter()]; return section ? previewContentUrl(bookId(), section.item_path, settingsError() ? EMPTY_SETTINGS : draft().settings) : ""; };
   return <section class="kt-page" aria-label="排版与预览">
-    <div class="kt-preview-layout"><section class="kt-editor" aria-label="排版方案编辑器">
+    <div class="kt-mobile-panel-switch segmented" role="group" aria-label="排版预览视图">
+      <button type="button" aria-pressed={mobilePanel() === "settings" ? "true" : "false"} onClick={() => setMobilePanel("settings")}>排版设置</button>
+      <button type="button" aria-pressed={mobilePanel() === "preview" ? "true" : "false"} onClick={() => setMobilePanel("preview")}>设备预览</button>
+    </div>
+    <div class="kt-preview-layout" data-mobile-panel={mobilePanel()}><section class="kt-editor" aria-label="排版方案编辑器">
       <div class="kt-editor-heading"><h2>排版方案</h2><p class="muted">所有设备共用一套排版参数；传书时写入副本，书库里的 EPUB 不变。调整后可直接发送，不必保存为方案。</p></div>
       <Select label="预览设备" value={target()?.id ?? ""} disabled={busy()} onChange={event => chooseTarget(event.currentTarget.value)}>
         <option value="">仅预览型号</option>
@@ -259,10 +264,10 @@ function DevicePreviewPageInner(props: PreviewProps) {
       </Select></div>
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
       <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
-      <Show when={notice()}><p role="status">{notice()}</p></Show>
+      <Show when={notice()}><p role="status" class="kt-success-note">✓ {notice()}</p></Show>
       <Show when={switchNotice()}>{pending => <p role="status" class="notice">已连接「{pending().name}」，当前排版有未保存的修改。<Button variant="quiet" disabled={busy()} onClick={switchToPendingGrant}>切换到 {pending().name}</Button></p>}</Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
-      <Show when={dirty()}><p role="status">有未保存的修改</p></Show>
+      <Show when={dirty()}><p role="status" class="kt-dirty-note"><span aria-hidden="true" />有未保存的修改</p></Show>
       <Show when={draft().settings.fontFamily && !family()}><p class="muted">所选字体当前预览设备不可用，预览暂用替代字体；发送前请确认目标设备已安装。</p></Show>
       <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}>{range.label}</label>
         <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? marginMax() : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} onInput={event => { const value = Number(event.currentTarget.value); if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />
@@ -306,7 +311,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
       </div>
       <ChapterFrame src={src()} geometry={geometry()} label={deviceKindLabel(kind())} css={css()} device={family() ? fontDevice() : null} family={family()} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
       <p class="muted" data-kindle-line-estimate data-typeset-estimate>{settingsError() ? "排版参数无效，预览保留上次有效样式。" : `预计每行约 ${estimate().charsPerLine} 字、每页 ${estimate().linesPerPage} 行（${estimate().measured ? "实测" : "估算"} · ${targetInfo().panel.width}×${targetInfo().panel.height}${targetInfo().fallbackPanel ? ` · 其他型号按 ${targetInfo().panel.width}×${targetInfo().panel.height} 预览` : ""}）`}</p>
-      <Show when={overflow()}><p class="muted" data-overflow-note>左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。</p></Show>
+      <Show when={overflow()}><p class="kt-warning-note" role="alert" data-overflow-note>⚠ 左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。</p></Show>
       <details class="kt-calibration"><summary>校准说明</summary>
         <p class="kt-spec">{modelShortName(kind(), target()?.model ?? model())} · {targetInfo().panel.width}×{targetInfo().panel.height} · {targetInfo().panel.ppi} ppi</p>
         <p class="muted">设备阅读设置只影响预览，不会写入书籍；排版方案会写入 Kindle 和 Kobo 的传书副本。分页与真机会有少量差异，不模拟页眉页脚。</p>

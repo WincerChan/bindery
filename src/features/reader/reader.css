@@ -158,4 +158,13 @@
   .reader-heading { padding-inline: 96px; }
   .reader-custom-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+@media (max-width: 639px) {
+  .reader-page { padding-top: 44px; }
+  .reader-toolbar { height: 44px; }
+  .reader-page .reader-icon-button, .reader-page .reader-back { width: 40px; height: 40px; min-height: 40px; }
+  .reader-panel-backdrop { inset: 44px 0 0; }
+  .reader-popover { top: 48px; }
+  .reader-toc li a { min-height: 44px; }
+  .reader-segmented button { min-height: 40px; }
+}
 @media (min-width: 768px) { .reader-page .reader-page-turn { display: inline-flex; } }
