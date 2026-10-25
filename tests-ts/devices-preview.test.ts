@@ -142,7 +142,7 @@ function pickBook(root: Element, text: string) { const box = bookBox(root); fire
 
 it("renders one neutral page with both kinds available, no profile-owning device and the measured estimate", () => {
   const root = document.createElement("div"); root.innerHTML = ssr.markup(propsFor(null));
-  expect(elements(root, "h2").map(node => node.textContent)).toContain("排版方案");
+  expect(elements(root, "h2").map(node => node.textContent)).not.toContain("排版方案");
   expect(elements(root, "h3").map(node => node.textContent)).toContain("设备阅读设置（只用于预览）");
   expect(root.textContent).not.toContain("方案所属设备");
   expect(labels(root, "select", "预览设备")).toBeDefined(); expect(labels(root, "select", "方案")).toBeDefined();
@@ -461,6 +461,7 @@ it("shows compact profile range rows, all strip toggles and advanced settings fo
   expect(elements(checkboxes, "label").map(node => node.textContent)).toEqual(["去掉书籍自带字体", "去掉所有图片", "去掉书籍自带页边距", "去掉书籍自带行高", "去掉书籍自带段间距"]);
   expect(elements(checkboxes, "input").every(node => node.getAttribute("type") === "checkbox")).toBe(true);
   expect(elements(labels(editor, "select", "字体（预览设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
+  expect(elements(editor, "*").filter(node => /kt-font-(filter|field)/.test(node.getAttribute("class") || ""))).toEqual([]);
   expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "删除", "另存为方案", "保存方案"]);
 });
 

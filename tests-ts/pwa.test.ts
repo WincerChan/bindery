@@ -117,14 +117,14 @@ describe("install manifest and PNG icons", () => {
     const pixels = inflateSync(Buffer.concat(chunks));
     if (size === 192) {
       const pixel = (x: number, y: number) => [...pixels.subarray(y * (size * 3 + 1) + 1 + x * 3, y * (size * 3 + 1) + 4 + x * 3)];
-      // Inside the curved edge, outside its endpoint chord; preserve the central gap.
-      expect(pixel(77, 46)).toEqual([78, 66, 105]);
-      expect(pixel(96, 108)).toEqual([245, 246, 243]);
+      // The centre gap reveals the green book; the outer corner stays paper-coloured.
+      expect(pixel(96, 96)).toEqual([41, 63, 53]);
+      expect(pixel(0, 0)).toEqual([242, 240, 233]);
     }
     let foreground = 0, minX = size, minY = size, maxX = -1, maxY = -1;
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const offset = y * (size * 3 + 1) + 1 + x * 3;
-      if (pixels[offset] === 245 && pixels[offset + 1] === 246 && pixels[offset + 2] === 243) continue;
+      if (pixels[offset] === 242 && pixels[offset + 1] === 240 && pixels[offset + 2] === 233) continue;
       foreground++;
       minX = Math.min(minX, x); maxX = Math.max(maxX, x);
       minY = Math.min(minY, y); maxY = Math.max(maxY, y);

@@ -154,10 +154,10 @@ it("keeps the wide preview sticky with a bounded frame slot and disables sticky 
   expect(css).toMatch(/\.kt-checkboxes\s*\{[^}]*grid-template-columns: repeat\(2,/);
 });
 
-it("renders the fonts title, summary, actions, five scoped columns and installation help in SSR", () => {
+it("renders the fonts summary, actions, five scoped columns and installation help without a redundant title in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = ssr.markup("fonts", { manager: null, data });
   const heading = withClass(root, "kt-heading");
-  expect(elements(heading, "h2").map(node => node.textContent)).toEqual(["字体"]);
+  expect(elements(heading, "h2")).toEqual([]);
   expect(heading.textContent).toContain("0 个家族 · 0 个字体文件");
   expect(elements(heading, "button").map(node => node.textContent)).toEqual(["全部", "中文", "英文", "重新扫描", "添加字体"]);
   expect(button(heading, "重新扫描").className).toContain("btn-secondary");

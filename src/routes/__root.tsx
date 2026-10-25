@@ -10,7 +10,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "theme-color", content: "#F5F6F3" },
+      { name: "theme-color", content: "#F2F0E9" },
       { title: "Bindery" },
     ],
     links: [

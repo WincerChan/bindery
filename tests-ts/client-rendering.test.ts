@@ -108,7 +108,7 @@ it.each([true, false])("updates book cards, selection and empty states (hydratio
   selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
   expect(elements(mounted.root, "input").filter(el => el.getAttribute("name") === "book_ids")).toHaveLength(16);
   mounted.update({ ...library(["魔临"]), q: "魔临", read_filter: "unread", return_to: "/?q=魔临&read_filter=unread" });
-  expect(elements(mounted.root, "span", "data-library-count")[0]!.textContent).toBe("1");
+  expect(elements(mounted.root, "span", "data-pagination-total")[0]!.textContent).toBe("1");
   expect(ids(mounted.root)).toEqual(["魔临"]);
   expect(original.parentNode).toBeNull();
   expect(elements(mounted.root, "input").filter(el => el.getAttribute("name") === "book_ids").map(el => (el as HTMLInputElement).value)).toEqual(["魔临", "魔临"]);
@@ -134,7 +134,7 @@ it.each(["/", "/rules"])("updates actual router loader data after hydrating %s",
   await settle();
   await mounted.update({ ...initial, q: "all" }); expect(ids(node)).toEqual(["甲", "魔临", "乙"]);
   await mounted.update({ ...library(["魔临"]), q: "魔临", return_to: "/?q=魔临" });
-  expect(elements(node, "span", "data-library-count")[0]!.textContent).toBe("1");
+  expect(elements(node, "span", "data-pagination-total")[0]!.textContent).toBe("1");
   expect(ids(node)).toEqual(["魔临"]);
   await mounted.update({ ...library([]), q: "missing" }); expect(ids(node)).toEqual([]);
 });
@@ -330,10 +330,14 @@ it("shows the settings install entry for prompt-capable and iOS states, not for 
 
 it("updates tracker/wishlist filter rows and their empty state", () => {
   const mounted = mount("tracker", tracker(["甲", "乙"]));
+  expect(css(mounted.root, "p", "page-description")).toHaveLength(0);
+  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–2 / 共 2 本");
   mounted.update(tracker(["乙"]));
   expect(css(mounted.root, "div", "catalog-tracker-row").filter(el => !el.getAttribute("class")!.includes("catalog-tracker-head")).map(el => elements(el, "strong")[0]!.textContent)).toEqual(["乙"]);
+  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–1 / 共 1 本");
   mounted.update(tracker([])); expect(css(mounted.root, "article", "catalog-tracker-row")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("没有符合筛选条件");
+  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("0 / 共 0 本");
 });
 
 it("replaces jobs, tab counts and conditional retry/log controls for polling payloads", () => {
@@ -380,12 +384,19 @@ it("replaces ingest previews, duplicate fragments, TOCs and hidden upload tokens
   mounted.update([]); expect(elements(mounted.root, "article")).toHaveLength(0);
 });
 
-it("updates pagination numbers, current links and conditional previous/next buttons", () => {
+it("updates pagination summaries, non-link current pages and link/in-place controls", () => {
   const mounted = mount("pagination", { page: 1, total: 110, perPage: 10, href: "/?q=甲" });
   mounted.update({ page: 6, total: 110, perPage: 10, href: "/?q=乙" });
-  expect(elements(mounted.root, "a").filter(el => el.hasAttribute("aria-label")).map(el => el.textContent)).toEqual(["1", "5", "6", "7", "11"]);
-  expect(elements(mounted.root, "a").find(el => el.getAttribute("aria-current") === "page")!.getAttribute("href")).toBe("/?q=%E4%B9%99&page=6");
-  mounted.update({ page: 1, total: 1, perPage: 10, href: "/" }); expect(elements(mounted.root, "nav")).toHaveLength(0);
+  expect(elements(mounted.root, "a").filter(el => el.hasAttribute("aria-label")).map(el => el.textContent)).toEqual(["1", "5", "7", "11"]);
+  const current = elements(mounted.root, "span").find(el => el.getAttribute("aria-current") === "page")!;
+  expect(current.textContent).toBe("6"); expect(css(mounted.root, "a", "pagination-control").some(el => el.getAttribute("aria-current") === "page")).toBe(false);
+  mounted.update({ page: 1, total: 1, perPage: 10, href: "/" });
+  expect(elements(mounted.root, "nav")).toHaveLength(1); expect(css(mounted.root, "div", "pagination-controls")).toHaveLength(0);
+  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–1 / 共 1 条");
+  const onPage = vi.fn(), local = mount("pagination", { page: 2, total: 50, perPage: 10, onPage });
+  fire(elements(local.root, "button").find(el => el.textContent === "下一页")!, "click");
+  fire(elements(local.root, "button").find(el => el.getAttribute("aria-label") === "第 1 页")!, "click");
+  expect(onPage.mock.calls).toEqual([[3], [1]]);
 });
 
 it("switches detail/editor fragment panels and displays saved specs and cover", async () => {

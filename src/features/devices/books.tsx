@@ -120,11 +120,11 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
   }
   return <section aria-label="设备书籍" class="kindle-books">
     <div class="kindle-toolbar kindle-books-toolbar">
-      <div class="kindle-section-heading"><h2>书籍</h2><span class="kindle-count kindle-mono">{all().length} 本 · {bytes(k.inventory()?.usage.books || 0)}</span></div>
+      <div class="kindle-section-heading"><span class="kindle-count kindle-mono">{all().length} 本 · {bytes(k.inventory()?.usage.books || 0)}</span></div>
       <div class="kindle-filters" role="group" aria-label="按来源筛选"><For each={["全部", "Bindery", "其他"]}>{value => <Chip variant="filter" selected={source() === value} onClick={() => { setSource(value); setSelected([]); }}>{value === "Bindery" ? "来自 Bindery" : value}{value !== "全部" ? ` ${all().filter(b => b.source === value).length}` : ""}</Chip>}</For></div>
       <div class="kindle-toolbar-actions">
         <TextField class="kindle-search search-field" label="搜索设备上的书" labelHidden type="search" placeholder="搜索书名或作者" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />
-        <Button variant="quiet-danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button><Link class="btn btn-primary" href="/devices/transfer">从书库传书</Link>
+        <Button variant="quiet-danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button>
       </div>
     </div>
     <Show when={notice()}><p role="status" class="notice">{notice()} <Link href="/devices/transfer">查看传输队列</Link></p></Show>

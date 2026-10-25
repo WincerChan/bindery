@@ -31,7 +31,7 @@ try {
     await writeFile(join(process.env.BINDERY_LIBRARY_DIR, id, "book.epub"), zipSync({ mimetype: strToU8("application/epub+zip") }));
   }
   const home = await get("/?q=长安&read_filter=unread"); assert.equal(home.status, 200);
-  const html = await home.text(); assert.match(html, /data-library-count/); assert.match(html, /长安的荔枝/); assert.match(html, /return_to=/); assert.doesNotMatch(html, /书库共有/);
+  const html = await home.text(); assert.match(html, /data-pagination-total/); assert.match(html, /长安的荔枝/); assert.match(html, /return_to=/); assert.doesNotMatch(html, /书库共有/);
   const partial = await get("/library?q=长安&page=2&per_page=4"); assert.equal(partial.status, 200); assert.equal(partial.headers.get("cache-control"), "no-store");
   const fragment = await partial.text(); assert.match(fragment, /id="library-section"/); assert.doesNotMatch(fragment, /<main|<html/); assert.match(fragment, /data-page="1"/);
   const invalidPage = await get("/library?page=oops"); assert.equal(invalidPage.status, 422); assert.deepEqual(await invalidPage.json(), { detail: "分页参数必须为整数" });

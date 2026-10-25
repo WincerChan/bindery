@@ -48,7 +48,7 @@ assert.equal(login.status, 303); cookie = login.headers.getSetCookie()[0].split(
 for (const path of ['/devices', '/devices/connect', '/devices/transfer']) {
   const response = await request(path); assert.equal(response.status, 200, path); assert.equal(response.headers.get('cache-control'), 'no-store');
   const html = await response.text(); assert.match(html, /检测中…/); assert.doesNotMatch(html, /此页面正在实现|服务器内部错误/);
-  if (path === '/devices') { assert.match(html, new RegExp('<h2[^>]*>书籍</h2>')); assert.match(html, /kindle-book-table/); assert.match(html, /btn-quiet-danger/); }
+  if (path === '/devices') { assert.match(html, /aria-label="设备书籍"/); assert.doesNotMatch(html, new RegExp('<h2[^>]*>书籍</h2>')); assert.match(html, /kindle-book-table/); assert.match(html, /btn-quiet-danger/); }
   if (path.endsWith('connect')) { assert.match(html, /kindle-connect-page/); assert.match(html, new RegExp('<h1[^>]*>连接你的设备</h1>')); assert.doesNotMatch(html, /data-kindle-device-bar|aria-label="Kindle 管理"/); }
   if (path.endsWith('transfer')) { assert.match(html, /GNU GENERAL PUBLIC LICENSE/); assert.match(html, /crates.io\\/api\\/v1\\/crates\\/boko\\/0.5.0\\/download/); }
 }

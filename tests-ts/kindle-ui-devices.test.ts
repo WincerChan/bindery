@@ -159,18 +159,21 @@ it("keeps the device identity hierarchy and the complete books toolbar/table in 
   const bar = elements(root, "section", "data-kindle-device-bar")[0]!;
   expect(elements(bar, "h1").map(node => node.textContent)).toEqual(["设备"]);
   const identity = withClass(bar, "kindle-device-identity");
-  // Name, then a status line and a device spec line.
-  expect(Array.from(identity.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["h1", "p", "p"]);
+  const name = withClass(identity, "kindle-device-name");
+  expect(withClass(name, "kindle-dot").getAttribute("aria-hidden")).toBe("true");
+  const details = withClass(name, "kindle-device-details");
+  expect(details.hasAttribute("open")).toBe(false);
+  expect(elements(details, "summary")[0]!.getAttribute("aria-label")).toBe("查看设备规格");
   expect(withClass(identity, "kindle-device-spec").textContent).toBe("通过 USB 连接设备并选择设备根目录");
   expect(withClass(bar, "kindle-status").getAttribute("role")).toBe("status");
-  expect(withClass(bar, "kindle-status").className).toContain("page-description");
+  expect(withClass(bar, "kindle-status").className).toContain("sr-only");
   expect(bar.textContent).not.toContain("我的 Paperwhite");
 
   const toolbar = withClass(root, "kindle-books-toolbar");
   expect(Array.from(toolbar.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).className))
     .toEqual(["kindle-section-heading", "kindle-filters", "kindle-toolbar-actions"]);
   const heading = withClass(toolbar, "kindle-section-heading");
-  expect(elements(heading, "h2").map(node => node.textContent)).toEqual(["书籍"]);
+  expect(elements(heading, "h2")).toEqual([]);
   expect(withClass(heading, "kindle-count").className).toContain("kindle-mono");
   expect(withClass(heading, "kindle-count").textContent).toBe("0 本 · 0 B");
   const filters = withClass(toolbar, "kindle-filters");
@@ -179,11 +182,11 @@ it("keeps the device identity hierarchy and the complete books toolbar/table in 
     .toEqual([["全部", "true"], ["来自 Bindery 0", "false"], ["其他 0", "false"]]);
   for (const filter of elements(filters, "button")) expect(filter.className).toContain("text-filter");
   const actions = withClass(toolbar, "kindle-toolbar-actions");
-  expect(Array.from(actions.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["label", "button", "a"]);
+  expect(Array.from(actions.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["label", "button"]);
   expect(withClass(actions, "sr-only").textContent).toBe("搜索设备上的书");
   expect(button(actions, "删除所选（0）").className.split(/\s+/)).toContain("btn-quiet-danger");
   expect(button(actions, "删除所选（0）").hasAttribute("disabled")).toBe(true);
-  expect(elements(actions, "a")[0]!.className).toContain("btn-primary");
+  expect(actions.textContent).not.toContain("从书库传书");
   const table = withClass(root, "kindle-book-table");
   expect(elements(table, "th").map(node => node.textContent)).toEqual(["", "书籍", "来源", "格式", "阅读进度", "排版方案", "大小", "传入时间", "操作"]);
   for (const cell of elements(table, "th")) expect(cell.getAttribute("scope")).toBe("col");
@@ -191,9 +194,9 @@ it("keeps the device identity hierarchy and the complete books toolbar/table in 
   const nodes = elements(root, "*"); expect(nodes.indexOf(table)).toBeLessThan(nodes.indexOf(withClass(root, "empty-state")));
 });
 
-it("renders the transfer heading, text filters, compact search, setting fields and ordered queue in SSR", () => {
+it("renders the transfer filters, compact search, setting fields and ordered queue without a redundant heading in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = server.markup("transfer", input());
-  expect(elements(root, "h2").slice(0, 3).map(node => node.textContent)).toEqual(["从书库选择", "设置", "队列"]);
+  expect(elements(root, "h2").map(node => node.textContent)).toEqual(["设置", "队列"]);
   const toolbar = withClass(root, "kindle-toolbar"), filters = withClass(toolbar, "kindle-filters");
   expect(filters.getAttribute("role")).toBe("group"); expect(filters.getAttribute("aria-label")).toBe("筛选");
   expect(elements(filters, "button").map(node => [node.textContent, node.getAttribute("aria-pressed")]))

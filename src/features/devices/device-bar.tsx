@@ -4,10 +4,22 @@ import { agoLabel, bytes } from "./format";
 import { kindleModelInfo, koboModelInfo, modelShortName } from "../../client/devices/models";
 import { Button } from "../../ui";
 import { Link } from "../../shared/spa-link";
+import { KindleIcon } from "../kindle/icons";
 
 export function DeviceBar() {
   const k = useDevice(), [now, setNow] = createSignal(0);
-  onSettled(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); });
+  let details: HTMLDetailsElement | undefined;
+  onSettled(() => {
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const closeOutside = (event: PointerEvent) => { if (details?.open && !details.contains(event.target as Node)) details.open = false; };
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !details?.open) return;
+      details.open = false; details.querySelector("summary")?.focus();
+    };
+    document.addEventListener("pointerdown", closeOutside); document.addEventListener("keydown", closeEscape);
+    return () => { clearInterval(timer); document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeEscape); };
+  });
   const status = () => !k.ready() ? "检测中…" : !k.supported() ? "此浏览器不支持设备磁盘访问" : ({ granted: "已连接", prompt: "已插入 · 需要授权", denied: "已拒绝", disconnected: "已断开", unpaired: k.state().checkedAt ? "待完成配对" : "未配对或未选择设备" })[k.state().status];
   const usage = () => k.inventory()?.usage;
   // A disconnected device says when it was last seen; a connected one needs no timestamp.
@@ -33,12 +45,21 @@ export function DeviceBar() {
   };
   return <section aria-label="当前设备" class="kindle-device-bar" data-kindle-device-bar>
     <div class="kindle-device-identity">
-      <h1 class="page-title">{k.ready() && k.state().device ? k.state().device!.identity.name : "设备"}</h1>
-      <p class="page-description kindle-status" role="status"><span aria-hidden="true" class={`kindle-dot ${k.ready() && k.state().status === "granted" ? "connected" : ""}`} />{status()}{lastSeen()}</p>
-      <p class="kindle-small kindle-device-spec" title={specDetail()}>{spec()}</p>
+      <div class="kindle-device-name">
+        <span aria-hidden="true" title={`${status()}${lastSeen()}`} class={`kindle-dot ${k.ready() && k.state().status === "granted" ? "connected" : ""}`} />
+        <h1 class="page-title">{k.ready() && k.state().device ? k.state().device!.identity.name : "设备"}</h1>
+        <details ref={details} class="kindle-device-details">
+          <summary aria-label="查看设备规格" title="设备规格"><KindleIcon name="info" /></summary>
+          <div class="kindle-device-spec-popover">
+            <p class="kindle-small kindle-device-spec" title={specDetail()}>{spec()}</p>
+            <Show when={specDetail()}><p class="kindle-small kindle-mono">{specDetail()}</p></Show>
+          </div>
+        </details>
+      </div>
+      <span class="sr-only kindle-status" role="status">{status()}{lastSeen()}</span>
       <Show when={k.ready() && !k.supported()}><p class="kindle-small">请在 Windows 的 Edge 或 Chrome 桌面版中通过 HTTPS 或 localhost 打开。</p></Show>
       <Show when={k.ready() && k.state().status === "denied"}><p class="kindle-small">点击授权重试，或在地址栏的站点设置中恢复文件访问权限，再重新选择设备目录。</p></Show>
-      <Show when={k.ready() && k.state().message}><p class="kindle-small">{k.state().message}</p></Show>
+      <Show when={k.ready() && k.state().message && k.state().status !== "disconnected"}><p class="kindle-small">{k.state().message}</p></Show>
       <Show when={k.syncError()}><p class="field-error" role="alert" data-reading-sync>{k.syncError()}</p></Show>
       <Show when={k.syncSummary()}><p class="kindle-small" role="status" data-reading-sync>{k.syncSummary()}</p></Show>
     </div>

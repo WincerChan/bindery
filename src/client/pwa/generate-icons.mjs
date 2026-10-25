@@ -9,7 +9,7 @@ const svg = await readFile(new URL("public/logo.svg", root), "utf8");
 const attrs = tag => Object.fromEntries([...tag.matchAll(/([\w-]+)="([^"]+)"/g)].map(([, key, value]) => [key, value]));
 const rgb = hex => [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16));
 const viewBox = attrs(svg.match(/<svg\b[^>]+>/)[0]).viewBox.split(/\s+/).map(Number);
-const [left, top, width, height] = viewBox, background = rgb("#F5F6F3");
+const [left, top, width, height] = viewBox, background = rgb("#F2F0E9");
 function contours(d) {
   if (/[^MLCZ\d.\s,-]/.test(d)) throw new Error("Logo paths must use absolute M/L/C/Z commands");
   const tokens = d.match(/[MLCZ]|-?\d+(?:\.\d+)?/g), result = [];
@@ -100,8 +100,7 @@ function png(size, scale) {
 }
 await mkdir(new URL("public/icons/", root), { recursive: true });
 // A paper background keeps the favicon legible on both light and dark browser tabs.
-const compact = svg.replace(/fill="#[\da-f]{6}"/gi, `fill="${attrs(svg.match(/<path\b[^>]+>/)[0]).fill}"`);
-await writeFile(new URL("public/favicon.svg", root), compact.replace(/(<desc[^>]*>[^<]*<\/desc>)/, `$1\n  <path fill="#F5F6F3" d="M ${left} ${top} L ${left + width} ${top} L ${left + width} ${top + height} L ${left} ${top + height} Z"/>`));
+await writeFile(new URL("public/favicon.svg", root), svg.replace(/(<desc[^>]*>[^<]*<\/desc>)/, `$1\n  <path fill="#F2F0E9" d="M ${left} ${top} L ${left + width} ${top} L ${left + width} ${top + height} L ${left} ${top + height} Z"/>`));
 for (const [name, size, scale] of [["icon-192.png", 192, .9], ["icon-512.png", 512, .9], ["maskable-512.png", 512, .72]]) {
   await writeFile(new URL(`public/icons/${name}`, root), png(size, scale));
 }

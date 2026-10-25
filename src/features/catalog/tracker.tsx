@@ -67,7 +67,7 @@ export function TrackerPage(props: { data: TrackerPageData }) {
       setDeleting(null); await mutation.router.navigate({ href: result.target }); await mutation.router.invalidate();
     }, "已删除追踪", true);
   }
-  return <div class="catalog-page catalog-tracker"><PageHeader title="追踪" description={<>共 {props.data.stats.total} 本 · 未读 {props.data.stats.unread} · 在读 {props.data.stats.reading} · 已读 {props.data.stats.read} · 已入库 {props.data.stats.in_library}<Show when={filtered()}><span class="catalog-tracker-matched"> · 筛选出 {props.data.stats.filtered} 本</span></Show></>} actions={<><a class="btn btn-secondary" href={props.data.export_url}>导出 CSV</a><Button onClick={() => setActive({})}>添加书籍</Button></>} />
+  return <div class="catalog-page catalog-tracker"><PageHeader title="追踪" actions={<><a class="btn btn-secondary" href={props.data.export_url}>导出 CSV</a><Button onClick={() => setActive({})}>添加书籍</Button></>} />
     <Show when={props.data.duplicate_notice}><div class="catalog-tracker-notice" role="status"><p>已存在追踪条目：{props.data.duplicate_notice?.title}</p><Button variant="secondary" onClick={() => setActive({ wish: props.data.duplicate_notice! })}>点此前往编辑该条目。</Button></div></Show>
     <form ref={filterForm} action="/tracker" method="get" class="catalog-tracker-filter" onSubmit={event => { event.preventDefault(); applyFilters(); }}>
       <TextField class="search-field catalog-tracker-search" name="q" label="搜索书名、作者、标签" labelHidden type="search" value={props.data.filters.q} placeholder="搜索书名、作者、标签" onInput={() => { clearTimeout(searchTimer); searchTimer = setTimeout(applyFilters, 400); }} />
@@ -93,7 +93,7 @@ export function TrackerPage(props: { data: TrackerPageData }) {
       </div>}</For>
     </div>
     <Show when={!props.data.wishes.length}><EmptyState>没有符合筛选条件的书籍。</EmptyState></Show>
-    <p class="muted">第 {props.data.page} / {props.data.total_pages} 页</p><Pagination page={props.data.page} total={props.data.stats.filtered} perPage={20} href={props.data.current_url} />
+    <Pagination page={props.data.page} total={props.data.stats.filtered} shown={props.data.wishes.length} perPage={20} unit="本" href={props.data.current_url} />
     <Dialog open={Boolean(active())} title={active()?.wish ? "编辑追踪" : "添加追踪"} onClose={() => setActive(null)} class="catalog-page"><Show when={active()} keyed>{value => <TrackerForm wish={value.wish} next={props.data.current_url} onClose={() => setActive(null)} />}</Show></Dialog>
     <ConfirmDialog open={Boolean(deleting())} title="删除追踪" danger confirmLabel="删除" onClose={() => { if (!mutation.busy()) setDeleting(null); }} onConfirm={remove}><p>确定删除《{deleting()?.title}》的追踪条目？</p></ConfirmDialog>
   </div>;

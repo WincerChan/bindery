@@ -61,7 +61,8 @@ describe("reusable UI SSR", () => {
   });
   it("provides flat empty states and accessible pagination preserving search/view/hash", () => {
     expect(ui.empty()).toContain("暂无内容"); expect(ui.empty()).toContain("还没有书籍。"); expect(ui.empty()).toContain('href="/ingest"');
-    expect(ui.pagination(1, 1)).not.toContain('aria-label="分页"');
+    const single = ui.pagination(1, 1);
+    expect(single).toContain('aria-label="分页"'); expect(single).toContain("pagination-summary"); expect(single).toContain("data-pagination-total"); expect(single).not.toContain("pagination-controls");
     expect(ui.pagination(1, 100)).toContain('aria-disabled="true"');
     expect(ui.pagination(5, 100)).toContain('aria-current="page"');
     expect(ui.paginationItems(5, 10)).toEqual([1, "gap", 4, 5, 6, "gap", 10]);

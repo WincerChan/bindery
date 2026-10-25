@@ -55,12 +55,11 @@ export function LibrarySection(props: { data: LibraryPageData; loading?: boolean
   return <div id="library-section" data-page={props.data.page} data-total-books={props.data.total_books}>
     <div id="library" class={`library-collection ${props.selecting ? "is-selecting" : ""} ${props.loading ? "is-loading" : ""}`} aria-busy={props.loading ? "true" : "false"} data-view={props.view || "grid"}>
       <Show when={props.data.books.length} fallback={<Show when={props.data.scope === "archived"} fallback={<EmptyState title="书库还是空的" action={<Link href="/ingest" class="btn btn-primary">入库第一本书</Link>}>上传 TXT 或 EPUB，开始整理你的书库。</EmptyState>}><EmptyState title="归档为空。" /></Show>}>
-        <div class="library-list-head" data-library-list-head aria-hidden="true"><span>书名 / 作者</span><span>出版</span><span>格式</span><span>更新</span><span>操作</span></div>
+        <div class="library-list-head" data-library-list-head aria-hidden="true"><span class="library-list-spacer"></span><span>书名 / 作者</span><span>出版</span><span>格式</span><span>更新</span><span>操作</span></div>
         <For each={props.data.books}>{book => <LibraryBook book={book} returnTo={props.data.return_to} view={props.view || "grid"} selecting={Boolean(props.selecting)} selected={Boolean(props.selected?.includes(book.book_id))} toggle={() => props.toggle?.(book.book_id)} confirmArchive={props.confirmArchive} confirmDelete={props.confirmDelete} restoreBook={props.restoreBook} />}</For>
       </Show>
     </div>
-    <div class="library-pager"><span>{props.data.total_books ? (props.data.page - 1) * props.data.per_page + 1 : 0}–{(props.data.page - 1) * props.data.per_page + props.data.books.length} / {props.data.total_books}</span><span aria-label={`第 ${props.data.page} / ${props.data.total_pages} 页`}>{props.data.page} / {props.data.total_pages}</span></div>
-    <Pagination page={props.data.page} perPage={props.data.per_page} total={props.data.total_books} href={props.data.return_to} />
+    <Pagination page={props.data.page} perPage={props.data.per_page} total={props.data.total_books} shown={props.data.books.length} unit="册" href={props.data.return_to} />
   </div>;
 }
 
@@ -163,7 +162,7 @@ export function LibraryPage(props: {
     finally { setBusy(false); }
   }
   return <div class="library-page" ref={page}>
-    <PageHeader title="书库" description={<>{archived() ? "已归档" : "共"} <span data-library-count>{props.data.total_books}</span> 册{!archived() && props.data.read_filter === "unread" ? " · 仅看未读" : ""}</>} actions={<Link href="/ingest" class="btn btn-primary">+ 入库</Link>} />
+    <PageHeader title="书库" actions={<Link href="/ingest" class="btn btn-primary">+ 入库</Link>} />
     <Show when={showPasskeyHint()}><div class="passkey-hint" role="status"><Link href="/security">添加通行密钥，下次免密码登录</Link><button type="button" class="quiet" aria-label="关闭添加通行密钥提示" onClick={dismissPasskeyHint}>×</button></div></Show>
     <nav class="library-shelves" aria-label="书架">
       <Link href={libraryReturnTo({ ...props.data, scope: "active", read_filter: "all", page: 1 })} aria-current={archived() ? undefined : "page"}>在库</Link>

@@ -8,7 +8,7 @@
 .ingest-selected-heading { justify-content: space-between; margin-bottom: 16px; }
 .ingest-selected-heading h2 { margin: 0; }
 .ingest-preview-heading .btn { margin-left: auto; flex-shrink: 0; }
-.ingest-dropzone { position: relative; min-height: 300px; border: 1px dashed var(--color-ink-4); border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 24px; text-align: center; cursor: pointer; transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease; }
+.ingest-dropzone { position: relative; min-height: 320px; border: 1px dashed var(--color-ink-4); border-radius: 3px; background: var(--color-surface-subtle); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 24px; text-align: center; cursor: pointer; transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease; }
 .ingest-dropzone svg { width: 36px; height: 36px; color: var(--color-ink-3); }
 .ingest-dropzone strong { color: var(--color-accent); }
 .ingest-dropzone:hover:not([aria-disabled="true"]) { border-color: var(--color-accent); background: var(--color-accent-soft); }
@@ -29,14 +29,28 @@
 .ingest-submit { border-top: 1px solid var(--color-line); margin-top: 24px; padding-top: 24px; }
 .ingest-submit > .btn { width: 100%; }
 .ingest-submit > p { font-size: 12px; color: var(--color-ink-3); line-height: 1.6; margin: 10px 0 0; }
-.ingest-jobs-section > * { margin-block: 16px; }
-.ingest-jobs-sheet .ingest-job { grid-template-columns: minmax(0,1fr); }
-.ingest-jobs-list { list-style: none; padding: 0; }
-.ingest-job { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1.5fr) minmax(0,1fr); gap: 12px; overflow-wrap: anywhere; }
-.ingest-job p { margin-block: 5px; }
-.ingest-job-id, .ingest-job time { font-size: 12px; }
-.ingest-job-message, .ingest-job-log { grid-column: 1 / -1; }
-.ingest-job-log pre { white-space: pre-wrap; max-height: 360px; overflow: auto; font-size: 12px; }
+.ingest-jobs-sheet.dialog-sheet { width: min(640px, 100%); }
+.ingest-jobs-summary { justify-content: space-between; min-height: 32px; }
+.ingest-jobs-summary p { margin: 0; }
+.ingest-job-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 20px; }
+.ingest-jobs-list { list-style: none; padding: 0; margin: 0; }
+.ingest-jobs-list > li { padding-block: 22px; }
+.ingest-job { display: grid; gap: 14px; overflow-wrap: anywhere; }
+.ingest-job-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.ingest-job-identity { min-width: 0; }
+.ingest-job-identity strong { font-size: 16px; font-weight: 600; line-height: 1.5; }
+.ingest-job-identity p { margin: 4px 0 0; font-size: 12px; }
+.ingest-job time { flex: none; padding-top: 3px; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ingest-job-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ingest-job-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.ingest-job-status > p { margin: 0; font-size: 12px; text-align: right; }
+.ingest-job-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ingest-job-footer .ingest-actions { flex: none; margin-left: auto; }
+.ingest-job-id { margin: 0; font-family: var(--font-mono); font-size: 11px; }
+.ingest-job-message { margin: 0; font-size: 13px; line-height: 1.6; }
+.ingest-job-log summary { padding-block: 0; color: var(--color-accent); font-size: 12px; }
+.ingest-job-log pre { margin: 10px 0 0; padding-left: 12px; border-left: 1px solid var(--color-line); white-space: pre-wrap; max-height: 280px; overflow: auto; font-size: 12px; line-height: 1.65; }
+.ingest-jobs-section > .pagination { margin: 20px 0 0; }
 @media (max-width: 899px) {
   .ingest-page { padding-bottom: 140px; }
   .ingest-layout { grid-template-columns: minmax(0,1fr); gap: 32px; }
@@ -48,6 +62,13 @@
   .ingest-dropzone:not(.is-compact) { min-height: 160px; }
 }
 @media (max-width: 640px) {
-  .ingest-fields, .ingest-job { grid-template-columns: minmax(0,1fr); }
-  .ingest-job time { overflow-wrap: anywhere; }
+  .ingest-fields { grid-template-columns: minmax(0,1fr); }
+  .ingest-jobs-summary { align-items: flex-start; }
+  .ingest-job-tabs { flex-wrap: nowrap; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
+  .ingest-job-tabs .chip { flex: none; padding-inline: 8px; }
+  .ingest-job-heading { display: grid; gap: 6px; }
+  .ingest-job time { padding-top: 0; white-space: normal; overflow-wrap: anywhere; }
+  .ingest-job-status { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .ingest-job-status > p { text-align: left; }
+  .ingest-job-footer { flex-wrap: wrap; }
 }

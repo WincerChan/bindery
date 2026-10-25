@@ -92,7 +92,7 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
     finally { setTesting(false); }
   }
   return <section aria-label="生词本" class="kindle-books vocabulary-page">
-    <div class="kindle-section-heading"><h2>生词本</h2><span class="kindle-count kindle-mono">{page().totals.all} 个生词</span></div>
+    <div class="kindle-section-heading"><span class="kindle-count kindle-mono">{page().totals.all} 个生词</span></div>
     <p class="kindle-small">生词会随设备连接自动同步；所有生词都会推送到 LexiTrace，未连接设备时也可查看。</p>
     <details class="vocabulary-settings" open={!settings().hasToken}>
       <summary>LexiTrace 设置</summary>

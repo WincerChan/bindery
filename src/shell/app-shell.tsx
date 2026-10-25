@@ -45,7 +45,7 @@ export function AppShell() {
   return <>
     <a class="skip-link" href="#app-content">跳到正文</a>
     <Show when={!readerLayout()}><header class="site-header"><div class="wrap header-row">
-      <Link href="/" class="brand"><img class="brand-mark" src="/logo.svg" width="28" height="28" alt="" />Bindery</Link>
+      <Link href="/" class="brand" aria-label="Bindery"><img class="brand-mark" src="/logo.svg" width="30" height="30" alt="" /><span class="brand-name">Bindery</span></Link>
       <nav class="desktop-nav" aria-label="主导航"><For each={navigation}>{item =>
         <Link href={item.href} class={`nav-link ${active(item.href) ? "active" : ""}`} aria-current={active(item.href) ? "page" : undefined}>{item.label}</Link>
       }</For><div class="settings-menu" ref={menu}>
