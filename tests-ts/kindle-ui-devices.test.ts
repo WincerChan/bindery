@@ -462,6 +462,7 @@ it("loads device profiles, applies library filters/search and preserves selectio
   expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(24); expect(text(m)).not.toContain("已在设备");
   await c.manager.probe(); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledOnce();
   const checkbox = field(m.root, "选择 书库乙"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "下一页"), "click"); m.flush(); expect(text(m)).toContain("已选 1 本");
+  expect(elements(m.root, "span", "data-transfer-selection")[0]!.textContent).not.toContain("已选");
   await c.manager.probe(); await settle(m); expect(text(m)).toContain("已选 1 本");
   fire(button(m.root, "未读"), "click"); m.flush(); expect(elements(m.root, "li", "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).not.toContain("b"); expect(text(m)).toContain("已在设备");
   const search = field(m.root, "搜索书库"); search.value = "书库甲"; fire(search, "input"); m.flush(); expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(1); expect(text(m)).toContain("估计大小：待转换后确定");

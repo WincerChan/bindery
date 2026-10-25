@@ -129,8 +129,10 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     onDragOver={event => { event.preventDefault(); if (device() && !busy()) setDragging(true); }}
     onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
     onDrop={event => { event.preventDefault(); setDragging(false); if (event.dataTransfer) void choose(Array.from(event.dataTransfer.files)); }}>
-    <div class="kt-heading"><div><p class="muted">设备根目录下的 <span class="kindle-mono">fonts/</span> · {families().length} 个家族 · {families().reduce((sum, family) => sum + family.fonts.length, 0)} 个字体文件 · <span class="kindle-mono">{fileSize(totalSize())}</span> · 已忽略 macOS 的 ._* 文件和 Readme.txt</p></div>
-      <div class="kt-actions"><FontLanguageFilter value={language()} onChange={setLanguage} /><Button variant="secondary" disabled={!device() || busy()} onClick={scan}>重新扫描</Button><Button disabled={!device() || busy()} onClick={() => input.click()}>添加字体</Button></div>
+    <div class="kindle-toolbar kindle-books-toolbar kt-font-toolbar">
+      <div class="kindle-section-heading"><span class="kindle-count kindle-mono">{families().length} 个家族 · {families().reduce((sum, family) => sum + family.fonts.length, 0)} 个字体文件 · {fileSize(totalSize())}</span></div>
+      <FontLanguageFilter value={language()} onChange={setLanguage} />
+      <div class="kindle-toolbar-actions kt-actions"><Button variant="secondary" disabled={!device() || busy()} onClick={scan}>重新扫描</Button><Button disabled={!device() || busy()} onClick={() => input.click()}>添加字体</Button></div>
     </div>
     <input ref={input} type="file" multiple accept=".ttf,.otf" hidden aria-label="选择 TTF 或 OTF 字体文件" onChange={event => { void choose(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
     <Show when={!state()}><p role="status">检测中…</p></Show>
