@@ -93,6 +93,11 @@ describe("v2 render contracts", () => {
     expect(new Set(Array.from({ length: 13 }, (_, index) => server.coverTone(index.toString(16)))).size).toBe(13);
     expect(server.coverTone("非十六进制书名")).toBe(server.coverTone("非十六进制书名"));
   });
+  it("names a real cover image once, on the image itself", () => {
+    const html = server.markup("covers"), real = html.slice(html.indexOf('src="/cover.jpg"') - 200, html.indexOf('src="/cover.jpg"') + 200);
+    expect(real).toContain('alt="生成中（生成中）"'); expect(real).not.toContain('role="img"');
+    expect(html.match(/role="img"/g)).toHaveLength(4); // the four drawn covers only
+  });
   it("labels the existing native dialog system and distinguishes menu and nonmodal popover", () => {
     const html = server.markup("overlays");
     expect(html.match(/<dialog/g)).toHaveLength(4); expect(html.match(/aria-modal="true"/g)).toHaveLength(3);
@@ -129,6 +134,15 @@ describe("v2 client interaction", () => {
       expect(elements(mounted.root, "output").map(output => output.textContent)).toEqual([String(value), String(value)]);
       expect(buttons.find(button => button.getAttribute("aria-label") === label)!.hasAttribute("disabled")).toBe(true);
     }
+  });
+  it("opens overlays when MediaQueryList only has the legacy addListener API (Safari < 14)", async () => {
+    const addListener = vi.fn(), removeListener = vi.fn();
+    vi.stubGlobal("window", { ...window, matchMedia: () => ({ matches: false, addListener, removeListener }) });
+    const mounted = mount("overlays"); await settle(); mounted.flush();
+    const trigger = elements(mounted.root, "button").find(button => button.textContent === "打开") as HTMLButtonElement;
+    fire(trigger, "click"); mounted.flush();
+    expect((elements(mounted.root, "dialog")[0] as HTMLDialogElement).open).toBe(true); expect(addListener).toHaveBeenCalled();
+    disposers.splice(0).reverse().forEach(dispose => dispose()); expect(removeListener).toHaveBeenCalled();
   });
   it("traps Tab, closes on Escape and returns focus to the opener", async () => {
     const mounted = mount("overlays"); await settle(); mounted.flush();

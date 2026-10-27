@@ -30,13 +30,17 @@ export function Dialog(props: DialogProps) {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const query = window.matchMedia("(max-width: 767px)");
     const resize = () => { setPhone(query.matches); position(); };
-    resize(); query.addEventListener("change", resize);
+    // Safari < 14 only implements the deprecated addListener/removeListener pair.
+    const listen = (on: boolean) => typeof query.addEventListener === "function"
+      ? on ? query.addEventListener("change", resize) : query.removeEventListener("change", resize)
+      : on ? query.addListener?.(resize) : query.removeListener?.(resize);
+    resize(); listen(true);
     window.addEventListener("resize", position); window.addEventListener("scroll", position, true);
     const outside = (event: PointerEvent) => {
       if (props.open && !modal() && !element.contains(event.target as Node) && !props.anchor?.()?.contains(event.target as Node)) props.onClose();
     };
     document.addEventListener("pointerdown", outside);
-    return () => { query.removeEventListener("change", resize); window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); document.removeEventListener("pointerdown", outside); };
+    return () => { listen(false); window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); document.removeEventListener("pointerdown", outside); };
   });
   createEffect(() => ({ open: props.open, phone: phone(), variant: variant() }), state => {
     if (state.open && !element.open) {

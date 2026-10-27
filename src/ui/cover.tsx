@@ -19,10 +19,11 @@ export interface CoverProps {
   /** Interactive retry covers must not be placed inside a link/button. Otherwise use the book menu. */
   onRetry?: () => void;
 }
+const coverLabel = (props: CoverProps) => `${props.title}${props.state ? `（${coverStateLabel[props.state]}）` : ""}`;
 function CoverFrame(props: CoverProps & { children: JSX.Element; generated?: boolean }) {
-  const label = () => `${props.title}${props.state ? `（${coverStateLabel[props.state]}）` : ""}`;
+  // A real <img> carries its own name; only the drawn cover needs an img role, or AT reads two images.
   return <div class={`cover ${props.generated ? `cover-gen cover-tone-${coverTone(props.book_id)}` : ""} ${props.compact ? "cover-compact" : ""} ${props.large ? "cover-large" : ""} ${props.state ? `cover-${props.state}` : ""} ${props.class || ""}`}>
-    <div class="cover-art" role="img" aria-label={label()}>{props.children}</div>
+    <div class="cover-art" role={props.generated ? "img" : undefined} aria-label={props.generated ? coverLabel(props) : undefined}>{props.children}</div>
     <Show when={props.state === "read" || props.state === "reading"}><span class="cover-ribbon" aria-hidden="true" /></Show>
     <Show when={props.state === "failed"}><Show when={props.onRetry} fallback={<span class="cover-retry" aria-hidden="true">↻</span>}>
       {retry => <IconButton class="cover-retry" aria-label={`重试生成《${props.title}》`} title={`重试生成《${props.title}》`} onClick={() => retry()()}>↻</IconButton>}
@@ -37,7 +38,7 @@ export function GeneratedCover(props: CoverProps) {
 export function BookCover(props: CoverProps & { cover_url?: string | null; eager?: boolean }) {
   const [failedUrl, setFailedUrl] = createSignal<string | null>(null);
   return <Show when={props.cover_url && props.cover_url !== failedUrl() && props.state !== "not-in-library" && props.state !== "unparseable"} fallback={<GeneratedCover {...props} />}>
-    <CoverFrame {...props}><img src={props.cover_url!} alt={props.title} loading={props.eager ? "eager" : "lazy"} onError={() => setFailedUrl(props.cover_url || null)} /></CoverFrame>
+    <CoverFrame {...props}><img src={props.cover_url!} alt={coverLabel(props)} loading={props.eager ? "eager" : "lazy"} onError={() => setFailedUrl(props.cover_url || null)} /></CoverFrame>
   </Show>;
 }
 export function AddCoverTile(props: { label: string; onClick: () => void; class?: string }) {
