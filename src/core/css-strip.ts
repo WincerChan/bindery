@@ -105,6 +105,65 @@ export function rewriteCssUrls(css: string, rewrite: (url: string) => string | u
   return result + css.slice(at);
 }
 
+/** Inline real top-level @import rules, using the same escaped-token parser as URL stripping.
+ * Comments/quoted declaration strings are never interpreted as imports. Unsupported modern
+ * layer()/supports() qualifiers are dropped rather than incorrectly treated as media queries.
+ */
+export function inlineCssImports(css: string, load: (url: string) => string | undefined): string {
+  const list = tokens(css);
+  let result = "", from = 0, braces = 0;
+  for (let i = 0; i < list.length; i++) {
+    const token = list[i];
+    if (token.value === "{") braces++;
+    else if (token.value === "}") braces--;
+    if (braces || token.value.toLowerCase() !== "@import") continue;
+    let end = i + 1, parens = 0;
+    for (; end < list.length; end++) {
+      const value = list[end].value;
+      if (value === "(") parens++;
+      else if (value === ")") parens--;
+      else if (!parens && [";", "{", "}"].includes(value)) break;
+    }
+    let cursor = i + 1, url: string | undefined;
+    if (/^["']/.test(list[cursor]?.value ?? "")) url = unquote(list[cursor++].value);
+    else if (list[cursor]?.value.toLowerCase() === "url" && list[cursor + 1]?.value === "(") {
+      const start = cursor + 2;
+      cursor = start;
+      while (cursor < end && list[cursor].value !== ")") cursor++;
+      if (cursor < end) url = unquote(list.slice(start, cursor++).map(part => part.value).join(""));
+    }
+    const complete = end === list.length || list[end].value === ";";
+    const qualifier = list[cursor]?.value.toLowerCase();
+    const imported = complete && url && qualifier !== "layer" && qualifier !== "supports" ? load(url) : undefined;
+    const media = cursor < end ? css.slice(list[cursor].start, list[end]?.start ?? css.length).trim() : "";
+    result += css.slice(from, token.start) + (imported ? media ? `@media ${media} {\n${imported}\n}` : imported : "");
+    from = end === list.length ? css.length : list[end].value === ";" ? list[end].end : list[end].start;
+    i = end === list.length || list[end].value === ";" ? end : end - 1;
+  }
+  return result + css.slice(from);
+}
+
+/** Standalone browser previews cannot load any assets, including data URLs and image-set strings. */
+export function resourceFreeCss(css: string): string {
+  css = rewriteCssUrls(css, () => "");
+  // CSS also permits string URLs in image-set(), not just url(). Decode escapes before checking.
+  const list = tokens(css), functions: string[] = [], strings: typeof list = [];
+  // Browsers can recover an unterminated url() at EOF; never leave its raw URL behind.
+  let lastClose = list.length - 1;
+  while (lastClose >= 0 && list[lastClose].value !== ")") lastClose--;
+  for (let i = lastClose + 1; i < list.length; i++) if (list[i].value.toLowerCase() === "url" && list[i + 1]?.value === "(") {
+    return resourceFreeCss(css.slice(0, list[i].start) + 'url("")');
+  }
+  for (let i = 0; i < list.length; i++) {
+    const token = list[i];
+    if (token.value === "(") functions.push(list[i - 1]?.value.toLowerCase() ?? "");
+    else if (token.value === ")") functions.pop();
+    else if (/^["']/.test(token.value) && (functions.some(name => ["image-set", "-webkit-image-set", "src"].includes(name)) || /^(?:[a-z][\w+.-]*:|\/\/)/i.test(unquote(token.value).trim()))) strings.push(token);
+  }
+  for (const token of strings.reverse()) css = css.slice(0, token.start) + '""' + css.slice(token.end);
+  return css;
+}
+
 /** Token-aware removal preserves unrelated declarations, strings, comments and rule order. */
 export function stripCss(css: string, options: StripCssOptions): string {
   if (!options.stripFonts && !options.stripImages && !options.stripPageMargins && !options.stripLineHeight && !options.stripParagraphSpacing) return css;
