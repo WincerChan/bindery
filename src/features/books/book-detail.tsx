@@ -182,7 +182,7 @@ export function BookDetail(props: { page: BookPage }) {
                   <h2>重新生成</h2>
                   <p>切换规则模板重新切章与生成 EPUB。</p>
                   <form
-                    class="books-actions"
+                    class="inline-form"
                     action={`/book/${book().book_id}/regenerate`}
                     method="post"
                     onSubmit={event => { event.preventDefault(); void perform("regenerate", event.currentTarget); }}

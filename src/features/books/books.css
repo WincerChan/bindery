@@ -244,6 +244,12 @@
   .books-fields {
     grid-template-columns: minmax(0, 1fr);
   }
+  .books-bottom .inline-form > .field {
+    flex: 1 0 100%;
+  }
+  .books-bottom .inline-form > .btn {
+    width: 100%;
+  }
   .books-edit-top {
     grid-template-columns: minmax(0, 1fr);
   }
