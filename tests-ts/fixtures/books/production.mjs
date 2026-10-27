@@ -74,7 +74,10 @@ try {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /下载 EPUB/);
-  assert.match(html, /阅读状态/);
+  assert.match(html, /标记已读/);
+  assert.match(html, /action="\/book\/[a-f0-9]+\/read"/);
+  assert.match(html, /关于这本书/);
+  assert.doesNotMatch(html, /books-toc/);
   assert.match(html, /return_to=%2F%3Fpage%3D3/);
   assert.equal(response.headers.get("cache-control"), "no-store");
   response = await request(base + "/edit");

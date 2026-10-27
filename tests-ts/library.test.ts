@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { libraryPage, loadLibraryPage } from "../src/server/library/queries";
+import { librarySummary } from "../src/features/library/local-summary";
 import { archiveBooks, deleteArchivedBooks, downloadBooks, normalizeBookIds, regenerateBooks, restoreArchivedBooks } from "../src/server/library/actions";
 import { archivePost, deletePost, downloadPost } from "../src/server/library/handlers";
 import { bookHref, devicePreviewHref, deviceTransferHref, gridPageSize, gridPageSizeFromCookie, libraryQueryInput, libraryReturnTo, normalizeSearch, transferSelection } from "../src/features/library/search";
@@ -93,6 +94,38 @@ describe("library filters, sorting and pagination (legacy library_filters)", () 
   it("preserves storage orphan totals and does not replace missing directories with full scans", () => {
     const { library } = fixture; createBook(library, a); rmSync(join(library.base, a), { recursive: true });
     expect(libraryPage(library)).toMatchObject({ total_books: 1, books: [] });
+  });
+});
+
+describe("v2 shelf-wide introduction", () => {
+  it("has an honest empty state and uses the latest import only when there is no reading", () => {
+    const { library } = fixture;
+    expect(librarySummary(library)).toMatchObject({ hero: null, latest: null, active_count: 0, archived_count: 0 });
+    createBook(library, a, { title: "旧书", created_at: "2026-01-01" });
+    createBook(library, b, { title: "新书", created_at: "2026-02-01" });
+    expect(librarySummary(library)).toMatchObject({ hero: { book_id: b }, latest: null, active_count: 2 });
+    expect(libraryPage(library, { q: "missing" }).total_books).toBe(0);
+    expect(librarySummary(library).active_count).toBe(2);
+  });
+  it("compares real web/device read times, not synchronization times or date strings", () => {
+    const { library } = fixture;
+    createBook(library, a); createBook(library, b);
+    library.db.upsertReaderProgress(a, 2, 3, 10, "2026-10-22T20:00:00+08:00");
+    library.db.upsertDeviceReading({ book_id: b, device_id: "kobo", device_kind: "kobo", device_name: "我的设备", section: 4, section_fraction: .2, percent: 30, location: null, read_status: "reading", last_read_at: "2026-10-22T13:00:00Z", synced_at: "2026-12-01T00:00:00Z", time_spent_seconds: 0, rest_estimate_seconds: null });
+    expect(librarySummary(library)).toMatchObject({ hero: { book_id: b }, latest: { section: 4, read_at: "2026-10-22T13:00:00Z" } });
+    library.db.upsertReaderProgress(a, 5, 1, 10, "2026-10-22T14:00:00Z");
+    expect(librarySummary(library)).toMatchObject({ hero: { book_id: a }, latest: { section: 5 } });
+  });
+  it("excludes archived, missing and invalid-date reading rows from the hero", () => {
+    const { library } = fixture;
+    createBook(library, a); createBook(library, b); createBook(library, c);
+    library.db.upsertReaderProgress(a, 0, 1, 1, "2026-10-20T00:00:00Z");
+    library.db.upsertReaderProgress(b, 0, 1, 1, "2026-10-21T00:00:00Z");
+    library.db.upsertReaderProgress(c, 0, 1, 1, "2026-10-22T00:00:00Z");
+    archiveBooks([c], library); rmSync(join(library.base, b), { recursive: true });
+    expect(librarySummary(library)).toMatchObject({ hero: { book_id: a }, archived_count: 1 });
+    library.db.upsertReaderProgress(a, 0, 1, 1, "invalid");
+    expect(librarySummary(library).latest).toBeNull();
   });
 });
 

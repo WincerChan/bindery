@@ -107,8 +107,8 @@ it.each([true, false])("updates book cards, selection and empty states (hydratio
   const original = byAttribute(mounted.root, "data-book-id", "一");
   fire(byAttribute(mounted.root, "data-bulk-mode-toggle"), "click"); mounted.flush();
   expect(allByAttribute(mounted.root, "data-book-detail-link")).toHaveLength(0);
-  const selectAll = byAttribute(mounted.root, "data-bulk-select-all") as HTMLInputElement;
-  selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
+  const selectAll = byAttribute(mounted.root, "data-bulk-select-all");
+  fire(selectAll, "click"); mounted.flush();
   expect(elements(mounted.root, "input").filter(el => el.getAttribute("name") === "book_ids")).toHaveLength(16);
   mounted.update({ ...library(["魔临"]), q: "魔临", read_filter: "unread", return_to: "/?q=魔临&read_filter=unread" });
   expect(byAttribute(mounted.root, "data-pagination-total").textContent).toBe("1");
@@ -118,6 +118,30 @@ it.each([true, false])("updates book cards, selection and empty states (hydratio
   mounted.update(library([])); expect(ids(mounted.root)).toEqual([]); expect(mounted.root.textContent).toContain("书库还是空的");
   mounted.update(library(["二", "一"])); expect(ids(mounted.root)).toEqual(["二", "一"]);
   mounted.update(library(["一", "二"])); expect(ids(mounted.root)).toEqual(["一", "二"]);
+});
+
+it.each([true, false])("opens a book menu with keyboard, navigates items, closes and restores focus (hydration=%s)", async hydrating => {
+  const mounted = mount("library", library(["甲"]), hydrating); await settle(); mounted.flush();
+  const trigger = byAttribute(mounted.root, "aria-haspopup", "menu") as HTMLButtonElement;
+  const dialog = byAttribute(mounted.root, "id", trigger.getAttribute("aria-controls")!) as HTMLDialogElement;
+  // Node-tree tests supply geometry/focus only; this does not verify browser layout.
+  vi.stubGlobal("window", { innerWidth: 1200, innerHeight: 900 });
+  trigger.getBoundingClientRect = () => ({ left: 50, bottom: 100 }) as DOMRect;
+  Object.defineProperty(dialog, "style", { configurable: true, value: {} });
+  Object.defineProperty(dialog, "offsetWidth", { value: 232 }); Object.defineProperty(dialog, "offsetHeight", { value: 350 });
+  for (const target of [trigger, ...elements(dialog, "a"), ...elements(dialog, "button")]) (target as HTMLElement).focus = () => { for (const owner of [document, dialog.ownerDocument]) Object.defineProperty(owner, "activeElement", { configurable: true, value: target }); };
+  trigger.focus(); fire(trigger, "keydown", { key: "ArrowDown" }); mounted.flush();
+  expect(dialog.open).toBe(true); expect(trigger.getAttribute("aria-expanded")).toBe("true");
+  const read = byRole(dialog, "menuitem", "阅读"), download = byRole(dialog, "menuitem", "下载");
+  expect(document.activeElement).toBe(read);
+  fire(dialog, "keydown", { key: "End" }); expect(document.activeElement).toBe(byRole(dialog, "menuitem", "归档"));
+  fire(dialog, "keydown", { key: "Home" }); expect(document.activeElement).toBe(read);
+  fire(dialog, "keydown", { key: "ArrowDown" }); expect(document.activeElement).toBe(byRole(dialog, "menuitem", "设备预览"));
+  fire(dialog, "keydown", { key: "Escape" }); mounted.flush(); expect(dialog.open).toBe(false); expect(document.activeElement).toBe(trigger);
+  fire(trigger, "click"); mounted.flush(); expect(dialog.open).toBe(true);
+  fire(download, "click"); mounted.flush(); expect(dialog.open).toBe(false);
+  expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  expect(byAttribute(mounted.root, "data-book-detail-link").getAttribute("href")).toBe("/book/甲?return_to=%2F");
 });
 
 it("shows the dismissible passkey enrollment hint above the library shelves", () => {
@@ -158,10 +182,9 @@ it("requires confirmation for single/bulk archive deletion and refreshes after b
   const data: Cases["library"] = { ...library(["甲", "乙"]), scope: "archived", books: [book("甲"), book("乙")].map(value => ({ ...value, archived: true })), return_to: "/?scope=archived&page=2" };
   const mounted = mount("libraryActions", { data, restore, refresh, regenerate: vi.fn() }); await settle(); mounted.flush();
   const buttons = () => elements(mounted.root, "button");
-  fire(buttons().find(el => el.hasAttribute("data-bulk-mode-toggle"))!, "click"); mounted.flush();
-  const selectAll = byAttribute(mounted.root, "data-bulk-select-all") as HTMLInputElement; selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
-  expect(byAttribute(mounted.root, "data-selected-count").textContent).toBe("2");
+  const selectAll = byAttribute(mounted.root, "data-bulk-select-all");
   for (const action of ["/book/甲/delete", "/archive/delete-bulk"]) {
+    if (action === "/archive/delete-bulk") { fire(buttons().find(el => el.hasAttribute("data-bulk-mode-toggle"))!, "click"); mounted.flush(); fire(selectAll, "click"); mounted.flush(); expect(byAttribute(mounted.root, "data-selected-count").textContent).toBe("2"); }
     const form = elements(mounted.root, "form").find(el => el.getAttribute("action") === action) as HTMLFormElement, submit = vi.fn(); form.submit = submit;
     const prevented = vi.fn(); fire(form, "submit", { preventDefault: prevented }); mounted.flush();
     const dialog = elements(mounted.root, "dialog").find(el => el.textContent?.includes("永久删除书籍")) as HTMLDialogElement;
@@ -174,8 +197,8 @@ it("requires confirmation for single/bulk archive deletion and refreshes after b
     fire(elements(dialog, "button").find(el => el.textContent === "彻底删除")!, "click"); await settle(); mounted.flush();
     expect(submit).not.toHaveBeenCalled(); expect(dialog.open).toBe(false);
     expect(rpc.mock.lastCall).toEqual(["mutateLibrarySelection", { data: { action: "delete", ids: action.startsWith("/book/") ? ["甲"] : ["甲", "乙"] } }]);
-    selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
   }
+  fire(selectAll, "click"); mounted.flush();
   fire(buttons().find(el => el.textContent === "恢复")!, "click"); await settle(); mounted.flush();
   expect(restore).toHaveBeenCalledExactlyOnceWith(["甲", "乙"]); expect(refresh).toHaveBeenCalledTimes(3);
   expect(byAttribute(mounted.root, "data-selected-count").textContent).toBe("0");
@@ -464,9 +487,9 @@ it("updates pagination summaries, non-link current pages and link/in-place contr
 
 it("switches detail/editor fragment panels and displays saved specs and cover", async () => {
   const initial = detail(), mounted = mount("detail", initial);
-  fire(elements(mounted.root, "a").find(el => el.textContent === "编辑")!, "click"); mounted.flush();
+  fire(byRole(mounted.root, "link", "编辑书目信息"), "click"); mounted.flush();
   expect(byName(mounted.root, "title")).toBeDefined();
-  expect(allByRole(mounted.root, "link", "编辑")).toHaveLength(0);
+  expect(allByRole(mounted.root, "link", "编辑书目信息")).toHaveLength(0);
   vi.stubGlobal("FormData", class extends FormData { constructor() { super(); } });
   vi.stubGlobal("__binderyTestMutation", vi.fn().mockResolvedValue({ message: "已保存", kind: "success", page: { ...initial, book: { ...initial.book, title: "新书名", publisher: "新出版社", cover_url: "/new-cover" } } }));
   fire(elements(mounted.root, "form").find(el => el.getAttribute("action")?.endsWith("/edit"))!, "submit");
@@ -700,7 +723,7 @@ it.each(["archive", "restore", "delete"] as const)("refreshes library %s through
   expect(rpc).toHaveBeenCalledExactlyOnceWith("mutateLibrarySelection", { data: { action, ids: ["甲"] } }); expect(mounted.libraryLoads()).toBe(2); expect(mounted.href()).toBe(entry); expect(submit).not.toHaveBeenCalled();
   mounted.nextLibrary(initial); await mounted.router.invalidate(); mounted.flush();
   fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush();
-  const all = elements(node, "input", "data-bulk-select-all")[0] as HTMLInputElement; all.checked = true; fire(all, "change"); mounted.flush();
+  const all = elements(node, "button", "data-bulk-select-all")[0]!; fire(all, "click"); mounted.flush();
   if (action === "restore") fire(elements(node, "button").find(el => el.textContent === "恢复")!, "click");
   else { fire(elements(node, "form").find(el => el.getAttribute("action") === (action === "archive" ? "/books/archive" : "/archive/delete-bulk"))!, "submit"); mounted.flush(); const dialog = elements(node, "dialog").find(el => (el as HTMLDialogElement).open)!; fire(elements(dialog, "button").find(el => el.textContent === (action === "archive" ? "归档" : "彻底删除"))!, "click"); }
   await vi.waitFor(() => { mounted.flush(); expect(ids(node)).toEqual([]); });
@@ -718,7 +741,7 @@ it("refreshes retry/cleanup in the open sheet and Router-navigates shell, pagina
   await click(elements(pager, "a").find(el => el.getAttribute("aria-label") === "下一页")!); expect(mounted.href()).toBe("/?page=2");
   const card = elements(node, "a", "data-book-detail-link")[0]!, href = card.getAttribute("href"); await click(card); expect(mounted.href()).toBe(href);
   await click(css(node, "a", "brand")[0]!); expect(mounted.href()).toBe("/");
-  fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush(); const all = elements(node, "input", "data-bulk-select-all")[0] as HTMLInputElement; all.checked = true; fire(all, "change"); mounted.flush();
+  fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush(); fire(elements(node, "button", "data-bulk-select-all")[0]!, "click"); mounted.flush();
   fire(elements(node, "button").find(el => el.textContent === "重新生成")!, "click");
   await vi.waitFor(() => { mounted.flush(); expect((elements(node, "dialog").find(el => el.id === "jobs") as HTMLDialogElement).open).toBe(true); });
   expect(regenerate).toHaveBeenCalledExactlyOnceWith(["甲"]); expect(mounted.href()).toBe("/ingest?jobs_tab=running#jobs");
@@ -745,7 +768,7 @@ it.each(["archive", "restore", "delete", "regenerate", "retry", "cleanup"])("Rou
   if (action === "regenerate" || action === "archive") {
     mounted.nextLibrary({ ...initial, scope: "active", books: [{ ...book("甲"), archived: false }] }); await mounted.router.invalidate(); mounted.flush();
   }
-  if (action === "regenerate") { fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush(); const all = elements(node, "input", "data-bulk-select-all")[0] as HTMLInputElement; all.checked = true; fire(all, "change"); mounted.flush(); fire(elements(node, "button").find(el => el.textContent === "重新生成")!, "click"); }
+  if (action === "regenerate") { fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush(); fire(elements(node, "button", "data-bulk-select-all")[0]!, "click"); mounted.flush(); fire(elements(node, "button").find(el => el.textContent === "重新生成")!, "click"); }
   else {
     const path = action === "retry" ? "/jobs/job/retry" : action === "cleanup" ? "/jobs/cleanup-invalid" : `/book/甲/${action}`;
     fire(elements(node, "form").find(el => el.getAttribute("action") === path)!, "submit"); mounted.flush();
@@ -793,7 +816,7 @@ it("renders route views with the development runtime and no untracked reactive r
       const node = root(), mounted = dev.mount(node, kind, cases[kind]!);
       disposers.push(mounted.dispose); mounted.flush();
       if (kind === "detail") {
-        fire(elements(node, "a").find(element => element.textContent === "编辑")!, "click"); mounted.flush();
+        fire(byRole(node, "link", "编辑书目信息"), "click"); mounted.flush();
       }
     }
     const reads = warnings.mock.calls.map(call => String(call[0])).filter(message => message.includes("STRICT_READ_UNTRACKED"));

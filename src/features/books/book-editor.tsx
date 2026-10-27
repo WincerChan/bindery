@@ -1,8 +1,9 @@
 import { createSignal, For, Show, untrack } from "solid-js";
 import {
+  BackLink,
   BookCover,
   Button,
-  Checkbox,
+  SelectPill,
   Select,
   Textarea,
   TextField,
@@ -25,6 +26,7 @@ export function BookEditor(props: {
     [busy, setBusy] = createSignal(false),
     [error, setError] = createSignal(untrack(() => props.page.error || "")),
     [rating, setRating] = createSignal<number | null>(untrack(() => props.page.book.rating));
+  const [stripCss, setStripCss] = createSignal<string | null>(null), [stripFonts, setStripFonts] = createSignal<string | null>(null);
   let form!: HTMLFormElement, css!: HTMLTextAreaElement;
   const book = () => page().book,
     id = () => book().book_id;
@@ -72,6 +74,7 @@ export function BookEditor(props: {
     page().lookup_changed_fields?.includes(key) ? "books-autofill" : "";
   return (
     <div class="books-page books-editor" id="meta-panel">
+      <Show when={!props.onCancel}><BackLink href={page().navigation.detail_url}>书籍详情</BackLink></Show>
       <form
         ref={form}
         action={`/book/${id()}/edit`}
@@ -280,24 +283,14 @@ export function BookEditor(props: {
               </For>
             </Select>
             <div class="books-wide">
-              <Checkbox
-                label="清除原书 CSS（link/style）"
-                name="strip_original_css"
-                value="1"
-                checked={page().strip_original_css}
-              />
+              <SelectPill label="清除原书 CSS（link/style）" name="strip_original_css" value={stripCss() ?? (page().strip_original_css ? "1" : "0")} onChange={setStripCss} options={[{ value: "0", label: "保留" }, { value: "1", label: "清除" }]} />
               <p>
                 仅本次写回生效：会移除 EPUB 原有样式表链接、内联 &lt;style&gt;
                 和 CSS 资源文件，再按“渲染主题 + 本书追加 CSS”重新注入。
               </p>
             </div>
             <div class="books-wide">
-              <Checkbox
-                label="删除自带字体"
-                name="strip_fonts"
-                value="1"
-                checked={page().strip_fonts}
-              />
+              <SelectPill label="删除自带字体" name="strip_fonts" value={stripFonts() ?? (page().strip_fonts ? "1" : "0")} onChange={setStripFonts} options={[{ value: "0", label: "保留" }, { value: "1", label: "删除" }]} />
               <p>
                 仅本次写回生效（EPUB 来源）：删除书里内嵌的字体文件、@font-face
                 和原书的 font-family，正文改用阅读器的字体；渲染主题与本书追加
