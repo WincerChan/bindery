@@ -1,0 +1,26 @@
+.settings-hub { display: grid; gap: 40px; }
+.settings-hub > h1 { font-size: 46px; }
+.settings-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 36px 56px; align-items: start; }
+.settings-groups h2 { margin: 0 0 12px; color: var(--color-ink-3, #656D66); font-size: var(--text-control, 14px); font-weight: 400; letter-spacing: .08em; }
+.settings-row { display: flex; align-items: center; gap: 20px; min-height: 88px; padding: 16px; border-radius: 18px; color: var(--color-ink, #202923); text-decoration: none; }
+a.settings-row:hover { background: var(--color-hover, #EFEDE5); }
+.settings-row-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 var(--size-control, 44px); height: var(--size-control, 44px); border-radius: 999px; background: var(--color-control, #ECEAE2); }
+.settings-row-icon svg { width: 20px; height: 20px; }
+.settings-row-copy { display: grid; flex: 1; min-width: 0; gap: 6px; overflow-wrap: anywhere; }
+.settings-row-title { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
+.settings-row-status, .settings-device-note { color: var(--color-ink-3, #656D66); font-size: 13px; }
+.settings-install { flex-wrap: wrap; }
+.settings-install-button { min-height: var(--size-control, 44px); padding: 0 16px; border: 1px solid var(--color-line, #C8C8BB); border-radius: 999px; color: var(--color-ink, #202923); background: transparent; }
+.settings-device-note { display: none; margin: 0; line-height: 1.8; }
+.settings-logout { grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--color-line-faint, #E4E2D8); }
+.settings-logout button { min-height: var(--size-control-lg, 48px); padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--color-danger, #A43B2B); }
+.settings-logout button:hover, .settings-install-button:hover { background: var(--color-hover, #EFEDE5); }
+.settings-hub :is(a, button):focus-visible { outline: 2px solid var(--color-accent, #A24832); outline-offset: 3px; }
+@media (max-width: 767px) {
+  .settings-hub, .settings-groups { gap: 32px; }
+  .settings-hub > h1 { font-size: 30px; }
+  .settings-row { min-height: 72px; gap: 14px; padding: 12px 0; border-radius: 0; border-top: 1px solid var(--color-line-hair, #ECEAE2); }
+  .settings-row-title { font-family: var(--font-sans); font-size: 16px; font-weight: 500; }
+  .settings-device-link { display: none; }
+  .settings-device-note { display: block; }
+}

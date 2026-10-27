@@ -56,6 +56,21 @@ describe("merged navigation compatibility", () => {
     expect(probe.legacyDeviceTarget(entry)).toBe(entry === "/kindle/" ? "/devices/" : expected);
   });
   it.each([
+    ["/devices/vocabulary", "/vocabulary"],
+    ["/devices/vocabulary/", "/vocabulary"],
+    ["/devices/vocabulary?settings=lexitrace#lexitrace-settings", "/vocabulary?settings=lexitrace#lexitrace-settings"],
+  ])("permanently redirects vocabulary client navigation, replacing the legacy history entry: %s", async (entry, expected) => {
+    expect(probe.legacyVocabularyRedirect(entry)).toEqual({ href: expected, replace: true, statusCode: 308 });
+    expect(await probe.navigateVocabulary(entry)).toEqual({ target: expected, back: "/" });
+  });
+  it.each([
+    ["/devices/vocabulary", "/vocabulary"],
+    ["/devices/vocabulary/", "/vocabulary"],
+    ["/devices/vocabulary?settings=lexitrace&keep=a%26b", "/vocabulary?settings=lexitrace&keep=a%26b"],
+  ])("returns a permanent server GET vocabulary redirect preserving the search: %s", async (entry, expected) => {
+    expect(await probe.vocabularyResponse(entry)).toEqual({ status: 308, location: expected, body: "" });
+  });
+  it.each([
     ["/book/abc/preview", "/book/abc/preview/0?resume=1"],
     ["/book/abc/preview?return_to=%2F%3Fpage%3D2", "/book/abc/preview/0?resume=1&return_to=%2F%3Fpage%3D2"],
     ["/book/abc/preview?return_to=https%3A%2F%2Fevil.example", "/book/abc/preview/0?resume=1"],

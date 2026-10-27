@@ -48,7 +48,7 @@ function testMessage(result: ConnectionTest): string {
   return `连接失败（HTTP ${result.status ?? "未知"}）`;
 }
 
-export function VocabularyPage(props: { initial: VocabularyPage; initialSettings: LexiTraceSettingsView; api: VocabularyApi }) {
+export function VocabularyPage(props: { initial: VocabularyPage; initialSettings: LexiTraceSettingsView; settingsOpen?: boolean; api: VocabularyApi }) {
   const [page, setPage] = createSignal(props.initial), [settings, setSettings] = createSignal(props.initialSettings);
   const [device, setDevice] = createSignal("all"), [book, setBook] = createSignal("all"), [status, setStatus] = createSignal<PushState | "all">("all"), [query, setQuery] = createSignal("");
   const [notice, setNotice] = createSignal(""), [error, setError] = createSignal(""), [busy, setBusy] = createSignal(false);
@@ -94,7 +94,7 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
   return <section aria-label="生词本" class="kindle-books vocabulary-page">
     <div class="kindle-section-heading"><span class="kindle-count kindle-mono">{page().totals.all} 个生词</span></div>
     <p class="kindle-small">生词会随设备连接自动同步；所有生词都会推送到 LexiTrace，未连接设备时也可查看。</p>
-    <details class="vocabulary-settings" open={!settings().hasToken}>
+    <details id="lexitrace-settings" class="vocabulary-settings" open={props.settingsOpen || !settings().hasToken}>
       <summary>LexiTrace 设置</summary>
       <div class="vocabulary-settings-fields">
         <TextField label="LexiTrace 地址" type="url" placeholder="https://lexitrace.example" value={baseUrl()} onInput={event => setBaseUrl(event.currentTarget.value)} hint="HTTPS，或本机 HTTP 回环地址" />

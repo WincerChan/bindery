@@ -302,33 +302,56 @@ it.each([true, false])("uses replace navigation to open, filter, paginate and cl
   await reload(() => fire(sheet, "click", { clientX: 0, clientY: 20 })); expect(mounted.href()).toBe("/ingest"); expect(sheet.open).toBe(false);
 });
 
-it("renders only four mobile tabs and all three desktop settings menu entries", async () => {
+it("renders a link-only rail, five phone tabs, and active settings for child pages", async () => {
   const node = root(await ssr.routedMarkup(library([]), "/rules"));
-  const dock = css(node, "nav", "tab-bar")[0]!, menu = css(node, "div", "settings-dropdown")[0]!;
-  expect(elements(dock, "a").map(el => el.textContent)).toEqual(["书库", "入库", "追踪"]);
-  expect(elements(dock, "button").map(el => el.textContent)).toEqual(["设置"]);
+  const dock = css(node, "nav", "tab-bar")[0]!, rail = css(node, "aside", "nav-rail")[0]!;
+  expect(elements(dock, "a").map(el => el.textContent)).toEqual(["书库", "入库", "追踪", "生词本", "设置"]);
+  expect(elements(dock, "button")).toHaveLength(0);
   expect(elements(dock, "a").some(el => el.getAttribute("href") === "/devices")).toBe(false);
-  expect(elements(menu, "a").map(el => el.textContent)).toEqual(["规则与主题", "安全与通行密钥"]);
-  expect(elements(menu, "form")[0]!.getAttribute("action")).toBe("/logout"); expect(elements(menu, "button")[0]!.textContent).toBe("退出登录");
-  expect(css(node, "dialog", "more-sheet")[0]!.textContent).not.toContain("设备");
-  expect(css(node, "button", "settings-toggle")[0]!.className).toContain("active");
+  expect(elements(rail, "a").map(el => el.getAttribute("href"))).toEqual(["/", "/", "/ingest", "/tracker", "/vocabulary", "/devices", "/settings"]);
+  expect(elements(rail, "a").map(el => el.getAttribute("aria-label"))).toEqual(["Bindery · 回书库", "书库", "入库", "追踪", "生词本", "设备", "设置"]);
+  expect(elements(rail, "button")).toHaveLength(0);
+  expect(css(node, "div", "settings-dropdown")).toHaveLength(0); expect(css(node, "dialog", "more-sheet")).toHaveLength(0);
+  for (const nav of [dock, rail]) expect(elements(nav, "a").filter(el => el.getAttribute("aria-current") === "page").map(el => el.getAttribute("href"))).toEqual(["/settings"]);
+  expect(css(node, "a", "skip-link")[0]!.getAttribute("href")).toBe("#app-content");
+  expect(elements(node, "main")[0]!.getAttribute("tabindex")).toBe("-1");
+  expect(css(node, "a", "shell-back")[0]!.getAttribute("href")).toBe("/settings");
 });
 
-it("closes the desktop settings menu on outside click, Escape, selection and route changes", async () => {
-  const events = new EventTarget();
-  document.addEventListener = events.addEventListener.bind(events); document.removeEventListener = vi.fn(events.removeEventListener.bind(events));
-  const node = root(), mounted = await ui.routedLibrary(node, library([]), "/rules"); disposers.push(mounted.dispose); await settle();
-  const gear = css(node, "button", "settings-toggle")[0] as HTMLButtonElement, focus = vi.fn(); gear.focus = focus;
-  const expanded = () => gear.getAttribute("aria-expanded");
-  fire(gear, "click"); mounted.flush(); expect(expanded()).toBe("true");
-  const escape = new Event("keydown", { cancelable: true }); Object.defineProperty(escape, "key", { value: "Escape" }); events.dispatchEvent(escape); mounted.flush();
-  expect(expanded()).toBe("false"); expect(focus).toHaveBeenCalledOnce(); expect(document.removeEventListener).toHaveBeenCalledTimes(2);
-  fire(gear, "click"); mounted.flush(); events.dispatchEvent(new Event("pointerdown")); mounted.flush(); expect(expanded()).toBe("false");
-  fire(gear, "click"); mounted.flush(); fire(elements(css(node, "div", "settings-dropdown")[0]!, "a")[0]!, "click"); mounted.flush(); expect(expanded()).toBe("false");
-  fire(gear, "click"); mounted.flush(); await mounted.update(library([])); expect(expanded()).toBe("false");
-  const mobile = elements(css(node, "nav", "tab-bar")[0]!, "button")[0]!;
-  fire(mobile, "click"); mounted.flush(); expect(mobile.getAttribute("aria-expanded")).toBe("true");
-  fire(elements(css(node, "dialog", "more-sheet")[0]!, "a")[0]!, "click"); mounted.flush(); expect(mobile.getAttribute("aria-expanded")).toBe("false");
+it.each([true, false])("navigates both settings links instead of opening a menu (hydration=%s)", async hydrating => {
+  const node = root(hydrating ? await ssr.routedMarkup(library([]), "/rules") : undefined);
+  const mounted = await ui.routedLibrary(node, library([]), "/rules", hydrating); disposers.push(mounted.dispose); await settle();
+  for (const link of [() => css(node, "a", "rail-settings")[0]!, () => elements(css(node, "nav", "tab-bar")[0]!, "a").find(el => el.getAttribute("href") === "/settings")!]) {
+    const preventDefault = vi.fn(); fire(link(), "click", { button: 0, preventDefault });
+    await vi.waitFor(() => { mounted.flush(); expect(elements(node, "h1")[0]!.textContent).toBe("设置"); });
+    expect(preventDefault).toHaveBeenCalledOnce(); expect(link().getAttribute("aria-current")).toBe("page");
+    expect(elements(node, "form").find(el => el.getAttribute("action") === "/logout")!.getAttribute("method")).toBe("post");
+    await mounted.update(library([])); expect(link().hasAttribute("aria-current")).toBe(false);
+  }
+});
+
+it.each([true, false])("omits navigation and the page shell on staticData reader layouts (hydration=%s)", async hydrating => {
+  const entry = "/book/a/preview/0", node = root(hydrating ? await ssr.routedMarkup(library([]), entry) : undefined);
+  const mounted = await ui.routedLibrary(node, library([]), entry, hydrating); disposers.push(mounted.dispose); await settle(); mounted.flush();
+  expect(elements(node, "nav")).toHaveLength(0); expect(css(node, "aside", "nav-rail")).toHaveLength(0);
+  expect(css(node, "div", "page-shell")).toHaveLength(0); expect(css(node, "main", "reader-main")[0]!.textContent).toBe("阅读正文");
+  await mounted.update(library([])); expect(elements(node, "nav").some(el => el.getAttribute("aria-label") === "手机导航")).toBe(true);
+});
+
+it("renders settings summaries, destinations, install availability and POST logout", () => {
+  const data: Cases["settings"] = { now: Date.parse("2026-10-26T12:00:00Z"), summary: {
+    rules: { count: 3, recently_modified: { id: "web", name: "网文格式" } },
+    themes: { count: 2, ingest_default: { id: "default", name: "默认", version: "2" } },
+    security: { passkey_count: 2, last_used_at: "2026-10-26T11:58:00Z" }, lexitrace: { configured: true, enabled: true },
+  } };
+  const mounted = mount("settings", data);
+  const links = elements(mounted.root, "a");
+  expect(links.map(el => el.getAttribute("href"))).toEqual(["/rules", "/rules?tab=themes", "/security", "/vocabulary?settings=lexitrace#lexitrace-settings", "/devices"]);
+  for (const text of ["3 条 · 最近改过「网文格式」", "2 个 · 入库默认用「默认 v2」", "2 个通行密钥 · 2 分钟前用过", "已配置 · 生词自动推送", "安装应用", "手机浏览器连不上阅读器"]) expect(mounted.root.textContent).toContain(text);
+  const logout = elements(mounted.root, "form")[0]!; expect(logout.getAttribute("action")).toBe("/logout"); expect(logout.getAttribute("method")).toBe("post");
+  expect(elements(logout, "button")[0]!.getAttribute("type")).toBe("submit");
+  mounted.update({ ...data, summary: { rules: { count: 0, recently_modified: null }, themes: { count: 0, ingest_default: null }, security: { passkey_count: 0, last_used_at: null }, lexitrace: { configured: false, enabled: false } } });
+  for (const text of ["0 条 · 尚未添加规则", "0 个 · 尚未添加主题", "0 个通行密钥 · 尚未使用", "未配置 · 连接后可自动推送生词"]) expect(mounted.root.textContent).toContain(text);
 });
 
 it("shows the settings install entry for prompt-capable and iOS states, not for unavailable or standalone states", () => {
@@ -337,10 +360,33 @@ it("shows the settings install entry for prompt-capable and iOS states, not for 
   mounted.update({ mode: "prompt" });
   expect(elements(mounted.root, "button").map(element => element.textContent)).toEqual(["安装应用"]);
   mounted.update({ mode: "ios" });
-  expect(elements(mounted.root, "button").map(element => element.getAttribute("role"))).toEqual(["menuitem"]);
+  expect(elements(mounted.root, "button").map(element => element.getAttribute("type"))).toEqual(["button"]);
   expect(mounted.root.textContent).toBe("安装应用");
   mounted.update({ mode: null });
   expect(elements(mounted.root, "button")).toHaveLength(0);
+});
+
+it("retains an install prompt captured before visiting settings and consumes it only once", async () => {
+  const browser = new EventTarget(), prompt = vi.fn().mockResolvedValue({ outcome: "dismissed" });
+  vi.stubGlobal("window", Object.assign(browser, { navigator: { userAgent: "Chrome" }, matchMedia: () => ({ matches: false }) }));
+  const node = root(), mounted = await ui.routedLibrary(node, library([]), "/rules"); disposers.push(mounted.dispose); await settle();
+  const event = new Event("beforeinstallprompt", { cancelable: true }); Object.assign(event, { prompt }); browser.dispatchEvent(event); mounted.flush();
+  expect(event.defaultPrevented).toBe(true); expect(css(node, "button", "settings-install-button")).toHaveLength(0);
+  fire(css(node, "a", "rail-settings")[0]!, "click", { button: 0 });
+  await vi.waitFor(() => { mounted.flush(); expect(css(node, "button", "settings-install-button")).toHaveLength(1); });
+  fire(css(node, "button", "settings-install-button")[0]!, "click"); await settle(); mounted.flush();
+  expect(prompt).toHaveBeenCalledOnce(); expect(css(node, "button", "settings-install-button")).toHaveLength(0);
+});
+
+it("offers iOS installation instructions in settings and hides the action in standalone mode", async () => {
+  const browser = new EventTarget(), media = Object.assign(new EventTarget(), { matches: false });
+  vi.stubGlobal("window", Object.assign(browser, { navigator: { userAgent: "iPhone Safari" }, matchMedia: () => media }));
+  const node = root(await ssr.routedMarkup(library([]), "/settings")), mounted = await ui.routedLibrary(node, library([]), "/settings", true); disposers.push(mounted.dispose); await settle(); mounted.flush();
+  fire(css(node, "button", "settings-install-button")[0]!, "click"); mounted.flush();
+  const dialog = elements(node, "dialog")[0] as HTMLDialogElement; expect(dialog.open).toBe(true); expect(dialog.textContent).toContain("添加到主屏幕");
+  fire(elements(dialog, "button").find(el => el.getAttribute("aria-label") === "关闭安装说明")!, "click"); mounted.flush(); expect(dialog.open).toBe(false);
+  media.matches = true; media.dispatchEvent(new Event("change")); mounted.flush();
+  expect(css(node, "button", "settings-install-button")).toHaveLength(0); expect(node.textContent).toContain("已安装 · 正在应用中打开");
 });
 
 it("updates tracker/wishlist filter rows and their empty state", () => {
@@ -681,8 +727,8 @@ it("refreshes retry/cleanup in the open sheet and Router-navigates shell, pagina
   fire(elements(node, "form").find(el => el.getAttribute("action") === "/jobs/cleanup-invalid")!, "submit");
   await vi.waitFor(() => { mounted.flush(); expect(node.textContent).toContain("暂无任务"); });
   expect(rpc.mock.calls).toEqual([["retryJob", { data: "failed-job" }], ["cleanupInvalidJobs", { data: "failed" }]]); expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs"); expect((elements(node, "dialog").find(el => el.id === "jobs") as HTMLDialogElement).open).toBe(true);
-  await click(css(node, "a", "nav-link").find(el => el.textContent === "书库")!); expect(mounted.href()).toBe("/");
-  fire(css(node, "button", "settings-toggle")[0]!, "click"); mounted.flush(); await click(elements(css(node, "div", "settings-dropdown")[0]!, "a")[0]!); expect(mounted.href()).toBe("/rules");
+  await click(css(node, "a", "nav-link").find(el => el.getAttribute("aria-label") === "书库")!); expect(mounted.href()).toBe("/");
+  await click(css(node, "a", "rail-settings")[0]!); expect(mounted.href()).toBe("/settings");
   const mobile = css(node, "nav", "tab-bar")[0]!; await click(elements(mobile, "a").find(el => el.textContent === "入库")!); expect(mounted.href()).toBe("/ingest");
   expect(location.assign).not.toHaveBeenCalled();
 });

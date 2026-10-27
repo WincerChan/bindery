@@ -20,7 +20,9 @@ import { Route as AppJobsRouteImport } from './routes/_app.jobs'
 import { Route as AppKindleRouteImport } from './routes/_app.kindle'
 import { Route as AppRulesRouteImport } from './routes/_app.rules'
 import { Route as AppSecurityRouteImport } from './routes/_app.security'
+import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppTrackerRouteImport } from './routes/_app.tracker'
+import { Route as AppVocabularyRouteImport } from './routes/_app.vocabulary'
 import { Route as AppWishlistRouteImport } from './routes/_app.wishlist'
 import { Route as ArchiveDeleteBulkRouteImport } from './routes/archive.delete-bulk'
 import { Route as BooksArchiveRouteImport } from './routes/books.archive'
@@ -132,9 +134,19 @@ const AppSecurityRoute = AppSecurityRouteImport.update({
   path: '/security',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTrackerRoute = AppTrackerRouteImport.update({
   id: '/tracker',
   path: '/tracker',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVocabularyRoute = AppVocabularyRouteImport.update({
+  id: '/vocabulary',
+  path: '/vocabulary',
   getParentRoute: () => AppRoute,
 } as any)
 const AppWishlistRoute = AppWishlistRouteImport.update({
@@ -433,7 +445,9 @@ export interface FileRoutesByFullPath {
   '/kindle': typeof AppKindleRouteWithChildren
   '/rules': typeof AppRulesRoute
   '/security': typeof AppSecurityRoute
+  '/settings': typeof AppSettingsRoute
   '/tracker': typeof AppTrackerRoute
+  '/vocabulary': typeof AppVocabularyRoute
   '/wishlist': typeof AppWishlistRoute
   '/archive/delete-bulk': typeof ArchiveDeleteBulkRoute
   '/books/archive': typeof BooksArchiveRoute
@@ -499,7 +513,9 @@ export interface FileRoutesByTo {
   '/jobs': typeof AppJobsRoute
   '/rules': typeof AppRulesRoute
   '/security': typeof AppSecurityRoute
+  '/settings': typeof AppSettingsRoute
   '/tracker': typeof AppTrackerRoute
+  '/vocabulary': typeof AppVocabularyRoute
   '/wishlist': typeof AppWishlistRoute
   '/archive/delete-bulk': typeof ArchiveDeleteBulkRoute
   '/books/archive': typeof BooksArchiveRoute
@@ -570,7 +586,9 @@ export interface FileRoutesById {
   '/_app/kindle': typeof AppKindleRouteWithChildren
   '/_app/rules': typeof AppRulesRoute
   '/_app/security': typeof AppSecurityRoute
+  '/_app/settings': typeof AppSettingsRoute
   '/_app/tracker': typeof AppTrackerRoute
+  '/_app/vocabulary': typeof AppVocabularyRoute
   '/_app/wishlist': typeof AppWishlistRoute
   '/archive/delete-bulk': typeof ArchiveDeleteBulkRoute
   '/books/archive': typeof BooksArchiveRoute
@@ -642,7 +660,9 @@ export interface FileRouteTypes {
     | '/kindle'
     | '/rules'
     | '/security'
+    | '/settings'
     | '/tracker'
+    | '/vocabulary'
     | '/wishlist'
     | '/archive/delete-bulk'
     | '/books/archive'
@@ -708,7 +728,9 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/rules'
     | '/security'
+    | '/settings'
     | '/tracker'
+    | '/vocabulary'
     | '/wishlist'
     | '/archive/delete-bulk'
     | '/books/archive'
@@ -778,7 +800,9 @@ export interface FileRouteTypes {
     | '/_app/kindle'
     | '/_app/rules'
     | '/_app/security'
+    | '/_app/settings'
     | '/_app/tracker'
+    | '/_app/vocabulary'
     | '/_app/wishlist'
     | '/archive/delete-bulk'
     | '/books/archive'
@@ -958,11 +982,25 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AppSecurityRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tracker': {
       id: '/_app/tracker'
       path: '/tracker'
       fullPath: '/tracker'
       preLoaderRoute: typeof AppTrackerRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/vocabulary': {
+      id: '/_app/vocabulary'
+      path: '/vocabulary'
+      fullPath: '/vocabulary'
+      preLoaderRoute: typeof AppVocabularyRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/wishlist': {
@@ -1410,7 +1448,9 @@ interface AppRouteChildren {
   AppKindleRoute: typeof AppKindleRouteWithChildren
   AppRulesRoute: typeof AppRulesRoute
   AppSecurityRoute: typeof AppSecurityRoute
+  AppSettingsRoute: typeof AppSettingsRoute
   AppTrackerRoute: typeof AppTrackerRoute
+  AppVocabularyRoute: typeof AppVocabularyRoute
   AppWishlistRoute: typeof AppWishlistRoute
   AppIndexRoute: typeof AppIndexRoute
   AppBookBook_idRoute: typeof AppBookBook_idRoute
@@ -1429,7 +1469,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppKindleRoute: AppKindleRouteWithChildren,
   AppRulesRoute: AppRulesRoute,
   AppSecurityRoute: AppSecurityRoute,
+  AppSettingsRoute: AppSettingsRoute,
   AppTrackerRoute: AppTrackerRoute,
+  AppVocabularyRoute: AppVocabularyRoute,
   AppWishlistRoute: AppWishlistRoute,
   AppIndexRoute: AppIndexRoute,
   AppBookBook_idRoute: AppBookBook_idRoute,

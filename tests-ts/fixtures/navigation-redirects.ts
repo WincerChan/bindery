@@ -5,7 +5,8 @@ import { Route as legacyKindle } from "../../src/routes/_app.kindle";
 import { Route as legacyKindleIndex } from "../../src/routes/_app.kindle.index";
 import { Route as legacyKindlePreview } from "../../src/routes/_app.kindle.preview";
 import { Route as readerEntry } from "../../src/routes/_app.book.$book_id_.preview";
-import { legacyDeviceTarget } from "../../src/features/devices/redirects";
+import { legacyDeviceTarget, legacyVocabularyRedirect } from "../../src/features/devices/redirects";
+import { Route as legacyVocabulary } from "../../src/routes/_app.devices.vocabulary";
 
 export async function navigate(entry: string) {
   const root = createRootRoute();
@@ -43,4 +44,23 @@ export async function navigateReader(entry: string) {
   return router.state.location.href;
 }
 
-export { legacyDeviceTarget };
+export async function navigateVocabulary(entry: string) {
+  const root = createRootRoute();
+  const legacy = createRoute({ getParentRoute: () => root, path: "/devices/vocabulary", beforeLoad: context => legacyVocabulary.options.beforeLoad!({ ...context } as never) });
+  const vocabulary = createRoute({ getParentRoute: () => root, path: "/vocabulary", validateSearch: (search: Record<string, unknown>) => search });
+  const home = createRoute({ getParentRoute: () => root, path: "/" });
+  const history = createMemoryHistory({ initialEntries: ["/"] });
+  const router = createRouter({ routeTree: root.addChildren([home, legacy, vocabulary]), history, isServer: false, origin: "http://bindery.local" });
+  await router.load(); await router.navigate({ href: entry });
+  const target = router.state.location.href;
+  history.back(); await router.load();
+  return { target, back: router.state.location.href };
+}
+
+export async function vocabularyResponse(path: string) {
+  const options = legacyVocabulary.options as unknown as { server: { handlers: { GET: (context: { request: Request; params: object }) => Promise<Response> } } };
+  const response = await options.server.handlers.GET({ request: new Request(`http://bindery.local${path}`), params: {} });
+  return { status: response.status, location: response.headers.get("Location"), body: await response.text() };
+}
+
+export { legacyDeviceTarget, legacyVocabularyRedirect };

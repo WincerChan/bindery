@@ -1,7 +1,9 @@
 import { hydrate, render, renderToString, isServer } from "@solidjs/web";
 import { createSignal, flush, Loading, onCleanup, type ComponentProps } from "solid-js";
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet, RouterProvider, redirect } from "@tanstack/solid-router";
-import { AppShell, InstallAppMenuItem } from "../../src/shell/app-shell";
+import { AppShell } from "../../src/shell/app-shell";
+import { InstallAppButton } from "../../src/features/settings/install-app";
+import { SettingsHub } from "../../src/features/settings/hub";
 import type { InstallMode } from "../../src/client/pwa/install";
 import { LibraryPage } from "../../src/features/library/library-page";
 import { TrackerPage } from "../../src/features/catalog/tracker";
@@ -44,7 +46,7 @@ export async function navigationWorkspace(node: HTMLElement, initialLibrary: Lib
     pendingComponent: RoutePending, pendingMs: 0,
     loader: ({ location }) => { ingestLoads++; const { tab, page } = jobsSearch(Object.fromEntries(new URLSearchParams(location.searchStr))); return { options: ingest.options, jobs: { ...ingest.jobs!, active_tab: tab, page } }; },
     component: () => { const data = upload.useLoaderData(); return <IngestScreen data={data()} />; } });
-  const others = ["/login", "/rules", "/security", "/tracker", "/book/$book_id", "/book/$book_id/preview"].map(path => createRoute({ getParentRoute: () => root, path, validateSearch: (search: Record<string, unknown>) => search, component: () => <p>{path}</p> }));
+  const others = ["/login", "/settings", "/rules", "/security", "/tracker", "/book/$book_id", "/book/$book_id/preview"].map(path => createRoute({ getParentRoute: () => root, path, validateSearch: (search: Record<string, unknown>) => search, component: () => <p>{path}</p> }));
   const router = createRouter({ routeTree: root.addChildren([home, upload, ...others]), history: createMemoryHistory({ initialEntries: [entry] }), isServer: false, origin: "http://bindery.local" });
   await router.load();
   const dispose = render(() => <Loading><RouterProvider router={router} /></Loading>, node);
@@ -78,6 +80,7 @@ export type Cases = {
   trackerForm: ComponentProps<typeof TrackerForm>;
   pagination: ComponentProps<typeof Pagination>;
   install: { mode: InstallMode | null };
+  settings: ComponentProps<typeof SettingsHub>;
 };
 
 function view<K extends keyof Cases>(kind: K, data: () => Cases[K]) {
@@ -97,7 +100,8 @@ function view<K extends keyof Cases>(kind: K, data: () => Cases[K]) {
     case "editor": return <Editor {...(data as () => Cases["editor"])()} />;
     case "trackerForm": return <TrackerForm {...(data as () => Cases["trackerForm"])()} />;
     case "pagination": return <Pagination {...(data as () => Cases["pagination"])()} />;
-    case "install": return <InstallAppMenuItem mode={(data as () => Cases["install"])().mode} role="menuitem" onInstall={() => {}} />;
+    case "install": return <InstallAppButton mode={(data as () => Cases["install"])().mode} onInstall={() => {}} />;
+    case "settings": return <SettingsHub {...(data as () => Cases["settings"])()} />;
   }
 }
 
@@ -125,7 +129,9 @@ function routes(initial: LibraryPageData, entry: string) {
   });
   const template = { id: "default", name: "默认规则", description: "", version: "1", raw: "{}", saved: false, error: null, book_count: 0, archived_count: 0 };
   const rules = createRoute({ getParentRoute: () => root, path: "/rules", component: () => <RulesPage data={{ rules: [template], themes: [], tab: "parsing", ruleId: "default", themeId: "default", editor: template, error: "" }} /> });
-  const router = createRouter({ routeTree: root.addChildren([home, rules]), history: createMemoryHistory({ initialEntries: [entry] }), isServer, origin: "http://bindery.local" });
+  const settings = createRoute({ getParentRoute: () => root, path: "/settings", component: () => <SettingsHub summary={{ rules: { count: 0, recently_modified: null }, themes: { count: 0, ingest_default: null }, security: { passkey_count: 0, last_used_at: null }, lexitrace: { configured: false, enabled: false } }} now={0} /> });
+  const reader = createRoute({ getParentRoute: () => root, path: "/book/$book_id/preview/$section", staticData: { readerLayout: true }, component: () => <p>阅读正文</p> });
+  const router = createRouter({ routeTree: root.addChildren([home, rules, settings, reader]), history: createMemoryHistory({ initialEntries: [entry] }), isServer, origin: "http://bindery.local" });
   return { router, setData(value: LibraryPageData) { next = value; } };
 }
 

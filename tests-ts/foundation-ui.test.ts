@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "vite";
 import solid from "vite-plugin-solid";
 import { resolve } from "node:path";
-import { navigation, navActive, settings } from "../src/shell/navigation";
+import { navigation, navActive, phoneNavigation, settingsLink } from "../src/shell/navigation";
 import { flashFromUrl, toastMessage, withToast } from "../src/shared/notifications";
 import { installToastBridge } from "../src/client/toast";
 
@@ -72,15 +72,25 @@ describe("reusable UI SSR", () => {
 });
 
 describe("navigation and global flash messages", () => {
-  it("uses four primary entries, separate settings, book prefix and wishlist/theme aliases", () => {
-    expect(navigation.map(n => n.label)).toEqual(["书库", "入库", "追踪", "设备"]);
-    for (const path of ["/", "/book/abc", "/book/abc/preview", "/books/download"]) expect(navActive(path, "/")).toBe(true);
-    for (const path of ["/tracker", "/wishlist", "/wishlist/export"]) expect(navActive(path, "/tracker")).toBe(true);
-    expect(navActive("/archive", "/")).toBe(false);
-    expect(settings.map(item => item.label)).toEqual(["规则与主题", "安全与通行密钥"]);
-    for (const path of ["/rules", "/rules/x/editor", "/themes/x/editor"]) expect(navActive(path, "/rules")).toBe(true);
-    for (const path of ["/devices", "/devices/connect", "/devices/fonts"]) expect(navActive(path, "/devices")).toBe(true);
-    expect(navActive("/security", "/security")).toBe(true); expect(navActive("/ingest", "/rules")).toBe(false);
+  it("uses five rail destinations, a settings link and five phone tabs without devices", () => {
+    expect(navigation.map(n => n.label)).toEqual(["书库", "入库", "追踪", "生词本", "设备"]);
+    expect(settingsLink).toMatchObject({ href: "/settings", label: "设置" });
+    expect(phoneNavigation.map(n => n.label)).toEqual(["书库", "入库", "追踪", "生词本", "设置"]);
+    expect(phoneNavigation.map(n => n.href)).not.toContain("/devices");
+  });
+  it("selects the owning destination for detail pages, settings children and legacy URLs", () => {
+    const groups = {
+      "/": ["/", "/book/abc", "/book/abc/edit", "/book/abc/preview", "/books/download", "/archive", "/?scope=archived"],
+      "/ingest": ["/ingest", "/jobs"],
+      "/tracker": ["/tracker", "/wishlist", "/wishlist/export"],
+      "/vocabulary": ["/vocabulary", "/vocabulary?settings=lexitrace", "/devices/vocabulary/"],
+      "/settings": ["/settings", "/settings/profile", "/rules?tab=themes", "/rules/x/editor", "/themes/x/editor", "/security"],
+      "/devices": ["/devices", "/devices/connect", "/devices/fonts", "/kindle/preview"],
+    };
+    for (const [href, paths] of Object.entries(groups)) for (const path of paths) {
+      expect([...navigation, settingsLink].filter(item => navActive(path, item.href)).map(item => item.href), path).toEqual([href]);
+    }
+    for (const path of ["/bookish", "/devices-extra", "/settings-other", "/wishlist-extra"]) expect([...navigation, settingsLink].some(item => navActive(path, item.href))).toBe(false);
   });
   it("normalizes toast kinds and consumes query flashes while preserving other state", () => {
     expect(toastMessage("  ")).toBeNull(); expect(toastMessage("完成", " WARN ")).toEqual({ message: "完成", kind: "success" });
