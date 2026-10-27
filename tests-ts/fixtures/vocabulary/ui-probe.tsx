@@ -5,7 +5,16 @@ import type { LexiTraceSettingsView } from "../../../src/server/vocabulary/setti
 
 export { filterVocabularyItems, pushStatusLabel };
 export function page(items: VocabularyItem[], settings: LexiTraceSettingsView): string {
-  const data: PageData = { items, devices: [], books: [], totals: {
+  const data: PageData = { items, devices: [], books: [], summary: {
+    total: items.length,
+    month: { since: "2026-10-01T00:00:00.000Z", count: 0, top_source: null },
+    push: {
+      pushed: items.filter(value => value.push_state === "pushed").length,
+      failed: items.filter(value => value.push_state === "error" || value.push_state === "conflict").length,
+      pending: items.filter(value => value.push_state === "pending").length,
+    },
+    latest: items[0] ?? null,
+  }, totals: {
     all: items.length,
     pending: items.filter(value => value.push_state === "pending").length,
     pushed: items.filter(value => value.push_state === "pushed").length,

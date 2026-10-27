@@ -179,6 +179,31 @@ export class BinderyDatabase extends Connection {
     const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "", limit = Math.max(1, Math.min(50000, Math.trunc(filter.limit ?? 50000)));
     return this.all<VocabularyRow>(`SELECT * FROM vocabulary${where} ORDER BY looked_up_at DESC, id LIMIT ?`, ...values, limit);
   }
+  vocabularyCounts(): { total: number; pushed: number; failed: number; pending: number } {
+    // Conflicts and retryable/permanent errors are failures. Unknown states use
+    // the list view's pending fallback; pushed includes queued/deleted outcomes.
+    return this.get<{ total: number; pushed: number; failed: number; pending: number }>(`SELECT COUNT(*) AS total,
+      COUNT(CASE WHEN push_state = 'pushed' THEN 1 END) AS pushed,
+      COUNT(CASE WHEN push_state IN ('error', 'conflict') THEN 1 END) AS failed,
+      COUNT(CASE WHEN push_state NOT IN ('pushed', 'error', 'conflict') THEN 1 END) AS pending
+      FROM vocabulary`)!;
+  }
+  vocabularyMonth(since: string): { count: number; top_source: { title: string; book_id: string | null; count: number } | null } {
+    // Kindle's epoch milliseconds and Kobo's date strings both pass through
+    // toISOString() in their readers AND vocabularyInput before being stored.
+    // Comparing that canonical UTC format preserves milliseconds and uses the index.
+    const count = this.get<{ count: number }>("SELECT COUNT(*) AS count FROM vocabulary WHERE looked_up_at >= ?", since)!.count;
+    // Match the list's book_key: a linked book ID, otherwise title:<source>.
+    // SQLite's single MAX selects the bare source_title from a latest lookup;
+    // the service resolves its display title using the list's shared cache.
+    const top_source = this.get<{ title: string; book_id: string | null; count: number }>(`SELECT source_title AS title, book_id, COUNT(*) AS count
+      FROM vocabulary WHERE looked_up_at >= ? GROUP BY COALESCE(book_id, 'title:' || source_title)
+      ORDER BY count DESC, MAX(looked_up_at) DESC, source_title, book_id LIMIT 1`, since);
+    return { count, top_source };
+  }
+  latestVocabulary(): VocabularyRow | null {
+    return this.get<VocabularyRow>("SELECT * FROM vocabulary ORDER BY looked_up_at DESC, id LIMIT 1");
+  }
   listVocabularyForBookDevice(bookId: string, deviceId: string): VocabularyRow[] {
     return this.all<VocabularyRow>("SELECT * FROM vocabulary WHERE book_id = ? AND device_id = ? ORDER BY looked_up_at, id", bookId, deviceId);
   }

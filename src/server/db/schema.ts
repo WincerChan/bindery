@@ -26,5 +26,7 @@ export const INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_device_reading_book ON device_reading(book_id)",
   "CREATE INDEX IF NOT EXISTS idx_vocabulary_device ON vocabulary(device_id, looked_up_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_vocabulary_book ON vocabulary(book_id, looked_up_at)",
-  "CREATE INDEX IF NOT EXISTS idx_vocabulary_push ON vocabulary(push_state, looked_up_at)"
+  "CREATE INDEX IF NOT EXISTS idx_vocabulary_push ON vocabulary(push_state, looked_up_at)",
+  // Global month ranges/latest lookup cannot use the device/book/push prefixes.
+  "CREATE INDEX IF NOT EXISTS idx_vocabulary_lookup ON vocabulary(looked_up_at DESC, id)"
 ];
