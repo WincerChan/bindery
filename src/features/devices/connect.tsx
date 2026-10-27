@@ -6,7 +6,8 @@ import { Link } from "../../shared/spa-link";
 import { useDevice } from "./context";
 import { kindLabel, modelLabel } from "./format";
 
-export function DeviceConnectPage() {
+/** `/devices` shows this inline when nothing is connected; only the standalone connect route links back. */
+export function DeviceConnectPage(props: { backLink?: boolean }) {
   const k = useDevice(), [model, setModel] = createSignal<KindleModel>("KPW3"), [name, setName] = createSignal("");
   // Pairing follows the root that was just picked, never the remembered current device.
   const detection = () => k.state().detected, kind = () => detection()?.kind ?? k.kind();
@@ -17,7 +18,7 @@ export function DeviceConnectPage() {
   const defaultName = () => detection() ? modelLabel(kind(), detection()!.model).split(" · ")[0]! : "我的设备";
   return <div class="kindle-split kindle-connect">
     <section aria-label="连接设备">
-      <BackLink href="/devices">设备</BackLink>
+      <Show when={props.backLink}><BackLink href="/devices">设备</BackLink></Show>
       <PageIntro eyebrow="设备 · 未连接" title="把 Kindle 或 Kobo 用 USB 接上。" visual={<LocalDeviceShell kind={k.kind()} model={k.state().device?.identity.model ?? "KPW3"} idle><p>等待连接</p></LocalDeviceShell>} />
       <details class="kindle-connect-heading"><summary>连接与文件访问说明</summary>
         <Show when={detection()} fallback={<p class="muted">用 USB 线连上电脑后，在浏览器里选中设备根目录。Bindery 会根据根目录结构自动识别 Kindle 或 Kobo；设备身份保存在 .bindery/。</p>}>

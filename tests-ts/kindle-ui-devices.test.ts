@@ -330,6 +330,8 @@ it("renders the connection title, three numbered steps and remembered devices in
   expect(elements(steps, "input").filter(node => node.getAttribute("type") === "radio")).toHaveLength(0);
   const picker = button(connection, "选择设备目录"); expect(picker.hasAttribute("disabled")).toBe(true);
   expect(byRole(byRole(root, "complementary", "记住的设备"), "heading", "记住的设备")).toBeDefined();
+  // Shown inline on /devices itself, so it must not link back to /devices.
+  expect(allByRole(connection, "link").filter(link => link.getAttribute("href") === "/devices")).toHaveLength(0);
 });
 
 it.each(["books", "connect", "transfer"] as const)("hydrates neutral SSR for %s, restores the device, then updates after unplug/replug", async page => {
