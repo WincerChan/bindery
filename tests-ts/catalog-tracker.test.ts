@@ -103,6 +103,16 @@ describe("tracker listing, metadata consistency, pagination and export", () => {
     expect(trackerPage(library, { q: "误道者" }).wishes).toHaveLength(1);
     expect(trackerPage(library, { read_filter: "garbage", library_filter: "garbage" }).wishes).toHaveLength(3);
   });
+  it("keeps the real currently-reading preview independent of filters and pages, capped at three", () => {
+    for (let i = 0; i < 5; i++) create({ title: `正在读-${i}`, read_status: "reading" });
+    for (let i = 0; i < 25; i++) create({ title: `等待读-${i}` });
+    const page = trackerPage(library, { q: "等待读", read_filter: "unread", page: "2" });
+    expect(page.stats).toMatchObject({ total: 30, reading: 5, unread: 25, filtered: 25 });
+    expect(page.wishes).toHaveLength(5);
+    expect(page.reading_now).toHaveLength(3);
+    expect(page.reading_now.every(wish => wish.read_status === "reading" && wish.title.startsWith("正在读-"))).toBe(true);
+    expect(trackerPage(library, { q: "没有结果" }).reading_now).toEqual(page.reading_now);
+  });
   it("paginates at 20, clamps pages and exports all filtered rows regardless of page", () => {
     for (let i = 0; i < 25; i++) create({ title: `分页书-${i}` });
     const page = trackerPage(library, { page: "2" }); expect(page.wishes).toHaveLength(5); expect(page).toMatchObject({ page: 2, total_pages: 2, current_url: "/tracker?page=2", export_url: "/tracker/export" });

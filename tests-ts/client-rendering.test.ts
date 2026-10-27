@@ -86,6 +86,7 @@ function library(names: string[]): Cases["library"] {
 }
 function tracker(names: string[]): Cases["tracker"] {
   return {
+    reading_now: [],
     wishes: names.map(id => ({ id, title: id, author: "作者", library_book_id: null, rating: null, read: false, read_status: "unread", tags: [], tags_text: "", comment: "", book_status: "ongoing", created_at: "2026", updated_at: "2026", updated_at_display: "2026", read_status_label: "未读", book_status_label: "更新中", exists_in_library: false, exists_label: "未入库" })),
     filters: { q: "", read_filter: "all", library_filter: "all", book_status_filter: "all" }, stats: { total: names.length, filtered: names.length, read: 0, reading: 0, unread: names.length, in_library: 0, out_library: names.length }, page: 1, total_pages: 1, current_url: "/tracker", export_url: "/tracker/export", duplicate_notice: null,
   };
@@ -395,12 +396,63 @@ it("updates tracker/wishlist filter rows and their empty state", () => {
   const mounted = mount("tracker", tracker(["甲", "乙"]));
   expect(byRole(mounted.root, "navigation", "分页").textContent).toContain("1–2 本 · 共 2 本");
   mounted.update(tracker(["乙"]));
-  const rows = () => allByRole(byRole(mounted.root, "table", "追踪列表"), "row").filter(row => allByRole(row, "cell").length);
-  expect(rows().map(row => allByRole(row, "cell")[0]!.textContent)).toEqual(["乙"]);
+  const rows = () => allByRole(byRole(mounted.root, "list", "追踪列表"), "listitem");
+  expect(rows()).toHaveLength(1);
+  expect(byRole(rows()[0]!, "button", /乙.*作者/).getAttribute("aria-haspopup")).toBe("menu");
   expect(byRole(mounted.root, "navigation", "分页").textContent).toContain("1–1 本 · 共 1 本");
   mounted.update(tracker([])); expect(rows()).toHaveLength(0);
-  expect(mounted.root.textContent).toContain("没有符合筛选条件");
+  expect(mounted.root.textContent).toContain("还没有追踪的书籍");
   expect(byRole(mounted.root, "navigation", "分页").textContent).toContain("0 本 · 共 0 本");
+});
+
+it("opens tracker menus, edits ratings/statuses, cancels deletion and starts a fresh add form", async () => {
+  vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) });
+  const rpc = vi.fn(); vi.stubGlobal("__binderyTestMutation", rpc);
+  const mounted = mount("tracker", tracker(["甲"])); await settle(); mounted.flush();
+  const trigger = byRole(byRole(mounted.root, "list", "追踪列表"), "button", /甲.*作者/);
+  fire(trigger, "click"); mounted.flush();
+  expect(trigger.getAttribute("aria-expanded")).toBe("true");
+  const menu = byRole(mounted.root, "menu", "甲");
+  expect(allByRole(menu, "menuitem", "在书库中打开")).toHaveLength(0);
+  fire(byRole(menu, "menuitem", "编辑追踪"), "click"); mounted.flush();
+  const editor = byRole(mounted.root, "dialog", "编辑追踪") as HTMLDialogElement;
+  expect(editor.open).toBe(true);
+  const form = formFor(byRole(editor, "button", "保存"));
+  expect(form.getAttribute("action")).toBe("/tracker/甲/update");
+  fire(byRole(form, "button", "5 星"), "click"); mounted.flush();
+  expect(byName(form, "rating").getAttribute("value")).toBe("5");
+  fire(byRole(form, "button", "清除评分"), "click"); mounted.flush();
+  expect(byName(form, "rating").getAttribute("value")).toBe("");
+  fire(byRole(byRole(form, "group", "阅读状态"), "button", "在读"), "click"); mounted.flush();
+  fire(byRole(byRole(form, "group", "连载状态"), "button", "已断更"), "click"); mounted.flush();
+  expect(byName(form, "read_status").getAttribute("value")).toBe("reading");
+  expect(byName(form, "book_status").getAttribute("value")).toBe("hiatus");
+  fire(byRole(editor, "button", "取消"), "click"); mounted.flush(); expect(editor.open).toBe(false);
+  fire(trigger, "click"); mounted.flush(); fire(byRole(menu, "menuitem", "删除追踪"), "click"); mounted.flush();
+  const confirmation = byRole(mounted.root, "dialog", "删除追踪") as HTMLDialogElement;
+  expect(confirmation.open).toBe(true); expect(confirmation.textContent).toContain("确定删除《甲》");
+  expect(byAttribute(confirmation, "action", "/tracker/甲/delete").getAttribute("method")).toBe("post");
+  fire(byRole(confirmation, "button", "取消"), "click"); mounted.flush(); expect(confirmation.open).toBe(false);
+  expect(rpc).not.toHaveBeenCalled();
+  fire(byRole(mounted.root, "button", "添加书籍"), "click"); mounted.flush();
+  const add = byRole(mounted.root, "dialog", "添加书籍");
+  expect((byLabel(add, "书名") as HTMLInputElement).value).toBe("");
+  expect(byName(add, "read_status").getAttribute("value")).toBe("unread");
+  expect(byName(add, "book_status").getAttribute("value")).toBe("completed");
+});
+
+it("blocks tracker duplicates and exposes the existing entry without submitting", async () => {
+  const rpc = vi.fn(async (_name: string) => ({ exists: true, matches: [], blocking_matches: [{ id: "existing", title: "同名书", author: "作者" }] }));
+  vi.stubGlobal("__binderyTestMutation", rpc);
+  const mounted = mount("trackerForm", { next: "/tracker?page=2", onClose() {} });
+  const title = byLabel(mounted.root, "书名") as HTMLInputElement;
+  title.value = "同名书"; fire(title, "input"); mounted.flush();
+  expect(byRole(mounted.root, "button", "检查中…").hasAttribute("disabled")).toBe(true);
+  await vi.waitFor(() => { mounted.flush(); expect(byRole(mounted.root, "link", /点此前往编辑该条目/).getAttribute("href")).toBe("/tracker?duplicate=existing"); });
+  expect(rpc.mock.calls[0]?.[0]).toBe("checkTracker");
+  expect(byRole(mounted.root, "button", "保存").hasAttribute("disabled")).toBe(true);
+  title.value = ""; fire(title, "input"); mounted.flush();
+  expect(allByRole(mounted.root, "link", /点此前往编辑该条目/)).toHaveLength(0);
 });
 
 it("replaces jobs, tab counts and conditional retry/log controls for polling payloads", () => {
