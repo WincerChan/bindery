@@ -6,6 +6,7 @@ import { BackLink, BookCover, Button, ConfirmDialog, LocalTime, ProgressBar, Sec
 import type { BookPage } from "../../server/books/service";
 import { BookEditor } from "./book-editor";
 import { sectionUrl } from "../reader/model";
+import { languageLabel } from "./language";
 import { devicePreviewHref } from "../library/search";
 
 export function durationLabel(seconds: number | null | undefined): string | null {
@@ -66,7 +67,7 @@ export function BookDetail(props: { page: BookPage }) {
           <header class="books-heading"><h1>{book().title}</h1>
             <div class="books-byline">
               <Show when={book().author}><span>{book().author}</span></Show>
-              <Show when={book().language}><span>{book().language}</span></Show>
+              <Show when={book().language}><span>{languageLabel(book().language!)}</span></Show>
               <Show when={book().rating !== null}><span class="books-stars" aria-label={`评分 ${book().rating} 星`}>{"★".repeat(book().rating || 0)}{"☆".repeat(5 - (book().rating || 0))}</span></Show>
             </div>
           </header>

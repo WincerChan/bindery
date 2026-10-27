@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import type { BookPage } from "../src/server/books/service";
 import { metadataFromDict } from "../src/core/models";
 import { bookNavigation } from "../src/features/books/navigation";
+import { languageLabel } from "../src/features/books/language";
 import { allByAttribute, allByRole, byAttribute, byLabel, byName, byRole, byText, parseHtml } from "./support/queries";
 let ui: typeof import("./fixtures/books/ui-probe");
 beforeAll(async () => {
@@ -101,6 +102,11 @@ describe("book detail and edit SSR", () => {
     for (const path of ["/cover/upload", "/cover/url", "/cover/extract"])
       expect(html).not.toContain(path);
     expect(html).not.toContain("<main");
+  });
+  it("shows the book language by name, not as a raw BCP 47 tag", () => {
+    const text = parseHtml(ui.detail(page())).textContent!;
+    expect(text).toContain("中文"); expect(text).not.toContain("zh-CN");
+    expect(languageLabel("en-US")).toBe("英文"); expect(languageLabel("tlh")).toBe("tlh");
   });
   it("keeps return_to in edit, read and preview links and return path in destructive forms", () => {
     const html = ui.detail(page());
