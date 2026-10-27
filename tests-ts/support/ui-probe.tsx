@@ -1,5 +1,8 @@
 import { renderToString } from "@solidjs/web";
 import { Button, TextField, Select, Textarea, Checkbox, Chip, Tag, BookCover, GeneratedCover, Dialog, ConfirmDialog, EmptyState, Pagination } from "../../src/ui";
+import { SettingsHub } from "../../src/features/settings/hub";
+import type { SettingsSummary } from "../../src/server/settings/summary";
+export function settings(summary: SettingsSummary) { return renderToString(() => <SettingsHub summary={summary} now={Date.parse("2026-10-26T12:00:00Z")} />); }
 export { coverTone } from "../../src/ui/cover";
 export { paginationItems, pageHref } from "../../src/ui/pagination";
 

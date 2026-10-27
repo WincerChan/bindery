@@ -349,7 +349,7 @@ it("renders settings summaries, destinations, install availability and POST logo
   } };
   const mounted = mount("settings", data);
   const links = elements(mounted.root, "a");
-  expect(links.map(el => el.getAttribute("href"))).toEqual(["/rules", "/rules?tab=themes", "/security", "/vocabulary?settings=lexitrace#lexitrace-settings", "/devices"]);
+  expect(links.map(el => el.getAttribute("href"))).toEqual(["/rules", "/themes", "/security", "/vocabulary?settings=lexitrace#lexitrace-settings", "/devices"]);
   for (const text of ["3 条 · 最近改过「网文格式」", "2 个 · 入库默认用「默认 v2」", "2 个通行密钥 · 2 分钟前用过", "已配置 · 生词自动推送", "安装应用", "手机浏览器连不上阅读器"]) expect(mounted.root.textContent).toContain(text);
   const logout = elements(mounted.root, "form")[0]!; expect(logout.getAttribute("action")).toBe("/logout"); expect(logout.getAttribute("method")).toBe("post");
   expect(elements(logout, "button")[0]!.getAttribute("type")).toBe("submit");
@@ -473,12 +473,37 @@ it("switches rule/theme navigation and keyed editors", () => {
   const initial: Cases["rules"] = { rules: [editor("规则甲"), editor("规则乙")], themes: [editor("主题甲")], tab: "parsing", ruleId: "规则甲", themeId: "主题甲", error: "", editor: editor("规则甲") };
   const mounted = mount("rules", initial);
   mounted.update({ ...initial, tab: "themes", editor: editor("主题甲") });
-  expect(allByRole(byRole(mounted.root, "complementary", "主题列表"), "link").map(el => el.textContent)).toEqual(["主题甲v1"]);
+  expect(allByRole(byRole(mounted.root, "navigation", "主题列表"), "link").map(el => el.textContent)).toEqual(["主题甲v1 · 0 本在用"]);
   expect(byName(mounted.root, "css")).toBeDefined();
   expect(allByAttribute(mounted.root, "name", "config_json")).toHaveLength(0);
   mounted.update({ ...initial, rules: [], editor: null });
-  expect(allByRole(byRole(mounted.root, "complementary", "规则列表"), "link")).toHaveLength(0);
+  expect(allByRole(byRole(mounted.root, "navigation", "规则列表"), "link")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("暂无规则模板");
+});
+
+it.each(["rules", "themes"] as const)("formats/restores %s and submits naming validation without losing the draft", async kind => {
+  const data = { ...editor("custom"), raw: kind === "rules" ? '{"name":"原名"}' : "p{color:red}" };
+  const mounted = mount("editor", { data, kind, usage: { book_count: 0, archived_count: 0 } });
+  await settle(); mounted.flush();
+  const code = byName(mounted.root, kind === "rules" ? "config_json" : "css") as HTMLTextAreaElement;
+  fire(byRole(mounted.root, "button", "格式化"), "click"); mounted.flush();
+  expect(code.value).toContain("\n");
+  expect(byRole(mounted.root, "button", "保存").hasAttribute("disabled")).toBe(false);
+  fire(byRole(mounted.root, "button", "还原"), "click"); mounted.flush(); expect(code.value).toBe(data.raw);
+  const rpc = vi.fn(async () => ({ ...data, error: "名称无效", saved: false })); vi.stubGlobal("__binderyTestMutation", rpc);
+  for (const [label, operation] of [["另存为", "copy"], ["重命名", "rename"]]) {
+    fire(byRole(mounted.root, "button", label), "click"); mounted.flush();
+    const dialog = byRole(mounted.root, "dialog", label);
+    const name = byLabel(dialog, "模板名称") as HTMLInputElement; name.value = "新名称"; fire(name, "input"); mounted.flush();
+    fire(formFor(name), "submit"); await settle(); mounted.flush();
+    expect(rpc).toHaveBeenLastCalledWith("saveTemplate", { data: { kind, id: data.id, raw: data.raw, operation, name: "新名称" } });
+    expect(dialog.textContent).toContain("名称无效"); expect(code.value).toBe(data.raw);
+    fire(byRole(dialog, "button", "取消"), "click"); mounted.flush(); expect(dialog.getAttribute("data-state")).toBe("closed");
+  }
+  fire(byAttribute(mounted.root, "action", `/${kind}/custom/delete`), "submit"); mounted.flush();
+  const confirmation = byRole(mounted.root, "dialog", kind === "rules" ? "删除规则模板" : "删除主题模板");
+  expect(confirmation.getAttribute("data-state")).toBe("open");
+  fire(byRole(confirmation, "button", "取消"), "click"); mounted.flush(); expect(rpc).toHaveBeenCalledTimes(2);
 });
 
 it("replaces rule test TOCs across nonempty and empty results", () => {

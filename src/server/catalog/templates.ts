@@ -81,8 +81,34 @@ export function newTemplate(kind: "rules" | "themes"): string {
   writeFileSync(join(dir, `${id}.json`), JSON.stringify(data, null, 2), "utf8");
   return templateUrl(kind, id);
 }
+/** Name operations use the same validators as saving and never overwrite the source when copying. */
+export function nameTemplate(kind: "rules" | "themes", id: string, raw: string, name: string, operation: "rename" | "copy"): EditorData & { target?: string } {
+  const source = kind === "rules" ? requireRule(id) : requireTheme(id);
+  const current = kind === "rules" ? ruleEditor(id) : themeEditor(id);
+  const cleanName = name.trim();
+  const invalid = (error: string) => ({ ...current, raw, error });
+  if (!cleanName || cleanName.length > 80) return invalid("模板名称须为 1–80 个字符");
+  let data: Record<string, unknown>;
+  if (kind === "rules") {
+    try { data = validateRuleTemplateJson(id, raw); }
+    catch (error) { if (error instanceof RuleTemplateError) return invalid(error.message); throw error; }
+  } else {
+    const error = validateThemeCss(raw);
+    if (error) return invalid(`主题 CSS 校验失败：${error}`);
+    data = { ...JSON.parse(readFileSync(source.file_path, "utf8")), css: raw };
+  }
+  let targetId = id, path = source.file_path;
+  if (operation === "copy") {
+    do { targetId = `${kind === "rules" ? "custom" : "theme"}-${randomBytes(4).toString("hex")}`; path = join(templateDirectory(kind), `${targetId}.json`); }
+    while (existsSync(path));
+    data.version = "1";
+  }
+  data.id = targetId; data.name = cleanName;
+  writeFileSync(path, JSON.stringify(data, null, 2), "utf8");
+  return { ...(kind === "rules" ? ruleEditor(targetId) : themeEditor(targetId)), saved: true, target: operation === "copy" ? templateUrl(kind, targetId) : undefined };
+}
 export function templateUrl(kind: "rules" | "themes", id: string) {
-  return `/rules?tab=${kind === "rules" ? "parsing" : "themes"}&${kind === "rules" ? "rule_id" : "theme_id"}=${encodeURIComponent(id)}`;
+  return `/${kind}?${kind === "rules" ? "rule_id" : "theme_id"}=${encodeURIComponent(id)}`;
 }
 export function deleteTemplate(kind: "rules" | "themes", id: string, library: LibraryStorage): string {
   if (id === "default") throw new HttpError(400, "默认模板不可删除");

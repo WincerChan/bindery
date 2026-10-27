@@ -19,7 +19,7 @@ try {
     // Drain SSR streams, including 404s, so router cleanup timers do not outlive the probe.
     return new Response(await response.arrayBuffer(), { status: response.status, headers: response.headers });
   };
-  const pages = ["/rules", "/rules/default/editor", "/themes/default/editor", "/tracker", "/wishlist", "/tracker/export", "/wishlist/export", "/tracker/duplicate-check", "/wishlist/duplicate-check"];
+  const pages = ["/rules", "/themes", "/rules/default/editor", "/themes/default/editor", "/tracker", "/wishlist", "/tracker/export", "/wishlist/export", "/tracker/duplicate-check", "/wishlist/duplicate-check"];
   const posts = ["/rules/new", "/rules/default/editor", "/rules/default/delete", "/rules/test", "/themes/new", "/themes/default/editor", "/themes/default/delete", "/tracker", "/wishlist", ...["tracker", "wishlist"].flatMap(f => [`/${f}/${"a".repeat(32)}/update`, `/${f}/${"a".repeat(32)}/delete`])];
   for (const path of pages) assert.equal((await request(path)).status, 303, `Anonymous GET ${path}`);
   for (const path of posts) assert.equal((await request(path, {})).status, 303, `Anonymous POST ${path}`);
@@ -41,7 +41,16 @@ try {
   const htmxNew = await handler(new Request("http://localhost/themes/new", { method: "POST", headers: { Cookie: cookie, "HX-Request": "true" } })); assert.equal(htmxNew.status, 200); const themeId = new URL(htmxNew.headers.get("HX-Redirect"), "http://localhost").searchParams.get("theme_id");
   const themeBad = await request(`/themes/${themeId}/editor`, { css: "p{" }); assert.equal(themeBad.status, 200); assert.match(await themeBad.text(), /主题 CSS 校验失败：CSS 花括号不匹配/);
   const themeSaved = await request(`/themes/${themeId}/editor`, { css: "p { color: red }" }, "application/json"); assert.equal((await themeSaved.json()).saved, true);
-  const themePage = await request(`/rules?tab=themes&theme_id=${themeId}`); assert.match(await themePage.text(), /<iframe[^>]*\ssandbox(?:="")?(?:\s|>)/);
+  const legacyTheme = await request(`/rules?tab=themes&theme_id=${themeId}&error=used`);
+  assert.equal(legacyTheme.status, 308); assert.equal(legacyTheme.headers.get("location"), `/themes?theme_id=${themeId}&error=used`);
+  const themePage = await request(`/themes?theme_id=${themeId}`); assert.equal(themePage.status, 200);
+  const themeHtml = await themePage.text(); assert.match(themeHtml, /<iframe[^>]*\ssandbox(?:="")?(?:\s|>)/); assert.match(themeHtml, new RegExp(`/themes/${themeId}/editor`));
+  const copied = await request(`/themes/${themeId}/editor`, { css: "p { color: red }", operation: "copy", name: "副本" });
+  assert.equal(copied.status, 303); assert.match(copied.headers.get("location"), /^\/themes\?theme_id=theme-/);
+  const copyId = new URL(copied.headers.get("location"), "http://localhost").searchParams.get("theme_id");
+  assert.notEqual(copyId, themeId);
+  const renamed = await request(`/themes/${copyId}/editor`, { css: "p { color: red }", operation: "rename", name: "新名称" }, "application/json");
+  assert.equal((await renamed.json()).name, "新名称");
   assert.equal((await request(`/themes/${themeId}/delete`, {})).status, 303);
   assert.equal((await request("/tracker", {})).status, 400);
   const added = await request("/wishlist", { title: "三体", author: "刘慈欣", tags: "科幻", read_status: "reading", rating: "5", next: "/tracker?q=三体" }); assert.equal(added.status, 303); assert.match(added.headers.get("location"), /q=/);

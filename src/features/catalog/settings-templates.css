@@ -1,0 +1,44 @@
+.settings-templates { display: grid; gap: 16px; min-width: 0; }
+.settings-templates > .ui-back-link { justify-self: start; }
+.settings-templates .ui-page-eyebrow:empty { display: none; }
+.settings-templates .ui-page-intro { margin: 0 0 32px; }
+.settings-template-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; align-items: start; }
+.settings-template-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 4px; }
+.settings-template-list a { display: grid; gap: 4px; padding: 14px 16px; border-radius: var(--radius-row); color: var(--color-ink); text-decoration: none; overflow-wrap: anywhere; }
+.settings-template-list a:hover { background: var(--color-hover); }
+.settings-template-list a[aria-current="page"] { background: var(--color-control); }
+.settings-template-list a > span { font: 500 var(--text-title)/1.6 var(--font-display); }
+.settings-template-list small { color: var(--color-ink-3); font-size: var(--text-min); }
+.settings-template-new.btn { border-style: dashed; width: 100%; }
+.settings-template-editor { min-width: 0; display: grid; gap: 24px; }
+.settings-template-editor .catalog-editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.settings-template-editor h2 { margin: 0; font: 600 var(--text-heading)/1.5 var(--font-display); overflow-wrap: anywhere; }
+.settings-template-editor h2 small { font: 400 var(--text-meta)/1.5 var(--font-sans); color: var(--color-ink-3); }
+.settings-template-editor .catalog-editor-head p { margin: 8px 0 0; }
+.settings-template-editor .catalog-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.settings-template-editor .catalog-save-state { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-meta); color: var(--color-ink-3); }
+.settings-template-editor .catalog-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 32px; align-items: start; }
+.settings-template-editor .catalog-pane { min-width: 0; display: grid; gap: 12px; }
+.settings-template-editor .catalog-pane-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; min-height: 44px; gap: 8px; }
+.settings-template-editor .catalog-pane-head :is(h3, label) { margin: 0; font-size: var(--text-control); font-weight: 400; color: var(--color-ink-3); letter-spacing: .08em; }
+.settings-template-editor .catalog-pane-head .muted { font-size: var(--text-min); }
+.settings-template-editor :is(.catalog-code, .catalog-sample) { display: block; width: 100%; border: 0; border-radius: var(--radius-field); background: var(--color-control); padding: 20px 24px; color: var(--color-ink); font: 400 var(--text-meta)/1.85 var(--font-mono); resize: vertical; }
+.settings-template-editor .catalog-code { min-height: 480px; tab-size: 2; }
+.settings-template-editor .catalog-sample { min-height: 180px; margin-bottom: 12px; }
+.settings-template-editor iframe { width: 100%; min-height: 480px; border: 0; border-radius: var(--radius-field); background: var(--color-surface); }
+.settings-template-editor .catalog-test-result p { margin: 8px 0 16px; }
+.settings-template-editor .catalog-test-result strong { font: 600 var(--text-heading)/1.5 var(--font-display); color: var(--color-ink); }
+.settings-template-editor .catalog-toc { display: grid; gap: 10px; margin: 0; padding-left: 24px; font-family: var(--font-display); overflow-wrap: anywhere; }
+.settings-template-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 16px; padding-top: 16px; border-top: 1px solid var(--color-line-faint); }
+.settings-template-footer p { margin: 4px 0; font-size: var(--text-meta); }
+.settings-template-name-form { display: grid; gap: 16px; }
+@media (max-width: 767px) {
+  .settings-templates .ui-page-intro { margin-bottom: 16px; }
+  .settings-template-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .settings-template-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+  .settings-template-editor .catalog-columns { grid-template-columns: minmax(0, 1fr); }
+  .settings-template-editor .catalog-code { min-height: 340px; padding: 16px; }
+  .settings-template-editor .catalog-editor-actions { width: 100%; }
+  .settings-template-editor .catalog-save-state { flex: 1; }
+  .settings-template-editor .catalog-pane-head { align-items: start; }
+}

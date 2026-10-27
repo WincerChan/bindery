@@ -1,7 +1,7 @@
 import { createContext, createSignal, onSettled, Show, useContext } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { PwaInstall, type InstallMode, type InstallState } from "../../client/pwa/install";
-import { Dialog } from "../../ui";
+import { Button, CenterDialog } from "../../ui";
 
 function createInstallController() {
   const [state, setState] = createSignal<InstallState>({ mode: null, standalone: false });
@@ -21,7 +21,7 @@ export function PwaInstallProvider(props: { children: JSX.Element }) {
   return <InstallContext value={controller}>{props.children}</InstallContext>;
 }
 export function InstallAppButton(props: { mode: InstallMode | null; onInstall: () => void }) {
-  return <Show when={props.mode}><button type="button" class="settings-install-button" onClick={props.onInstall}>安装应用</button></Show>;
+  return <Show when={props.mode}><Button variant="secondary" class="settings-install-button" onClick={props.onInstall}>安装应用</Button></Show>;
 }
 export function InstallApp() {
   const { state, prompt } = useContext(InstallContext) ?? createInstallController();
@@ -33,11 +33,12 @@ export function InstallApp() {
   }
   return <>
     <div class="settings-row settings-install">
+      <span class="settings-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 3h10v18H7zM12 7v8M9 12l3 3 3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
       <span class="settings-row-copy"><span class="settings-row-title">安装应用</span><span class="settings-row-status">{state().standalone ? "已安装 · 正在应用中打开" : state().mode ? "装到桌面，像普通应用一样打开" : "可在支持安装的浏览器菜单中安装应用"}</span></span>
       <InstallAppButton mode={state().mode} onInstall={() => void install()} />
     </div>
-    <Dialog open={helpOpen()} title="安装应用" closeLabel="关闭安装说明" onClose={() => setHelpOpen(false)}>
+    <CenterDialog open={helpOpen()} title="安装应用" closeLabel="关闭安装说明" onClose={() => setHelpOpen(false)}>
       <p class="muted">点击 Safari 工具栏的分享按钮，然后选择「添加到主屏幕」。</p>
-    </Dialog>
+    </CenterDialog>
   </>;
 }
