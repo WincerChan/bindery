@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 最近任务 · 手机</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#F6F4EE}
+a{color:#A24832}a:hover{color:#823624}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #F6F4EE; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+
+  <!-- Ingest page behind, simplified -->
+  <div aria-hidden="true" style="box-sizing: border-box; padding: 28px 16px; display: flex; flex-direction: column; gap: 16px">
+    <p style="margin: 0; font-size: 13px; color: #656D66">入库 · 已选 3 个文件</p>
+    <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 30px; line-height: 1.3">这次放进书库的，<br>是下面这几本。</p>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(32, 41, 35, 0.32)"></div>
+
+  <!-- Side panel becomes a tall bottom sheet -->
+  <section role="dialog" aria-modal="true" aria-labelledby="jobs-title" style="position: absolute; left: 0; right: 0; bottom: 0; top: 96px; box-sizing: border-box; border-radius: 28px 28px 0 0; background: #F6F4EE; box-shadow: 0 -24px 48px -18px rgba(32,41,35,0.45); display: flex; flex-direction: column">
+    <span aria-hidden="true" style="align-self: center; margin-top: 10px; width: 40px; height: 4px; border-radius: 999px; background: #DEDDD2"></span>
+
+    <header style="padding: 14px 16px 8px; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <h2 id="jobs-title" style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 24px">最近任务</h2>
+        <button type="button" aria-label="关闭最近任务" style="margin-left: auto; display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: #ECEAE2; color: #202923">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+        </button>
+      </div>
+      <nav aria-label="任务分组" style="display: flex; padding: 4px; gap: 2px; border-radius: 999px; background: #ECEAE2">
+        <a href="#" aria-current="page" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; height: 36px; border-radius: 999px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.12); color: #202923; text-decoration: none; font-size: 14px; font-weight: 500">全部</a>
+        <a href="#" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 36px; border-radius: 999px; color: #4B554E; text-decoration: none; font-size: 14px">进行中<span style="font-size: 12px; font-weight: 600; color: {{accent}}">2</span></a>
+        <a href="#" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; height: 36px; border-radius: 999px; color: #4B554E; text-decoration: none; font-size: 14px">失败</a>
+      </nav>
+    </header>
+
+    <ul style="flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 16px; list-style: none; display: flex; flex-direction: column; gap: 22px">
+      <sc-for list="{{jobs}}" as="j" hint-placeholder-count="5">
+        <li style="display: flex; gap: 16px; align-items: center">
+          <span aria-hidden="true" style="position: relative; flex: 0 0 44px; height: 66px; border-radius: 2px 5px 5px 2px; background: {{j.bg}}; opacity: {{j.opacity}}; filter: {{j.filter}}; box-shadow: 0 10px 14px -10px rgba(32,41,35,0.5)">
+            <span style="position: absolute; top: 6px; right: 5px; font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 10px; line-height: 1.1; writing-mode: vertical-rl; color: {{j.fg}}">{{j.title}}</span>
+            <sc-if value="{{j.running}}" hint-placeholder-val="{{false}}">
+              <span style="position: absolute; left: 5px; right: 5px; bottom: 5px; height: 3px; border-radius: 999px; background: rgba(251,250,246,0.35); overflow: hidden"><span style="display: block; width: {{j.pct}}; height: 100%; background: {{j.fg}}"></span></span>
+            </sc-if>
+          </span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+            <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 16px">{{j.title}}</span>
+            <span style="font-size: 13px; color: {{j.metaColor}}">{{j.meta}}</span>
+          </span>
+          <sc-if value="{{j.failed}}" hint-placeholder-val="{{false}}">
+            <button type="button" aria-label="重试《{{j.title}}》" style="flex: 0 0 44px; display: flex; height: 44px; align-items: center; justify-content: center; border: 1px solid #C8C8BB; border-radius: 999px; background: transparent; color: #202923">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.6L4 15.5M4 20v-4.5h4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </button>
+          </sc-if>
+          <sc-if value="{{j.done}}" hint-placeholder-val="{{false}}">
+            <a href="MobileBookDetail.dc.html" aria-label="打开《{{j.title}}》" style="flex: 0 0 44px; display: flex; height: 44px; align-items: center; justify-content: center; color: #92998F">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </a>
+          </sc-if>
+        </li>
+      </sc-for>
+    </ul>
+
+    <footer style="padding: 12px 16px 34px; display: flex; align-items: center; gap: 12px; border-top: 1px solid #E4E2D8">
+      <p style="margin: 0; display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums"><span style="font-family: 'Noto Serif SC', serif; font-size: 24px; font-weight: 600; color: {{accent}}">01</span><span style="font-size: 13px; color: #656D66">/ 02 页</span></p>
+      <div style="margin-left: auto; display: flex; gap: 10px">
+        <a href="#" aria-label="上一页" style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; color: #92998F; border: 1px solid #DEDDD2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </a>
+        <a href="#" aria-label="下一页" style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; color: #202923; border: 1px solid #B3B7A9">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </a>
+      </div>
+    </footer>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832","options":["#A24832","#C7962B","#2F5D50","#202923"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var data = [
+      { title: '西游记', bg: '#C9A44C', fg: '#2B2416', state: 'running', pct: 60, meta: '正在生成 EPUB · 13:02' },
+      { title: '水浒传', bg: '#2C3A52', fg: '#E3E1D6', state: 'running', pct: 25, meta: '正在切章 · 13:01' },
+      { title: '老残游记', bg: '#8C5A3C', fg: '#F6E9D8', state: 'failed', meta: '[失败原因]' },
+      { title: '浮生六记', bg: '#6E3B2E', fg: '#F3E6DA', state: 'done', meta: '沈复 · 昨天 21:15' },
+      { title: '红楼梦', bg: '#7A2E2A', fg: '#F4E4D6', state: 'done', meta: '曹雪芹 · 昨天 20:58' }
+    ];
+    return {
+      accent: this.props.accent ?? '#A24832',
+      jobs: data.map(function (d) {
+        return {
+          title: d.title, bg: d.bg, fg: d.fg, meta: d.meta,
+          running: d.state === 'running', failed: d.state === 'failed', done: d.state === 'done',
+          pct: (d.pct || 0) + '%',
+          opacity: d.state === 'running' ? 0.72 : 1,
+          filter: d.state === 'failed' ? 'grayscale(0.9) contrast(0.85)' : 'none',
+          metaColor: d.state === 'failed' ? '#A43B2B' : '#656D66'
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

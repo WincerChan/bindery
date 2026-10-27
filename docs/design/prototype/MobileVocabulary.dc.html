@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 生词本 · 手机</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400;1,6..72,600&amp;display=swap">
+<style>
+body{margin:0;background:#F6F4EE}
+a{color:#A24832}a:hover{color:#823624}
+mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decoration:underline;text-decoration-color:#A24832;text-decoration-thickness:2px;text-underline-offset:4px}
+.chip-row{scrollbar-width:none}
+.chip-row::-webkit-scrollbar{display:none}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 1600px; overflow: hidden; background: #F6F4EE; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+
+  <main style="box-sizing: border-box; padding: 28px 16px 120px; display: flex; flex-direction: column; gap: 32px">
+
+    <!-- Hero -->
+    <section style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <p style="flex: 1; margin: 0; font-size: 13px; color: #656D66; letter-spacing: 0.08em">生词本 · 共 124 个</p>
+        <a href="VocabSettings.dc.html" aria-label="LexiTrace 设置" style="display: flex; flex: 0 0 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; background: #ECEAE2; color: #202923">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"></circle><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+        </a>
+      </div>
+      <h1 style="margin: 0; font-family: 'Noto Serif SC', 'Songti SC', serif; font-weight: 600; font-size: 30px; line-height: 1.3">这个月查了 38 个词。</h1>
+      <p style="margin: 0; font-size: 15px; line-height: 1.8; color: #4B554E">多半来自 <span lang="en" style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 17px">Pride and Prejudice</span>。下面是最近查的一个，连同当时读到的那句话。</p>
+
+      <!-- Push status: one line, retry inline -->
+      <div style="display: flex; align-items: center; gap: 12px; font-size: 14px; color: #4B554E">
+        <span style="display: flex; flex-direction: column; gap: 4px">
+          <span style="display: inline-flex; align-items: center; gap: 8px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #35674C"></span>LexiTrace 已推送 120 个</span>
+          <span style="display: inline-flex; align-items: center; gap: 8px; color: #A43B2B"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: currentColor"></span>2 个失败</span>
+        </span>
+        <button type="button" style="margin-left: auto; height: 44px; padding: 0 18px; border: 1px solid #C8C8BB; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #202923">全部重试</button>
+      </div>
+
+      <!-- Latest word, below the copy instead of beside it -->
+      <figure style="margin: 12px 0 0; display: flex; flex-direction: column; gap: 14px; padding: 4px 0 4px 20px; border-left: 1px solid #DEDDD2">
+        <p style="margin: 0; font-size: 12px; letter-spacing: 0.08em; color: #656D66">最近查的</p>
+        <p lang="en" style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 600; font-size: 44px; line-height: 1; color: #202923">ardent</p>
+        <blockquote lang="en" style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-size: 18px; line-height: 1.6; color: #2A312C">“My feelings will not be repressed. You must allow me to tell you how <mark>ardently</mark> I admire and love you.”</blockquote>
+        <figcaption style="font-size: 13px; color: #656D66"><span lang="en" style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 15px; color: #4B554E">Pride and Prejudice</span> · 书房的 Kindle · 昨天 23:12</figcaption>
+      </figure>
+    </section>
+
+    <!-- Toolbar + words -->
+    <section aria-labelledby="words-title" style="display: flex; flex-direction: column; gap: 10px">
+      <h2 id="words-title" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">生词</h2>
+      <label style="display: flex; align-items: center; gap: 10px; height: 44px; box-sizing: border-box; padding: 0 16px; border-radius: 999px; background: #ECEAE2; color: #656D66">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.7"></circle><path d="M16 16l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+        <input type="search" aria-label="搜索生词、例句" placeholder="搜索生词、例句" style="flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 15px; color: #202923; outline: none">
+      </label>
+      <div class="chip-row" style="display: flex; gap: 8px; margin: 0 -16px; padding: 0 16px; overflow-x: auto">
+        <div role="group" aria-label="推送状态" style="flex: 0 0 auto; display: inline-flex; padding: 4px; gap: 2px; border-radius: 999px; background: #ECEAE2">
+          <button type="button" aria-pressed="true" style="height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.12); font: inherit; font-size: 14px; font-weight: 500; color: #202923">全部</button>
+          <button type="button" aria-pressed="false" style="height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #656D66">未推送</button>
+          <button type="button" aria-pressed="false" style="height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #656D66">失败</button>
+        </div>
+        <label style="position: relative; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px 0 16px; border-radius: 999px; background: #ECEAE2; font-size: 14px">
+          <span style="color: #656D66">书</span><span style="font-weight: 500">全部</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color: #656D66"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <select aria-label="书" style="position: absolute; inset: 0; width: 100%; opacity: 0"><option>全部</option><option>Pride and Prejudice（71）</option></select>
+        </label>
+        <label style="position: relative; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px 0 16px; border-radius: 999px; background: #ECEAE2; font-size: 14px">
+          <span style="color: #656D66">设备</span><span style="font-weight: 500">全部</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color: #656D66"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <select aria-label="设备" style="position: absolute; inset: 0; width: 100%; opacity: 0"><option>全部</option><option>书房的 Kindle</option><option>通勤 Kobo</option></select>
+        </label>
+      </div>
+
+      <ul style="margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+        <sc-for list="{{words}}" as="w" hint-placeholder-count="5">
+          <li style="display: flex; flex-direction: column; gap: 10px; padding: 20px 0 16px; border-top: 1px solid #DEDDD2">
+            <p style="margin: 0; display: flex; align-items: baseline; gap: 10px">
+              <span lang="en" style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 600; font-size: 26px; line-height: 1.1">{{w.word}}</span>
+              <sc-if value="{{w.inflected}}" hint-placeholder-val="{{false}}">
+                <span lang="en" style="font-family: 'Newsreader', Georgia, serif; font-size: 15px; color: #656D66">{{w.raw}}</span>
+              </sc-if>
+              <sc-if value="{{w.flag}}" hint-placeholder-val="{{false}}">
+                <span role="img" aria-label="{{w.flagLabel}}" style="margin-left: auto; align-self: center; width: 8px; height: 8px; box-sizing: border-box; border-radius: 999px; background: {{w.flagFill}}; border: 1.5px solid {{w.flagStroke}}"></span>
+              </sc-if>
+            </p>
+            <p lang="en" style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-size: 16px; line-height: 1.6; color: #2A312C; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden">{{w.before}}<mark>{{w.raw}}</mark>{{w.after}}</p>
+            <p style="margin: 0; font-size: 12px; color: #656D66"><span lang="en" style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 14px; color: #4B554E">{{w.book}}</span> · {{w.device}} · {{w.when}}</p>
+          </li>
+        </sc-for>
+      </ul>
+    </section>
+  </main>
+
+  <!-- Bottom tab bar -->
+  <nav aria-label="主导航" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; padding: 6px 4px 24px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: #F6F4EE; border-top: 1px solid #E4E2D8">
+    <a href="MobileLibrary.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; color: #656D66">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; color: #4B554E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h4v16H4zM10 4h4v16h-4zM17 5l3-.7 3 15-3 .7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg></span>书库
+    </a>
+    <a href="MobileIngest.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; color: #656D66">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; color: #4B554E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v5h16v-5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></svg></span>入库
+    </a>
+    <a href="MobileTracker.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; color: #656D66">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; color: #4B554E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg></span>追踪
+    </a>
+    <a href="MobileVocabulary.dc.html" aria-current="page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; font-weight: 500; color: #202923">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; border-radius: 999px; background: {{accent}}; color: #FBFAF6"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 18l4.5-12 4.5 12M5.2 13.5h5.6M15 8h5.5M15 12h5.5M15 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>生词本
+    </a>
+    <a href="MobileSettings.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; color: #656D66">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; color: #4B554E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"></circle><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg></span>设置
+    </a>
+  </nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832","options":["#A24832","#C7962B","#2F5D50","#202923"]},"$preview":{"width":390,"height":1600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var data = [
+      { word: 'mortify', raw: 'mortified', before: '“I could easily forgive his pride, if he had not ', after: ' mine.”', book: 'Pride and Prejudice', device: '书房的 Kindle', when: '昨天 22:40', state: 'pushed' },
+      { word: 'spleen', raw: 'spleen', before: '“It is a way I have of driving off the ', after: ' and regulating the circulation.”', book: 'Moby-Dick', device: '通勤 Kobo', when: '10-24', state: 'pending' },
+      { word: 'orgastic', raw: 'orgastic', before: '“Gatsby believed in the green light, the ', after: ' future that year by year recedes before us.”', book: 'The Great Gatsby', device: '通勤 Kobo', when: '10-22', state: 'error' },
+      { word: 'acknowledge', raw: 'acknowledged', before: '“It is a truth universally ', after: ', that a single man in possession of a good fortune, must be in want of a wife.”', book: 'Pride and Prejudice', device: '书房的 Kindle', when: '10-20', state: 'pushed' },
+      { word: 'bear', raw: 'borne', before: '“So we beat on, boats against the current, ', after: ' back ceaselessly into the past.”', book: 'The Great Gatsby', device: '通勤 Kobo', when: '10-19', state: 'error' }
+    ];
+    return {
+      accent: this.props.accent ?? '#A24832',
+      words: data.map(function (d) {
+        var flag = d.state === 'error' ? { label: '推送失败，可重试', fill: '#A43B2B', stroke: '#A43B2B' }
+          : d.state === 'pending' ? { label: '还没推送到 LexiTrace', fill: 'transparent', stroke: '#92998F' } : null;
+        return {
+          word: d.word, raw: d.raw, inflected: d.raw !== d.word, before: d.before, after: d.after,
+          book: d.book, device: d.device, when: d.when,
+          flag: !!flag, flagLabel: flag ? flag.label : '', flagFill: flag ? flag.fill : '', flagStroke: flag ? flag.stroke : ''
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

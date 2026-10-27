@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 设备 · 手机</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#F6F4EE}
+a{color:#A24832}a:hover{color:#823624}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #F6F4EE; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+
+  <!-- Reached only by a direct link: devices are not in the phone nav -->
+  <main style="box-sizing: border-box; padding: 28px 16px 120px; display: flex; flex-direction: column; gap: 32px">
+    <section style="display: flex; flex-direction: column; gap: 16px">
+      <p style="margin: 0; font-size: 13px; color: #656D66; letter-spacing: 0.08em">设备</p>
+      <h1 style="margin: 0; font-family: 'Noto Serif SC', 'Songti SC', serif; font-weight: 600; font-size: 30px; line-height: 1.3">阅读器要在<br>电脑上连接。</h1>
+      <p style="margin: 0; font-size: 15px; line-height: 1.8; color: #4B554E">手机浏览器读不到 Kindle 和 Kobo 的存储。在电脑上用 Chrome 或 Edge 打开 Bindery，插上阅读器就能用。</p>
+    </section>
+
+    <section aria-labelledby="desk-title" style="display: flex; flex-direction: column">
+      <h2 id="desk-title" style="margin: 0 0 6px; font-size: 14px; font-weight: 400; letter-spacing: 0.08em; color: #656D66">在电脑上可以</h2>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+        <li style="display: flex; align-items: center; gap: 14px; min-height: 60px; border-top: 1px solid #ECEAE2; font-size: 15px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex: 0 0 auto; color: #4B554E"><path d="M4 12l16-8-6 16-2.5-6.5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+          把书库里的书发到阅读器
+        </li>
+        <li style="display: flex; align-items: center; gap: 14px; min-height: 60px; border-top: 1px solid #ECEAE2; font-size: 15px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex: 0 0 auto; color: #4B554E"><path d="M5 20L11 4h2l6 16M8 14h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          给阅读器装字体
+        </li>
+        <li style="display: flex; align-items: center; gap: 14px; min-height: 60px; border-top: 1px solid #ECEAE2; font-size: 15px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex: 0 0 auto; color: #4B554E"><path d="M6 3h12v18H6zM10 18h4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></svg>
+          看书在阅读器上的排版
+        </li>
+        <li style="display: flex; align-items: center; gap: 14px; min-height: 60px; border-top: 1px solid #ECEAE2; border-bottom: 1px solid #ECEAE2; font-size: 15px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex: 0 0 auto; color: #4B554E"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.6L4 15.5M4 20v-4.5h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          同步阅读进度和生词
+        </li>
+      </ul>
+      <p style="margin: 16px 0 0; font-size: 13px; line-height: 1.7; color: #656D66">同步过来的进度和生词，在手机上的书库和<a href="MobileVocabulary.dc.html">生词本</a>里都能看到。</p>
+    </section>
+
+    <a href="MobileLibrary.dc.html" style="display: flex; align-items: center; justify-content: center; height: 48px; border-radius: 999px; background: #202923; color: #FBFAF6; text-decoration: none; font-size: 15px; font-weight: 500">回书库</a>
+  </main>
+
+  <!-- Bottom tab bar: no item current -->
+  <nav aria-label="主导航" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; padding: 6px 4px 24px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: #F6F4EE; border-top: 1px solid #E4E2D8">
+    <a href="MobileLibrary.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; color: #656D66">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; color: #4B554E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h4v16H4zM10 4h4v16h-4zM17 5l3-.7 3 15-3 .7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg></span>书库
+    </a>
+    <a href="MobileIngest.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; color: #656D66">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; color: #4B554E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v5h16v-5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></svg></span>入库
+    </a>
+    <a href="MobileTracker.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; color: #656D66">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; color: #4B554E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg></span>追踪
+    </a>
+    <a href="MobileVocabulary.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; color: #656D66">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; color: #4B554E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 18l4.5-12 4.5 12M5.2 13.5h5.6M15 8h5.5M15 12h5.5M15 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>生词本
+    </a>
+    <a href="MobileSettings.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; text-decoration: none; font-size: 12px; color: #656D66">
+      <span style="display: flex; width: 56px; height: 30px; align-items: center; justify-content: center; color: #4B554E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"></circle><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg></span>设置
+    </a>
+  </nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832","options":["#A24832","#C7962B","#2F5D50","#202923"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#A24832' };
+  }
+}
+</script>
+</body>
+</html>
