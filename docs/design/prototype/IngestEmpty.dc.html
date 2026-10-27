@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
 <style>
 body{margin:0;background:#E9E6DC}
-a{color:#A24832}a:hover{color:#823624}
+a{color:#A24832}a:hover{color:#202923}
 .rail-nav{display:flex;flex-direction:column;align-items:center;gap:10px}
 @media (max-width: 760px){
   .rail{flex:1 1 100% !important;flex-direction:row !important;padding:12px 16px !important;border-right:0 !important;border-bottom:1px solid #DEDDD2}
@@ -73,7 +73,7 @@ a{color:#A24832}a:hover{color:#823624}
 
     <!-- Ghost wall: where the books will appear -->
     <div aria-hidden="true" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 44px 32px">
-      <div style="aspect-ratio: 2 / 3; border-radius: 3px 8px 8px 3px; border: 1.5px dashed #B3B7A9; display: flex; align-items: center; justify-content: center; color: #4B554E">
+      <div style="aspect-ratio: 2 / 3; border-radius: 3px 8px 8px 3px; border: 1.5px dashed #C8C8BB; display: flex; align-items: center; justify-content: center; color: #4B554E">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
       </div>
       <div style="aspect-ratio: 2 / 3; border-radius: 3px 8px 8px 3px; background: #ECEAE2"></div>
@@ -86,7 +86,7 @@ a{color:#A24832}a:hover{color:#823624}
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832","options":["#A24832","#C7962B","#2F5D50","#202923"]},"$preview":{"width":1440,"height":900}}'>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832"},"$preview":{"width":1440,"height":900}}'>
 class Component extends DCLogic {
   renderVals() {
     return { accent: this.props.accent ?? '#A24832' };

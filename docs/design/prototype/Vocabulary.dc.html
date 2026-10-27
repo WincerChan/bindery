@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400;1,6..72,600&amp;display=swap">
 <style>
 body{margin:0;background:#E9E6DC}
-a{color:#A24832}a:hover{color:#823624}
+a{color:#A24832}a:hover{color:#202923}
 .rail-nav{display:flex;flex-direction:column;align-items:center;gap:10px}
 mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decoration:underline;text-decoration-color:#A24832;text-decoration-thickness:2px;text-underline-offset:4px}
 @media (max-width: 760px){
@@ -65,7 +65,7 @@ mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decora
       <figure style="flex: 0 1 520px; min-width: 0; margin: 0 24px 0 0; display: flex; flex-direction: column; gap: 18px; padding-left: 40px; border-left: 1px solid #DEDDD2">
         <p style="margin: 0; font-size: 14px; letter-spacing: 0.08em; color: #656D66">最近查的</p>
         <p style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 600; font-size: 64px; line-height: 1; color: #202923">ardent</p>
-        <blockquote style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-size: 21px; line-height: 1.6; color: #2A312C">“In vain I have struggled. It will not do. My feelings will not be repressed. You must allow me to tell you how <mark>ardently</mark> I admire and love you.”</blockquote>
+        <blockquote style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-size: 21px; line-height: 1.6; color: #202923">“In vain I have struggled. It will not do. My feelings will not be repressed. You must allow me to tell you how <mark>ardently</mark> I admire and love you.”</blockquote>
         <figcaption style="font-size: 13px; color: #656D66"><span style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 15px; color: #4B554E">Pride and Prejudice</span> · 书房的 Kindle · 昨天 23:12</figcaption>
       </figure>
     </section>
@@ -108,7 +108,7 @@ mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decora
                 <span role="img" aria-label="{{w.flagLabel}}" title="{{w.flagLabel}}" style="margin-left: auto; align-self: center; width: 8px; height: 8px; box-sizing: border-box; border-radius: 999px; background: {{w.flagFill}}; border: 1.5px solid {{w.flagStroke}}"></span>
               </sc-if>
             </p>
-            <p lang="en" style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-size: 17px; line-height: 1.6; color: #2A312C; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden">{{w.before}}<mark>{{w.raw}}</mark>{{w.after}}</p>
+            <p lang="en" style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-size: 17px; line-height: 1.6; color: #202923; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden">{{w.before}}<mark>{{w.raw}}</mark>{{w.after}}</p>
             <p style="margin: 0; font-size: 13px; color: #656D66"><span lang="en" style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 14px; color: #4B554E">{{w.book}}</span> · {{w.device}} · {{w.when}}</p>
           </li>
         </sc-for>
@@ -118,7 +118,7 @@ mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decora
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832","options":["#A24832","#C7962B","#2F5D50","#202923"]},"$preview":{"width":1440,"height":960}}'>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832"},"$preview":{"width":1440,"height":960}}'>
 class Component extends DCLogic {
   renderVals() {
     var data = [

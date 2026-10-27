@@ -12,10 +12,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
 <style>
 body{margin:0;background:#E9E6DC}
-a{color:#A24832}a:hover{color:#823624}
+a{color:#A24832}a:hover{color:#202923}
 .rail-nav{display:flex;flex-direction:column;align-items:center;gap:10px}
 .reader-body{transition:transform .25s ease, box-shadow .25s ease}
-.reader-link:hover .reader-body,.reader-link:focus-visible .reader-body{transform:rotate(0deg) translateY(-6px) !important;box-shadow:0 2px 4px rgba(32,41,35,0.2),0 52px 70px -26px rgba(20,25,25,0.65) !important}
+.reader-link:hover .reader-body,.reader-link:focus-visible .reader-body{transform:rotate(0deg) translateY(-6px) !important;box-shadow:0 2px 4px rgba(32,41,35,0.2),0 52px 70px -26px rgba(32,41,35,0.65) !important}
 @media (max-width: 760px){
   .rail{flex:1 1 100% !important;flex-direction:row !important;padding:12px 16px !important;border-right:0 !important;border-bottom:1px solid #DEDDD2}
   .rail-nav{flex-direction:row}
@@ -68,12 +68,12 @@ a{color:#A24832}a:hover{color:#823624}
           <div role="img" aria-label="已枚举 1.6 GB：书籍 1.2 GB，字体 86 MB，其他 340 MB" style="display: flex; height: 6px; border-radius: 999px; overflow: hidden; background: #E4E2D8">
             <span style="width: 74%; background: #202923"></span>
             <span style="width: 5%; background: {{accent}}; margin-left: 2px"></span>
-            <span style="width: 21%; background: #B3B7A9; margin-left: 2px"></span>
+            <span style="width: 21%; background: #C8C8BB; margin-left: 2px"></span>
           </div>
           <p style="margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: #656D66; font-variant-numeric: tabular-nums">
             <span><span aria-hidden="true" style="display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: #202923; margin-right: 6px"></span>书籍 1.2 GB</span>
             <span><span aria-hidden="true" style="display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: {{accent}}; margin-right: 6px"></span>字体 86 MB</span>
-            <span><span aria-hidden="true" style="display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: #B3B7A9; margin-right: 6px"></span>其他 340 MB</span>
+            <span><span aria-hidden="true" style="display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: #C8C8BB; margin-right: 6px"></span>其他 340 MB</span>
           </p>
         </div>
         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 6px">
@@ -99,11 +99,11 @@ a{color:#A24832}a:hover{color:#823624}
       <!-- E-reader showing the book in progress -->
       <figure style="flex: 0 1 300px; min-width: 0; margin: 0 40px 0 0; display: flex; flex-direction: column; align-items: center; gap: 16px">
         <a href="DevicesPreview.dc.html" class="reader-link" aria-label="排版预览：用当前方案查看《浮生六记》" style="display: block; text-decoration: none; color: inherit">
-        <div class="reader-body" style="width: 260px; aspect-ratio: 0.72; box-sizing: border-box; padding: 22px 18px 44px; border-radius: 22px; background: #23282A; box-shadow: 0 2px 4px rgba(32,41,35,0.2), 0 40px 60px -26px rgba(20,25,25,0.6); transform: rotate(-2deg)">
-          <div style="height: 100%; box-sizing: border-box; padding: 22px 20px 14px; border-radius: 4px; background: #EDEBE4; display: flex; flex-direction: column; gap: 8px">
-            <p style="margin: 0 0 6px; font-size: 9px; letter-spacing: 0.3em; color: #8A8F88; text-align: center">卷三 · 坎坷记愁</p>
-            <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-size: 11px; line-height: 1.95; text-indent: 2em; text-align: justify; color: #2B302C">人生坎坷何为乎来哉？往往皆自作孽耳，余则非也，多情重诺，爽直不羁，转因之为累。况吾父稼夫公，慷慨豪侠，急人之难，成人之事，嫁人之女，抚人之儿，指不胜屈，挥金如土，多为他人。</p>
-            <p style="margin: auto 0 0; display: flex; justify-content: space-between; font-size: 8px; color: #8A8F88"><span>浮生六记</span><span>42%</span></p>
+        <div class="reader-body" style="width: 260px; aspect-ratio: 0.72; box-sizing: border-box; padding: 22px 18px 44px; border-radius: 22px; background: #23282A; box-shadow: 0 2px 4px rgba(32,41,35,0.2), 0 40px 60px -26px rgba(32,41,35,0.6); transform: rotate(-2deg)">
+          <div style="height: 100%; box-sizing: border-box; padding: 22px 20px 14px; border-radius: 4px; background: #EDEBE4; display: flex; flex-direction: column; gap: 8px; overflow: hidden">
+            <p style="margin: 0 0 6px; font-size: 12px; letter-spacing: 0.3em; color: #656D66; text-align: center">卷三 · 坎坷记愁</p>
+            <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-size: 12px; line-height: 1.95; text-indent: 2em; text-align: justify; color: #202923">人生坎坷何为乎来哉？往往皆自作孽耳，余则非也，多情重诺，爽直不羁，转因之为累。况吾父稼夫公，慷慨豪侠，急人之难，成人之事，嫁人之女，抚人之儿，指不胜屈，挥金如土，多为他人。</p>
+            <p style="margin: auto 0 0; display: flex; justify-content: space-between; font-size: 12px; color: #656D66"><span>浮生六记</span><span>42%</span></p>
           </div>
         </div>
         </a>
@@ -148,9 +148,9 @@ a{color:#A24832}a:hover{color:#823624}
                 <svg width="18" height="30" viewBox="0 0 18 30" aria-hidden="true" style="position: absolute; top: -3px; right: 14px; z-index: 1; filter: drop-shadow(0 2px 2px rgba(32,41,35,0.25))"><path d="M0 0h18v30l-9-6-9 6z" fill="{{accent}}"></path></svg>
               </sc-if>
               <div style="width: 100%; aspect-ratio: 2 / 3; box-sizing: border-box; border-radius: 3px 8px 8px 3px; background: linear-gradient(90deg, rgba(0,0,0,0.18) 0, rgba(255,255,255,0.08) 5px, rgba(0,0,0,0) 12px), {{b.bg}}; box-shadow: 0 1px 2px rgba(32,41,35,0.16), 0 22px 30px -16px rgba(32,41,35,0.45); padding: 16px 14px; display: flex; flex-direction: column; justify-content: space-between; color: {{b.fg}}">
-                <div style="border-top: 1px solid currentColor; opacity: 0.55; padding-top: 6px; font-size: 10px; letter-spacing: 0.25em">{{b.era}}</div>
+                <div style="border-top: 1px solid currentColor; opacity: 0.55; padding-top: 6px; font-size: 12px; letter-spacing: 0.25em">{{b.era}}</div>
                 <div style="font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 24px; line-height: 1.15; writing-mode: vertical-rl; align-self: flex-end; letter-spacing: 0.1em">{{b.title}}</div>
-                <div style="border-bottom: 1px solid currentColor; opacity: 0.55; padding-bottom: 6px; font-size: 10px; letter-spacing: 0.2em">{{b.author}}</div>
+                <div style="border-bottom: 1px solid currentColor; opacity: 0.55; padding-bottom: 6px; font-size: 12px; letter-spacing: 0.2em">{{b.author}}</div>
               </div>
             </a>
             <div aria-hidden="true" style="height: 3px; border-radius: 999px; background: {{b.track}}; overflow: hidden"><div style="width: {{b.pct}}; height: 100%; background: {{accent}}"></div></div>
@@ -166,7 +166,7 @@ a{color:#A24832}a:hover{color:#823624}
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832","options":["#A24832","#C7962B","#2F5D50","#202923"]},"$preview":{"width":1440,"height":1640}}'>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832"},"$preview":{"width":1440,"height":1640}}'>
 class Component extends DCLogic {
   renderVals() {
     var accent = this.props.accent ?? '#A24832';

@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400;1,6..72,600&amp;display=swap">
 <style>
 body{margin:0;background:#E9E6DC}
-a{color:#A24832}a:hover{color:#823624}
+a{color:#A24832}a:hover{color:#202923}
 .rail-nav{display:flex;flex-direction:column;align-items:center;gap:10px}
 mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decoration:underline;text-decoration-color:#A24832;text-decoration-thickness:2px;text-underline-offset:4px}
 @media (max-width: 760px){
@@ -65,7 +65,7 @@ mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decora
           <span style="font-family: 'Noto Serif SC', serif; font-weight: 500; font-size: 17px">默认</span>
           <span style="font-size: 12px; color: #656D66">v2 · 内置 · 入库默认</span>
         </a>
-        <button type="button" style="display: inline-flex; align-items: center; gap: 8px; height: 44px; margin-top: 8px; padding: 0 16px; border: 1px dashed #B3B7A9; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #4B554E; cursor: pointer">
+        <button type="button" style="display: inline-flex; align-items: center; gap: 8px; height: 44px; margin-top: 8px; padding: 0 16px; border: 1px dashed #C8C8BB; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #4B554E; cursor: pointer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
           新建主题
         </button>
@@ -93,7 +93,7 @@ mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decora
               <label id="css-label" for="theme-css" style="font-size: 14px; color: #656D66; letter-spacing: 0.06em">主题 CSS</label>
               <button type="button" style="margin-left: auto; height: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 13px; color: #4B554E">格式化</button>
             </div>
-            <pre id="theme-css" tabindex="0" style="margin: 0; box-sizing: border-box; padding: 22px 24px; border-radius: 20px; background: #ECEAE2; font-family: 'IBM Plex Mono', 'Noto Sans SC', ui-monospace, monospace; font-size: 13px; line-height: 1.85; color: #2A312C; white-space: pre-wrap; overflow: auto"><span style="color: #35674C">body</span> {
+            <pre id="theme-css" tabindex="0" style="margin: 0; box-sizing: border-box; padding: 22px 24px; border-radius: 20px; background: #ECEAE2; font-family: 'IBM Plex Mono', 'Noto Sans SC', ui-monospace, monospace; font-size: 13px; line-height: 1.85; color: #202923; white-space: pre-wrap; overflow: auto"><span style="color: #35674C">body</span> {
   <span style="color: #A24832">font-family</span>: "Source Han Serif SC", serif;
   <span style="color: #A24832">line-height</span>: 1.8;
 }
@@ -116,13 +116,13 @@ mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decora
             </div>
             <figure aria-label="主题预览" style="margin: 8px 0 0; height: 380px; display: flex; border-radius: 4px; box-shadow: 0 2px 4px rgba(32,41,35,0.1), 0 40px 60px -30px rgba(32,41,35,0.5); transform: rotate(-1deg)">
               <div style="flex: 1; min-width: 0; box-sizing: border-box; padding: 40px 24px; background: linear-gradient(270deg, rgba(32,41,35,0.12) 0, rgba(32,41,35,0) 24px), #FBFAF6; border-radius: 4px 0 0 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px">
-                <p style="margin: 0; font-size: 10px; letter-spacing: 0.4em; color: #92998F">卷 一</p>
+                <p style="margin: 0; font-size: 12px; letter-spacing: 0.4em; color: #92998F">卷 一</p>
                 <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 22px; letter-spacing: 0.2em">闺房记乐</p>
                 <span style="width: 24px; height: 1px; background: {{accent}}"></span>
               </div>
               <div style="flex: 1; min-width: 0; box-sizing: border-box; padding: 36px 24px; background: linear-gradient(90deg, rgba(32,41,35,0.10) 0, rgba(32,41,35,0) 20px), #FBFAF6; border-radius: 0 4px 4px 0">
-                <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-size: 12px; line-height: 1.8; text-indent: 2em; text-align: justify; color: #2A312C">余生乾隆癸未冬十一月二十有二日，正值太平盛世，且在衣冠之家，居苏州沧浪亭畔，天之厚我，可谓至矣。东坡云：「事如春梦了无痕」，苟不记之笔墨，未免有辜彼苍之厚。</p>
-                <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-size: 12px; line-height: 1.8; text-indent: 2em; text-align: justify; color: #2A312C">因思《关雎》冠三百篇之首，故列夫妇于首卷，余以次递及焉。所愧少年失学，稍识之无，不过记其实情实事而已。若必考订其文法，是责明于垢鉴矣。</p>
+                <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-size: 12px; line-height: 1.8; text-indent: 2em; text-align: justify; color: #202923">余生乾隆癸未冬十一月二十有二日，正值太平盛世，且在衣冠之家，居苏州沧浪亭畔，天之厚我，可谓至矣。东坡云：「事如春梦了无痕」，苟不记之笔墨，未免有辜彼苍之厚。</p>
+                <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-size: 12px; line-height: 1.8; text-indent: 2em; text-align: justify; color: #202923">因思《关雎》冠三百篇之首，故列夫妇于首卷，余以次递及焉。所愧少年失学，稍识之无，不过记其实情实事而已。若必考订其文法，是责明于垢鉴矣。</p>
               </div>
             </figure>
           </section>
@@ -134,7 +134,7 @@ mark{background:none;color:#202923;font-style:italic;font-weight:600;text-decora
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832","options":["#A24832","#C7962B","#2F5D50","#202923"]},"$preview":{"width":1440,"height":900}}'>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832"},"$preview":{"width":1440,"height":900}}'>
 class Component extends DCLogic {
   renderVals() {
     return { accent: this.props.accent ?? '#A24832' };
