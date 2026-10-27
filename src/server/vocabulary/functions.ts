@@ -9,7 +9,7 @@ export const syncVocabulary = createServerFn({ method: "POST" }).middleware([aut
     return result;
   });
 
-export const listVocabulary = createServerFn({ method: "GET" }).middleware([authenticated]).validator((value: unknown) => value)
+export const listVocabulary = createServerFn({ method: "GET" }).middleware([authenticated]).validator(async (value: unknown) => (await import("./query")).vocabularyQuery(value))
   .handler(async ({ context, data }) => {
     const page = (await import("./query")).listVocabularyPage(context.library, data);
     void (await import("./push")).kickVocabularyPush(context.library);
