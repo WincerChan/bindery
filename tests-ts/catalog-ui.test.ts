@@ -7,6 +7,7 @@ import type { EditorData } from "../src/server/catalog/templates";
 import type { TrackerItem, TrackerPageData } from "../src/server/catalog/tracker";
 import { formatCssText, themePreviewDocument } from "../src/features/catalog/client";
 
+import { allByAttribute, allByRole, byAttribute, byLabel, byName, byRole, byText, parseHtml } from "./support/queries";
 let ui: typeof import("./fixtures/catalog/ui-probe");
 const editor: EditorData = { id: "default", name: "默认规则", version: "1", description: "默认切章规则", raw: '{"name":"<script>"}', saved: false, error: null };
 const wish: TrackerItem = { id: "a".repeat(32), title: "书名<script>", author: "作者", library_book_id: "b".repeat(32), rating: 4, read: false, read_status: "reading", tags: ["科幻"], tags_text: "科幻", comment: "短评", book_status: "completed", created_at: "2026-04-01T10:00:00+00:00", updated_at: "2026-04-01T10:00:00+00:00", updated_at_display: "2026-04-01 10:00", read_status_label: "在读", book_status_label: "已完结", exists_in_library: true, exists_label: "已存在" };
@@ -20,38 +21,67 @@ beforeAll(async () => {
 describe("catalog UI SSR and accessible controls", () => {
   it("renders rule editing, saved-template testing, JSON formatting and protected default deletion", () => {
     const html = ui.editor(editor, "rules");
-    for (const expected of ['id="rule-editor"', 'action="/rules/default/editor"', 'name="config_json"', "格式化", 'action="/rules/test"', 'name="sample"', 'name="rule_template"', "用已保存的规则，输入后自动运行", "粘贴一段文本后", "disabled"]) expect(html).toContain(expected); expect(html).not.toContain('action="/rules/default/delete"');
-    expect(html).toContain("&lt;script>"); expect(html).not.toContain("<script>");
-    expect(html).toMatch(/<label[^>]*for=/); expect(html).toMatch(/<button[^>]*type="submit"/);
+    const root = parseHtml(html);
+    for (const action of ["/rules/default/editor", "/rules/test"]) expect(byAttribute(root, "action", action)).toBeDefined();
+    expect(byName(root, "rule_template").getAttribute("value")).toBe("default");
+    expect(byRole(root, "button", "格式化")).toBeDefined();
+    for (const copy of ["用已保存的规则，输入后自动运行", "粘贴一段文本后"]) expect(root.textContent).toContain(copy);
+    expect(allByAttribute(root, "action", "/rules/default/delete")).toHaveLength(0);
+    expect(byName(root, "config_json").textContent).toContain("<script>"); expect(root.getElementsByTagName("script").length).toBe(0);
+    expect(byLabel(root, "规则 JSON")).toBe(byName(root, "config_json"));
+    expect(byLabel(root, "试切")).toBe(byName(root, "sample"));
+    expect(byRole(root, "button", "保存").getAttribute("type")).toBe("submit");
+    expect(byRole(root, "button", "保存").hasAttribute("disabled")).toBe(true);
   });
   it("renders theme formatting and an isolated preview with a descriptive title", () => {
     const html = ui.editor({ ...editor, raw: "p{color:red}" }, "themes");
-    for (const expected of ['id="theme-editor"', 'action="/themes/default/editor"', 'name="css"', "格式化", "主题 CSS 实时预览", "srcdoc=", "Content-Security-Policy"]) expect(html).toContain(expected);
-    expect(html).toMatch(/<iframe[^>]*\ssandbox(?:="")?(?:\s|>)/);
+    const root = parseHtml(html);
+    expect(byName(byAttribute(root, "action", "/themes/default/editor"), "css")).toBeDefined();
+    expect(byRole(root, "button", "格式化")).toBeDefined();
+    const frame = byAttribute(root, "title", "主题 CSS 实时预览");
+    expect(frame.hasAttribute("sandbox")).toBe(true); expect(frame.getAttribute("sandbox")).toBe("");
+    expect(frame.getAttribute("srcdoc")).toContain("Content-Security-Policy");
     expect(html).not.toContain("<script");
   });
   it("renders template navigation, creation and the shared batch-rebuild form", () => {
     const data = { rules: [{ ...editor, book_count: 0, archived_count: 0 }], themes: [{ ...editor, name: "默认样式", book_count: 0, archived_count: 0 }], tab: "parsing", ruleId: "default", themeId: "default", error: "引用错误", editor };
     const html = ui.rules(data), themeHtml = ui.rules({ ...data, tab: "themes" });
-    for (const expected of ['action="/rules/new"', 'action="/books/regenerate"', 'name="scope" value="parsing"', 'name="template_id" value="default"', 'aria-current="page"', "引用错误", "切章规则", "主题"]) expect(html).toContain(expected);
-    expect(themeHtml).toContain('action="/themes/new"'); expect(themeHtml).toContain('name="scope" value="themes"');
+    const root = parseHtml(html), themes = parseHtml(themeHtml);
+    expect(byAttribute(root, "action", "/rules/new")).toBeDefined();
+    const rebuild = byAttribute(root, "action", "/books/regenerate");
+    expect(byName(rebuild, "scope").getAttribute("value")).toBe("parsing"); expect(byName(rebuild, "template_id").getAttribute("value")).toBe("default");
+    expect(byRole(byRole(root, "navigation", "模板类型"), "link", "切章规则").getAttribute("aria-current")).toBe("page");
+    expect(byRole(root, "alert").textContent).toBe("引用错误"); expect(byRole(root, "link", "主题")).toBeDefined();
+    expect(byAttribute(themes, "action", "/themes/new")).toBeDefined(); expect(byName(themes, "scope").getAttribute("value")).toBe("themes");
   });
   it("renders escaped TOC counts and empty results", () => {
     expect(ui.preview(null)).toContain("粘贴一段文本后");
-    const html = ui.preview({ volumes: 1, chapters: 2, toc: ["<img src=x>", "第二章"] }); expect(html).toContain("识别出"); expect(html).toContain("卷 · "); expect(html).toContain("&lt;img"); expect(html).toContain("第二章");
+    const root = parseHtml(ui.preview({ volumes: 1, chapters: 2, toc: ["<img src=x>", "第二章"] }));
+    expect(root.textContent).toContain("识别出 1 卷 · 2 章");
+    expect(allByRole(root, "listitem").map(item => item.textContent)).toEqual(["<img src=x>", "第二章"]); expect(allByRole(root, "img")).toHaveLength(0);
   });
   it("renders tracker filtering, export, detail return URL, edit/delete and pagination", () => {
     const html = ui.tracker(tracker);
-    for (const expected of ['action="/tracker"', 'method="get"', 'name="q"', 'name="read_filter"', 'name="library_filter"', 'name="book_status_filter"', "导出 CSV", "添加书籍", "编辑", 'class="catalog-tracker-book"', "return_to=%2Ftracker%3Fq%3D", "更新", "上一页", 'aria-label="分页"', 'action="/tracker/' + wish.id + '/delete"', "点此前往编辑该条目。"]) expect(html).toContain(expected);
-    expect(html).toContain("书名&lt;script>"); expect(html).not.toContain("<script>");
+    const root = parseHtml(html), filter = byAttribute(root, "action", "/tracker");
+    expect(filter.getAttribute("method")).toBe("get");
+    for (const name of ["q", "read_filter", "library_filter", "book_status_filter"]) expect(byName(filter, name)).toBeDefined();
+    expect(byRole(root, "link", "导出 CSV").getAttribute("href")).toBe(tracker.export_url);
+    for (const name of ["添加书籍", "编辑", "点此前往编辑该条目。"]) expect(byRole(root, "button", name)).toBeDefined();
+    expect(byText(root, "更新")).toBeDefined(); expect(byRole(byRole(root, "navigation", "分页"), "link", "上一页")).toBeDefined();
+    expect(byAttribute(root, "action", `/tracker/${wish.id}/delete`)).toBeDefined();
+    expect(byRole(root, "link", /书名<script>.*打开书库详情/).getAttribute("href")).toBe(`/book/${wish.library_book_id}?return_to=${encodeURIComponent(tracker.current_url)}`);
+    expect(root.textContent).toContain("书名<script>"); expect(root.getElementsByTagName("script").length).toBe(0);
     expect(ui.tracker({ ...tracker, wishes: [] })).toContain("没有符合筛选条件的书籍。");
   });
   it("renders all tracker form fields, completed/unread defaults and immutable linked identity", () => {
     const html = ui.form();
-    for (const field of ["title", "author", "tags", "rating", "comment", "library_book_id", "read_status", "book_status", "next"]) expect(html).toContain(`name="${field}"`);
+    for (const field of ["title", "author", "tags", "rating", "comment", "library_book_id", "read_status", "book_status", "next"]) expect(byName(parseHtml(html), field)).toBeDefined();
     for (const label of ["书名", "作者", "状态", "评分", "阅读状态", "未读", "在读", "已读", "更新中", "已断更", "已完结"]) expect(html).toContain(label);
-    expect(html).toContain('value="completed" selected'); expect(html).toContain('value="unread" selected');
-    const linked = ui.form(wish); expect(linked).toContain('action="/tracker/' + wish.id + '/update"'); expect(linked).toContain("readonly"); expect(linked).toContain("已入库条目的书名/作者由书库元数据维护");
+    const root = parseHtml(html);
+    for (const [name, value] of [["book_status", "completed"], ["read_status", "unread"]]) expect(byAttribute(byName(root, name!), "value", value).hasAttribute("selected")).toBe(true);
+    const linked = parseHtml(ui.form(wish)); expect(byAttribute(linked, "action", `/tracker/${wish.id}/update`)).toBeDefined();
+    for (const name of ["title", "author"]) expect(byName(linked, name).hasAttribute("readonly")).toBe(true);
+    expect(linked.textContent).toContain("已入库条目的书名/作者由书库元数据维护");
   });
 });
 describe("theme formatting and preview safety", () => {

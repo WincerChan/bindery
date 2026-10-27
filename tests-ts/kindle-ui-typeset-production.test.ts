@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
+import { allByRole, byLabel, byRole, parseHtml } from "./support/queries";
 import { signIn } from "../src/server/auth";
 import { epubPath } from "../src/server/storage";
 import { obfuscatedEpub } from "./fixtures/reader/obfuscated";
@@ -29,22 +30,19 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       const get = (path, auth = true, method = "GET") => handler(new Request("http://localhost" + path, { method, headers: { Cookie: auth ? "bindery_session=" + session : "" } }));
       const book = JSON.parse(readFileSync(join(root, "typeset-paths.json"), "utf8"));
       const encodePath = path => path.split("/").map(part => encodeURIComponent(part).replace(/[!'()*~]/g, ch => "%" + ch.charCodeAt(0).toString(16).toUpperCase())).join("/");
+      const pages = {};
       for (const page of ["/devices/preview?book=" + bookId, "/devices/fonts"]) {
         assert.equal((await get(page, false)).status, 303);
         const response = await get(page); assert.equal(response.status, 200); const html = await response.text();
         assert.match(html, /检测中/); assert.doesNotMatch(html, /allow-scripts|srcdoc=/); assert.ok(!html.includes(root));
+        pages[page.includes("preview") ? "preview" : "fonts"] = html;
         assert.match(html, page.includes("preview") ? /Kindle 章节排版预览/ : /字体管理/);
         if (page.includes("preview")) {
           assert.ok(html.includes("/book/" + bookId + "/epub/" + encodePath(book.paths[0])), "iframe member path must round-trip");
-          assert.match(html, /aria-label="预览翻页"/); assert.match(html, /aria-live="polite"/);
-          assert.match(html, /上一页/); assert.match(html, /下一页/); assert.match(html, /正在分页/);
           assert.match(html, /实测：Kindle Paperwhite 3 窄边距、Kobo Libra 2 最小边距/);
-          assert.match(html, /class="kt-preview kt-preview-sticky"/);
-          assert.ok(html.includes('<details class="kt-calibration"><summary>校准说明</summary>'));
           // The built-in profile is editable and can be sent without being saved as a profile.
-          assert.match(html, /id="kt-marginX"/); assert.match(html, /class="kt-checkboxes"/); assert.match(html, /class="kt-advanced"/);
-          assert.match(html, /调整后可直接发送，不必保存为方案/); assert.match(html, />另存为方案</);
-          assert.doesNotMatch(html, /默认方案只使用书籍自带样式|要调整边距、行高等，请新建方案|>新建方案<|>保存方案</);
+          assert.match(html, /调整后可直接发送，不必保存为方案/);
+          assert.doesNotMatch(html, /默认方案只使用书籍自带样式|要调整边距、行高等，请新建方案/);
           assert.doesNotMatch(html, /收窄到约 1 字边距|负值收窄 Kindle 自身页边距|设备默认字体（保留书籍字体样式）/);
         }
       }
@@ -100,10 +98,24 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       assert.equal((await result(await rpc("listTypesetProfiles", "GET"))).length, 2);
       await result(await rpc("deleteTypesetProfile", "POST", { id: created.id }));
       assert.equal((await result(await rpc("listTypesetProfiles", "GET"))).length, 1);
-      writeFileSync(join(root, "typeset-result.json"), JSON.stringify({ ok: true }));
+      writeFileSync(join(root, "typeset-result.json"), JSON.stringify({ ok: true, pages }));
       } finally { await handler.shutdown(); }
     `);
     await promisify(execFile)(process.execPath, [script, fixture.root, fixture.id, signIn(fixture.library.db), resolve("dist/server")], { timeout: 20000 });
-    expect(JSON.parse(readFileSync(join(fixture.root, "typeset-result.json"), "utf8"))).toEqual({ ok: true });
+    const result = JSON.parse(readFileSync(join(fixture.root, "typeset-result.json"), "utf8"));
+    expect(result.ok).toBe(true);
+    const preview = parseHtml(result.pages.preview);
+    expect(byRole(preview, "region", "设备预览")).toBeDefined();
+    expect(byRole(preview, "button", "校准说明")).toBeDefined();
+    expect(byLabel(preview, /^左右边距/).hasAttribute("disabled")).toBe(false);
+    expect(byRole(preview, "group", "正文样式")).toBeDefined();
+    expect(byRole(preview, "button", "更多设置")).toBeDefined();
+    expect(byRole(preview, "button", "另存为方案")).toBeDefined();
+    for (const name of ["新建方案", "保存方案"]) expect(allByRole(preview, "button", name)).toHaveLength(0);
+    const paging = byRole(preview, "group", "预览翻页");
+    for (const name of ["上一页", "下一页"]) expect(byRole(paging, "button", name)).toBeDefined();
+    const status = byRole(paging, "status");
+    expect(status.getAttribute("aria-live")).toBe("polite");
+    expect(status.textContent).toContain("正在分页");
   } finally { fixture.cleanup(); }
 });

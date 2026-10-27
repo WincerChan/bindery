@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
+import { allByAttribute, byRole, parseHtml } from "./support/queries";
 
 it.runIf(existsSync("dist/server/server.js"))("serves neutral Kindle SSR and authenticated profile RPC CRUD through the production handler without sockets", async () => {
   const directory = await mkdtemp(join(tmpdir(), "bindery-kindle-ui-production-"));
@@ -45,11 +46,11 @@ for (const [name, data, method] of [['listTypesetProfiles', undefined, 'GET'], [
 }
 const login = await request('/login', { method: 'POST', body: new URLSearchParams({ password: 'kindle-ui-password' }) });
 assert.equal(login.status, 303); cookie = login.headers.getSetCookie()[0].split(';', 1)[0];
+const pages = {};
 for (const path of ['/devices', '/devices/connect', '/devices/transfer']) {
   const response = await request(path); assert.equal(response.status, 200, path); assert.equal(response.headers.get('cache-control'), 'no-store');
   const html = await response.text(); assert.match(html, /检测中…/); assert.doesNotMatch(html, /此页面正在实现|服务器内部错误/);
-  if (path === '/devices') { assert.match(html, /aria-label="设备书籍"/); assert.doesNotMatch(html, new RegExp('<h2[^>]*>书籍</h2>')); assert.match(html, /kindle-book-table/); assert.match(html, /btn-quiet-danger/); }
-  if (path.endsWith('connect')) { assert.match(html, /kindle-connect-page/); assert.match(html, new RegExp('<h1[^>]*>连接你的设备</h1>')); assert.doesNotMatch(html, /data-kindle-device-bar|aria-label="Kindle 管理"/); }
+  pages[path] = html;
   if (path.endsWith('transfer')) { assert.match(html, /GNU GENERAL PUBLIC LICENSE/); assert.match(html, /crates.io\\/api\\/v1\\/crates\\/boko\\/0.5.0\\/download/); }
 }
 async function result(name, data, method = 'GET') { const response = await rpc(name, data, method); assert.equal(response.status, 200, name); return (await response.json()).result; }
@@ -59,12 +60,20 @@ const updated = await result('updateTypesetProfile', { ...profile, id: created.i
 assert.equal((await result('listTypesetProfiles')).length, 2);
 await result('deleteTypesetProfile', { id: created.id }, 'POST');
 assert.equal((await result('listTypesetProfiles')).length, 1);
-await writeFile(join(root, 'result.txt'), 'Kindle production checks passed');
+await writeFile(join(root, 'result.json'), JSON.stringify(pages));
 } finally { await handler.shutdown(); }
 `;
   try {
     const filename = join(directory, "check.mjs"); await writeFile(filename, code);
     const result = await promisify(execFile)(process.execPath, [filename], { timeout: 20000, maxBuffer: 1_000_000 });
-    expect(await readFile(join(directory, "result.txt"), "utf8"), result.stderr).toBe("Kindle production checks passed");
+    const pages = JSON.parse(await readFile(join(directory, "result.json"), "utf8")) as Record<string, string>;
+    expect(Object.keys(pages), result.stderr).toEqual(["/devices", "/devices/connect", "/devices/transfer"]);
+    const books = parseHtml(pages["/devices"]!), connection = parseHtml(pages["/devices/connect"]!);
+    expect(byRole(books, "region", "设备书籍")).toBeDefined();
+    expect(byRole(books, "button", "删除所选（0）").hasAttribute("disabled")).toBe(true);
+    expect(byRole(books, "table")).toBeDefined();
+    expect(byRole(connection, "heading", "连接你的设备")).toBeDefined();
+    expect(allByAttribute(connection, "data-kindle-device-bar")).toHaveLength(0);
+    expect(allByAttribute(connection, "aria-label", "Kindle 管理")).toHaveLength(0);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

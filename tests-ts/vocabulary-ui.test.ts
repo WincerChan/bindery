@@ -7,6 +7,7 @@ import { listVocabularyPage } from "../src/server/vocabulary/query";
 import { syncVocabulary } from "../src/server/vocabulary/sync";
 import type { LexiTraceSettingsView } from "../src/server/vocabulary/settings";
 import { createBook, temporaryLibrary } from "./fixtures/library/support";
+import { byLabel, byRole, parseHtml } from "./support/queries";
 
 const bookId = (value: string) => value.repeat(32).slice(0, 32);
 function item(patch: Partial<VocabularyItem> = {}): VocabularyItem {
@@ -32,8 +33,8 @@ describe("生词本 UI", () => {
       item({ id: "00000000-0000-4000-8000-000000000002", word: "conflict", push_state: "conflict", push_status: { http: 409, retryable: false } }),
       item({ id: "00000000-0000-4000-8000-000000000003", word: "failed", push_state: "error", push_status: { http: 503, attempts: 3, retryable: true } }),
     ];
-    const html = ui.page(items, settings), text = html.replace(/<!--[\s\S]*?-->/g, "");
-    expect(text).toContain("生词本");
+    const html = ui.page(items, settings), root = parseHtml(html), text = root.textContent;
+    expect(byRole(root, "region", "生词本")).toBeDefined();
     expect(text).toContain("brag");
     expect(text).toContain("He likes to brag.");
     expect(text).toContain("Before.");
@@ -43,7 +44,8 @@ describe("生词本 UI", () => {
     expect(text).toContain("失败");
     expect(text).toContain("HTTP 503");
     expect(text).toContain("已保存令牌");
-    expect(html).toContain("type=\"password\"");
+    const token = byLabel(root, /^访问令牌/);
+    expect(token.getAttribute("type")).toBe("password"); expect(token.getAttribute("value") ?? "").toBe("");
     expect(html).not.toContain("secret-token");
     expect(text).toContain("重试全部失败");
     expect(text).toContain("全部设备（3）");
