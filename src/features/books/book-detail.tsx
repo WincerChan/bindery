@@ -2,249 +2,116 @@ import { createSignal, For, Show } from "solid-js";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
 import { mutateBook } from "./mutations";
-import { BookCover, Button, ConfirmDialog, LocalTime, Select } from "../../ui";
+import { BackLink, BookCover, Button, ConfirmDialog, LocalTime, ProgressBar, SectionTitle, SelectPill } from "../../ui";
 import type { BookPage } from "../../server/books/service";
 import { BookEditor } from "./book-editor";
+import { sectionUrl } from "../reader/model";
+import { devicePreviewHref } from "../library/search";
 
 export function durationLabel(seconds: number | null | undefined): string | null {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return null;
   if (seconds < 60) return "不到 1 分钟";
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `约 ${Math.max(1, minutes)} 分钟`;
-  // Reading time, not calendar time: stay in hours like Kobo does.
   return `约 ${Math.ceil(minutes / 60)} 小时`;
 }
-
+/** "卷三 · 坎坷记愁" → "卷三"; the section index is a spine position, not a volume number. */
+export function resumeLabel(title: string | null | undefined): string | null {
+  const head = (title || "").trim().split(/[\s·・:：|｜—–-]+/)[0] || "";
+  return head && head.length <= 12 && !/^(位置未知|未知章节)$/.test(head) ? head : null;
+}
+export function bookExtent(book: BookPage["book"]): [string, string] | null {
+  if (book.word_count !== null && book.word_count > 0) return ["字数", `约 ${Math.max(0.1, Math.round(book.word_count / 1000) / 10)} 万字`];
+  if (book.file_size !== null && book.file_size > 0) return ["文件大小", book.file_size >= 1048576 ? `${(book.file_size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(book.file_size / 1024))} KB`];
+  return null;
+}
 export function BookDetail(props: { page: BookPage }) {
   const [saved, setSaved] = createSignal<{ source: BookPage; value: BookPage } | null>(null);
   const page = () => saved()?.source === props.page ? saved()!.value : props.page;
   const mutation = useMutation();
-  const [editing, setEditing] = createSignal(false),
-    [deleting, setDeleting] = createSignal(false);
-  let deleteForm!: HTMLFormElement;
+  const [editing, setEditing] = createSignal(false), [deleting, setDeleting] = createSignal(false), [archiving, setArchiving] = createSignal(false);
+  const [rule, setRule] = createSignal<string | null>(null);
+  let deleteForm!: HTMLFormElement, archiveForm!: HTMLFormElement, regenerateForm!: HTMLFormElement, management!: HTMLDetailsElement;
+  const book = () => page().book, nav = () => page().navigation;
+  const latest = () => [...(page().reading_progress || [])].sort((a, b) => Date.parse(b.read_at) - Date.parse(a.read_at))[0];
+  const section = () => { const value = latest()?.section; return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null; };
+  const readingHref = () => section() === null ? nav().preview_url : sectionUrl(book().book_id, section()!, nav().return_to, { resume: "1" });
+  const readingLabel = () => {
+    const label = section() !== null ? resumeLabel(latest()?.section_title) : null;
+    return label ? `从${label}接着读 ↗` : latest() ? "继续阅读 ↗" : "开始阅读 ↗";
+  };
   async function perform(action: "read" | "archive" | "delete" | "regenerate", form: HTMLFormElement) {
     const data = new FormData(form); data.set("book_id", book().book_id); data.set("action", action);
     await mutation.run(() => mutateBook({ data }), async result => {
-      setDeleting(false);
+      setDeleting(false); setArchiving(false);
       if (result.target) await mutation.router.navigate({ href: result.target });
       await mutation.router.invalidate();
     }, action === "read" ? "已更新阅读状态" : action === "archive" ? "已归档" : action === "delete" ? "已删除" : "已创建重建任务", action === "delete");
   }
-  const book = () => page().book,
-    nav = () => page().navigation;
   const specs = () => [
-    ["系列", book().series],
-    ["出版社", book().publisher],
-    ["出版日期", book().published?.slice(0, 10)],
-    ["ISBN", book().isbn],
-    ["标签", book().tags.join("、")],
-    ["来源", book().source_type === "epub" ? "EPUB 直接入库" : "TXT"],
-    ["规则模板", book().rule_template],
-    ["状态", book().status_label],
-  ];
-  return (
-    <article class="books-page">
-      <nav class="books-breadcrumb" aria-label="路径">
-        <Link href={nav().return_to}>书库</Link>
-        <span aria-hidden="true">/</span>
-        <span>{book().title}</span>
-      </nav>
-      <Show
-        when={editing()}
-        fallback={
-          <>
-            <div id="meta-panel" class="books-detail">
-              <div class="books-cover">
-                <BookCover
-                  book_id={book().book_id}
-                  title={book().title}
-                  author={book().author}
-                  cover_url={book().cover_url}
-                  eager
-                />
-                <small>
-                  {book().source_type.toUpperCase()} · 更新{" "}
-                  {book().updated_at.slice(0, 10)}
-                </small>
-              </div>
-              <header class="books-heading">
-                <span class="books-eyebrow">书目</span>
-                <h1>{book().title}</h1>
-                <Show when={book().series}>
-                  <p>{book().series}</p>
-                </Show>
-                <div class="books-byline">
-                  <span>{book().author || "未知"}</span>
-                  <span>{book().language}</span>
-                  <span aria-label={`评分 ${book().rating ?? "未评分"}`}>
-                    {book().rating === null
-                      ? "未评分"
-                      : `${"★".repeat(book().rating!)}${"☆".repeat(5 - book().rating!)}`}
-                  </span>
-                  <span aria-label="阅读状态">
-                    {book().read ? "✓ 已读" : "未读"}
-                  </span>
-                </div>
-              </header>
-              <div class="books-actions">
-                <Link class="btn btn-primary" href={nav().preview_url}>
-                  阅读
-                </Link>
-                <a
-                  class="btn btn-secondary"
-                  href={`/book/${book().book_id}/download`}
-                >
-                  下载 EPUB
-                </a>
-                <form action={`/book/${book().book_id}/read`} method="post" onSubmit={event => { event.preventDefault(); void perform("read", event.currentTarget); }}>
-                  <input
-                    type="hidden"
-                    name="read"
-                    value={book().read ? "0" : "1"}
-                  />
-                  <input type="hidden" name="next" value={nav().detail_url} />
-                  <Button type="submit" variant="secondary" disabled={mutation.busy()}>
-                    {book().read ? "标记未读" : "标记已读"}
-                  </Button>
-                </form>
-                <Link
-                  class="btn btn-secondary"
-                  href={nav().edit_url}
-                  onClick={(event) => {
-                    if (!event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
-                      event.preventDefault(); setEditing(true);
-                    }
-                  }}
-                >
-                  编辑
-                </Link>
-                <form action={`/book/${book().book_id}/archive`} method="post" onSubmit={event => { event.preventDefault(); void perform("archive", event.currentTarget); }}>
-                  <input type="hidden" name="next" value={nav().return_to} />
-                  <Button type="submit" variant="quiet" disabled={mutation.busy()}>
-                    归档
-                  </Button>
-                </form>
-              </div>
-              <div class="books-body">
-                <dl class="books-spec">
-                  <For each={specs()}>
-                    {(item) => (
-                      <div>
-                        <dt>{item[0]}</dt>
-                        <dd>{item[1] || "—"}</dd>
-                      </div>
-                    )}
-                  </For>
-                  <For
-                    each={[
-                      ["入库时间", book().created_at],
-                      ["更新时间", book().updated_at],
-                    ]}
-                  >
-                    {(item) => (
-                      <Show when={item[1]}>
-                        <div>
-                          <dt>{item[0]}</dt>
-                          <dd>
-                            <time
-                              datetime={item[1]}
-                              title={item[1].slice(0, 19).replace("T", " ")}
-                            >
-                              {item[1].slice(0, 16).replace("T", " ")}
-                            </time>
-                          </dd>
-                        </div>
-                      </Show>
-                    )}
-                  </For>
-                </dl>
-                <Show when={page().reading_progress?.length}>
-                  <section class="books-progress" aria-labelledby="reading-progress-heading">
-                    <h2 id="reading-progress-heading">阅读进度</h2>
-                    <ul><For each={page().reading_progress}>{item => <li data-reading-progress>
-                      <div class="books-progress-head"><strong>{item.source_label}</strong><Show when={item.latest}><span class="books-progress-latest">最新</span></Show></div>
-                      <p class="books-progress-position">{item.section_title}{item.percent === null ? "" : ` · ${item.percent}%`}</p>
-                      <p class="books-progress-meta">上次阅读 <LocalTime value={item.read_at} />{durationLabel(item.time_spent_seconds) ? ` · 用时 ${durationLabel(item.time_spent_seconds)}` : ""}{durationLabel(item.rest_estimate_seconds) ? ` · 剩余 ${durationLabel(item.rest_estimate_seconds)}` : ""}</p>
-                    </li>}</For></ul>
-                  </section>
-                </Show>
-                <Show when={book().description}>
-                  <section class="books-description">
-                    <h2>简介</h2>
-                    <p>{book().description}</p>
-                  </section>
-                </Show>
-              </div>
+    ["系列", book().series], ["出版社", book().publisher], ["出版日期", book().published?.slice(0, 10)],
+    ["ISBN", book().isbn], bookExtent(book()), ["标签", book().tags.join("、")], ["入库时间", book().created_at?.slice(0, 10)],
+  ].filter((item): item is [string, string] => Boolean(item?.[1]));
+  function retry() {
+    management.open = true;
+    regenerateForm?.scrollIntoView?.({ block: "center", behavior: "auto" });
+    regenerateForm?.querySelector<HTMLSelectElement>("select")?.focus();
+  }
+  return <article class="books-page">
+    <BackLink href={nav().return_to}>书库</BackLink>
+    <Show when={editing()} fallback={<>
+      <div id="meta-panel" class="books-detail">
+        <div class="books-cover"><BookCover {...book()} large eager state={book().status_class === "failed" ? "failed" : book().read ? "read" : undefined} onRetry={book().status_class === "failed" && book().can_regenerate ? retry : undefined} /></div>
+        <div class="books-identity">
+          <header class="books-heading"><h1>{book().title}</h1>
+            <div class="books-byline">
+              <Show when={book().author}><span>{book().author}</span></Show>
+              <Show when={book().language}><span>{book().language}</span></Show>
+              <Show when={book().rating !== null}><span class="books-stars" aria-label={`评分 ${book().rating} 星`}>{"★".repeat(book().rating || 0)}{"☆".repeat(5 - (book().rating || 0))}</span></Show>
             </div>
-            <div class="books-bottom">
-              <Show when={book().can_regenerate}>
-                <section>
-                  <h2>重新生成</h2>
-                  <p>切换规则模板重新切章与生成 EPUB。</p>
-                  <form
-                    class="inline-form"
-                    action={`/book/${book().book_id}/regenerate`}
-                    method="post"
-                    onSubmit={event => { event.preventDefault(); void perform("regenerate", event.currentTarget); }}
-                  >
-                    <input type="hidden" name="next" value={nav().detail_url} />
-                    <Select
-                      label="规则模板"
-                      name="rule_template"
-                      value={book().rule_template || "default"}
-                    >
-                      <For each={page().rules}>
-                        {(rule) => (
-                          <option value={rule.rule_id}>
-                            {rule.name} · v{rule.version}
-                          </option>
-                        )}
-                      </For>
-                    </Select>
-                    <Button type="submit" variant="secondary" disabled={mutation.busy()}>
-                      重新生成 EPUB
-                    </Button>
-                  </form>
-                </section>
-              </Show>
-              <section>
-                <h2>永久删除</h2>
-                <p>移除源文件、EPUB 与全部记录，无法恢复。</p>
-                <form
-                  ref={deleteForm}
-                  action={`/book/${book().book_id}/delete`}
-                  method="post"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    setDeleting(true);
-                  }}
-                >
-                  <input type="hidden" name="next" value={nav().return_to} />
-                  <Button type="submit" variant="danger" disabled={mutation.busy()}>
-                    永久删除
-                  </Button>
-                </form>
-              </section>
-            </div>
-            <ConfirmDialog
-              open={deleting()}
-              title="确定要永久删除这本书吗？"
-              danger
-              confirmLabel="永久删除"
-              onClose={() => { if (!mutation.busy()) setDeleting(false); }}
-              onConfirm={() => perform("delete", deleteForm)}
-            >
-              <p>移除源文件、EPUB 与全部记录，无法恢复。</p>
-            </ConfirmDialog>
-          </>
-        }
-      >
-        <BookEditor
-          page={page()}
-          onCancel={() => setEditing(false)}
-          onSaved={updated => { setSaved({ source: props.page, value: updated }); setEditing(false); }}
-        />
-      </Show>
-    </article>
-  );
+          </header>
+          <Show when={book().description}><p class="books-description">{book().description}</p></Show>
+          <Show when={book().status_class === "failed"}><p role="status" class="books-failure">生成失败。<Show when={book().can_regenerate} fallback={<>请在编辑中检查书籍，重新保存并写回。</>}><Button variant="quiet-danger" onClick={retry}>检查规则并重试</Button></Show></p></Show>
+          <Show when={latest()}>{item => <section class="books-progress" aria-label="阅读进度" data-reading-progress>
+            <p>在{item().source_label}上读到 <strong>{item().section_title}</strong>{item().percent === null ? "" : ` · ${item().percent}%`}</p>
+            <Show when={item().percent !== null}><ProgressBar label="全书阅读进度" value={item().percent!} /></Show>
+            <p class="books-progress-meta">上次阅读 <LocalTime value={item().read_at} />{durationLabel(item().time_spent_seconds) ? ` · 用时 ${durationLabel(item().time_spent_seconds)}` : ""}{durationLabel(item().rest_estimate_seconds) ? ` · 剩余 ${durationLabel(item().rest_estimate_seconds)}` : ""}</p>
+          </section>}</Show>
+          <div class="books-actions">
+            <Link class="btn btn-primary btn-lg books-continue" href={readingHref()}>{readingLabel()}</Link>
+            <Link class="btn btn-icon btn-lg books-desktop-action" href={devicePreviewHref(book().book_id)} aria-label="设备预览" title="设备预览"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18H6zM10 18h4" stroke="currentColor" stroke-width="1.6" /></svg></Link>
+            <a class="btn btn-icon btn-lg" href={`/book/${book().book_id}/download`} aria-label="下载 EPUB" title="下载 EPUB"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke="currentColor" stroke-width="1.6" /></svg></a>
+            <Link class="btn btn-icon btn-lg" href={nav().edit_url} aria-label="编辑书目信息" title="编辑" onClick={event => { if (!event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setEditing(true); } }}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" stroke="currentColor" stroke-width="1.6" /></svg></Link>
+            <form action={`/book/${book().book_id}/read`} method="post" onSubmit={event => { event.preventDefault(); void perform("read", event.currentTarget); }}>
+              <input type="hidden" name="read" value={book().read ? "0" : "1"} /><input type="hidden" name="next" value={nav().detail_url} />
+              <Button type="submit" variant="secondary" disabled={mutation.busy()}>{book().read ? "标记未读" : "标记已读"}</Button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <section class="books-about" aria-labelledby="books-about-title"><SectionTitle id="books-about-title">关于这本书</SectionTitle><dl class="books-spec"><For each={specs()}>{item => <div><dt>{item[0]}</dt><dd>{item[1]}</dd></div>}</For></dl></section>
+      <details class="books-management" ref={management}>
+        <summary>管理这本书 <span>重新生成、归档或删除</span></summary>
+        <Show when={book().can_regenerate}><section class="books-management-row">
+          <div><h2>重新生成</h2><p>换一条切章规则，重新切章并生成 EPUB。</p></div>
+          <form ref={regenerateForm} action={`/book/${book().book_id}/regenerate`} method="post" onSubmit={event => { event.preventDefault(); void perform("regenerate", event.currentTarget); }}>
+            <input type="hidden" name="next" value={nav().detail_url} />
+            <SelectPill label="规则模板" name="rule_template" value={rule() || book().rule_template || "default"} onChange={setRule} options={page().rules.map(rule => ({ value: rule.rule_id, label: `${rule.name} · v${rule.version}` }))} />
+            <Button type="submit" variant="secondary" disabled={mutation.busy()}>重新生成 EPUB</Button>
+          </form>
+        </section></Show>
+        <section class="books-management-row"><div><h2>归档</h2><p>从书库里收起来，随时可以在「已归档」里恢复。</p></div>
+          <form ref={archiveForm} action={`/book/${book().book_id}/archive`} method="post" onSubmit={event => { event.preventDefault(); setArchiving(true); }}><input type="hidden" name="next" value={nav().return_to} /><Button type="submit" variant="secondary" disabled={mutation.busy()}>归档</Button></form>
+        </section>
+        <section class="books-management-row"><div><h2 class="books-danger">永久删除</h2><p>源文件、EPUB 和全部记录一起删掉，无法恢复。</p></div>
+          <form ref={deleteForm} action={`/book/${book().book_id}/delete`} method="post" onSubmit={event => { event.preventDefault(); setDeleting(true); }}><input type="hidden" name="next" value={nav().return_to} /><Button type="submit" variant="quiet-danger" disabled={mutation.busy()}>永久删除</Button></form>
+        </section>
+        <dl class="books-spec books-technical"><div><dt>来源</dt><dd>{book().source_type === "epub" ? "EPUB 直接入库" : "TXT"}</dd></div><div><dt>状态</dt><dd>{book().status_label}</dd></div><Show when={book().updated_at}><div><dt>更新时间</dt><dd><LocalTime value={book().updated_at} /></dd></div></Show></dl>
+      </details>
+      <ConfirmDialog open={archiving()} title="归档这本书？" confirmLabel="归档" onClose={() => setArchiving(false)} onConfirm={() => perform("archive", archiveForm)}>归档后可在书库「已归档」中恢复。</ConfirmDialog>
+      <ConfirmDialog open={deleting()} title="确定要永久删除这本书吗？" danger confirmLabel="永久删除" onClose={() => { if (!mutation.busy()) setDeleting(false); }} onConfirm={() => perform("delete", deleteForm)}><p>移除源文件、EPUB 与全部记录，无法恢复。</p></ConfirmDialog>
+    </>}>
+      <BookEditor page={page()} onCancel={() => setEditing(false)} onSaved={updated => { setSaved({ source: props.page, value: updated }); setEditing(false); }} />
+    </Show>
+  </article>;
 }

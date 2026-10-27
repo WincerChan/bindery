@@ -86,7 +86,8 @@ try {
   const nav = html.match(/aria-label="主导航"[^>]*>([\s\S]*?)<\/nav>/)[1];
   assert.deepEqual([...nav.matchAll(/<a\b[^>]*class="nav-link[^>]*>/g)].map(m => /href="([^"]+)"/.exec(m[0])[1]), ["/", "/ingest", "/tracker", "/vocabulary", "/devices"]);
   assert.match(html, /href="\/settings"[^>]*class="nav-link rail-settings/);
-  assert.doesNotMatch(html, /settings-dropdown|more-sheet|role="menu"/);
+  assert.doesNotMatch(html, /settings-dropdown|more-sheet/);
+  assert.doesNotMatch(nav, /role="menu"/);
   const mobile = html.match(/aria-label="手机导航"[^>]*>([\s\S]*?)<\/nav>/)[1];
   assert.deepEqual([...mobile.matchAll(/href="([^"]+)"/g)].map(m => m[1]), ["/", "/ingest", "/tracker", "/vocabulary", "/settings"]);
   assert.doesNotMatch(nav + mobile, /href="\/(jobs|archive)"/);

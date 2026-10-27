@@ -71,10 +71,11 @@ describe("book detail and edit SSR", () => {
     const root = parseHtml(ui.detail(page()));
     for (const suffix of ["read", "archive", "delete", "regenerate"]) expect(byAttribute(root, "action", `/book/${"a".repeat(32)}/${suffix}`).getAttribute("method")).toBe("post");
     expect(byRole(root, "link", "下载 EPUB").getAttribute("href")).toBe(`/book/${"a".repeat(32)}/download`);
-    expect(byRole(root, "link", "阅读").getAttribute("href")).toContain("/preview/0?resume=1&return_to=");
+    expect(byRole(root, "link", "开始阅读 ↗").getAttribute("href")).toContain("/preview/0?resume=1&return_to=");
     expect(byRole(root, "heading", "示例书<&>")).toBeDefined();
-    expect(byAttribute(root, "aria-label", "阅读状态").textContent).toContain("已读");
-    expect(byRole(root, "button", "标记未读")).toBeDefined(); expect(byRole(root, "link", "编辑")).toBeDefined();
+    expect(byRole(root, "img").getAttribute("aria-label")).toContain("已读");
+    expect(byRole(root, "button", "标记未读")).toBeDefined(); expect(byRole(root, "link", "编辑书目信息")).toBeDefined();
+    expect(byRole(root, "link", "书库").getAttribute("href")).toBe("/?q=书&page=2");
   });
   it("shows specifications, dates and description without cover controls or identifier", () => {
     const html = ui.detail(page());
@@ -91,7 +92,7 @@ describe("book detail and edit SSR", () => {
       "状态",
       "入库时间",
       "更新时间",
-      "简介",
+      "关于这本书",
     ])
       expect(html).toContain(label);
     expect(html).toContain("2024-08-15");
@@ -104,28 +105,47 @@ describe("book detail and edit SSR", () => {
   it("keeps return_to in edit, read and preview links and return path in destructive forms", () => {
     const html = ui.detail(page());
     const root = parseHtml(html);
-    for (const name of ["编辑", "阅读"]) expect(new URL(byRole(root, "link", name).getAttribute("href")!, "https://bindery.test").searchParams.get("return_to")).toBe("/?q=书&page=2");
+    for (const name of ["编辑书目信息", "开始阅读 ↗"]) expect(new URL(byRole(root, "link", name).getAttribute("href")!, "https://bindery.test").searchParams.get("return_to")).toBe("/?q=书&page=2");
     for (const action of ["archive", "delete"]) expect(byName(byAttribute(root, "action", `/book/${"a".repeat(32)}/${action}`), "next").getAttribute("value")).toBe("/?q=书&page=2");
   });
-  it("lists each reading source with section, percent, times, estimates and the newest marker", () => {
+  it("shows only the latest source and resumes its real section without a TOC", () => {
     const value = page();
     value.reading_progress = [
       { source: "web", source_label: "网页阅读器", section: 1, section_fraction: 0.5, percent: 50, read_at: "2026-10-22T13:00:00Z", time_spent_seconds: null, rest_estimate_seconds: null, section_title: "第二章 重逢", latest: false },
       { source: { device_id: "kobo-1", device_name: "Libra 2", kind: "kobo" }, source_label: "Libra 2", section: 2, section_fraction: 0.2, percent: 70, read_at: "2026-10-22T13:11:20Z", time_spent_seconds: 132, rest_estimate_seconds: 8943, section_title: "第三章 再见", latest: true },
     ];
     const root = parseHtml(ui.detail(value)), html = root.textContent!;
-    expect(html).toContain("阅读进度");
-    expect(html).toContain("网页阅读器");
+    expect(allByRole(root, "region", "阅读进度")).toHaveLength(1);
+    expect(html).not.toContain("网页阅读器");
     expect(html).toContain("Libra 2");
-    expect(html).toContain("第二章 重逢 · 50%");
+    expect(html).not.toContain("第二章 重逢");
     expect(html).toContain("第三章 再见 · 70%");
+    // The label comes from the real chapter title; the section index is only the link target.
+    const continueLink = byRole(root, "link", "从第三章接着读 ↗");
+    expect(continueLink.getAttribute("href")).toContain("/preview/2?");
+    const deep = page();
+    deep.reading_progress = [{ ...value.reading_progress[1]!, section: 1234, section_title: "第1235章 风起" }];
+    expect(byRole(parseHtml(ui.detail(deep)), "link", "从第1235章接着读 ↗").getAttribute("href")).toContain("/preview/1234?");
+    deep.reading_progress = [{ ...value.reading_progress[1]!, section: 7, section_title: "一个没有分隔符而且特别特别长的章节标题" }];
+    expect(byRole(parseHtml(ui.detail(deep)), "link", "继续阅读 ↗").getAttribute("href")).toContain("/preview/7?");
+    expect(new URL(continueLink.getAttribute("href")!, "https://bindery.test").searchParams.get("return_to")).toBe("/?q=书&page=2");
+    expect(byRole(root, "progressbar", "全书阅读进度").getAttribute("aria-valuenow")).toBe("70");
+    expect(html).not.toContain("目录");
     // The server renders UTC; the browser switches the <time> to the reader's own zone after mounting.
     expect(byAttribute(root, "datetime", "2026-10-22T13:11:20Z").textContent).toBe("2026-10-22 13:11");
     expect(root.textContent).toContain("上次阅读");
     expect(html).toContain("用时 约 2 分钟");
     expect(html).toContain("剩余 约 3 小时");
-    expect(html).toContain("最新");
+    expect(html).not.toContain("最新");
     expect(allByRole(parseHtml(ui.detail(page())), "region", "阅读进度")).toHaveLength(0);
+  });
+  it("uses approximate word count, falls back to file size and omits missing bibliographic fields", () => {
+    const value = page(); value.book.word_count = 92000; value.book.file_size = 2097152;
+    let root = parseHtml(ui.detail(value)); expect(root.textContent).toContain("约 9.2 万字"); expect(root.textContent).not.toContain("文件大小");
+    value.book.word_count = null; value.book.isbn = null; value.book.publisher = null;
+    root = parseHtml(ui.detail(value)); expect(root.textContent).toContain("2.0 MB"); expect(root.textContent).not.toContain("ISBN"); expect(root.textContent).not.toContain("出版社");
+    const manage = Array.from(root.getElementsByTagName("details")).find(item => item.textContent?.includes("管理这本书"))!;
+    expect(manage.hasAttribute("open")).toBe(false); expect(byName(manage, "rule_template")).toBeDefined();
   });
   it("hides regenerate controls without TXT source and renders EPUB source label", () => {
     const value = page();
@@ -170,13 +190,14 @@ describe("book detail and edit SSR", () => {
     expect(html).toContain("/metadata/fetch");
     expect(html).not.toContain("<main");
   });
-  it("provides CSS formatter, keep-book theme and original CSS checkbox", () => {
+  it("provides CSS formatter, keep-book theme and progressive native CSS/font options", () => {
     const html = ui.editor(page());
     const root = parseHtml(html);
     expect(byRole(root, "button", "格式化").getAttribute("data-format-target")).toBe(byName(root, "custom_css").id);
     expect(html).toContain("保持书籍样式（仅 EPUB）");
     expect(html).toContain("清除原书 CSS（link/style）");
     expect(html).toContain("默认主题");
+    for (const name of ["strip_original_css", "strip_fonts"]) expect(byName(root, name).tagName).toBe("select");
   });
   it("displays draft lookup feedback and distinguishes source/applied cover URLs", () => {
     const value = page();
