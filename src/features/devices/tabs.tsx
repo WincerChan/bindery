@@ -7,7 +7,6 @@ const TABS = [
   { href: "/devices/transfer", label: "传书" },
   { href: "/devices/preview", label: "排版与预览" },
   { href: "/devices/fonts", label: "字体" },
-  { href: "/devices/vocabulary", label: "生词本" },
 ] as const;
 
 export function DeviceTabs() {

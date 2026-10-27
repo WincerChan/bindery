@@ -2,9 +2,14 @@
 .kindle-mobile-note { display: none; }
 @media (max-width: 767px) {
   .kindle-device-content { display: none; }
-  .kindle-mobile-note { display: grid; gap: 12px; padding-block: 24px; border-block: 1px solid var(--color-line); }
+  .kindle-mobile-note { display: grid; gap: 24px; }
   .kindle-mobile-note h1, .kindle-mobile-note p { margin: 0; }
+  .kindle-mobile-note h1 { font-size: 30px; }
   .kindle-mobile-note p { max-width: 38em; line-height: 1.75; }
+  .kindle-mobile-note h2 { color: var(--color-ink-3, #656D66); font-size: var(--text-control, 14px); font-weight: 400; letter-spacing: .08em; }
+  .kindle-mobile-note ul { margin: 0 0 16px; padding: 0; list-style: none; }
+  .kindle-mobile-note li { display: flex; align-items: center; min-height: 72px; border-top: 1px solid var(--color-line-hair, #ECEAE2); }
+  .kindle-mobile-note .btn { min-height: var(--size-control-lg, 48px); border-radius: 999px; }
 }
 .kindle-page { min-width: 0; font-size: 14px; }
 .kindle-page h2 { font-size: 18px; font-weight: 700; margin: 0; }
