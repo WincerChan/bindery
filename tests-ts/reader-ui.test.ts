@@ -5,6 +5,7 @@ import { solidOptions } from "../scripts/solid-options";
 import { resolve } from "node:path";
 import { contentUrl, defaultSettings, fractionPage, highlightedParts, initialPosition, normalizeSettings, pageMetrics, readerReturnTo, sectionUrl, textMatches, type ReaderData } from "../src/features/reader/model";
 import { ProgressWriter } from "../src/features/reader/progress";
+import { readerInitialSettings, readerPaper, readerPercent, readerProgressTarget, resumeFraction } from "../src/features/reader/reader-presentation";
 import { allByAttribute, allByRole, byAttribute, byLabel, byRole, parseHtml } from "./support/queries";
 let ui: typeof import("./fixtures/reader/ui");
 beforeAll(async () => {
@@ -18,32 +19,35 @@ describe("reader SSR and controls (adapted from test_reader_ui.py)", () => {
     const root = parseHtml(ui.renderReader()), frames = Array.from(root.getElementsByTagName("iframe"));
     expect(frames).toHaveLength(3);
     for (const frame of frames) { expect(frame.getAttribute("sandbox")).toBe("allow-same-origin"); expect(frame.hasAttribute("srcdoc")).toBe(false); }
-    for (const name of ["切换目录", "全文检索", "设置", "上一页", "下一页"]) expect(byRole(root, "button", name)).toBeDefined();
-    for (const name of ["切换目录", "全文检索", "设置"]) expect(byRole(root, "button", name).getAttribute("aria-expanded")).toBe("false");
+    for (const name of ["目录与检索", "阅读设置", "上一页", "下一页", "上一章", "下一章"]) expect(byRole(root, "button", name)).toBeDefined();
+    for (const name of ["目录与检索", "阅读设置"]) expect(byRole(root, "button", name).getAttribute("aria-expanded")).toBe("false");
     expect(root.textContent).toContain("书名<&>"); expect(root.textContent).toContain("第一章<&>");
     expect(byAttribute(root, "title", "阅读正文").getAttribute("src")).toContain("%E7%AC%AC%E4%B8%80%E7%AB%A0.xhtml");
-    expect(byRole(root, "link", "返回详情").getAttribute("href")).toBe(`/book/${"d".repeat(32)}?return_to=%2Fjobs%3Ftab%3Dsuccess`);
+    expect(byRole(root, "link", "书名<&>").getAttribute("href")).toBe(`/book/${"d".repeat(32)}?return_to=%2Fjobs%3Ftab%3Dsuccess`);
     const toc = byRole(root, "navigation", "章节目录");
-    expect(byAttribute(toc, "aria-current", "page").textContent).toBe("第一章<&>");
-    expect(byAttribute(toc, "data-current-toc", "true")).toBe(byAttribute(toc, "aria-current", "page"));
+    expect(byAttribute(toc, "aria-current", "page").textContent).toContain("第一章<&>");
+    expect(byAttribute(toc, "aria-current", "page").textContent).toContain("正在读");
     expect(allByRole(root, "status").length).toBeGreaterThan(0);
     expect(frames.filter(frame => frame.getAttribute("aria-hidden") === "true")).toHaveLength(2);
   });
-  it("provides closed drawer/popovers, background segments and no custom controls before mount", () => {
+  it("provides one modal contents/search sheet and nonmodal Aa with named v2 controls", () => {
     const root = parseHtml(ui.renderReader());
-    expect(allByRole(root, "dialog")).toHaveLength(3);
-    for (const name of ["目录", "全文检索", "设置"]) expect(byRole(root, "dialog", name).hasAttribute("open")).toBe(false);
-    expect(byRole(root, "button", "检索").getAttribute("type")).toBe("submit"); expect(byLabel(root, "关键词").getAttribute("type")).toBe("search");
-    for (const copy of ["背景", "书籍", "灰白", "纸张", "砂岩", "薄荷", "样式", "自定义", "亮色", "暗色", "书籍：尽量保持 EPUB 原样式；自定义：覆盖字体/字号/行高。"]) expect(root.textContent).toContain(copy);
+    expect(allByRole(root, "dialog")).toHaveLength(2);
+    for (const name of ["目录与检索", "排版"]) expect(byRole(root, "dialog", name).hasAttribute("open")).toBe(false);
+    expect(byRole(root, "dialog", "目录与检索").getAttribute("aria-modal")).toBe("true");
+    expect(byRole(root, "dialog", "排版").hasAttribute("aria-modal")).toBe(false);
+    expect(byRole(root, "button", "开始检索").getAttribute("type")).toBe("submit"); expect(byLabel(root, "在全书中检索").getAttribute("type")).toBe("search");
+    for (const name of ["书籍原样", "自定义", "衬线", "无衬线", "等宽", "米白", "纯白", "暗色", "两端对齐", "左对齐", "增大字号", "减小字号"]) expect(byRole(root, "button", name)).toBeDefined();
+    for (const name of ["行高", "左右边距", "上下边距", "全书进度（按章节估算）"]) expect(byRole(root, "slider", name)).toBeDefined();
     expect(allByRole(root, "combobox")).toHaveLength(0); expect(allByRole(root, "spinbutton")).toHaveLength(0);
     expect(allByAttribute(root, "aria-pressed", "true").length).toBeGreaterThan(0);
-    expect(byRole(root, "img").getAttribute("src")).toBe("/book/d/cover?v=1"); expect(allByRole(root, "main")).toHaveLength(0);
+    expect(allByRole(root, "main")).toHaveLength(0);
   });
-  it("reports chapter page percentage, including the SSR resume seed", () => {
+  it("reports chapter viewport pages and estimated global percentage, including the SSR resume seed", () => {
     const plain = (query = "") => parseHtml(ui.renderReader(query)).textContent;
-    expect(plain()).toContain("1 / 1 · 100%");
+    expect(plain()).toContain("1 / 1 跨页 · 50%");
     expect(plain()).toContain("共 2 节 · 当前 1");
-    expect(plain("resume=1")).toContain("3 / 8 · 38%");
+    expect(plain("resume=1")).toContain("3 / 8 跨页 · 64%");
     expect(plain("resume=1")).toContain("共 2 节 · 当前 2");
   });
   it("restores the saved section only for resume=1; direct chapter links keep the requested chapter", () => {
@@ -52,6 +56,27 @@ describe("reader SSR and controls (adapted from test_reader_ui.py)", () => {
   });
 });
 describe("reader pagination, resume and settings", () => {
+  it("uses responsive first-use typography without changing saved-setting normalization", () => {
+    expect(readerInitialSettings()).toMatchObject({ styleMode: "custom", fontSize: 21, lineHeight: 2.1, readerBg: "paper" });
+    expect(readerInitialSettings(true)).toMatchObject({ fontSize: 19, lineHeight: 2, pagePaddingX: 24 });
+    expect(normalizeSettings(defaultSettings)).toEqual(defaultSettings);
+    expect(readerPaper({ ...defaultSettings, readerBg: "mint" })).toBe("paper");
+    expect(readerPaper({ ...defaultSettings, brightnessMode: "dim" })).toBe("dark");
+  });
+  it("estimates whole-book progress by chapters and resolves scrub endpoints safely", () => {
+    expect(readerPercent(0, 1, 3, 2)).toBe(0);
+    expect(readerPercent(1, 3, 3, 2)).toBe(100);
+    expect(readerProgressTarget(75, 2)).toEqual({ section: 1, fraction: .5 });
+    expect(readerProgressTarget(100, 2)).toEqual({ section: 1, fraction: 1 });
+    expect(readerProgressTarget(-10, 2)).toEqual({ section: 0, fraction: 0 });
+  });
+  it("resumes saved pages by position within the section, not by page number, across layout changes", () => {
+    // Saved halfway through an 81-page single-column chapter; the spread layout now has 41 pages.
+    const fraction = resumeFraction(41, 81);
+    expect(fraction).toBe(.5); expect(fractionPage(fraction!, 41)).toBe(21);
+    expect(resumeFraction(3, 8, .9)).toBe(.9); // an explicit device fraction wins
+    expect(resumeFraction(1, 1)).toBeUndefined(); expect(resumeFraction(99, 8)).toBe(1);
+  });
   it.each([[390, 390, 0, 1, 1], [390, 780, 0, 2, 1], [390, 1170, 780, 3, 3], [390, 780.4, 390, 2, 2], [390, 780.6, 390, 3, 2], [0, 0, 0, 1, 1]])("computes float-safe metrics for %j", (width, total, left, count, page) => {
     expect(pageMetrics(width, total, left)).toMatchObject({ count, page });
   });
