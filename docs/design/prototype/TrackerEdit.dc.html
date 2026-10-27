@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 追踪 · 编辑</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A24832}a:hover{color:#823624}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 1000px; overflow: hidden; background: #E9E6DC; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+
+  <!-- Tracker page behind (dimmed) -->
+  <div aria-hidden="true" style="position: absolute; inset: 32px; border-radius: 28px; background: #F6F4EE; padding: 100px 56px 0 148px">
+    <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 46px; line-height: 1.25">正在读的有 3 本，<br>还有 61 本在等你。</p>
+    <div style="margin-top: 220px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 40px">
+      <div style="display: flex; gap: 20px"><div style="width: 64px; height: 96px; border-radius: 2px 6px 6px 2px; background: #6E3B2E"></div><div style="width: 160px; height: 18px; margin-top: 20px; border-radius: 4px; background: #DEDDD2"></div></div>
+      <div style="display: flex; gap: 20px"><div style="width: 64px; height: 96px; border-radius: 2px 6px 6px 2px; background: #2F4A3E"></div><div style="width: 160px; height: 18px; margin-top: 20px; border-radius: 4px; background: #DEDDD2"></div></div>
+      <div style="display: flex; gap: 20px"><div style="width: 64px; height: 96px; border-radius: 2px 6px 6px 2px; border: 1.5px solid #C8C8BB; box-sizing: border-box"></div><div style="width: 160px; height: 18px; margin-top: 20px; border-radius: 4px; background: #DEDDD2"></div></div>
+      <div style="display: flex; gap: 20px"><div style="width: 64px; height: 96px; border-radius: 2px 6px 6px 2px; background: #7A2E2A"></div><div style="width: 160px; height: 18px; margin-top: 20px; border-radius: 4px; background: #DEDDD2"></div></div>
+    </div>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(32, 41, 35, 0.32)"></div>
+
+  <!-- Dialog -->
+  <form role="dialog" aria-modal="true" aria-labelledby="edit-title" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 900px; box-sizing: border-box; padding: 44px 48px 36px; border-radius: 28px; background: #F6F4EE; box-shadow: 0 40px 80px -30px rgba(32,41,35,0.55); display: flex; flex-direction: column; gap: 32px">
+
+    <button type="button" aria-label="关闭" style="position: absolute; top: 20px; right: 20px; display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: #ECEAE2; color: #202923; cursor: pointer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+    </button>
+
+    <div style="display: flex; gap: 44px; align-items: flex-start">
+      <!-- Cover -->
+      <div style="flex: 0 0 180px; display: flex; flex-direction: column; gap: 14px">
+        <div aria-hidden="true" style="position: relative; aspect-ratio: 2 / 3; box-sizing: border-box; border-radius: 4px 10px 10px 4px; background: linear-gradient(90deg, rgba(0,0,0,0.16) 0, rgba(255,255,255,0.08) 6px, rgba(0,0,0,0) 14px), #7A2E2A; box-shadow: 0 2px 3px rgba(32,41,35,0.18), 0 30px 44px -18px rgba(60,30,20,0.55); padding: 18px 16px; display: flex; flex-direction: column; justify-content: space-between; color: #F4E4D6; transform: rotate(-2deg)">
+          <svg width="16" height="27" viewBox="0 0 18 30" style="position: absolute; top: -3px; right: 18px; filter: drop-shadow(0 2px 2px rgba(32,41,35,0.25))"><path d="M0 0h18v30l-9-6-9 6z" fill="#A24832"></path></svg>
+          <div style="border-top: 1px solid currentColor; opacity: 0.55; padding-top: 8px; font-size: 10px; letter-spacing: 0.3em">清</div>
+          <div style="font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 34px; writing-mode: vertical-rl; align-self: flex-end; letter-spacing: 0.12em">红楼梦</div>
+          <div style="border-bottom: 1px solid currentColor; opacity: 0.55; padding-bottom: 8px; font-size: 10px; letter-spacing: 0.2em">曹雪芹</div>
+        </div>
+        <a href="#" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 14px; font-weight: 500; text-decoration: none">在书库中打开
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </a>
+      </div>
+
+      <!-- Fields -->
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <div style="display: flex; flex-direction: column; gap: 8px; padding-right: 48px">
+          <h2 id="edit-title" style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 30px; line-height: 1.3">红楼梦</h2>
+          <p style="margin: 0; font-size: 15px; color: #4B554E">曹雪芹 <span style="color: #656D66">· 书名和作者跟随书库</span></p>
+        </div>
+
+        <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 10px">
+          <legend style="padding: 0; margin-bottom: 10px; font-size: 13px; color: #656D66">评分</legend>
+          <div style="display: flex; align-items: center; gap: 4px">
+            <button type="button" aria-label="1 星" aria-pressed="false" style="display: flex; width: 40px; height: 44px; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0; cursor: pointer"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="{{accent}}"></path></svg></button>
+            <button type="button" aria-label="2 星" aria-pressed="false" style="display: flex; width: 40px; height: 44px; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0; cursor: pointer"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="{{accent}}"></path></svg></button>
+            <button type="button" aria-label="3 星" aria-pressed="false" style="display: flex; width: 40px; height: 44px; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0; cursor: pointer"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="{{accent}}"></path></svg></button>
+            <button type="button" aria-label="4 星" aria-pressed="false" style="display: flex; width: 40px; height: 44px; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0; cursor: pointer"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="{{accent}}"></path></svg></button>
+            <button type="button" aria-label="5 星" aria-pressed="true" style="display: flex; width: 40px; height: 44px; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0; cursor: pointer"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="{{accent}}"></path></svg></button>
+            <button type="button" style="margin-left: 12px; height: 44px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 13px; color: #656D66; cursor: pointer">清除</button>
+          </div>
+        </fieldset>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 24px 32px">
+          <fieldset style="margin: 0; padding: 0; border: 0">
+            <legend style="padding: 0; margin-bottom: 10px; font-size: 13px; color: #656D66">阅读</legend>
+            <div role="group" style="display: inline-flex; padding: 4px; gap: 2px; border-radius: 999px; background: #ECEAE2">
+              <button type="button" aria-pressed="false" style="height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #656D66; cursor: pointer">未读</button>
+              <button type="button" aria-pressed="false" style="height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #656D66; cursor: pointer">在读</button>
+              <button type="button" aria-pressed="true" style="height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.12); font: inherit; font-size: 14px; font-weight: 500; color: #202923; cursor: pointer">已读</button>
+            </div>
+          </fieldset>
+          <fieldset style="margin: 0; padding: 0; border: 0">
+            <legend style="padding: 0; margin-bottom: 10px; font-size: 13px; color: #656D66">连载</legend>
+            <div role="group" style="display: inline-flex; padding: 4px; gap: 2px; border-radius: 999px; background: #ECEAE2">
+              <button type="button" aria-pressed="false" style="height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #656D66; cursor: pointer">更新中</button>
+              <button type="button" aria-pressed="false" style="height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #656D66; cursor: pointer">已断更</button>
+              <button type="button" aria-pressed="true" style="height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.12); font: inherit; font-size: 14px; font-weight: 500; color: #202923; cursor: pointer">已完结</button>
+            </div>
+          </fieldset>
+        </div>
+
+        <label style="display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: #656D66">标签
+          <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 44px; box-sizing: border-box; padding: 4px 6px 4px 6px; border-radius: 999px; background: #ECEAE2">
+            <span style="display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 6px 0 14px; border-radius: 999px; background: #FBFAF6; font-size: 14px; color: #202923">古典<span aria-hidden="true" style="display: flex; width: 24px; height: 24px; align-items: center; justify-content: center; color: #656D66"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg></span></span>
+            <input placeholder="添加标签，回车确认" style="flex: 1; min-width: 120px; height: 36px; border: 0; background: transparent; padding: 0 8px; font: inherit; font-size: 14px; color: #202923; outline: none">
+          </span>
+        </label>
+
+        <label style="display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: #656D66">评论
+          <textarea rows="3" style="box-sizing: border-box; width: 100%; padding: 14px 18px; border: 0; border-radius: 20px; background: #ECEAE2; font-family: 'Noto Serif SC', serif; font-size: 15px; line-height: 1.8; color: #202923; resize: vertical">满纸荒唐言，一把辛酸泪。重读第三遍，还是在黛玉葬花那一回停了很久。</textarea>
+        </label>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 12px">
+      <button type="button" style="display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #A43B2B; cursor: pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        删除这条追踪
+      </button>
+      <button type="button" style="margin-left: auto; height: 48px; padding: 0 22px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 15px; color: #4B554E; cursor: pointer">取消</button>
+      <button type="submit" style="height: 48px; padding: 0 32px; border: 0; border-radius: 999px; background: #202923; color: #FBFAF6; font: inherit; font-size: 15px; font-weight: 500; cursor: pointer">保存</button>
+    </div>
+  </form>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832","options":["#A24832","#C7962B","#2F5D50","#202923"]},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#A24832' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 生词本 · LexiTrace 设置</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;family=Newsreader:ital,opsz,wght@1,6..72,600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A24832}a:hover{color:#823624}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 1000px; overflow: hidden; background: #E9E6DC; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+
+  <!-- Vocabulary page behind -->
+  <div aria-hidden="true" style="position: absolute; inset: 32px; border-radius: 28px; background: #F6F4EE; padding: 100px 56px 0 148px">
+    <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 46px; line-height: 1.25">这个月查了 38 个词。</p>
+    <p style="margin: 200px 0 0; font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 600; font-size: 64px">ardent</p>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(32, 41, 35, 0.32)"></div>
+
+  <form role="dialog" aria-modal="true" aria-labelledby="lt-title" style="position: absolute; top: 0; right: 0; bottom: 0; width: 520px; box-sizing: border-box; background: #F6F4EE; border-radius: 28px 0 0 28px; box-shadow: -30px 0 60px -30px rgba(32,41,35,0.45); display: flex; flex-direction: column">
+
+    <header style="padding: 40px 40px 8px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <h2 id="lt-title" style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 30px">LexiTrace</h2>
+        <button type="button" aria-label="关闭" style="margin-left: auto; display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: #ECEAE2; color: #202923">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+        </button>
+      </div>
+      <p style="margin: 0; font-size: 14px; line-height: 1.8; color: #4B554E">从设备同步来的生词会自动推送到 LexiTrace。令牌只存在服务器上，不会再发回浏览器。</p>
+    </header>
+
+    <div style="flex: 1; min-height: 0; overflow: auto; padding: 24px 40px; display: flex; flex-direction: column; gap: 26px">
+
+      <!-- Enable -->
+      <div style="display: flex; align-items: center; gap: 16px">
+        <span style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 15px; font-weight: 500">推送生词</span>
+          <span style="font-size: 13px; color: #656D66">关掉后照常同步，只是不再推送。</span>
+        </span>
+        <button type="button" role="switch" aria-checked="true" aria-label="推送生词" style="position: relative; flex: 0 0 auto; width: 52px; height: 32px; border: 0; border-radius: 999px; background: #202923; cursor: pointer">
+          <span aria-hidden="true" style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 999px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.3)"></span>
+        </button>
+      </div>
+
+      <label style="display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: #656D66">地址
+        <input type="url" value="https://lexitrace.example" style="height: 48px; box-sizing: border-box; padding: 0 20px; border: 0; border-radius: 999px; background: #ECEAE2; font: inherit; font-size: 15px; color: #202923">
+        <span style="font-size: 12px; color: #656D66">HTTPS，或本机的 HTTP 回环地址</span>
+      </label>
+
+      <label style="display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: #656D66">访问令牌
+        <span style="position: relative; display: flex; align-items: center">
+          <input type="password" autocomplete="new-password" placeholder="已保存，留空则保持不变" style="width: 100%; height: 48px; box-sizing: border-box; padding: 0 120px 0 20px; border: 0; border-radius: 999px; background: #ECEAE2; font: inherit; font-size: 15px; color: #202923">
+          <span style="position: absolute; right: 18px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #35674C"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 12.5l4 4L18 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>已保存</span>
+        </span>
+      </label>
+
+      <!-- Test -->
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding-top: 6px">
+        <button type="button" style="height: 44px; padding: 0 20px; border: 1px solid #C8C8BB; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #202923; cursor: pointer">测试连接</button>
+        <p role="status" style="margin: 0; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #35674C"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: currentColor"></span>连接成功 · 182 毫秒</p>
+      </div>
+    </div>
+
+    <footer style="padding: 20px 40px 28px; border-top: 1px solid #E4E2D8; display: flex; align-items: center; gap: 10px">
+      <button type="button" style="height: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #A43B2B; cursor: pointer">清除令牌</button>
+      <button type="button" style="margin-left: auto; height: 48px; padding: 0 22px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 15px; color: #4B554E; cursor: pointer">取消</button>
+      <button type="submit" style="height: 48px; padding: 0 30px; border: 0; border-radius: 999px; background: #202923; color: #FBFAF6; font: inherit; font-size: 15px; font-weight: 500; cursor: pointer">保存</button>
+    </footer>
+  </form>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

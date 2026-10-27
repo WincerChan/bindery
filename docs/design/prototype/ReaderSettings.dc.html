@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 阅读 · 设置</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A24832}a:hover{color:#823624}
+.page p{margin:0;text-indent:2em;text-align:justify}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: #F4F1E8; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+
+  <!-- Top bar: quiet, fades while reading -->
+  <header style="position: absolute; top: 0; left: 0; right: 0; height: 76px; box-sizing: border-box; padding: 0 32px; display: flex; align-items: center; gap: 12px; opacity: 1">
+    <a href="BookDetail.dc.html" style="display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding-right: 8px; color: #4B554E; text-decoration: none; font-size: 14px">
+      <span style="display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 999px; background: #ECEAE2; color: #202923"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+      浮生六记
+    </a>
+    <p style="flex: 1; margin: 0; text-align: center; font-size: 14px; letter-spacing: 0.08em; color: #656D66">卷三 · 坎坷记愁</p>
+    <button type="button" aria-label="目录与检索" aria-expanded="false" title="目录与检索" style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: #ECEAE2; color: #202923; cursor: pointer">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+    </button>
+    <button type="button" aria-label="阅读设置" aria-expanded="true" title="阅读设置" style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: #202923; color: #FBFAF6; font-family: 'Noto Serif SC', serif; font-size: 17px; font-weight: 600; cursor: pointer">Aa</button>
+  </header>
+
+  <!-- Spread -->
+  <main aria-label="阅读正文" style="position: absolute; top: 112px; bottom: 112px; left: 50%; transform: translateX(-50%); width: 1120px; display: grid; grid-template-columns: 1fr 1fr; gap: 0">
+    <section class="page" style="padding: 24px 72px 0 40px; font-family: 'Noto Serif SC', serif; font-size: 21px; line-height: 2.1; color: #2A2E29; display: flex; flex-direction: column; gap: 4px">
+      <p>人生坎坷何为乎来哉？往往皆自作孽耳，余则非也，多情重诺，爽直不羁，转因之为累。况吾父稼夫公，慷慨豪侠，急人之难，成人之事，嫁人之女，抚人之儿，指不胜屈，挥金如土，多为他人。</p>
+      <p>余夫妇居家，偶有需用，不免典质。始则移东补西，继则左支右绌。谚云：「处家人情，非钱不行。」先起小人之议，渐招同室之讥。「女子无才便是德」，真千古至言也！</p>
+      <p>余虽居长而行三，故上下呼芸为「三娘」；后忽呼为「三太太」。始而戏呼，继成习惯，甚至尊卑长幼皆以「三太太」呼之，此家庭之变机欤？</p>
+    </section>
+    <section class="page" style="padding: 24px 40px 0 72px; border-left: 1px solid #E6E1D4; font-family: 'Noto Serif SC', serif; font-size: 21px; line-height: 2.1; color: #2A2E29; display: flex; flex-direction: column; gap: 4px">
+      <p>乾隆乙巳，随侍吾父于海宁官舍。芸于吾家书中附寄小函，吾父曰：「媳妇既能笔墨，汝母家信付彼司之。」后家庭偶有闲言，吾母疑其述事不当，乃不令代笔。</p>
+      <p>吾父见信非芸手笔，询余曰：「汝妇病耶？」余即作札问之，亦不答。久之，吾父怒曰：「想汝妇不屑代笔耳！」迨余归，探知委曲，欲为婉剖，芸急止之曰：「宁受责于翁，勿失欢于姑也。」竟不自白。</p>
+    </section>
+  </main>
+
+  <!-- Page turn zones -->
+  <button type="button" aria-label="上一页" title="上一页（← / PageUp）" style="position: absolute; left: 24px; top: 50%; transform: translateY(-50%); display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: transparent; color: #B3B7A9; opacity: 1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+  <button type="button" aria-label="下一页" title="下一页（→ / PageDown / 空格）" style="position: absolute; right: 24px; top: 50%; transform: translateY(-50%); display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: transparent; color: #B3B7A9; opacity: 1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+
+  <!-- Footer: where you are -->
+  <footer style="position: absolute; left: 0; right: 0; bottom: 0; height: 84px; box-sizing: border-box; padding: 0 160px; display: flex; flex-direction: column; justify-content: center; gap: 12px">
+    <div style="display: flex; align-items: baseline; font-size: 12px; color: #92998F; font-variant-numeric: tabular-nums">
+      <span>23</span><span style="margin-left: auto">24</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 16px; opacity: 1">
+      <div role="progressbar" aria-label="全书进度" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100" style="flex: 1; height: 2px; border-radius: 999px; background: #E2DDD0; overflow: hidden"><div style="width: 42%; height: 100%; background: {{accent}}"></div></div>
+      <span style="font-size: 12px; color: #7A8178; font-variant-numeric: tabular-nums">42%</span>
+    </div>
+  </footer>
+
+  <!-- Settings popover, anchored to Aa -->
+  <section role="dialog" aria-label="阅读设置" style="position: absolute; top: 72px; right: 32px; width: 380px; box-sizing: border-box; padding: 24px; border-radius: 24px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.08), 0 30px 60px -24px rgba(32,41,35,0.45); display: flex; flex-direction: column; gap: 22px">
+
+    <div role="group" aria-label="样式来源" style="display: flex; padding: 4px; gap: 2px; border-radius: 999px; background: #ECEAE2">
+      <button type="button" aria-pressed="false" style="flex: 1; height: 36px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #656D66">书籍原样</button>
+      <button type="button" aria-pressed="true" style="flex: 1; height: 36px; border: 0; border-radius: 999px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.12); font: inherit; font-size: 14px; font-weight: 500; color: #202923">自定义</button>
+    </div>
+
+    <!-- Font -->
+    <div role="group" aria-label="字体" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <button type="button" aria-pressed="true" style="display: flex; flex-direction: column; align-items: center; gap: 4px; height: 72px; justify-content: center; border: 1.5px solid #202923; border-radius: 16px; background: #FBFAF6; color: #202923"><span style="font-family: 'Noto Serif SC', serif; font-size: 22px">文</span><span style="font-size: 12px">衬线</span></button>
+      <button type="button" aria-pressed="false" style="display: flex; flex-direction: column; align-items: center; gap: 4px; height: 72px; justify-content: center; border: 1.5px solid transparent; border-radius: 16px; background: #ECEAE2; color: #4B554E"><span style="font-family: 'Noto Sans SC', sans-serif; font-size: 22px">文</span><span style="font-size: 12px">无衬线</span></button>
+      <button type="button" aria-pressed="false" style="display: flex; flex-direction: column; align-items: center; gap: 4px; height: 72px; justify-content: center; border: 1.5px solid transparent; border-radius: 16px; background: #ECEAE2; color: #4B554E"><span style="font-family: 'IBM Plex Mono', 'Noto Sans SC', monospace; font-size: 20px">Aa</span><span style="font-size: 12px">等宽</span></button>
+    </div>
+
+    <!-- Size: a stepper reads better than a slider for discrete sizes -->
+    <div style="display: flex; align-items: center; gap: 12px">
+      <span style="font-size: 14px; color: #202923">字号</span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px; background: #ECEAE2">
+        <button type="button" aria-label="缩小字号" style="display: flex; width: 44px; height: 36px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: transparent; font-family: 'Noto Serif SC', serif; font-size: 14px; color: #202923">A</button>
+        <span style="min-width: 40px; text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; color: #202923">21</span>
+        <button type="button" aria-label="放大字号" style="display: flex; width: 44px; height: 36px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: transparent; font-family: 'Noto Serif SC', serif; font-size: 20px; color: #202923">A</button>
+      </div>
+    </div>
+
+    <sc-for list="{{ranges}}" as="r" hint-placeholder-count="3">
+      <label style="display: flex; flex-direction: column; gap: 10px">
+        <span style="display: flex; align-items: baseline; font-size: 14px; color: #202923">{{r.label}}<span style="margin-left: auto; font-variant-numeric: tabular-nums; color: #656D66">{{r.value}}</span></span>
+        <span style="position: relative; display: block; height: 24px">
+          <span aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 11px; height: 2px; border-radius: 999px; background: #DEDDD2"></span>
+          <span aria-hidden="true" style="position: absolute; left: 0; top: 11px; height: 2px; width: {{r.pct}}; border-radius: 999px; background: #202923"></span>
+          <span aria-hidden="true" style="position: absolute; top: 3px; left: {{r.knob}}; width: 18px; height: 18px; border-radius: 999px; background: #FBFAF6; border: 2px solid #202923; box-sizing: border-box"></span>
+          <input type="range" aria-label="{{r.label}}" style="position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0; cursor: pointer">
+        </span>
+      </label>
+    </sc-for>
+
+    <!-- Paper -->
+    <div style="display: flex; align-items: center; gap: 12px">
+      <span style="font-size: 14px; color: #202923">纸张</span>
+      <div role="group" aria-label="背景" style="margin-left: auto; display: flex; gap: 10px">
+        <button type="button" aria-label="米白" aria-pressed="true" style="width: 36px; height: 36px; border: 0; border-radius: 999px; background: #F4F1E8; box-shadow: 0 0 0 2px #FBFAF6, 0 0 0 4px #202923"></button>
+        <button type="button" aria-label="纯白" aria-pressed="false" style="width: 36px; height: 36px; border: 0; border-radius: 999px; background: #FFFFFF; box-shadow: inset 0 0 0 1px #DEDDD2"></button>
+        <button type="button" aria-label="暗色" aria-pressed="false" style="width: 36px; height: 36px; border: 0; border-radius: 999px; background: #22262A"></button>
+      </div>
+    </div>
+
+    <div role="group" aria-label="对齐" style="display: flex; padding: 4px; gap: 2px; border-radius: 999px; background: #ECEAE2">
+      <button type="button" aria-pressed="true" style="flex: 1; height: 36px; border: 0; border-radius: 999px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.12); font: inherit; font-size: 13px; font-weight: 500; color: #202923">两端对齐</button>
+      <button type="button" aria-pressed="false" style="flex: 1; height: 36px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 13px; color: #656D66">左对齐</button>
+    </div>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832","options":["#A24832","#C7962B","#2F5D50","#202923"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var ranges = [
+      { label: '行高', value: '2.1', p: 66 },
+      { label: '左右边距', value: '中', p: 50 },
+      { label: '上下边距', value: '窄', p: 25 }
+    ].map(function (r) { return { label: r.label, value: r.value, pct: r.p + '%', knob: 'calc(' + r.p + '% - ' + (r.p * 0.18) + 'px)' }; });
+    return { accent: this.props.accent ?? '#A24832', ranges: ranges };
+  }
+}
+</script>
+</body>
+</html>

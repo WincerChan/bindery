@@ -1,0 +1,241 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Ingest.dc.html": {
+      "expand": "fill",
+      "h": 1080,
+      "title": "入库 · 已选文件",
+      "w": 1440,
+      "x": 0,
+      "y": 1800
+    },
+    "IngestBook.dc.html": {
+      "h": 1000,
+      "title": "入库 · 单本详情",
+      "w": 1440,
+      "x": 3040,
+      "y": 1800
+    },
+    "IngestEmpty.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "title": "入库 · 空状态",
+      "w": 1440,
+      "x": 1520,
+      "y": 1800
+    },
+    "IngestJobs.dc.html": {
+      "h": 1000,
+      "title": "入库 · 最近任务侧栏",
+      "w": 1440,
+      "x": 4560,
+      "y": 1800
+    },
+    "Main.dc.html": {
+      "expand": "fill",
+      "h": 1480,
+      "title": "书库首页 · 桌面",
+      "w": 1440,
+      "x": 0,
+      "y": 0,
+      "is_interactive": true
+    },
+    "Tracker.dc.html": {
+      "expand": "fill",
+      "h": 1120,
+      "title": "追踪",
+      "w": 1440,
+      "x": 0,
+      "y": 3120,
+      "is_interactive": true
+    },
+    "TrackerEdit.dc.html": {
+      "h": 1000,
+      "title": "追踪 · 编辑弹层",
+      "w": 1440,
+      "x": 1520,
+      "y": 3120
+    },
+    "Devices.dc.html": {
+      "expand": "fill",
+      "h": 1640,
+      "title": "设备 · 书",
+      "w": 1440,
+      "x": 0,
+      "y": 4560
+    },
+    "DevicesFonts.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "title": "设备 · 字体",
+      "w": 1440,
+      "x": 1520,
+      "y": 4560
+    },
+    "DevicesSend.dc.html": {
+      "h": 1000,
+      "title": "设备 · 发送与传输侧栏",
+      "w": 1440,
+      "x": 3040,
+      "y": 4560
+    },
+    "DevicesConnect.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "设备 · 未连接",
+      "w": 1440,
+      "x": 4560,
+      "y": 4560
+    },
+    "DevicesPreview.dc.html": {
+      "expand": "fill",
+      "h": 1080,
+      "title": "设备 · 排版预览",
+      "w": 1440,
+      "x": 0,
+      "y": 6460
+    },
+    "Vocabulary.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "title": "生词本",
+      "w": 1440,
+      "x": 3040,
+      "y": 3120
+    },
+    "VocabSettings.dc.html": {
+      "h": 1000,
+      "title": "生词本 · LexiTrace 设置",
+      "w": 1440,
+      "x": 4560,
+      "y": 3120
+    },
+    "SettingsRules.dc.html": {
+      "expand": "fill",
+      "h": 880,
+      "title": "设置 · 切章规则",
+      "w": 1440,
+      "x": 1520,
+      "y": 7900
+    },
+    "SettingsSecurity.dc.html": {
+      "expand": "fill",
+      "h": 680,
+      "title": "设置 · 安全",
+      "w": 1440,
+      "x": 4560,
+      "y": 7900
+    },
+    "SettingsHub.dc.html": {
+      "expand": "fill",
+      "h": 780,
+      "title": "设置 · 目录",
+      "w": 1440,
+      "x": 0,
+      "y": 7900
+    },
+    "SettingsThemes.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "title": "设置 · 主题",
+      "w": 1440,
+      "x": 3040,
+      "y": 7900
+    },
+    "BookDetail.dc.html": {
+      "expand": "fill",
+      "h": 1240,
+      "title": "书库 · 书籍详情",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "Reader.dc.html": {
+      "h": 900,
+      "title": "阅读 · 正文",
+      "w": 1440,
+      "x": 0,
+      "y": 9220
+    },
+    "ReaderSettings.dc.html": {
+      "h": 900,
+      "title": "阅读 · 排版设置",
+      "w": 1440,
+      "x": 1520,
+      "y": 9220
+    },
+    "ReaderToc.dc.html": {
+      "h": 900,
+      "title": "阅读 · 目录与检索",
+      "w": 1440,
+      "x": 3040,
+      "y": 9220
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-27T13:40:00+08:00",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "devices-title": {
+      "x": 0,
+      "y": 4330,
+      "text": "设备页 · 重组",
+      "kind": "title1",
+      "maxW": 6000
+    },
+    "devices-ia": {
+      "x": 6080,
+      "y": 4560,
+      "w": 560,
+      "size": "m",
+      "fill": "orange",
+      "text": "重组思路\n\n设备页只留「插着设备才有意义」的东西：\n· 书：设备上的书（原「设备书籍」）\n· 字体：设备 fonts/ 里的字体（原「字体」）\n\n合并：\n· 原「传书」+ 传输队列 → 设备页上的「发送」侧栏\n· 原「连接」页 → 未连接时的设备页本身；切换设备进开篇的下拉\n\n排版预览：保留为独立页面（不需要连接，所以不放进设备页的标签）。入口：\n· 书库封面悬停「设备预览」\n· 发送侧栏「排版 ⌄ › 编辑排版方案…」\n· 点设备页开篇的 Kindle 机身\n\n挪出设备页：\n· 生词本 → 独立页面，导航里第 5 项；LexiTrace 设置放在生词本页里的「设置」侧栏\n\n结果：设备页从 5 个标签 + 1 个连接页，变成 1 页 2 个标签 + 1 个侧栏 + 1 个独立的排版预览页。"
+    },
+    "settings-title": {
+      "x": 0,
+      "y": 7640,
+      "text": "设置",
+      "kind": "title1",
+      "maxW": 6000
+    },
+    "reader-title": {
+      "x": 0,
+      "y": 8960,
+      "text": "阅读",
+      "kind": "title1",
+      "maxW": 4480
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "BookDetail.dc.html",
+    "Ingest.dc.html",
+    "IngestEmpty.dc.html",
+    "IngestBook.dc.html",
+    "IngestJobs.dc.html",
+    "Tracker.dc.html",
+    "TrackerEdit.dc.html",
+    "Vocabulary.dc.html",
+    "VocabSettings.dc.html",
+    "Devices.dc.html",
+    "DevicesFonts.dc.html",
+    "DevicesSend.dc.html",
+    "DevicesConnect.dc.html",
+    "DevicesPreview.dc.html",
+    "SettingsHub.dc.html",
+    "SettingsRules.dc.html",
+    "SettingsThemes.dc.html",
+    "SettingsSecurity.dc.html",
+    "Reader.dc.html",
+    "ReaderSettings.dc.html",
+    "ReaderToc.dc.html"
+  ],
+  "pages": [],
+  "title": "Bindery 书库首页 · 风格提案"
+}

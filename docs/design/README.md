@@ -1,181 +1,253 @@
-# Bindery Design Spec · Editorial Index
+# Bindery 设计准则 v2 · 书页
 
-> Swiss-grid typography × instrument panel. Neutral gray background, ink-black text, one signal orange. Metadata in small monospace. Covers are the only imagery on the page, laid flat with no 3D effects. The goal is to see a lot and see it clearly, not decoration.
+> 书是主角，界面退后。暖纸色底、墨色文字、一个砖红点缀色；衬线大标题配无衬线正文；封面带真实投影；区块靠留白分开，少用框和线；状态画在书上，不贴文字标签。
 
-Prototype source: the `*.dc.html` files under `docs/design/prototype/` (in the Claude Design canvas format). The `<style>` blocks and markup can be read directly as visual reference; `{{…}}`, `<sc-for>` and `<sc-if>` are prototype template syntax and do not go into the product. `/_blob/...` is a sample cover image in the prototype.
-
-| Board | What it shows |
-| --- | --- |
-| `Main.dc.html` | Desktop library · cover wall (incl. hover state, generated covers, status tags) |
-| `List.dc.html` | Desktop library · list view + multi-select floating bar |
-| `Book.dc.html` | Desktop book detail |
-| `Login.dc.html` | Login |
-| `Tokens.dc.html` | Color / type / components / generated covers |
-| `MLibrary.dc.html` `MSelect.dc.html` `MBook.dc.html` `MMore.dc.html` | Phone (< 768px): library, multi-select, detail, "More" |
+- 原型源文件：[`prototype/`](prototype/) 下的 `*.dc.html`（Claude Design 画布格式）。`<style>` 和行内样式可以直接当视觉参考；`{{…}}`、`<sc-for>`、`<sc-if>`、`class Component extends DCLogic` 是原型模板语法，不进产品代码。
+- 原型里的书目、人名、设备名、数字都是示例；带方括号的值（如 `[出版社]`）是占位。
+- 只设计了**桌面浅色**。手机布局和深色模式见 [§10 未定事项](#10-未定事项)。
 
 ---
 
-## 1. Tokens (Tailwind v4 `@theme`, in `static/tailwind.css`)
+## 1. 原则
 
-### Color
+这些原则来自逐页评审中被否决和被采纳的方案，实现时遇到规范没覆盖的情况，按这里判断。
 
-| token | value | use |
+1. **书是主角。** 封面放大、带投影，是页面里唯一的「图」。不加装饰插画（书脊插画、钥匙图标这类都被否掉过）。
+2. **一页只做一件事，开篇用一句话说清。** 每个主页面开篇是一句衬线大标题，用真实数据写成句子（「最近阅读的，是《浮生六记》。」）。工具页（规则、主题、预览）用名词标题。
+3. **少用容器。** 区块靠留白分隔；不用带描边的白卡片，不用表格线。细线只用在「目录式列表」（字体、生词、管理行）的条目之间。
+4. **状态画出来，不贴标签。** 已读是书签丝带，失败是灰封面加重试钮，生成中是变淡加进度条，未入库是描边空封面。不用彩色文字胶囊（`Tag`）。
+5. **说明不能只靠悬停。** 图形状态的文字解释必须同时出现在：可访问名称（`aria-label`）里，以及点击可达的地方（书名旁的点开菜单）。悬停提示只是补充。
+6. **技术字段放第二层。** 切章规则、来源、内部状态、任务 ID、文件名不放在第一层；需要时收进「管理」或日志。
+7. **不放点了会出事的东西。** 浏览型页面不放一排会改变状态的入口（详情页目录会误触覆盖进度，因此被否掉）。破坏性操作收进折叠区或菜单底部，红字，二次确认。
+8. **不展示用户无法使用的信息。** 例如详情页只显示最近一条阅读进度，并把它变成「从卷三接着读」，而不是并列多设备的只读进度。
+9. **入口统一，行为一致。** 导航栏每一项都是「去一个地方」（含齿轮），不出现「有的跳转、有的弹菜单」。
+
+---
+
+## 2. Tokens
+
+### 2.1 颜色
+
+原型取值与当前 `src/styles.css` `@theme` 的差异见右列，落地时以原型为准更新 token，不新增散落的十六进制值。
+
+| 用途 | 原型取值 | 现有 token / 值 | 说明 |
+| --- | --- | --- | --- |
+| 应用外底 | `#E9E6DC` | — | 桌面上卡片壳外的底色 |
+| 页面底（壳内） | `#F6F4EE` | `--color-bg` `#F2F0E9` | 改为原型值 |
+| 浮层表面 | `#FBFAF6` | `--color-surface` | 菜单、弹层、侧栏、选中段 |
+| 控件填充 | `#ECEAE2` | — | 胶囊、切换槽、圆形图标按钮、输入框；**新增** |
+| 悬停底 | `#EFEDE5` | — | 列表行、书名点开区悬停；**新增** |
+| 阅读纸张 | `#F4F1E8` | — | 阅读页「米白」；**新增** |
+| 主文字 | `#202923` | `--color-ink` | 标题、主按钮底 |
+| 次文字 | `#4B554E` | `--color-ink-2` | 作者、说明 |
+| 辅助文字 | `#656D66` | `--color-ink-3` | 小字、标签、数量 |
+| 弱文字 | `#92998F` / `#7A8178` | `--color-ink-4` | 未选中的页面标签（`#7A8178`，大字下满足 3:1）、已读过的条目 |
+| 分隔线 | `#DEDDD2` | `--color-line-soft` | 区块分隔、竖线 |
+| 细分隔线 | `#E4E2D8` / `#ECEAE2` | — | 条目之间、导航栏右边线 |
+| 描边 | `#C8C8BB` | `--color-line` | 次按钮描边、空封面描边 |
+| 进度轨道 | `#E4E2D8` | `--color-track` | 细进度条底 |
+| 点缀色 | `#A24832` | `--color-accent` | 用法见下 |
+| 成功 | `#35674C` | `--color-ok` | 已连接、已读状态条、推送成功 |
+| 警示 | `#855C17` | `--color-warning` | 生成中等中性进行态（少用） |
+| 危险 | `#A43B2B` | `--color-danger` | 失败、删除 |
+
+**点缀色只用于：** 当前导航项的实心圆底；页面标签上选中项的计数；进度条填充；已读书签丝带；评分星；分页里的当前页码；「有修改」等需要注意的状态点；文字链接。**主按钮永远是深墨色 `#202923`，不是点缀色。**
+
+**状态色的浅底**（只用于点开菜单顶部的状态条）：已读 `#E8EEE8`，在读 `#F4ECE4`，失败 `#F6E8E3`。
+
+### 2.2 字体
+
+| 角色 | 字体 | 用途 |
 | --- | --- | --- |
-| `--color-bg` | `#EFEFEC` | Page background |
-| `--color-surface` | `#FAFAF8` | Input fields, secondary buttons, tab bar, selected/raised surfaces |
-| `--color-line` | `#D6D6D1` | All 1px rules, borders |
-| `--color-mute` | `#B5B5AF` | Disabled text, placeholder dashes "—" |
-| `--color-ink` | `#141414` | Primary text, primary buttons, rule above tables |
-| `--color-ink-2` | `#4A4A47` | Secondary text |
-| `--color-ink-3` | `#75756F` | Supporting text, labels, mono metadata |
-| `--color-ink-4` | `#3A3A38` | Dark-gray cover tone |
-| `--color-accent` | `#FF5A1F` | Signal orange (usage limits below) |
-| `--color-accent-50` | `#FFE6DB` | Background of selected rows |
-| `--color-accent-soft` | `#FF9E7A` | Danger action text on dark backgrounds (e.g. "批量归档" in the bulk bar) |
-| `--color-ok` | `#2E7D4F` | Success, "✓ 已读" |
-| `--color-warn` | `#F2B233` | In progress (black text on it) |
-| `--color-danger` | `#C2341B` | Danger text / failed tag (white text on it) |
-| `--color-danger-line` | `#E9B9AE` | Danger button border |
+| 衬线展示 | `Noto Serif SC`（现有 `--font-display` 栈） | 开篇标题、页面标签、书名、目录、正文阅读、大号数字 |
+| 无衬线 | `Noto Sans SC`（`--font-sans`） | 界面文字、按钮、说明 |
+| 等宽 | `IBM Plex Mono`，CJK 回落 `Noto Sans SC` | JSON / CSS 代码、原始 TXT |
+| 西文衬线 | `Newsreader` | 仅生词本的英文词与例句 |
 
-**Orange is used only for**: the current-nav indicator line, selection state (checkbox, selected count), focus ring, unread dot, rating stars. Only black text sits on an orange background. **Primary buttons are always black.** Generated covers never use orange.
+字号阶梯（px）：
 
-### Type (no web fonts)
-
-- `--font-sans`: `"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif`
-- `--font-mono`: `"SF Mono","JetBrains Mono","Cascadia Mono",ui-monospace,Menlo,monospace` — numbers, dates, format (TXT/EPUB), counts, ISBN, table headers
-- Scale: page title 22/700 (`letter-spacing:-.01em`); detail book title 32/700 (21 on phone); section title 15/600; card book title 13.5/600; body 14/400; supporting 12–12.5; mono metadata 11–12; table header mono 11 uppercase `letter-spacing:.06em`
-- Remove all `font-mono`-styled debug text (e.g. `/library`)
-
-### Shape and depth
-
-- Corner radius is uniformly **2px** (inputs, buttons, chips, tags, floating bars); covers have **square corners**
-- Panels/forms/cards **have no shadows**; only a 1px `line` stroke or no stroke at all. The current `bg-white rounded-xl shadow-sm border` card-box style is removed entirely
-- Only floating layers get shadows: the bulk-action bar, modals, toasts, the phone "入库" floating button
-- Dividers come in only two kinds: `line` hairlines (header, list rows, sections) and `ink` rules (above table headers, above detail spec tables, at list starts). No double lines or other decorative lines
-- Focus: `focus-visible` → `border-ink` + `box-shadow:0 0 0 3px rgb(255 90 31 / .28)`; all custom controls must keep a visible focus
-- Motion 150–200ms; respect `prefers-reduced-motion`
-
----
-
-## 2. Components (implement as `@layer components` classes in `tailwind.css`; don't copy long class strings into each template)
-
-| class | spec |
+| 字号 | 用途 |
 | --- | --- |
-| `.btn` | Height 34px (≥ 44px on phone), `px-3.5`, 13px, 2px corners, `inline-flex gap-1.5`, `whitespace-nowrap` |
-| `.btn-primary` | ink fill + surface text; hover `#000` |
-| `.btn-secondary` | surface fill + 1px line stroke + ink text; hover stroke becomes ink |
-| `.btn-quiet` | Transparent, ink-2 text |
-| `.btn-danger` | Transparent + danger text + danger-line stroke |
-| `.btn-sm` | Height 28px, 12.5px |
-| `.field` | input/select/textarea: height 34px (40–44 on phone), surface background, 1px line, 2px corners, 13px; placeholder ink-3 |
-| `.chip` / `.chip-on` | Filter toggle: transparent + line stroke → on state ink fill + surface text; can carry a "×" |
-| `.seg` | View toggle segmented control: surface background + line stroke, 32×32 per button, active ink fill |
-| `.tag` | Status tag: mono 10.5–11px, `px-1.5 py-0.5`, square corners. Generating = warn background + black text; failed = danger background + white text; finished = ink background + white text; serializing = surface + line stroke |
-| `.read-mark` | `✓ 已读`: mono 10.5px, ok color |
-| `.unread-dot` | 7px orange dot + "未读" |
-| `.toast` | ink background + surface text, 2px corners, shadow, an 8px color square on the left (ok/warn/danger) |
-| `.cover` | Book cover container: `aspect-[2/3]`, `overflow-hidden`, `box-shadow:0 0 0 1px rgb(20 20 20 / .08)`, square corners |
-| `.cover-gen` | Generated cover, see §3 |
+| 46 | 开篇大标题（手机 30） |
+| 30 | 页面标签（「在库 / 已归档」）、侧栏和弹层标题 |
+| 26 | 编辑区标题、分页与统计里的衬线数字 |
+| 17 | 列表里的书名 |
+| 15 | 正文说明、主按钮文字 |
+| 14 | 控件文字、区块小标题（`letter-spacing: .08em`，灰色） |
+| 13 | 次级信息（作者 · 朝代、时间） |
+| 12 | 最小字号：字段名、计数、页码 |
+
+阅读正文默认 21px / 行高 2.1，衬线，首行缩进 2em，两端对齐。
+
+### 2.3 圆角、阴影、尺寸
+
+- **圆角**：胶囊、圆形按钮 `999px`；页面壳、侧栏、居中弹层 `28px`；点开菜单 `18px`；设置弹层 `22–24px`；列表行悬停底 `16–18px`；代码区、多行输入 `20px`；封面 `3px 8px 8px 3px`（书脊一侧小圆角）。
+- **阴影**只给两类东西：
+  - 封面：`0 1px 2px rgba(32,41,35,.16), 0 22px 30px -16px rgba(32,41,35,.45)`；大封面再加一层更深的暖色投影，并 `rotate(-2deg)`。
+  - 浮层（菜单、弹层、侧栏）：`0 1px 2px rgba(32,41,35,.08), 0 24px 48px -18px rgba(32,41,35,.45)`。
+  - 其他一律无阴影。
+- **遮罩**：侧栏和居中弹层背后统一 `rgba(32,41,35,.32)`；点开菜单不加遮罩。
+- **点击区域**最小 44px。切换控件的单个选项 36px 高，但整体放在 44px 的槽里。
+- **页面留白**：桌面内容区左右 56px（手机 16px）；开篇与下一区块之间 48px；封面墙间距 `44px 32px`；列表行内边距 16px。
 
 ---
 
-## 3. Generated covers (books without a cover)
+## 3. 页面骨架
 
-Structure (**padding must sit on the inner layer**: `cqi` resolves against the nearest ancestor container, so putting it on the container itself makes it resolve against the viewport and the title gets pushed out of view — this bug already happened once in the prototype):
+### 3.1 外壳
 
-```html
-<div class="cover cover-gen cover-tone-{{ tone }}">   {# container-type:inline-size; position:relative #}
-  <div class="cover-gen-inner">                       {# absolute inset-0; padding 11cqi 10cqi 9cqi; flex col justify-between #}
-    <div><div class="cover-gen-rule"></div><div class="cover-gen-title">{{ book.title }}</div></div>
-    <div class="cover-gen-author">{{ book.author or "" }}</div>
-  </div>
-</div>
-```
+- 桌面：外底 `#E9E6DC` 上一张圆角 28px 的页面壳；左侧 92px 导航栏，右侧内容区。
+- 导航栏从上到下：标志（回书库）；书库、入库、追踪、生词本、设备；底部齿轮（设置目录）。全部是链接，当前项为点缀色实心圆。
+- 阅读页例外：不显示导航栏，整页给正文。
 
-- Rule: `width:20cqi; height:max(2px,1.4cqi); background:currentColor; margin-bottom:8cqi`
-- Title: 700, `font-size:15cqi`, `line-height:1.18`, `letter-spacing:-.02em`, `overflow-wrap:anywhere`, **clamped to 4 lines**
-- Author: mono, `font-size:max(9px,7cqi)`, `opacity:.75`, single line with ellipsis
-- Five tones (background / text): `#141414/#FAFAF8`, `#8C8A84/#141414`, `#D6D6D1/#141414`, `#3A3A38/#FAFAF8`, `#BDB8AD/#141414`
-- Stable mapping: `{% set tone = (book.book_id[:2] | int(0, 16)) % 5 %}`
-- **Small thumbnails (≤ 56px wide, i.e. phone list)**: don't show the title; show the rule + the title's first character (`book.title[:1]`, 700, `44cqi`)
-- Desktop list thumbnails are 72×108: show the title, no author
-- Replace the current gray "B" placeholder everywhere (cover wall, list, detail page, edit page)
+### 3.2 主页面结构（书库、入库、追踪、生词本、设备）
 
-Real covers: `object-cover` laid flat, with the same 1px faint stroke. **No more** `group-hover:scale-105` zoom.
+1. **开篇**（`padding-top` 约 40px）：
+   - 上方小字：页面名与关键统计（「书库 · 在库 48 册」）。
+   - 衬线大标题：一句话。
+   - 一句说明（15px）。
+   - 操作行：深色主按钮（48px）＋若干圆形图标按钮（48px）。
+   - 右侧放一个有意义的视觉：最近阅读的封面、排出的第一页、正在读的书、设备机身。没有合适的视觉时右侧留空，不硬塞。
+2. **页面标签**（需要时）：衬线 30px，右上角小号计数，选中项深色、计数用点缀色，未选中项 `#7A8178`。
+3. **工具栏**：一行胶囊控件，顺序为 搜索 → 切换 → 下拉 →（细竖线）→ 模式类按钮（批量选择、后台任务入口），靠右。
+4. **内容**：封面墙、目录式列表或编辑区。
+5. **分页**：左边衬线大字「1–12」＋小字「册 · 共 48 册」；右边衬线点缀色「01」＋「/ 04 页」＋前后两个 44px 圆钮。
 
----
+### 3.3 子页面结构（设置子页、排版预览、书籍详情）
 
-## 4. Global layout (`templates/base.html`)
+- 顶部是**返回链接**：36px 小圆箭头＋上一级名字（灰色 14px），整体 44px 高。
+- 下面是名词标题（46px）和一句说明，或与胶囊并排的 30px 标题（排版预览）。
 
-### Desktop (≥ 768px)
-- Content container `max-w-[1376px] mx-auto px-8` (`px-4` on phone)
-- Header: height 52px, background same as the page, **only one bottom `line` hairline**, no shadow
-  - Left: mark (14px black square + 6px orange dot at top-right, see the `.mark` in the prototype) + "Bindery" 16/700
-  - Nav: 书库 入库 任务 追踪 规则 归档, 13.5px ink-2; current item ink + 600 + a 2px orange line at the bottom (pressed onto the header hairline)
-  - Right: "退出" quiet button in ink-3
-  - Remove the "本地书库" pulsing pill
-- Update `static/logo.svg` to the new mark (favicon too)
+### 3.4 浮层
 
-### Phone (< 768px)
-- Header: height 48px, only the mark + "Bindery"; the nav row is hidden
-- **Fixed bottom tab bar** (`md:hidden`): 5 equal columns 书库 / 入库 / 任务 / 追踪 / 更多; icon 21px + 10.5px label; current item ink + 600 + 2px orange line at the top; surface background + top `line` hairline; height 56px + `env(safe-area-inset-bottom)`
-- "更多" opens an **Alpine bottom sheet** (no new backend route): rows "规则与主题" (/rules), "归档" (/archive), and "退出登录" (danger text, submits a POST to the existing `/logout`); each row ≥ 56px tall. While the sheet is open, the "更多" tab shows as active. Visual reference: `MMore.dc.html`
-- `main` gets a bottom padding that clears the tab bar
-- The toast moves to the top on phone with 16px side gutters
+| 类型 | 何时用 | 规格 |
+| --- | --- | --- |
+| 点开菜单 | 单个对象的操作集合（书名点开） | 宽 232px，表面色，圆角 18，顶部可有状态条，菜单项 44px，破坏性项放分隔线下、红字 |
+| 右侧侧栏 | 与当前页相关的次级任务（最近任务、发送、LexiTrace） | 宽 520–600px，左侧圆角 28，标题衬线 30，右上 44px 关闭圆钮，底栏放主操作 |
+| 左侧侧栏 | 仅阅读页的目录与检索 | 同上，镜像 |
+| 居中弹层 | 编辑一个对象（单本解析结果、编辑追踪） | 宽 880–900px，圆角 28，左大封面右字段，底栏「次要/取消 … 主按钮」 |
+| 设置弹层 | 阅读页「Aa」 | 宽 380px，锚定按钮下方 |
 
 ---
 
-## 5. Pages
+## 4. 组件
 
-### 5.1 Library `index.html` + `partials/library_section.html` + `partials/book_card.html`
-- **Merge the title into the toolbar row** (refer to Main/List): `书库` 22/700 + mono count (`N 册`; when the unread filter is on, `N 册 · 仅未读`) + search field (`flex:0 1 300px`) + sort select + "仅看未读" chip + spacer + view seg + "多选" + primary "+ 入库". The row wraps.
-- Remove the separate "毗连设置" bulk-settings panel and the "已入库 N 本 /library" row
-- "多选" toggles into an on-state chip ("多选中"). Bulk actions move to the **floating bar**:
-  - Desktop: fixed bottom, horizontally centered, ink background: `已选 N 册` (N in orange mono) | 全选本页 清空 | 批量下载 批量归档 (accent-soft text) | 完成 (surface fill + ink text)
-  - Phone: docked at the bottom over the tab bar, two rows. Top: count + 全选本页 / 清空 / 完成; bottom: two equal columns 批量下载 / 批量归档, 44px tall
-  - Selected cards/rows: `accent-50` background (list) or a 2px ink outer stroke (cover wall); checkbox `accent-color: var(--color-accent)`
-- Cover wall: `grid-template-columns: repeat(auto-fill, minmax(136px, 1fr))`, `gap: 28px 20px` (change `grid-cols-auto-180` to a 136 version, and change the 180 in `computeGridColumnCount` to 136)
-  - Card = cover + below it title (13.5/600, single-line ellipsis) + author row (12px ink-3, `✓ 已读` on the right)
-  - Status tags pinned to the cover's top-left corner, no margin
-  - Hover / focus-within: the cover stroke becomes ink; a 32px **solid black** "阅读" bar slides up from the bottom (turns orange with black text on hover). No gradient overlay
-  - **Do not nest `<a>`**: the cover's full-area detail link and the "阅读" link are siblings (that is the current structure, keep it)
-- List view (desktop): table-like columns — checkbox (only in multi-select) | 72×108 thumbnail | title/author | publication (publisher · year) | format (mono) | updated (mono) | actions (阅读 secondary-sm, 下载 quiet-sm, 归档 quiet-sm danger text). Header row mono uppercase, with an ink rule under it; rows separated by line hairlines, `py-2.5`
-- List view (phone, see MLibrary): 48×72 thumbnail (first-character mode) | title 15/600 + author 12.5 + mono `格式 · 日期 · ✓ 已读` | trailing "阅读" `btn-sm`. Tapping the row opens detail. **Hide 下载/归档 on phone** (moved to the detail page). Mobile still forces list (keep the existing `isMobileViewport() ? 'list'` logic; don't build the grid toggle drawn in the prototype's top-right corner)
-- Phone floating "+ 入库" button: bottom-right, 16px above the tab bar, 44px tall, ink background; hidden in multi-select mode
-- Pagination: left side mono `1–16 / 32` (built from existing variables), right side 上一页 (quiet) · `1 / 2` mono · 下一页 (secondary); a line hairline above it
-- Empty state: centered "书库还是空的" 15/600 + supporting text + primary button "入库第一本书" → /ingest
+实现为共享组件（`src/ui`），不在页面里复制样式串。
 
-### 5.2 Book detail `book.html` + `partials/meta_view.html` (refer to Book / MBook)
-- Breadcrumb: `书库 / 书名` (12.5px ink-3, "书库" links to `return_to`)
-- Desktop: left column 240px cover (+ below it mono `EPUB|TXT · 更新 日期`, only for fields that exist), right column info; gap 48px
-- Info: mono label `书目` → title 32/700 → series (16px ink-2, when present) → `作者 | 语言 | ★ rating | unread dot/✓ 已读` separated by `|` in mute color
-- Action row: `阅读` (primary, a little wider) `下载 EPUB` `标记已读/标记未读` `编辑` (all secondary) … right-aligned "归档" (quiet + danger text). "编辑" keeps the existing hx-get swap behavior
-- Spec table: `dl` grid with 3 columns on desktop / 2 on phone, an ink rule above it, each cell `dt` 12px ink-3 + `dd` 14px with a line hairline under it; empty values render as mute "—"; dates and ISBN in mono. Fields: 系列 出版社 出版日期 ISBN 标签 来源 规则模板 状态 (plus 入库/更新时间 when present in the book data)
-- Description: 12px ink-3 label + 14.5/1.85 body, `max-w-[720px]`
-- Bottom: "重新生成" and "永久删除" side by side in two columns (stacked on phone), each with a line hairline above; delete uses `btn-danger`; keep the confirm
-- Phone: cover 112×168 on the left + title/author/rating on the right; below, `阅读` full-width 44px, then `下载 EPUB` / `标记已读` in two columns; "编辑" goes into the top-right of the top bar; 归档 / 永久删除 in two columns at the very bottom
-- `partials/meta_edit.html` (edit mode): the same two-column skeleton; fields use `.field`, star rating uses orange, metadata-candidate list uses line-hairline rows; the cover area uses the generated cover
+| 组件 | 规格 |
+| --- | --- |
+| 主按钮 | 深墨底、表面色字、胶囊；开篇和底栏 48px，工具栏和编辑区头部 44px；可带灰色数量后缀（「开始入库 2 本」） |
+| 次按钮 | 1px `#C8C8BB` 描边胶囊，44px（批量选择、另存为、重命名、测试连接） |
+| 轻按钮 | 无底无框，灰字（清空、还原、取消、格式化），44px |
+| 圆形图标按钮 | 控件填充底，开篇 48px、其他 44px；必须有 `aria-label` 和 `title` |
+| 关闭按钮 | 44px 控件填充圆钮 × |
+| 返回链接 | 见 §3.3 |
+| 下拉胶囊 | 控件填充、44px：灰色标签＋深色当前值＋⌄；原生 `<select>` 透明覆盖整个胶囊。胶囊宽度贴合当前值 |
+| 切换 | 控件填充槽 44px，选项 36px，选中项浮起为表面色＋细阴影 |
+| 开关胶囊 | 多选开关（「去掉书里自带的」）：未选为控件填充，选中为深墨底，44px |
+| 开关 | 单个布尔且需要说明时（推送生词）：52×32 轨道 |
+| 搜索胶囊 | 控件填充，44px，左侧放大镜，占位文字写清能搜什么 |
+| 页面标签 | 见 §3.2 |
+| 区块小标题 | 14px，`#656D66`，`letter-spacing: .08em`，下接 1px 分隔线 |
+| 计数角标 | 跟在标签或按钮文字右上，12–13px，选中或需要注意时用点缀色 |
+| 后台进行中 | 描边胶囊：点缀色圆点（带 4px 浅晕）＋名称＋灰色数量（「最近任务 2 进行中」「传输中 2 本」） |
+| 滑杆 | 2px 轨道，已填部分深墨，18px 空心圆钮；原生 `range` 透明覆盖；右侧显示当前值 |
+| 步进器 | 字号这类离散值用「A − 21 + A」，不用滑杆 |
+| 状态点 | 7–8px 圆点：失败红、成功绿、未推送为灰色空心圈 |
+| 细进度条 | 2–3px，轨道 `#E4E2D8`，填充点缀色（主进度）或 `#92998F`（次要来源） |
+| 虚线 | 只表示「添加」：封面墙末尾的＋、新建规则 / 主题、空状态的第一个封面位 |
+| 原生复选框 | 不使用。改为切换、开关胶囊或开关 |
 
-### 5.3 Login `login.html` (refer to Login)
-- Centered 340px column, no card: mark + "Bindery" 26/700 → mono `PRIVATE LIBRARY · TXT → EPUB` → ink rule → "密码" label + 42px field + 42px black "登录" button
-- All copy in Chinese (placeholder "输入访问密码"); error / unconfigured-hash notices as danger / warn-colored text with a 2px left color block
+### 4.1 点开菜单（书名区）
 
-### 5.4 Other pages (apply the system; no prototype boards, follow these rules)
-Common to all: page head uses the same "title 22/700 + mono meta + actions in one row" pattern; remove all `bg-white rounded-xl shadow-sm border` cards and switch to "section title 15/600 + content", separating sections with line hairlines; forms use `.field` / `.btn-*`.
-- **入库 `ingest.html` + `partials/upload_preview.html`**: the drop zone uses a 1px dashed ink-3 border, 2px corners, surface background, turning `accent-50` background + accent border on drag-over; no circular icon background. Template selection, advanced CSS (`<details>`) and the preview list use line-hairline rows
-- **任务 `jobs.html` + `partials/jobs_section.html`**: table style (mono header + ink rule); status uses `.tag`; actions are `btn-sm`. Phone: each job is a two-line row
-- **追踪 `wishlist.html`**: the filter toolbar wraps; the table is wrapped in `overflow-x-auto` (it currently overflows at 800px width); status/read state uses `.tag` / `.read-mark`; stars in orange; translate English copy to Chinese ("Search title, author, tag…" → "搜索书名、作者、标签", Clear → 清除, Filter → 筛选, Export CSV → 导出 CSV); modals use surface background + 2px corners + shadow + ink-color mask `rgb(20 20 20 / .4)`. Phone: table rows become two-line rows (title + mono status/rating), with actions folded into the end of the row
-- **规则 `rules.html` + `partials/rule_editor.html` `theme_editor.html` `rules_preview.html`**: left list / right editor; textareas/code areas use the mono font + surface background; the current item is marked with a 2px orange line on the left (this is the only place the left-line style is allowed). Phone: stacked vertically
-- **归档 `archive.html`**: same as the library list view; actions are 恢复 (secondary) / 彻底删除 (danger), with bulk actions reusing the floating bar style
-
-### 5.5 Out of scope
-- **Reader `templates/preview.html` — do not change it at all** (it has its own reading backgrounds / dim mode)
-- Dark mode
-- EPUB content themes (`bindery-templates/themes`)
+- 触发区是「书名＋作者」整块，是一个 `<button aria-haspopup="menu" aria-expanded>`；平时无提示，悬停或聚焦时出现浅底和 ⌄，展开时 ⌄ 翻转。
+- 封面本身仍是进入详情的链接。
+- 书库菜单：〔状态条：生成失败 / 已读〕阅读、设备预览、下载 ─ 归档。「生成中」不进状态条。
+- 追踪菜单：〔状态条：在读 / 已读 / 未入库〕在书库中打开（仅已入库）、编辑追踪 ─ 删除追踪。
 
 ---
 
-## 6. Copy
-- Count unit is "册"; "本" is no longer used
-- Remove the meaningless "毗连设置" label, the `/library` debug text and the "本地书库" pill
-- All UI text in Chinese; product name stays "Bindery"
+## 5. 封面
+
+- **生成封面**：纯色底；上方细线＋朝代或「连载」；右侧竖排衬线书名；下方作者＋细线；左侧书脊渐变 `linear-gradient(90deg, rgba(0,0,0,.18) 0, rgba(255,255,255,.08) 5px, transparent 12px)`。配色取低饱和深色或浅米色，文字色与底色对应。
+- **尺寸**：封面墙最小列宽 150px，比例 2:3；列表缩略 56–64px 宽；开篇大封面 210–260px，倾斜 -2°。
+- **状态**（都画在封面上）：
+
+| 状态 | 画法 |
+| --- | --- |
+| 已读 | 右上角点缀色书签丝带 |
+| 在读（追踪） | 浅色丝带 `#D9A898` |
+| 在读（设备） | 封面下方 3px 进度条 |
+| 生成中 | 封面 `opacity: .72`，底部内嵌浅色进度条 |
+| 生成失败 | `grayscale(.9) contrast(.85)`，正中 44px 表面色圆钮、红色重试箭头 |
+| 疑似重复（入库） | 右上角 32px 表面色圆钮、点缀色「复制」图标 |
+| 无法解析（入库） | 纯 `#DEDDD2` 底，正中红色感叹号圆钮，下方只写文件名 |
+| 未入库（追踪） | `#F1EFE7` 底、1.5px `#C8C8BB` 描边、无阴影 |
+
+---
+
+## 6. 文案
+
+- **开篇句**由数据生成，必须写好兜底：
+  - 书库：「最近阅读的，是《X》。」→ 无阅读记录时改为最近入库的书（「最近放进来的，是《X》。」）；书库为空时显示入库空状态。
+  - 追踪：「正在读的有 N 本，还有 M 本在等你。」→ N 为 0 时只写后半句。
+  - 生词本：「这个月查了 N 个词。」→ 为 0 时改为总数。
+  - 书名过长（超过约 12 字）时不放进大标题，改为「最近阅读的是这本。」，书名交给封面。
+- 说明文字写**对读者的意义**，不写系统怎么处理（「按『默认 · v1』规则重新切章，共 6 卷 42 章」这类被否掉过）。
+- 数字：统计用阿拉伯数字；分页页码补零（01 / 04）；时间用相对时间（2 分钟前、昨天 21:15），超过一周用 `MM-DD`。
+- 空字段不显示，不用「—」占位。
+- 中文用全角标点和「」引号。
+
+---
+
+## 7. 交互
+
+- 动效 150–200ms；尊重 `prefers-reduced-motion`。
+- 悬停只做增强（浅底、出现 ⌄、机身上浮），任何操作都必须能通过点击或键盘到达。
+- 阅读页：阅读时顶栏、翻页箭头和进度条淡出，移动鼠标或轻点页面时出现；保留现有键盘快捷键。
+- 可点的视觉元素要有明确提示：例如设备页 Kindle 机身可点，下方配一行「点开机身看排版 →」。
+
+---
+
+## 8. 可访问性
+
+- 点击区域 ≥ 44px；不嵌套交互元素（不在 `<button>` 里放按钮）。
+- 图标按钮必须有 `aria-label`；只用图形表达的状态要写进可访问名称（如「打开《老残游记》详情（生成失败，点击查看并重试）」）。
+- 文字对比度 ≥ 4.5:1（大字 ≥ 3:1）；需要区分的颜色同时区分明度。
+- 保留可见的 `focus-visible` 样式。
+
+---
+
+## 9. 页面清单与结构决定
+
+| 页面 | 原型 | 关键决定 |
+| --- | --- | --- |
+| 书库 | `Main` | 去掉顶栏，搜索进书架工具栏；书名点开菜单；封面下只留书名和「作者 · 朝代」 |
+| 书籍详情 | `BookDetail` | 只显示最近一条进度并变成「从卷X接着读」（按章节打开网页阅读器）；「关于这本书」只放书目字段，空的隐藏；切章 / 归档 / 删除收进折叠的「管理这本书」；不放目录 |
+| 入库 | `Ingest` `IngestEmpty` `IngestBook` `IngestJobs` | 开篇右侧显示按当前规则和主题排出的第一页；解析结果是封面墙；细节进单本弹层；最近任务是右侧侧栏 |
+| 追踪 | `Tracker` `TrackerEdit` | 三列目录式列表；书名点开菜单承担编辑和删除；编辑在居中弹层 |
+| 生词本 | `Vocabulary` `VocabSettings` | 独立页面、导航第 5 项；开篇右侧是最近一个词及原句；LexiTrace 配置在本页「设置」侧栏，设置目录里也有入口 |
+| 设备 | `Devices` `DevicesFonts` `DevicesSend` `DevicesConnect` | 只留「书 / 字体」两个标签；传书＋队列合并为「发送」侧栏；未连接时设备页本身就是连接引导；点 Kindle 机身进排版预览 |
+| 排版预览 | `DevicesPreview` | 独立页面，不需要连接；入口：书库菜单「设备预览」、发送侧栏「排版 › 编辑排版方案」、设备页机身 |
+| 设置 | `SettingsHub` `SettingsRules` `SettingsThemes` `SettingsSecurity` | 齿轮进设置目录；目录每项带当前状态；切章规则、主题、安全各为子页；安装应用、退出登录在目录内 |
+| 阅读 | `Reader` `ReaderSettings` `ReaderToc` | 桌面跨页；目录与检索合为左侧侧栏；排版设置为「Aa」弹层，字号用步进器，纸张用色块 |
+
+### 9.1 需要新增的数据或能力
+
+| 需要 | 用在 |
+| --- | --- |
+| 入库前按当前规则和主题渲染第一页 | 入库开篇（可复用设备预览的排版逻辑） |
+| 按章节打开网页阅读器（`/book/$book_id/preview/$section` 已存在）并从设备进度取章节 | 详情「从卷X接着读」 |
+| 字数（或回退为文件大小） | 详情「关于这本书」 |
+| 规则 / 主题被多少本书使用 | 设置子页列表、目录状态 |
+| 通行密钥最后使用时间 | 安全页、设置目录 |
+| 本月查词数、最近查的词 | 生词本开篇 |
+
+---
+
+## 10. 未定事项
+
+- **手机布局**：导航栏在窄屏的形态（现有底部 4 个标签，加生词本后是否收进「设置」）；阅读页单页模式（点左右翻页、点中间呼出栏）。
+- **深色模式**：未设计；阅读页「暗色纸张」只覆盖正文区。
+- **未画的状态**：书库开篇无阅读记录、生成失败横幅（详情）、单本 TXT 的书名改写、追踪的「添加 / 未入库编辑」、生词本空状态与未配置 LexiTrace、检索结果列表、设备书的批量删除、规则「主题」两页的「另存为 / 删除」确认、排版预览自定义 CSS 展开。
+- **信息密度**：封面墙比表格密度低；设备书的格式、大小、传入时间、排版方案目前没有位置，需要决定放进点开菜单、详情，还是为该页保留列表视图。
