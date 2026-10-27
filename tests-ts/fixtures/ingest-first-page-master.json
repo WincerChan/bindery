@@ -1,0 +1,71 @@
+{
+  "sourceCommit": "39340ede1bb692a2aa07e6df5ea55782e5ad2b65",
+  "reader": {
+    "html": "<!doctype html><html lang=\"zh-CN\" data-secret=\"drop\"><head><title>Reader</title><meta http-equiv=\"refresh\" content=\"0;url=https://evil.test\"><link rel=\"stylesheet\" href=\"../Styles/book.css\"><style>@import \"../Styles/base.css\"; p { background: url('../Images/pic.png'); } .quoted::before { content: \"url(fake.png)\"; }</style></head><body class=\"chapter\" onclick=\"bad()\" style=\"background: url('../Images/pic.png')\"><h1 id=\"chapter\">标题 &amp; 引言</h1><p>正文 <em>强调</em><script>bad()</script></p><img src=\"../Images/pic.png\" onerror=\"bad()\" alt=\"图\"><img src=\"data:image/png;base64,AAAA\"><a href=\"#chapter\">章节</a><a href=\"https://evil.test/\">外链</a><svg viewBox=\"0 0 10 10\"><use href=\"../Images/icons.svg#star\"/></svg><unknown><b>保留文本</b></unknown><iframe src=\"https://evil.test/\"></iframe></body></html>",
+    "baseHref": "/book/fixture/epub/OPS/Text/",
+    "requestUrl": "https://reader.test/book/fixture/epub/OPS/Text/chapter.xhtml",
+    "resolved": {
+      "../Styles/book.css": "/safe/book.css",
+      "../Styles/base.css": "/safe/base.css",
+      "../Images/pic.png": "/safe/pic.png",
+      "#chapter": "/safe/chapter.xhtml#chapter",
+      "../Images/icons.svg#star": "/safe/icons.svg#star"
+    },
+    "expectedDefault": "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><base href=\"https://reader.test/book/fixture/epub/OPS/Text/\"><link rel=\"stylesheet\" href=\"https://reader.test/book/fixture/epub/OPS/Styles/book.css\"><style>@import \"../Styles/base.css\"; p { background: url('../Images/pic.png'); } .quoted::before { content: \"url(fake.png)\"; }</style></head><body class=\"chapter\" style=\"background: url(&#x27;../Images/pic.png&#x27;)\"><h1 id=\"chapter\">标题 &amp; 引言</h1><p>正文 <em>强调</em></p><img src=\"https://reader.test/book/fixture/epub/OPS/Images/pic.png\" alt=\"图\"><img src=\"data:image/png;base64,AAAA\"><a href=\"https://reader.test/book/fixture/epub/OPS/Text/chapter.xhtml#chapter\">章节</a><a>外链</a><svg viewbox=\"0 0 10 10\"><use href=\"https://reader.test/book/fixture/epub/OPS/Images/icons.svg#star\"></use></svg><b>保留文本</b></body></html>",
+    "expectedResolved": "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><base href=\"https://reader.test/book/fixture/epub/OPS/Text/\"><link rel=\"stylesheet\" href=\"/safe/book.css\"><style>@import \"/safe/base.css\"; p { background: url(\"/safe/pic.png\"); } .quoted::before { content: \"url(fake.png)\"; }</style></head><body class=\"chapter\" style=\"background: url(&quot;/safe/pic.png&quot;)\"><h1 id=\"chapter\">标题 &amp; 引言</h1><p>正文 <em>强调</em></p><img src=\"/safe/pic.png\" alt=\"图\"><img src=\"data:image/png;base64,AAAA\"><a href=\"/safe/chapter.xhtml#chapter\">章节</a><a>外链</a><svg viewbox=\"0 0 10 10\"><use href=\"/safe/icons.svg#star\"></use></svg><b>保留文本</b></body></html>"
+  },
+  "truncated": [
+    {
+      "hex": "4368617074657220310a66697273740a4368617074657220320a6c6173743a20e4",
+      "events": [
+        {
+          "title": "sample",
+          "author": null,
+          "intro": null
+        },
+        {
+          "kind": "chapter",
+          "title": "Chapter 1",
+          "lines": [
+            "first"
+          ],
+          "volume_title": null
+        },
+        {
+          "kind": "chapter",
+          "title": "Chapter 2",
+          "lines": [
+            "last: �"
+          ],
+          "volume_title": null
+        }
+      ]
+    },
+    {
+      "hex": "4368617074657220310a66697273740a4368617074657220320a6c6173743a2081",
+      "events": [
+        {
+          "title": "sample",
+          "author": null,
+          "intro": null
+        },
+        {
+          "kind": "chapter",
+          "title": "Chapter 1",
+          "lines": [
+            "first"
+          ],
+          "volume_title": null
+        },
+        {
+          "kind": "chapter",
+          "title": "Chapter 2",
+          "lines": [
+            "last: �"
+          ],
+          "volume_title": null
+        }
+      ]
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import type { Node, Element } from "@xmldom/xmldom";
 import { guessMediaType } from "../../core/epub";
 import { encodeEpubPath, isSafeEpubPath, resolveEpubReference } from "../../core/epub-path";
 import { escapeHtml } from "../../core/epub-html";
+import { resourceFreeCss } from "../../core/css-strip";
 import { edgeRevalidateHeaders, HttpError, requireBook } from "../http";
 import type { LibraryStorage } from "../storage";
 import { readBookArchive } from "./service";
@@ -40,11 +41,12 @@ const allowed = new Set("html head body title style link article section header 
 const voids = new Set(["br", "hr", "img", "link", "wbr", "col"]);
 const attributes = new Set("id class title lang dir style alt width height colspan rowspan scope start reversed type open role aria-label aria-hidden viewbox d fill stroke stroke-width x y x1 y1 x2 y2 cx cy r rx ry points transform preserveaspectratio offset stop-color clip-path".split(" "));
 
-export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestUrl: string, resolve?: ResourceUrl): string {
+export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestUrl: string, resolve?: ResourceUrl, standalone = false): string {
   const origin = new URL(requestUrl).origin, base = new URL(baseHref, origin);
   const prefix = base.pathname.split("/epub/")[0] + "/epub/";
+  const css = (text: string) => standalone ? resourceFreeCss(text) : resolve ? rewriteBookCss(text, resolve) : text;
   const safeUrl = (raw: string, image = false) => {
-    if (!raw.trim()) return null;
+    if (standalone || !raw.trim()) return null;
     if (image && /^data:image\/(?:png|jpeg|gif|webp|avif|svg\+xml)[;,]/i.test(raw)) return raw;
     if (resolve) return resolve(raw);
     try {
@@ -60,7 +62,7 @@ export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestU
       let value: string | null = attribute.value;
       if (name === "href" || name === "xlink:href" || name === "src") value = safeUrl(value, tag === "img" || tag === "image");
       else if (!attributes.has(name)) continue;
-      else if (["style", "fill", "stroke", "clip-path"].includes(name) && resolve) value = rewriteBookCss(value, resolve);
+      else if (["style", "fill", "stroke", "clip-path"].includes(name)) value = css(value);
       if (value !== null) attrs += ` ${name}="${escapeHtml(value)}"`;
     }
     return attrs;
@@ -69,12 +71,12 @@ export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestU
     if (node.nodeType === 3 || node.nodeType === 4) return escapeHtml(node.nodeValue || "");
     if (node.nodeType !== 1) return "";
     const el = node as Element, tag = (el.localName || el.tagName).toLowerCase();
-    if (drop.has(tag)) return "";
+    if (drop.has(tag) || standalone && ["link", "img", "svg", "image"].includes(tag)) return "";
     let body = "";
     for (let child = el.firstChild; child; child = child.nextSibling) body += render(child);
     if (!allowed.has(tag)) return body;
     if (tag === "html" || tag === "head" || tag === "body") return body;
-    if (tag === "style") return `<style>${(resolve ? rewriteBookCss(el.textContent || "", resolve) : el.textContent || "").replace(/</g, "\\3c ")}</style>`;
+    if (tag === "style") return `<style>${css(el.textContent || "").replace(/</g, "\\3c ")}</style>`;
     if (tag === "title") return "";
     if (tag === "link" && (el.getAttribute("rel") || "").toLowerCase() !== "stylesheet") return "";
     return `<${tag}${renderAttributes(el, tag)}>${voids.has(tag) ? "" : `${body}</${tag}>`}`;
@@ -86,7 +88,10 @@ export function isolatedBookHtml(content: Uint8Array, baseHref: string, requestU
     for (let node = headElement?.firstChild; node; node = node.nextSibling) head += render(node);
   } else for (let node = doc.firstChild; node; node = node.nextSibling) body += render(node);
   const htmlAttributes = doc.documentElement?.localName === "html" ? renderAttributes(doc.documentElement, "html") : "";
-  return `<!doctype html><html${htmlAttributes}><head><meta charset="utf-8"><base href="${escapeHtml(base.href)}">${head}</head><body${bodyElement ? renderAttributes(bodyElement, "body") : ""}>${body}</body></html>`;
+  const isolation = standalone
+    ? `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">`
+    : `<base href="${escapeHtml(base.href)}">`;
+  return `<!doctype html><html${htmlAttributes}><head><meta charset="utf-8">${isolation}${head}</head><body${bodyElement ? renderAttributes(bodyElement, "body") : ""}>${body}</body></html>`;
 }
 
 export function epubResource(request: Request, bookId: string, rawPath: string, library: LibraryStorage): Response {

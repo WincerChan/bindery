@@ -78,7 +78,8 @@ export function guessImageMediaType(path: string): string {
   const media = guessMediaType(path);
   return media.startsWith("image/") ? media : "image/jpeg";
 }
-function renderSection(
+/** Shared chapter/volume document renderer for builders and the staged first-page preview. */
+export function renderSection(
   title: string,
   lines: Iterable<string>,
   lang: string,

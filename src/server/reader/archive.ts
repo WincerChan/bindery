@@ -1,5 +1,7 @@
 import { closeSync, fstatSync, openSync, readSync, statSync } from "node:fs";
 import type { BigIntStats } from "node:fs";
+import { inflateRawSync } from "node:zlib";
+import { ReadLimitError } from "../read-limits";
 import { inflateSync } from "fflate";
 import { parseEpubPackage, type EpubSource } from "../../core/epub";
 import { isSafeEpubPath, resolveEpubReference } from "../../core/epub-path";
@@ -32,6 +34,15 @@ function readAt(fd: number, offset: number, size: number, fileSize: number): Buf
     done += count;
   }
   return data;
+}
+
+function inflateBounded(packed: Uint8Array, maxBytes: number): Uint8Array {
+  try { return inflateRawSync(packed, { maxOutputLength: Math.max(1, maxBytes) }); }
+  catch (error) {
+    // Translate Node's structured limit error at the I/O boundary; corrupt deflate stays a parse error.
+    if ((error as NodeJS.ErrnoException).code === "ERR_BUFFER_TOO_LARGE") throw new ReadLimitError();
+    throw error;
+  }
 }
 
 /** Only the central directory stays resident; no archive bytes or inflated chapters are retained. */
@@ -89,10 +100,11 @@ export class ReaderArchive implements EpubSource {
   }
   has = (path: string): boolean => this.members.has(path);
   resolve(from: string, href: string): string { return resolveEpubReference(from, href, this.has)?.path ?? ""; }
-  read(path: string): Uint8Array | undefined {
+  read(path: string, maxBytes = Infinity): Uint8Array | undefined {
     const member = this.members.get(path);
     if (!member) return undefined;
     if (member.flags & 1 || ![0, 8].includes(member.method)) return invalid();
+    if (member.size > maxBytes || member.compressedSize > maxBytes + 65536) throw new ReadLimitError();
     const fd = openSync(this.path, "r");
     try {
       const current = fstatSync(fd, { bigint: true });
@@ -102,7 +114,9 @@ export class ReaderArchive implements EpubSource {
       const start = member.offset + 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
       const packed = readAt(fd, start, member.compressedSize, size);
       this.stats.memberReads++; this.stats.compressedBytesRead += packed.length;
-      const data = member.method === 8 ? inflateSync(packed) : packed;
+      // Bounded previews must enforce the actual inflation size, not trust ZIP metadata.
+      const data = member.method === 8 ? Number.isFinite(maxBytes) ? inflateBounded(packed, maxBytes) : inflateSync(packed) : packed;
+      if (data.length > maxBytes) throw new ReadLimitError();
       if (data.length !== member.size) return invalid();
       return data;
     } finally { closeSync(fd); }

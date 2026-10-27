@@ -1,33 +1,42 @@
-import { closeSync, openSync, readSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readSync } from "node:fs";
+import { ReadLimitError } from "./read-limits";
 import { parseBookFromLines, parseBookEventsFromLines } from "../core/parsing";
 import type { RuleSet } from "../core/parsing";
 import { decodeGb18030 } from "../core/gb18030";
 import { strip } from "../core/text";
 
 type Encoding = "utf8" | "gb18030" | "replacement";
-function* fileChunks(path: string): Generator<Uint8Array> {
+function* fileChunks(path: string, maxBytes = Infinity, failOnLimit = false): Generator<Uint8Array> {
   const fd = openSync(path, "r"),
     buffer = new Uint8Array(64 * 1024);
   try {
-    for (let size = readSync(fd, buffer); size > 0; size = readSync(fd, buffer))
+    let remaining = maxBytes;
+    while (remaining > 0) {
+      const size = readSync(fd, buffer, 0, Math.min(buffer.length, remaining), null);
+      if (!size) break;
+      remaining -= size;
       yield buffer.slice(0, size);
+    }
+    if (failOnLimit && remaining === 0 && fstatSync(fd).size > maxBytes) throw new ReadLimitError();
   } finally {
     closeSync(fd);
   }
 }
-function* decodedChunks(path: string, encoding: Encoding): Generator<string> {
+function* decodedChunks(path: string, encoding: Encoding, maxBytes = Infinity, failOnLimit = false): Generator<string> {
   if (encoding !== "gb18030") {
     const decoder = new TextDecoder("utf-8", {
       fatal: encoding === "utf8",
       ignoreBOM: encoding === "replacement",
     });
-    for (const chunk of fileChunks(path))
+    for (const chunk of fileChunks(path, maxBytes, failOnLimit))
       yield decoder.decode(chunk, { stream: true });
-    yield decoder.decode();
+    // Encoding probes can end inside a codepoint. Strict bounded parsing either
+    // reaches the real EOF (flush/validate) or throws at the input ceiling above.
+    if (maxBytes === Infinity || failOnLimit) yield decoder.decode();
     return;
   }
   let pending = new Uint8Array(0);
-  for (const chunk of fileChunks(path)) {
+  for (const chunk of fileChunks(path, maxBytes, failOnLimit)) {
     const data = new Uint8Array(pending.length + chunk.length);
     data.set(pending);
     data.set(chunk, pending.length);
@@ -46,11 +55,13 @@ function* decodedChunks(path: string, encoding: Encoding): Generator<string> {
     yield decodeGb18030(data.subarray(0, end));
     pending = data.slice(end);
   }
-  if (pending.length) yield decodeGb18030(pending); // Reject a truncated final multibyte sequence.
+  if (pending.length && (maxBytes === Infinity || failOnLimit)) yield decodeGb18030(pending); // Reject a truncated final multibyte sequence.
 }
 export function* decodedFileLines(
   path: string,
   encoding: Encoding,
+  maxBytes = Infinity,
+  failOnLimit = false,
 ): Generator<string> {
   let pending = "";
   function* drain(final: boolean) {
@@ -65,18 +76,18 @@ export function* decodedFileLines(
     }
     pending = pending.slice(start);
   }
-  for (const text of decodedChunks(path, encoding)) {
+  for (const text of decodedChunks(path, encoding, maxBytes, failOnLimit)) {
     pending += text;
     yield* drain(false);
   }
   yield* drain(true);
   if (pending) yield pending;
 }
-function resolveEncoding(path: string): Encoding {
+function resolveEncoding(path: string, maxBytes = Infinity): Encoding {
   for (const encoding of ["utf8", "gb18030"] as const) {
     try {
-      for (const _ of decodedChunks(path, encoding)) {
-        /* Validate the complete stream before yielding a header. */
+      for (const _ of decodedChunks(path, encoding, maxBytes)) {
+        /* Ingest validates the complete stream; previews opt into a bounded probe. */
       }
       return encoding;
     } catch (error) {
@@ -92,16 +103,18 @@ export function parseBookFile(path: string, name: string, rules?: RuleSet) {
     rules,
   );
 }
+/** maxBytes is preview-only: throw ReadLimitError instead of emitting a partial chapter at the ceiling. */
 export function* parseBookFileEvents(
   path: string,
   name: string,
   rules?: RuleSet,
+  options: { maxBytes?: number } = {},
 ) {
-  yield* parseBookEventsFromLines(
-    decodedFileLines(path, resolveEncoding(path)),
-    name,
-    rules,
-  );
+  const limit = options.maxBytes ?? Infinity;
+  const probeLimit = options.maxBytes === undefined ? Infinity : Math.min(limit, 64 * 1024);
+  const lines = decodedFileLines(path, resolveEncoding(path, probeLimit), limit, true);
+  try { yield* parseBookEventsFromLines(lines, name, rules); }
+  finally { lines.return(undefined); } // prepare/contextual hold manual iterators; close even on early return.
 }
 export function textFileHasContent(path: string): boolean {
   for (const line of decodedFileLines(path, resolveEncoding(path)))
