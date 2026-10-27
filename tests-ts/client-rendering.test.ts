@@ -336,7 +336,12 @@ it.each([true, false])("uses replace navigation to open, filter, paginate and cl
 
 it("renders a link-only rail, five phone tabs, and active settings for child pages", async () => {
   const node = root(await ssr.routedMarkup(library([]), "/rules"));
-  const dock = css(node, "nav", "tab-bar")[0]!, rail = css(node, "aside", "nav-rail")[0]!;
+  const dock = css(node, "nav", "tab-bar")[0]!, rail = css(node, "aside", "nav-rail")[0]!, shell = css(node, "div", "page-shell")[0]!;
+  expect(css(node, "div", "app-frame")).toHaveLength(0);
+  expect(css(node, "div", "page-shell")).toHaveLength(1);
+  expect(css(node, "aside", "nav-rail")).toHaveLength(1);
+  expect(rail.parentNode).toBe(shell);
+  expect(css(node, "main", "app-main")[0]!.parentNode).toBe(shell);
   expect(elements(dock, "a").map(el => el.textContent)).toEqual(["书库", "入库", "追踪", "生词本", "设置"]);
   expect(elements(dock, "button")).toHaveLength(0);
   expect(elements(dock, "a").some(el => el.getAttribute("href") === "/devices")).toBe(false);
