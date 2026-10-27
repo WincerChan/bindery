@@ -4,7 +4,6 @@
 @source "./shell";
 @source "./features";
 @theme static {
-  --color-app-bg: #E9E6DC;
   --color-bg: #F6F4EE;
   --color-surface: #FBFAF6;
   --color-control: #ECEAE2;
@@ -63,7 +62,7 @@
   :root { --text-hero: 30px; --text-tab: 24px; --space-page: 16px; --space-section: 32px; }
 }
 @layer base {
-  html, body { background: var(--color-app-bg); }
+  html, body { background: var(--color-bg); }
   body {
     margin: 0;
     color: var(--color-ink);
@@ -131,6 +130,5 @@ html { scrollbar-gutter: stable; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 @media (max-width: 767px) {
-  html, body { background: var(--color-bg); }
   .toast-region { inset: 16px 16px auto; max-width: none; }
 }

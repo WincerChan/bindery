@@ -29,7 +29,7 @@ assert.doesNotMatch(html, /<header class="site-header"|aria-label="主导航"|ar
 assert.match(html, /class="reader-main"/); assert.match(html, /href="#app-content"/); assert.match(html, /id="app-content"[^>]*tabindex="-1"/);
 assert.match(html, /aria-live="polite"/);
 const ordinary = await get(`/book/${id}`); assert.equal(ordinary.status, 200);
-const ordinaryHtml = await ordinary.text(); assert.match(ordinaryHtml, /aria-label="主导航"/); assert.match(ordinaryHtml, /aria-label="手机导航"/); assert.match(ordinaryHtml, /class="wrap app-main"/);
+const ordinaryHtml = await ordinary.text(); assert.match(ordinaryHtml, /aria-label="主导航"/); assert.match(ordinaryHtml, /aria-label="手机导航"/); assert.match(ordinaryHtml, /class="page-shell"/); assert.match(ordinaryHtml, /class="app-main"/); assert.doesNotMatch(ordinaryHtml, /app-frame/);
  assert.match(html, /全文检索/); assert.match(html, /sandbox="allow-same-origin"/); assert.doesNotMatch(html, /allow-scripts|srcdoc=/); assert.doesNotMatch(html, new RegExp(root));
 const search = await get(`/book/${id}/search?q=needle&limit=1&offset=0`); assert.equal(search.status, 200); const results = await search.json(); assert.equal(results.hits.length, 1); assert.equal(results.has_more, true); assert.equal(results.next_offset, 1);
 assert.ok(html.includes(resourcePath(book.paths[1])), "resume iframe must encode every member segment");
