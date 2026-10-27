@@ -19,8 +19,10 @@ import {
   type LookupAttempt,
 } from "./metadata-lookup";
 import { uploadedCover } from "./covers";
+import { bookFileStats, cachedBookFileStats, type BookFileStats } from "./word-count";
 
-export type BookDraft = BookView & { cover_fetch_url?: string };
+export type BookDetailView = BookView & BookFileStats;
+export type BookDraft = BookDetailView & { cover_fetch_url?: string };
 export interface BookPage {
   book: BookDraft;
   navigation: ReturnType<typeof bookNavigation>;
@@ -60,13 +62,20 @@ export function loadBookPage(
   returnTo: unknown,
   library: LibraryStorage,
 ): BookPage {
+  const page = bookPage(id, returnTo, library);
+  page.book = { ...page.book, ...bookFileStats(id, library) };
+  return page;
+}
+
+// Mutation replies retain last-known statistics without triggering a count.
+function bookPage(id: string, returnTo: unknown, library: LibraryStorage): BookPage {
   const meta = requireBook(id, library),
     tracker = ensureTrackerConsistencyForMeta(meta, library),
     progress = listProgress(library, id);
   let sections: { title: string }[] = [];
   if (progress.length) { try { sections = readBookArchive(id, library).metadata().sections; } catch { /* A missing EPUB should not hide saved progress. */ } }
   return {
-    book: bookView(meta, library, tracker),
+    book: { ...bookView(meta, library, tracker), ...cachedBookFileStats(id, library) },
     navigation: bookNavigation(id, returnTo),
     reading_progress: readingProgressView(progress, sections),
     rules: loadRuleTemplates().map(({ rule_id, name, version }) => ({
@@ -202,7 +211,7 @@ export async function fetchBookMetadata(
   library: LibraryStorage,
   fetcher: Fetch = fetch,
 ): Promise<BookPage> {
-  const page = loadBookPage(id, textField(form, "return_to"), library),
+  const page = bookPage(id, textField(form, "return_to"), library),
     draft = buildEditDraft(page, form);
   page.book = draft;
   page.strip_original_css = trueFlag(textField(form, "strip_original_css"));
@@ -265,7 +274,7 @@ export async function saveBookEdit(
   library: LibraryStorage,
   submit: SubmitEditWriteback = submitEditWriteback,
 ) {
-  const page = loadBookPage(id, textField(form, "return_to"), library),
+  const page = bookPage(id, textField(form, "return_to"), library),
     meta = requireBook(id, library);
   applyFields(meta, form);
   page.strip_original_css = trueFlag(textField(form, "strip_original_css"));
@@ -273,7 +282,7 @@ export async function saveBookEdit(
   const error = validateCss(textField(form, "custom_css"));
   if (error) {
     meta.custom_css = strip(textField(form, "custom_css")) || null;
-    page.book = { ...bookView(meta, library), rating: meta.rating };
+    page.book = { ...page.book, ...bookView(meta, library), rating: meta.rating };
     page.error = `自定义 CSS 校验失败：${error}`;
     return { page };
   }
@@ -281,7 +290,7 @@ export async function saveBookEdit(
   const rawUpload = form.get("cover_file"),
     upload = rawUpload instanceof File && rawUpload.name ? rawUpload : null;
   if (upload && !upload.size) {
-    page.book = { ...bookView(meta, library), rating: meta.rating };
+    page.book = { ...page.book, ...bookView(meta, library), rating: meta.rating };
     page.error = "封面文件为空";
     return { page };
   }
@@ -303,7 +312,7 @@ export async function saveBookEdit(
     });
   const { queued } = await submit(meta, options, library);
   return {
-    page: { ...page, book: bookView(meta, library) },
+    page: { ...page, book: { ...page.book, ...bookView(meta, library) } },
     queued,
     message: queued
       ? "已创建写回任务，可继续编辑下一本。"

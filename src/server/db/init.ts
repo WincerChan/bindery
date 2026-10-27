@@ -16,6 +16,8 @@ export function initSchema(conn: DatabaseSync): void {
   if (!sessionColumns.has("password_verified_at")) conn.exec("ALTER TABLE sessions ADD COLUMN password_verified_at TEXT");
   for (const sql of TABLES) conn.exec(sql);
   initTypesetSchema(conn);
+  const bookColumns = columns(conn, "books");
+  for (const [name, type] of [["word_count", "INTEGER"], ["word_count_key", "TEXT"]]) if (!bookColumns.has(name!)) conn.exec(`ALTER TABLE books ADD COLUMN ${name} ${type}`);
   const wishlistColumns = columns(conn, "wishlist");
   for (const [name, type] of [["library_book_id", "TEXT"], ["identity_title", "TEXT NOT NULL DEFAULT ''"], ["identity_author", "TEXT NOT NULL DEFAULT ''"], ["read_status", "TEXT NOT NULL DEFAULT 'unread'"], ["tags_json", "TEXT NOT NULL DEFAULT '[]'"], ["comment", "TEXT"]]) if (!wishlistColumns.has(name!)) conn.exec(`ALTER TABLE wishlist ADD COLUMN ${name} ${type}`);
   transaction(conn, () => {

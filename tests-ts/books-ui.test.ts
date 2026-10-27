@@ -55,6 +55,8 @@ function page(): BookPage {
       can_regenerate: true,
       path: "unused",
       cover_url: null,
+      word_count: null,
+      file_size: null,
     },
     navigation: bookNavigation(id, "/?q=书&page=2"),
     rules: [{ rule_id: "default", name: "默认规则", version: "1" }],
