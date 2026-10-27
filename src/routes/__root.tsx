@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Scripts } from "@tanstack/solid-router";
 import { Loading } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import stylesheet from "../styles.css?url";
+import uiStylesheet from "../ui/ui.css?url";
 import { ToastRegion } from "../shell/toast-region";
 import { PwaRegistration } from "../client/pwa/registration";
 
@@ -10,11 +11,12 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "theme-color", content: "#F2F0E9" },
+      { name: "theme-color", content: "#F6F4EE" },
       { title: "Bindery" },
     ],
     links: [
       { rel: "stylesheet", href: stylesheet },
+      { rel: "stylesheet", href: uiStylesheet },
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "manifest", type: "application/json", href: "/manifest.json" },
       { rel: "apple-touch-icon", href: "/icons/icon-192.png" },

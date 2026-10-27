@@ -36,8 +36,8 @@ describe("reusable UI SSR", () => {
     expect(html).not.toMatch(/<button[^>]*\sselected=/);
     expect(html).toContain("tag-failed");
   });
-  it("ports five cover tones and grid/list text with escaped content", () => {
-    expect(["00", "01", "02", "03", "04", "ff", "invalid"].map(ui.coverTone)).toEqual([0, 1, 2, 3, 4, 0, 0]);
+  it("ports v2 cover tones and grid/list text with escaped content", () => {
+    expect(["00", "01", "02", "03", "04", "ff", "invalid"].map(ui.coverTone)).toEqual([0, 1, 2, 3, 4, 8, 7]);
     const html = ui.covers();
     expect(html).toContain("春日&lt;&amp;>"); expect(html).toContain("cover-gen-author");
     expect(html).toContain("cover-compact"); expect(html).toContain("🌿");

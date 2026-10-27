@@ -1,22 +1,78 @@
-import { createEffect, createSignal, createUniqueId, Show } from "solid-js";
+import { createEffect, createSignal, createUniqueId, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Button } from "./controls";
 import { showToast } from "../client/toast";
+import { CloseButton } from "./primitives";
+import { focusableElements, overlayKeydown, overlayPresentation, restoreOverlayFocus } from "./overlay-behavior";
+import type { OverlayVariant } from "./overlay-behavior";
 
-export function Dialog(props: { open: boolean; title: string; children: JSX.Element; onClose: () => void; class?: string; closeLabel?: string; id?: string; variant?: "sheet" }) {
-  let element!: HTMLDialogElement;
-  const titleId = createUniqueId();
-  createEffect(() => props.open, open => {
-    if (open && !element.open) element.showModal();
-    else if (!open && element.open) element.close();
+export interface DialogProps {
+  open: boolean; title: string; children: JSX.Element; onClose: () => void;
+  class?: string; closeLabel?: string; id?: string; variant?: OverlayVariant;
+  side?: "left" | "right"; subtitle?: string; actions?: JSX.Element;
+  anchor?: () => HTMLElement | undefined;
+}
+export function Dialog(props: DialogProps) {
+  let element!: HTMLDialogElement, previousFocus: Element | null = null;
+  const titleId = createUniqueId(), subtitleId = createUniqueId();
+  const [phone, setPhone] = createSignal(false);
+  const variant = () => props.variant || "dialog";
+  const modal = () => variant() !== "popover";
+  function position() { untrack(() => {
+    if (!props.open || phone() || !["menu", "popover"].includes(variant())) return;
+    const anchor = props.anchor?.();
+    if (!anchor) return;
+    const box = anchor.getBoundingClientRect(), width = element.offsetWidth, height = element.offsetHeight;
+    element.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - width - 8))}px`;
+    element.style.top = `${Math.max(8, Math.min(box.bottom + 8, window.innerHeight - height - 8))}px`;
+  }); }
+  onSettled(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const query = window.matchMedia("(max-width: 767px)");
+    const resize = () => { setPhone(query.matches); position(); };
+    resize(); query.addEventListener("change", resize);
+    window.addEventListener("resize", position); window.addEventListener("scroll", position, true);
+    const outside = (event: PointerEvent) => {
+      if (props.open && !modal() && !element.contains(event.target as Node) && !props.anchor?.()?.contains(event.target as Node)) props.onClose();
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => { query.removeEventListener("change", resize); window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); document.removeEventListener("pointerdown", outside); };
   });
-  return <dialog ref={element} id={props.id} class={`dialog ${props.variant === "sheet" ? "dialog-sheet" : ""} ${props.class || ""}`} aria-labelledby={titleId} data-state={props.open ? "open" : "closed"}
+  createEffect(() => ({ open: props.open, phone: phone(), variant: variant() }), state => {
+    if (state.open && !element.open) {
+      previousFocus = element.ownerDocument.activeElement;
+      if (state.variant !== "popover") element.showModal(); else element.show();
+      const targets = focusableElements(element);
+      const first = state.variant === "menu" ? targets.find(item => item.getAttribute("role") === "menuitem") : targets[0];
+      first?.focus?.();
+    } else if (!state.open && element.open) { element.close(); restoreOverlayFocus(previousFocus); previousFocus = null; }
+    position();
+  });
+  onCleanup(() => { if (element?.open) { element.close(); restoreOverlayFocus(previousFocus); } });
+  return <dialog ref={element} id={props.id} class={`dialog dialog-${variant()} ${props.side === "left" ? "dialog-left" : ""} ${props.class || ""}`} aria-modal={modal() ? "true" : undefined} aria-labelledby={titleId} aria-describedby={props.subtitle ? subtitleId : undefined} data-state={props.open ? "open" : "closed"} data-presentation={overlayPresentation(variant(), phone())}
+    onKeyDown={event => overlayKeydown(event, element, props.onClose, variant() === "menu", modal())}
     onCancel={event => { event.preventDefault(); props.onClose(); }}
-    onClose={() => { if (props.open) props.onClose(); }}
+    onClose={() => { if (!element.open && props.open) props.onClose(); }}
     onClick={event => { if (event.target === element) { const box = element.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) props.onClose(); } }}>
-    <div class="dialog-heading"><h2 id={titleId}>{props.title}</h2><Button variant="quiet" onClick={props.onClose} aria-label={props.closeLabel || "关闭对话框"}>×</Button></div>
-    {props.children}
+    <div class="dialog-handle" aria-hidden="true" />
+    <div class="dialog-heading"><div><h2 id={titleId}>{props.title}</h2><Show when={props.subtitle}><p id={subtitleId}>{props.subtitle}</p></Show></div><CloseButton onClick={props.onClose} aria-label={props.closeLabel || "关闭对话框"} /></div>
+    <div class="dialog-body">{props.children}</div><Show when={props.actions}><div class="dialog-actions">{props.actions}</div></Show>
   </dialog>;
+}
+export function SideSheet(props: Omit<DialogProps, "variant">) { return <Dialog {...props} variant="sheet" />; }
+export function CenterDialog(props: Omit<DialogProps, "variant">) { return <Dialog {...props} variant="dialog" />; }
+export function Popover(props: Omit<DialogProps, "variant"> & { anchor: () => HTMLElement | undefined }) { return <Dialog {...props} variant="popover" />; }
+export interface MenuItem { label: string; onSelect: () => unknown; destructive?: boolean; disabled?: boolean }
+export function Menu(props: { title: string; trigger: JSX.Element; items: readonly MenuItem[]; subtitle?: string; status?: JSX.Element; statusTone?: "ok" | "accent" | "danger"; class?: string }) {
+  const [open, setOpen] = createSignal(false);
+  const id = createUniqueId();
+  let trigger!: HTMLButtonElement;
+  return <span class={`ui-menu ${props.class || ""}`}><button ref={trigger} type="button" class="ui-menu-trigger" aria-haspopup="menu" aria-expanded={open() ? "true" : "false"} aria-controls={id} onClick={() => setOpen(!open())} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}>{props.trigger}<span class="ui-menu-chevron" aria-hidden="true">⌄</span></button>
+    <Dialog id={id} open={open()} title={props.title} subtitle={props.subtitle} variant="menu" anchor={() => trigger} onClose={() => setOpen(false)}>
+      <Show when={props.status}><div class={`ui-menu-status ui-menu-status-${props.statusTone || "accent"}`} role="status">{props.status}</div></Show>
+      <div role="menu" aria-label={props.title}><For each={[false, true]}>{destructive => <Show when={props.items.some(item => Boolean(item.destructive) === destructive)}><Show when={destructive}><hr /></Show><For each={props.items.filter(item => Boolean(item.destructive) === destructive)}>{item => <button type="button" role="menuitem" class={item.destructive ? "is-destructive" : undefined} disabled={item.disabled} onClick={() => { setOpen(false); item.onSelect(); }}>{item.label}</button>}</For></Show>}</For></div>
+    </Dialog>
+  </span>;
 }
 export function ConfirmDialog(props: { open: boolean; title: string; children: JSX.Element; onClose: () => void; onConfirm: () => unknown | Promise<unknown>; confirmLabel?: string; danger?: boolean }) {
   const [busy, setBusy] = createSignal(false);

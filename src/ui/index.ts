@@ -1,10 +1,14 @@
 export { Button, TextField, Select, Textarea, Checkbox, Chip, Tag } from "./controls";
 export type { ButtonProps } from "./controls";
-export { GeneratedCover, BookCover, coverTone } from "./cover";
-export type { CoverProps } from "./cover";
-export { Dialog, ConfirmDialog } from "./dialog";
+export { GeneratedCover, BookCover, AddCoverTile, coverTone, coverStateLabel } from "./cover";
+export type { CoverProps, CoverState } from "./cover";
+export { Dialog, ConfirmDialog, Menu, SideSheet, CenterDialog, Popover } from "./dialog";
+export type { DialogProps, MenuItem } from "./dialog";
+export { IconButton, CloseButton, BackLink, SectionTitle, CountBadge, BackgroundActivityPill, StatusDot, ProgressBar, Slider, Stepper, ToggleSwitch, SegmentedControl, ToggleChip, SelectPill, SearchPill, PageIntro, PageTabs, Toolbar } from "./primitives";
+export type { ControlOption } from "./primitives";
 export { EmptyState } from "./empty-state";
 export { Pagination } from "./pagination";
+export type { PaginationProps } from "./pagination";
 export { PageHeader } from "./page-header";
 export { LocalTime } from "./local-time";
 export { Bone, PageSkeleton, LibrarySkeleton, TableSkeleton, IngestSkeleton, EditorSkeleton, BookSkeleton, DeviceSkeleton, DeviceBodySkeleton, ReaderSkeleton } from "./skeleton";

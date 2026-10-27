@@ -1,4 +1,5 @@
 import stylesheet from "../../styles.css?url";
+import uiStylesheet from "../../ui/ui.css?url";
 import bookStylesheet from "../../features/books/books.css?url";
 import { renderToString } from "@solidjs/web";
 import { BookEditor } from "../../features/books/book-editor";
@@ -86,7 +87,7 @@ function htmlPage(page: BookPage, edit: boolean, partial = false): Response {
   return new Response(
     partial
       ? body
-      : `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>编辑 · Bindery</title><link rel="stylesheet" href="${stylesheet}"><link rel="stylesheet" href="${bookStylesheet}"><body>${body}</body></html>`,
+      : `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>编辑 · Bindery</title><link rel="stylesheet" href="${stylesheet}"><link rel="stylesheet" href="${uiStylesheet}"><link rel="stylesheet" href="${bookStylesheet}"><body>${body}</body></html>`,
     {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
