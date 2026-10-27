@@ -24,15 +24,24 @@ import { Link } from "../../src/shared/spa-link";
 import type { KindleDeviceManager } from "../../src/client/kindle/device";
 import type { TransferQueue } from "../../src/client/kindle/queue";
 import { Route as securityRoute } from "../../src/routes/_app.security";
+import { Route as ingestRoute } from "../../src/routes/_app.ingest";
 
 export function loginRedirect(next: string) { return redirect({ href: `/login?next=${encodeURIComponent(next)}` }); }
+function RoutePending() { return <p data-route-pending>入库页加载中</p>; }
+type IngestRouteOptions = {
+  validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
+  loaderDeps?: (context: { search: Record<string, unknown> }) => Record<string, unknown>;
+  shouldReload?: boolean | ((context: { cause: "preload" | "enter" | "stay" }) => unknown);
+};
+const ingestOptions = ingestRoute.options as unknown as IngestRouteOptions;
 
 export async function navigationWorkspace(node: HTMLElement, initialLibrary: LibraryPageData, initialIngest: Cases["ingest"], entry: string, regenerate: ComponentProps<typeof LibraryPage>["regenerate"] = async () => ({ queued: 1, failed: 0, skipped: 0 })) {
   let library = initialLibrary, ingest = initialIngest, libraryLoads = 0, ingestLoads = 0;
   const root = createRootRoute({ component: AppShell });
   const home = createRoute({ getParentRoute: () => root, path: "/", validateSearch: (search: Record<string, unknown>) => search, loaderDeps: ({ search }) => search,
     loader: () => { libraryLoads++; return library; }, component: () => { const data = home.useLoaderData(); return <LibraryPage data={data()} regenerate={regenerate} />; } });
-  const upload = createRoute({ getParentRoute: () => root, path: "/ingest", validateSearch: (search: Record<string, unknown>) => search, loaderDeps: ({ search }) => search,
+  const upload = createRoute({ getParentRoute: () => root, path: "/ingest", validateSearch: ingestOptions.validateSearch, loaderDeps: ingestOptions.loaderDeps, shouldReload: ingestOptions.shouldReload,
+    pendingComponent: RoutePending, pendingMs: 0,
     loader: ({ location }) => { ingestLoads++; const { tab, page } = jobsSearch(Object.fromEntries(new URLSearchParams(location.searchStr))); return { options: ingest.options, jobs: { ...ingest.jobs!, active_tab: tab, page } }; },
     component: () => { const data = upload.useLoaderData(); return <IngestScreen data={data()} />; } });
   const others = ["/login", "/rules", "/security", "/tracker", "/book/$book_id", "/book/$book_id/preview"].map(path => createRoute({ getParentRoute: () => root, path, validateSearch: (search: Record<string, unknown>) => search, component: () => <p>{path}</p> }));
@@ -120,26 +129,33 @@ function routes(initial: LibraryPageData, entry: string) {
   return { router, setData(value: LibraryPageData) { next = value; } };
 }
 
-function ingestRoutes(initial: Cases["ingest"], entry: string) {
+function ingestRoutes(initial: Cases["ingest"], entry: string, deferred = false) {
+  let started = 0, settled = 0;
+  const releases: (() => void)[] = [];
   const root = createRootRoute();
   const ingest = createRoute({
-    getParentRoute: () => root, path: "/ingest", validateSearch: (search: Record<string, unknown>) => search,
-    loaderDeps: ({ search }) => search, loader: ({ location }) => {
+    getParentRoute: () => root, path: "/ingest", validateSearch: ingestOptions.validateSearch, loaderDeps: ingestOptions.loaderDeps, shouldReload: ingestOptions.shouldReload,
+    pendingComponent: RoutePending, pendingMs: 0,
+    loader: async ({ location }) => {
+      const load = ++started;
+      if (deferred && load > 1) await new Promise<void>(resolve => releases.push(resolve));
       const { tab, page } = jobsSearch(Object.fromEntries(new URLSearchParams(location.searchStr)));
+      settled++;
       return { options: structuredClone(initial.options), jobs: { ...initial.jobs!, active_tab: tab, page } };
     },
     component: () => { const data = ingest.useLoaderData(); return <IngestScreen data={data()} />; },
   });
-  return createRouter({ routeTree: root.addChildren([ingest]), history: createMemoryHistory({ initialEntries: [entry] }), isServer, origin: "http://bindery.local" });
+  const router = createRouter({ routeTree: root.addChildren([ingest]), history: createMemoryHistory({ initialEntries: [entry] }), isServer, origin: "http://bindery.local" });
+  return { router, ingestLoads: () => started, settledLoads: () => settled, releaseLoad: () => releases.shift()?.() };
 }
 export async function routedIngestMarkup(initial: Cases["ingest"], entry: string) {
-  const router = ingestRoutes(initial, entry); await router.load();
+  const { router } = ingestRoutes(initial, entry); await router.load();
   return renderToString(() => <Loading><RouterProvider router={router} /></Loading>);
 }
-export async function routedIngest(root: HTMLElement, initial: Cases["ingest"], entry: string, hydrating = false) {
-  const router = ingestRoutes(initial, entry); await router.load();
+export async function routedIngest(root: HTMLElement, initial: Cases["ingest"], entry: string, hydrating = false, deferred = false) {
+  const { router, ingestLoads, settledLoads, releaseLoad } = ingestRoutes(initial, entry, deferred); await router.load();
   const dispose = (hydrating ? hydrate : render)(() => <Loading><RouterProvider router={router} /></Loading>, root);
-  return { href: () => router.state.location.href, historyLength: () => router.history.length, flush, dispose };
+  return { href: () => router.state.location.href, historyLength: () => router.history.length, ingestLoads, settledLoads, releaseLoad, flush, dispose };
 }
 
 // Actual Router + actual components. Only RPC transport is replaced by the

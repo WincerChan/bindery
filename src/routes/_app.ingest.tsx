@@ -14,8 +14,10 @@ const loadIngest = createServerFn({ method: "GET" }).middleware([authenticated])
 export const Route = createFileRoute("/_app/ingest")({
   pendingComponent: IngestSkeleton,
   validateSearch: (search: Record<string, unknown>) => search,
-  loaderDeps: ({ search }) => search,
   loader: ({ location }) => loadIngest({ data: Object.fromEntries(new URLSearchParams(location.searchStr)) }), head: () => ({ meta: [{ title: "入库 · Bindery" }] }),
+  // The jobs sheet only changes search: keep the match so it reloads in the background instead of
+  // replacing the page with IngestSkeleton.
+  shouldReload: ({ cause }) => cause === "stay",
   server: { handlers: { GET: async context => {
     if (!jobsSearch(Object.fromEntries(new URL(context.request.url).searchParams)).invalid) return context.next();
     return authenticatedRoute(() => { throw new HttpError(422, "Input should be a valid integer"); })(context);

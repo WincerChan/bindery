@@ -17,10 +17,16 @@ export function securityPlugin(): Plugin {
           : Promise.reject(new Error('Unexpected authentication ceremony'));`;
     },
     transform(code, id) {
-      if (!id.endsWith("/src/routes/_app.security.tsx")) return;
-      return code.replace('import { createServerFn } from "@tanstack/solid-start";', "")
+      if (id.endsWith("/src/routes/_app.security.tsx")) return code.replace('import { createServerFn } from "@tanstack/solid-start";', "")
         .replace('import { authenticated } from "../server/functions";', "")
         .replace(/const getSecurityData = createServerFn[\s\S]*?(?=export const Route)/, "const getSecurityData = () => globalThis.__binderyTestSecurityData();\n");
+      if (!id.endsWith("/src/routes/_app.ingest.tsx")) return;
+      // Reuse the real route options in component builds, but stub its RPC and server handlers.
+      return code.replace('import { createServerFn } from "@tanstack/solid-start";\n', "")
+        .replace('import { authenticated } from "../server/functions";\n', "")
+        .replace('import { authenticatedRoute, HttpError } from "../server/http";\n', "")
+        .replace(/const loadIngest = createServerFn[\s\S]*?(?=export const Route)/, "const loadIngest = () => Promise.reject(new Error(\"Unexpected ingest loader\"));\n")
+        .replace(/  server: \{ handlers: \{ GET:[\s\S]*?\n  \}\) \} \},\n/, "");
     },
   };
 }
