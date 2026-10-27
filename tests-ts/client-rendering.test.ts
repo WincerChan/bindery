@@ -93,7 +93,7 @@ function jobs(names: string[], status = "running"): Cases["jobs"] {
     tabs: [{ key: status, label: status, count: names.length }], active_tab: status, page: 1, total_pages: 1, total_jobs: names.length, invalid_job_count: status === "failed" ? 1 : 0,
   };
 }
-const editor = (id: string) => ({ id, name: id, version: "1", description: "", raw: "{}", saved: false, error: null });
+const editor = (id: string) => ({ id, name: id, version: "1", description: "", raw: "{}", saved: false, error: null, book_count: 0, archived_count: 0 });
 const detail = (): Cases["detail"] => ({ book: book("旧书名"), navigation: bookNavigation("旧书名", "/"), rules: [{ rule_id: "default", name: "默认规则", version: "1" }], themes: [{ theme_id: "default", name: "默认主题", version: "1" }], strip_original_css: false, strip_fonts: false });
 
 it.each([true, false])("updates book cards, selection and empty states (hydration=%s)", async hydrating => {

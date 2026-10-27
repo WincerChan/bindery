@@ -28,13 +28,15 @@ export function themeEditor(id: string) {
   return { ...summary(theme), id: theme.theme_id, raw: theme.css, saved: false, error: null as string | null };
 }
 export type EditorData = ReturnType<typeof ruleEditor>;
-export function catalogPage(search: Record<string, string>) {
+export function catalogPage(search: Record<string, string>, library: LibraryStorage) {
   const rules = loadRuleTemplates(), themes = loadThemeTemplates();
+  const ruleUsage = library.templateUsage("rules"), themeUsage = library.templateUsage("themes");
+  const unused = { book_count: 0, archived_count: 0 };
   const ruleId = rules.find(t => t.rule_id === strip(search.rule_id || ""))?.rule_id || rules[0]?.rule_id || "default";
   const themeId = themes.find(t => t.theme_id === strip(search.theme_id || ""))?.theme_id || themes[0]?.theme_id || "default";
   return {
-    rules: rules.map(t => ({ ...summary(t), id: t.rule_id })),
-    themes: themes.map(t => ({ ...summary(t), id: t.theme_id })),
+    rules: rules.map(t => ({ ...summary(t), id: t.rule_id, ...(ruleUsage.get(t.rule_id) ?? unused) })),
+    themes: themes.map(t => ({ ...summary(t), id: t.theme_id, ...(themeUsage.get(t.theme_id) ?? unused) })),
     tab: strip(search.tab || "") === "themes" ? "themes" : "parsing",
     ruleId, themeId, error: strip(search.error || ""),
     editor: strip(search.tab || "") === "themes" ? (themes.length ? themeEditor(themeId) : null) : (rules.length ? ruleEditor(ruleId) : null),

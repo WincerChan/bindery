@@ -44,7 +44,7 @@ it("matches legacy tracker redirects, identity merging, seeding, DB/cache side e
   expect({ results, rows, stats: page.stats, duplicate: { ...duplicate, matches: clean(duplicate.matches), blocking_matches: clean(duplicate.blocking_matches), exact_matches: clean(duplicate.exact_matches) }, csv: trackerCsv(library, { read_filter: "reading" }), merged_kept_id: mergedKeptId, metadata: { title: metadata.title, read: metadata.read, rating: metadata.rating }, book_unchanged: before === readFileSync(join(library.base, linkedId, "book.json"), "utf8") }).toEqual(reference("tracker"));
 });
 it("matches legacy template saves, invalid-input file preservation, archived reference protection and CSS validation", async () => {
-  catalogPage({});
+  catalogPage({}, library);
   const ruleId = new URL(newTemplate("rules"), "http://test").searchParams.get("rule_id")!;
   const raw = JSON.stringify({ id: ruleId, name: "规则", chapter_patterns: ["^第.*章.*$"], volume_patterns: [], special_headings: [], heading_max_len: "40", heading_max_commas: "1", skip_candidate_re: "广告", extra: { keep: true } });
   const saved = saveRule(ruleId, raw), rule = JSON.parse(saved.raw); rule.id = "<rule>";

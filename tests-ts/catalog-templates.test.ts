@@ -29,10 +29,10 @@ describe("rule and theme template behavior", () => {
     expect(templateDirectory("rules")).toBe(join(root, "from-file"));
   });
   it("normalizes selected tabs and falls back to the first sorted template", () => {
-    expect(catalogPage({ tab: "bad", rule_id: "absent" })).toMatchObject({ tab: "parsing", ruleId: "default", themeId: "default" });
+    expect(catalogPage({ tab: "bad", rule_id: "absent" }, library)).toMatchObject({ tab: "parsing", ruleId: "default", themeId: "default" });
     const target = new URL(newTemplate("rules"), "http://test"), id = target.searchParams.get("rule_id")!;
     expect(id).toMatch(/^custom-[a-f0-9]{8}$/);
-    expect(catalogPage({ rule_id: "missing" }).ruleId).toBe(id);
+    expect(catalogPage({ rule_id: "missing" }, library).ruleId).toBe(id);
     expect(ruleEditor(id)).toMatchObject({ name: "新规则", saved: false });
   });
   it("creates a rule from the validated default, retaining extra fields", () => {
@@ -47,9 +47,9 @@ describe("rule and theme template behavior", () => {
   });
   it("renders an empty-template state when malformed JSON is the only existing template", () => {
     loadRuleTemplates(); writeFileSync(join(templateDirectory("rules"), "default.json"), "{bad");
-    expect(catalogPage({})).toMatchObject({ rules: [], editor: null });
+    expect(catalogPage({}, library)).toMatchObject({ rules: [], editor: null });
     loadThemeTemplates(); writeFileSync(join(templateDirectory("themes"), "default.json"), "{bad");
-    expect(catalogPage({ tab: "themes" })).toMatchObject({ themes: [], editor: null });
+    expect(catalogPage({ tab: "themes" }, library)).toMatchObject({ themes: [], editor: null });
   });
   it.each(["{bad", "[]", '{"id":"other"}', '{"chapter_patterns":[1]}', '{"volume_patterns":true}', '{"heading_max_len":-1}', '{"heading_max_commas":"bad"}', '{"chapter_patterns":["("]}', '{"skip_candidate_re":"(?>a+)"}'])("keeps invalid rule input and never writes it: %s", raw => {
     const before = ruleEditor("default").raw, result = saveRule("default", raw);

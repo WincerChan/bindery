@@ -252,6 +252,11 @@ export class BinderyDatabase extends Connection {
       n: number;
     }>("SELECT count(*) AS n FROM passkeys")!.n;
   }
+  passkeySummary(): { passkey_count: number; last_used_at: string | null } {
+    return this.get<{ passkey_count: number; last_used_at: string | null }>(
+      "SELECT COUNT(*) AS passkey_count, MAX(last_used_at) AS last_used_at FROM passkeys",
+    )!;
+  }
   insertPasskey(key: Omit<Passkey, "last_used_at" | "backed_up"> & {
     backed_up: boolean | number;
   }): void {
