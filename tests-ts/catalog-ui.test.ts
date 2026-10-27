@@ -31,7 +31,7 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(html).not.toContain("<script");
   });
   it("renders template navigation, creation and the shared batch-rebuild form", () => {
-    const data = { rules: [{ ...editor }], themes: [{ ...editor, name: "默认样式" }], tab: "parsing", ruleId: "default", themeId: "default", error: "引用错误", editor };
+    const data = { rules: [{ ...editor, book_count: 0, archived_count: 0 }], themes: [{ ...editor, name: "默认样式", book_count: 0, archived_count: 0 }], tab: "parsing", ruleId: "default", themeId: "default", error: "引用错误", editor };
     const html = ui.rules(data), themeHtml = ui.rules({ ...data, tab: "themes" });
     for (const expected of ['action="/rules/new"', 'action="/books/regenerate"', 'name="scope" value="parsing"', 'name="template_id" value="default"', 'aria-current="page"', "引用错误", "切章规则", "主题"]) expect(html).toContain(expected);
     expect(themeHtml).toContain('action="/themes/new"'); expect(themeHtml).toContain('name="scope" value="themes"');

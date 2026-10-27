@@ -123,7 +123,7 @@ function routes(initial: LibraryPageData, entry: string) {
       return <LibraryPage data={data()} onSearch={search => router.navigate({ to: "/", search: { ...search } })} regenerate={async () => ({ queued: 0, failed: 0, skipped: 0 })} />;
     },
   });
-  const template = { id: "default", name: "默认规则", description: "", version: "1", raw: "{}", saved: false, error: null };
+  const template = { id: "default", name: "默认规则", description: "", version: "1", raw: "{}", saved: false, error: null, book_count: 0, archived_count: 0 };
   const rules = createRoute({ getParentRoute: () => root, path: "/rules", component: () => <RulesPage data={{ rules: [template], themes: [], tab: "parsing", ruleId: "default", themeId: "default", editor: template, error: "" }} /> });
   const router = createRouter({ routeTree: root.addChildren([home, rules]), history: createMemoryHistory({ initialEntries: [entry] }), isServer, origin: "http://bindery.local" });
   return { router, setData(value: LibraryPageData) { next = value; } };

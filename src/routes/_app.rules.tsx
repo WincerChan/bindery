@@ -7,7 +7,7 @@ import "../features/catalog/catalog.css";
 
 const loadCatalog = createServerFn({ method: "GET" }).middleware([authenticated])
   .validator((input: Record<string, string>) => input)
-  .handler(async ({ data }) => (await import("../server/catalog/templates")).catalogPage(data));
+  .handler(async ({ context, data }) => (await import("../server/catalog/templates")).catalogPage(data, context.library));
 export const Route = createFileRoute("/_app/rules")({
   pendingComponent: EditorSkeleton,
   validateSearch: (search: Record<string, unknown>) => Object.fromEntries(Object.entries(search).map(([key, value]) => [key, String(value ?? "")])),

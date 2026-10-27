@@ -14,6 +14,7 @@ export const META_FILE = "meta.json",
   EPUB_FILE = "book.epub",
   COVER_PREFIX = "cover";
 export const BOOK_COLUMNS = ["book_id", "title", "author", "language", "description", "source_type", "series", "identifier", "publisher", "tags_json", "published", "isbn", "rating", "status", "epub_updated_at", "archived", "read", "read_updated_at", "cover_file", "rule_template", "theme_template", "custom_css", "created_at", "updated_at"] as const;
+export interface TemplateUsage { book_count: number; archived_count: number }
 const initialized = new Set<string>();
 export function newBookId(): string {
   return randomUUID().replaceAll("-", "");
@@ -203,6 +204,27 @@ export class LibraryStorage {
   listBooks(sortOutput = true): Metadata[] {
     this.ensure();
     return this.db.all(`SELECT * FROM books WHERE archived = 0 ${sortOutput ? `ORDER BY ${ORDER_UPDATED}` : ""}`).map(rowToMetadata).filter(m => isDir(bookDir(this.base, m.book_id)));
+  }
+  templateUsage(kind: "rules" | "themes"): Map<string, TemplateUsage> {
+    this.ensure();
+    const column = kind === "rules" ? "rule_template" : "theme_template";
+    const rows = this.db.all<{ book_id: string; archived: number; template_id: string | null }>(`
+      SELECT book_id, archived, ${column} AS template_id FROM books
+      WHERE archived IN (0, 1) ${kind === "rules" ? "AND source_type != 'epub'" : ""}`);
+    const usage = new Map<string, TemplateUsage>();
+    for (const row of rows) {
+      // Match listBooks/listArchivedBooks (also used by deleteTemplate), not
+      // just DB rows or ensureBookExists, which additionally requires book assets.
+      if (!isDir(row.archived ? archiveBookDir(this.base, row.book_id) : bookDir(this.base, row.book_id))) continue;
+      // Match deleteTemplate's Unicode strip; blank references use the default.
+      const id = strip(row.template_id || "") || "default";
+      if (kind === "themes" && id === "__book__") continue;
+      const current = usage.get(id) ?? { book_count: 0, archived_count: 0 };
+      current.book_count++;
+      current.archived_count += row.archived;
+      usage.set(id, current);
+    }
+    return usage;
   }
   seedWishlistFromBooks(): void {
     this.db.run(`INSERT INTO wishlist(id, title, library_book_id, author, rating, read, read_status, tags_json, comment, book_status, created_at, updated_at)
