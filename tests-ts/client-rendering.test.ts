@@ -615,9 +615,9 @@ it("uses actual Router Links across Kindle tabs without replacing the provider o
   await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe("/tracker?q=%E4%B8%AD%E6%96%87&read_filter=unread"); });
   await mounted.navigate("/devices"); await settle(); mounted.flush();
   const provider = mounted.context(); expect(provider).toBeDefined(); expect(mounted.mounts()).toBe(1);
-  const click = (text: string, modified = false) => { const preventDefault = vi.fn(); fire(elements(node, "a").find(a => a.textContent === text)!, "click", { button: 0, ctrlKey: modified, preventDefault }); return preventDefault; };
+  const click = (text: string, modified = false) => { const preventDefault = vi.fn(); fire(elements(node, "a").find(a => a.textContent === text || a.getAttribute("href") === ({ 书: "/devices", 字体: "/devices/fonts" } as Record<string, string>)[text])!, "click", { button: 0, ctrlKey: modified, preventDefault }); return preventDefault; };
   expect(click("字体", true)).not.toHaveBeenCalled(); await settle(); expect(mounted.href()).toBe("/devices");
-  for (const [text, href] of [["传书", "/devices/transfer"], ["字体", "/devices/fonts"], ["排版与预览", "/devices/preview"]]) {
+  for (const [text, href] of [["字体", "/devices/fonts"], ["书", "/devices"]]) {
     expect(click(text!)).toHaveBeenCalledOnce();
     await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe(href); });
     expect(mounted.context()).toBe(provider); expect(mounted.mounts()).toBe(1); expect(mounted.cleanups()).toBe(0);

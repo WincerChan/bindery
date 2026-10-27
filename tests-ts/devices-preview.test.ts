@@ -131,9 +131,26 @@ function mount(manager: DeviceManager | null, extra: Partial<Props> = {}, prepar
   return { root, props, ...mounted };
 }
 const button = (root: Element, text: string) => elements(root, "button").find(element => element.textContent === text || element.getAttribute("aria-label") === text)!;
-function setValue(node: Element, value: string, type = "input") { (node as HTMLInputElement).value = value; fire(node, type); ui.flush(); }
-const input = (root: Element, id: string) => elements(root, "input").find(element => element.id === id)!;
-const labels = (root: Element, tag: string, label: string) => elements(root, "label").find(element => element.firstChild?.textContent === label)!.getElementsByTagName(tag)[0]!;
+function setValue(node: Element, value: string, type = "input") {
+  if (node.getAttribute("role") === "group") {
+    const label = ({ narrow: "窄", medium: "中", wide: "宽" } as Record<string, string>)[value];
+    fire(button(node, label), "click");
+  } else {
+    (node as HTMLInputElement).value = value;
+    if (node.getAttribute("type") === "range") Object.defineProperty(node, "valueAsNumber", { configurable: true, value: Number(value) });
+    fire(node, type);
+  }
+  ui.flush();
+}
+const rangeLabels: Record<string, string> = { "kt-marginX": "左右边距调整（%）", "kt-lineHeight": "行高" };
+const input = (root: Element, id: string) => elements(root, "input").find(element => element.id === id || rangeLabels[id] && element.getAttribute("aria-label") === rangeLabels[id])!;
+const labels = (root: Element, tag: string, label: string) => elements(root, tag).find(node => node.getAttribute("aria-label") === label) ?? elements(root, "label").find(element => element.firstChild?.textContent === label)?.getElementsByTagName(tag)[0] ?? elements(root, "div").find(node => node.getAttribute("role") === "group" && node.getAttribute("aria-label") === label)!;
+function controlRow(node: Element): Element {
+  for (let parent = node.parentElement; parent; parent = parent.parentElement) if ((parent.getAttribute("class") ?? "").split(" ").includes("kt-range")) return parent;
+  throw new Error("Missing control row");
+}
+const rangeRow = (root: Element, key: string) => controlRow(input(root, key));
+const rangeOutput = (root: Element, key: string) => elements(withClass(rangeRow(root, key), "kt-range-value"), "output")[0]!;
 const withClass = (root: Element, name: string) => elements(root, "*").find(node => node.className.split(/\s+/).includes(name))!;
 const frame = (root: Element) => elements(root, "iframe")[0]!;
 const bookBox = (root: Element) => elements(root, "input").find(element => element.getAttribute("role") === "combobox") as HTMLInputElement;
@@ -166,7 +183,7 @@ it("switches the preview device between Kindle and Kobo and updates geometry and
   const { manager, id } = await paired(), mounted = mount(manager); await settle();
   expect(frame(mounted.root).getAttribute("width")).toBe("1072");
   expect(labels(mounted.root, "select", "预览设备").getAttribute("value") ?? (labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(id);
-  expect(elements(labels(mounted.root, "select", "设备页边距"), "option").map(option => option.textContent)).toEqual(["窄", "中", "宽"]);
+  expect(elements(labels(mounted.root, "select", "设备页边距"), "button").map(option => option.textContent)).toEqual(["窄", "中", "宽"]);
   setValue(labels(mounted.root, "select", "预览设备"), "", "change");
   setValue(labels(mounted.root, "select", "设备种类"), "kobo", "change");
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
@@ -241,8 +258,8 @@ it("edits the built-in default as an unsaved draft and saves it as a new global 
   setValue(labels(mounted.root, "input", "新方案名称"), "大字正文");
   fire(elements(mounted.root, "form")[0]!, "submit"); await settle();
   expect(profiles.create).toHaveBeenCalledWith({ name: "大字正文", settings: expect.objectContaining({ marginX: 2.5, marginXUnit: "percent" }) });
-  setValue(input(mounted.root, "kt-textIndent"), "2"); fire(button(mounted.root, "保存方案"), "click"); await settle();
-  expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "new-profile", name: "大字正文", settings: expect.objectContaining({ textIndent: 2 }) }));
+  fire(button(mounted.root, "增大首行缩进（em）"), "click"); ui.flush(); fire(button(mounted.root, "保存方案"), "click"); await settle();
+  expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "new-profile", name: "大字正文", settings: expect.objectContaining({ textIndent: 2.5 }) }));
   expect(mounted.root.textContent).toContain("排版方案已保存，所有设备共用。");
   fire(button(mounted.root, "删除"), "click"); ui.flush();
   fire(button(elements(mounted.root, "dialog")[1]!, "确认"), "click"); await settle();
@@ -363,11 +380,8 @@ it("reads a device's deleted profile id as the default profile", async () => {
 it("updates preview asset modes live and includes the strip toggles in reset, save and dirty state", async () => {
   const { manager } = await paired(), profiles = api(), onDirty = vi.fn(), mounted = mount(manager, { profiles, onDirty }); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
-  const toggle = (label: string) => elements(mounted.root, "label").find(node => node.textContent === label)!.getElementsByTagName("input")[0] as HTMLInputElement;
-  const change = (label: string, checked: boolean) => { const node = toggle(label); node.checked = checked; fire(node, "change"); ui.flush(); };
-  expect(elements(mounted.root, "label").some(node => node.textContent === "去掉书籍自带页边距")).toBe(true);
-  expect(elements(mounted.root, "label").some(node => node.textContent === "去掉书籍自带行高")).toBe(true);
-  expect(elements(mounted.root, "label").some(node => node.textContent === "去掉书籍自带段间距")).toBe(true);
+  const change = (label: string, checked: boolean) => { const node = button(mounted.root, label); if ((node.getAttribute("aria-pressed") === "true") !== checked) fire(node, "click"); ui.flush(); };
+  for (const label of ["去掉书籍自带页边距", "去掉书籍自带行高", "去掉书籍自带段间距"]) expect(button(mounted.root, label)).toBeDefined();
   change("去掉书籍自带字体", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/10000/epub/"); expect(onDirty).toHaveBeenLastCalledWith(true);
   change("去掉所有图片", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/11000/epub/");
   change("去掉书籍自带页边距", true); expect(frame(mounted.root).getAttribute("src")).toContain("/devices/content/a/11100/epub/");
@@ -433,33 +447,26 @@ it("shows compact profile range rows, all strip toggles and advanced settings fo
   const mounted = mount(manager, { profiles }); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   const editor = withClass(mounted.root, "kt-editor");
-  expect(elements(editor, "input").filter(node => node.getAttribute("type") === "range" && node.id.startsWith("kt-") && !node.id.startsWith("kt-reading")).map(node => node.id))
-    .toEqual(["kt-marginX", "kt-lineHeight", "kt-paragraphSpacing", "kt-textIndent"]);
+  expect(elements(editor, "input").filter(node => node.getAttribute("type") === "range").map(node => node.getAttribute("aria-label"))).toEqual(["左右边距调整（%）", "行高"]);
   for (const [key, label, min, max, step, fallback] of [
     ["marginX", "左右边距调整（%）", "-10", "20", "0.1", "0"],
     ["lineHeight", "行高", "1.2", "2.4", "0.05", "1.6"],
-    ["paragraphSpacing", "段间距（em）", "0", "1.5", "0.1", "0"],
-    ["textIndent", "首行缩进（em）", "0", "3", "0.5", "2"],
   ]) {
-    const slider = input(editor, `kt-${key}`), row = slider.parentElement!, output = elements(row, "output")[0]!;
-    expect(Array.from(row.childNodes).filter(node => node.nodeType === 1).map(node => node.nodeName)).toEqual(["LABEL", "INPUT", "SPAN"]);
-    const cell = Array.from(row.childNodes).filter(node => node.nodeType === 1).at(-1) as Element;
-    expect(cell.getAttribute("class")).toBe("kt-range-value");
-    expect(Array.from(cell.childNodes).filter(node => node.nodeType === 1).map(node => node.nodeName)).toEqual(["OUTPUT", "BUTTON"]);
+    const slider = input(editor, `kt-${key}`), row = rangeRow(editor, `kt-${key}`), output = rangeOutput(editor, `kt-${key}`);
     expect(["aria-label", "min", "max", "step", "value"].map(attr => slider.getAttribute(attr))).toEqual([label, min, max, step, fallback]);
-    expect(elements(row, "label")[0]!.getAttribute("for")).toBe(slider.id); expect(output.getAttribute("for")).toBe(slider.id);
-    expect(output.textContent).toBe(key === "marginX" ? "默认" : "书籍"); expect(output.className).toBe("is-inherited");
-    const reset = elements(row, "button")[0]!;
-    expect(reset.textContent).toBe("↺"); expect(reset.getAttribute("aria-label")).toBe(key === "marginX" ? "恢复默认" : "恢复沿用书籍");
-    expect(reset.getAttribute("title")).toBe(reset.getAttribute("aria-label"));
+    expect(output.textContent).toBe(key === "marginX" ? "默认" : "书籍");
+    const reset = button(row, key === "marginX" ? "恢复默认" : "恢复沿用书籍");
     expect(reset.hasAttribute("hidden")).toBe(true); expect(reset.hasAttribute("disabled")).toBe(true);
+  }
+  for (const label of ["段间距（em）", "首行缩进（em）"]) {
+    expect(button(editor, `增大${label}`)).toBeDefined(); expect(button(editor, `减小${label}`)).toBeDefined();
   }
   const advanced = withClass(editor, "kt-advanced"), checkboxes = withClass(editor, "kt-checkboxes");
   expect(advanced.hasAttribute("open")).toBe(false);
   expect(labels(advanced, "textarea", "生成的 CSS（只读）").hasAttribute("readonly")).toBe(true);
-  expect(checkboxes.getAttribute("role")).toBe("group"); expect(checkboxes.getAttribute("aria-label")).toBe("正文样式");
-  expect(elements(checkboxes, "label").map(node => node.textContent)).toEqual(["去掉书籍自带字体", "去掉所有图片", "去掉书籍自带页边距", "去掉书籍自带行高", "去掉书籍自带段间距"]);
-  expect(elements(checkboxes, "input").every(node => node.getAttribute("type") === "checkbox")).toBe(true);
+  expect(elements(checkboxes, "legend")[0]!.textContent).toBe("去掉书里自带的");
+  expect(elements(checkboxes, "button").map(node => node.getAttribute("aria-label"))).toEqual(["去掉书籍自带字体", "去掉所有图片", "去掉书籍自带页边距", "去掉书籍自带行高", "去掉书籍自带段间距"]);
+  expect(elements(checkboxes, "button").every(node => node.getAttribute("aria-pressed") === "false")).toBe(true);
   expect(elements(labels(editor, "select", "字体（预览设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
   expect(elements(editor, "*").filter(node => /kt-font-(filter|field)/.test(node.getAttribute("class") || ""))).toEqual([]);
   expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "删除", "另存为方案", "保存方案"]);
@@ -488,7 +495,7 @@ it("fits the frame to the smaller width/height constraint after mount, resize an
   await settle();
   const viewport = withClass(mounted.root, "kt-device-space"), preview = withClass(mounted.root, "kt-preview"), screen = frame(mounted.root) as HTMLIFrameElement;
   const scale = () => Number(/scale\(([^)]+)\)/.exec(screen.style.getPropertyValue("transform"))![1]);
-  expect(window.matchMedia).toHaveBeenCalledWith("(min-width: 944px)");
+  expect(window.matchMedia).toHaveBeenCalledWith("(min-width: 768px)");
   expect(scale()).toBeCloseTo((height - 80) / 1448);
   expect((preview as HTMLElement).getAttribute("style")).toBeNull();
   width = 260; height = 900; notify(viewport); expect(scale()).toBeCloseTo((width - 44) / 1072);
@@ -529,7 +536,7 @@ it("edits and resets signed margins with compact values, previews calibrated cou
   const estimate = () => elements(mounted.root, "p", "data-kindle-line-estimate")[0]!.textContent;
   expect(estimate()).toBe("预计每行约 16 字、每页 13 行（实测 · 1072×1448）");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
-  const margin = input(mounted.root, "kt-marginX"), output = elements(margin.parentElement!, "output")[0]!, reset = button(margin.parentElement!, "恢复默认");
+  const margin = input(mounted.root, "kt-marginX"), output = rangeOutput(mounted.root, "kt-marginX"), reset = button(rangeRow(mounted.root, "kt-marginX"), "恢复默认");
   expect(output.textContent).toBe("1%"); expect(reset.hasAttribute("hidden")).toBe(false);
   expect(margin.getAttribute("aria-label")).toBe("左右边距调整（%）"); expect(margin.getAttribute("min")).toBe("-10"); expect(margin.getAttribute("step")).toBe("0.1");
   fire(button(mounted.root, "恢复默认"), "click"); ui.flush();
@@ -546,16 +553,17 @@ it("edits and resets signed margins with compact values, previews calibrated cou
   expect(reading.save).toHaveBeenLastCalledWith(id, "kindle", expect.objectContaining({ margin: "wide" }));
   mounted.dispose();
   const reloaded = mount(manager, { profiles, reading: reading.api }); await settle();
-  expect((labels(reloaded.root, "select", "设备页边距") as HTMLSelectElement).value).toBe("wide");
+  expect(button(labels(reloaded.root, "select", "设备页边距"), "宽").getAttribute("aria-pressed")).toBe("true");
   expect(elements(reloaded.root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("约 11 字");
 });
 
 it("shows one book-following value per compact range and hides each reset again after restoring null", async () => {
   const { manager } = await paired(), mounted = mount(manager); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
-  for (const [key, value, text] of [["lineHeight", "1.85", "1.85"], ["paragraphSpacing", "0", "0em"], ["textIndent", "2", "2em"]]) {
-    const slider = input(mounted.root, `kt-${key}`), row = slider.parentElement!, output = elements(row, "output")[0]!, reset = button(row, "恢复沿用书籍");
-    setValue(slider, value!);
+  for (const [key, value, text] of [["lineHeight", "1.85", "1.85"], ["paragraphSpacing", "增大段间距（em）", "0.1em"], ["textIndent", "增大首行缩进（em）", "2.5em"]]) {
+    const row = key === "lineHeight" ? rangeRow(mounted.root, `kt-${key}`) : controlRow(button(mounted.root, value!));
+    const output = elements(withClass(row, "kt-range-value"), "output")[0]!, reset = button(row, "恢复沿用书籍");
+    if (key === "lineHeight") setValue(input(mounted.root, `kt-${key}`), value!); else { fire(button(row, value!), "click"); ui.flush(); }
     expect(output.textContent).toBe(text); expect(output.className).not.toContain("is-inherited");
     expect(reset.getAttribute("title")).toBe("恢复沿用书籍"); expect(reset.textContent).toBe("↺");
     expect(reset.hasAttribute("hidden")).toBe(false); expect(reset.hasAttribute("disabled")).toBe(false);
@@ -573,7 +581,7 @@ it("keeps a legacy em margin until edited, then switches the adjustment to perce
   const mounted = mount(manager, { profiles }); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   const css = () => (labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value;
-  const output = elements(input(mounted.root, "kt-marginX").parentElement!, "output")[0]!;
+  const output = rangeOutput(mounted.root, "kt-marginX");
   expect(output.textContent).toBe("1em"); expect(output.getAttribute("title")).toContain("随字号缩放");
   expect(css()).toContain("margin-left: 1em !important");
   expect(Number((input(mounted.root, "kt-marginX") as HTMLInputElement).value)).toBeCloseTo(6); expect(mounted.root.textContent).not.toContain("有未保存的修改");
@@ -596,7 +604,7 @@ it("keeps the saved profile selected after saving when the browser drops the re-
   expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "custom", settings: expect.objectContaining({ lineHeight: 1.8 }) }));
   profileSelect().value = "default";
   setValue(input(mounted.root, "kt-lineHeight"), "1.9");
-  expect(profileSelect().value).toBe("custom"); expect(elements(mounted.root, "input").some(node => node.id === "kt-lineHeight")).toBe(true);
+  expect(profileSelect().value).toBe("custom"); expect(input(mounted.root, "kt-lineHeight")).toBeDefined();
 });
 
 it("accepts margins past the device edge, shows the overflow note and labels unmeasured panels as estimates", async () => {

@@ -1,0 +1,86 @@
+/* Device shells: docs/design/README.md §5.2, local until shared consolidation. */
+.device-shell, .kt-device-bezel {
+  --device-body: #23282A;
+  --device-button: #3E4144;
+  --device-idle: #C9CBC2;
+  --device-paper: #EDEBE4;
+  position: relative;
+  background: var(--device-body);
+  border-radius: 20px;
+  box-shadow: var(--shadow-cover-lg);
+}
+.device-shell { width: 212px; padding: 14px 14px 40px; }
+.device-shell-paper { aspect-ratio: 3 / 4; background: var(--device-paper); color: var(--color-ink); padding: 16px 12px; overflow: hidden; font: 14px/1.8 var(--font-display); }
+.device-shell-paper p { margin: 0 0 12px; }
+.device-page-sample { position: relative; width: 160px; height: 216px; pointer-events: none; }
+.device-page-sample iframe { position: absolute; inset: 0; transform-origin: top left; border: 0; background: var(--device-paper); }
+.device-shell.device-shell-grip { width: 244px; padding: 14px 52px 14px 14px; }
+.device-shell-grip::before, .device-shell-grip::after { content: ""; position: absolute; right: 18px; top: 35%; width: 8px; height: 32px; border-radius: 999px; background: var(--device-button); }
+.device-shell-grip::after { top: 57%; }
+.device-shell-idle { background: var(--device-idle); }
+.device-shell-compact { width: 44px; height: 60px; padding: 5px 5px 12px; border-radius: 5px; box-shadow: none; background: var(--device-button); flex: none; }
+.device-shell-compact .device-shell-paper { padding: 0; height: 100%; }
+.device-shell-compact.device-shell-grip { width: 54px; height: 60px; padding: 5px 13px 5px 5px; }
+.device-shell-compact.device-shell-grip::before, .device-shell-compact.device-shell-grip::after { right: 5px; width: 3px; height: 8px; background: var(--device-idle); }
+.kindle-device-content { font-size: var(--text-body); }
+.kindle-device-content .btn, .device-send-sheet .btn { font-size: var(--text-control); }
+.kindle-device-content .btn-sm { font-size: var(--text-meta); }
+.kindle-device-content .field, .kindle-device-content .field input, .kindle-device-content .field select, .kindle-device-content .field textarea { font-size: var(--text-control); }
+.kindle-device-content .ui-select-pill select { font-size: var(--text-control); }
+.device-intro { position: relative; margin-bottom: 40px; }
+.device-intro .ui-page-intro h1 { max-width: 760px; text-wrap: balance; }
+.device-intro-compact .ui-page-intro h1 { font-size: var(--text-tab); }
+.device-intro .ui-page-eyebrow { display: flex; align-items: center; gap: 8px; letter-spacing: normal; }
+.device-intro-visual { margin: 0; transform: rotate(3deg); }
+.device-intro-visual > a { display: block; border-radius: 20px; transition: transform 180ms ease; text-decoration: none; }
+.device-intro-visual > a:hover { transform: translateY(-4px); }
+.device-intro-visual figcaption { margin-top: 16px; font-size: var(--text-meta); text-align: center; }
+.device-intro .kindle-usage { max-width: 560px; margin-top: 24px; }
+.device-intro .kindle-usage-bar { height: 6px; border-radius: 999px; overflow: hidden; }
+.device-intro .kindle-usage-bar .books { background: var(--color-accent); }
+.device-intro .kindle-usage-bar .fonts { background: var(--color-ok); }
+.device-intro .kindle-usage-bar .other { background: var(--color-ink-4); }
+.device-intro .kindle-usage .kindle-small { margin-top: 10px; }
+.kindle-device-content .ui-page-tabs { margin-bottom: 28px; }
+.device-book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 36px 28px; margin-block: 28px; }
+.device-book-grid article { min-width: 0; display: grid; align-content: start; gap: 12px; }
+.device-book-grid article > a { display: block; }
+.device-book-grid .kindle-book-cover { width: 100%; height: auto; aspect-ratio: 2 / 3; }
+.device-book-grid .ui-menu { max-width: 100%; }
+.device-book-grid .ui-menu-trigger { width: 100%; text-align: left; justify-content: space-between; }
+.device-book-grid .ui-menu-trigger > span { min-width: 0; }
+.device-book-grid strong { display: block; font-size: var(--text-title); overflow-wrap: anywhere; }
+.device-book-author { display: block; font-size: var(--text-meta); color: var(--color-ink-3); margin-top: 4px; }
+.device-book-grid .ui-progress { height: 4px; }
+.device-send-sheet { width: min(560px, 100vw); }
+.device-send-sheet .kindle-transfer { display: grid; gap: 24px; }
+.device-send-sheet .kindle-toolbar { display: grid; gap: 16px; }
+.device-send-sheet .kindle-aside { border: 0; padding: 0; }
+.device-send-grid { list-style: none; margin: 20px 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 16px; }
+.device-send-book { display: grid; gap: 8px; padding: 8px; border-radius: var(--radius-row); width: 100%; background: transparent; color: var(--color-ink); text-align: left; }
+.device-send-book[aria-pressed="true"] { background: var(--color-accent-soft); box-shadow: inset 0 0 0 2px var(--color-accent); }
+.device-send-book strong { font-size: var(--text-control); overflow-wrap: anywhere; }
+.device-send-sheet .kindle-start { width: 100%; border-radius: 999px; min-height: 48px; }
+.device-send-sheet .kindle-transfer-settings { gap: 16px; }
+.device-send-sheet .kindle-queue { margin-top: 24px; }
+.kindle-connect.kindle-split { display: grid; gap: 48px; }
+.kindle-connect .kindle-aside { padding: 0; border: 0; }
+.kindle-connect .ui-page-intro h1 { font-size: var(--text-hero); }
+.kindle-connect .kindle-connect-heading { margin-block: 24px; max-width: 720px; }
+.kindle-connect .kindle-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; border: 0; }
+.kindle-connect .kindle-steps li { padding: 36px 0 12px; border: 0; }
+.kindle-connect .kindle-steps .device-pairing-step { grid-column: 1 / -1; }
+.kindle-connect .kindle-steps li::before { top: 0; font-size: var(--text-title); }
+.kindle-connect .kindle-remembered-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+.kindle-connect .kindle-pair { max-width: 720px; }
+.kindle-connect .segmented { flex-wrap: wrap; }
+.kindle-connect .kindle-aside > .ui-section-title { font: 500 var(--text-title)/1.5 var(--font-display); border: 0; padding: 0; }
+.kindle-device-content .kindle-small, .device-send-sheet .kindle-small { font-size: var(--text-meta); }
+.kindle-device-content summary { cursor: pointer; min-height: 44px; align-content: center; }
+.kindle-device-content :is(a, button, summary):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
+@media (min-width: 768px) and (max-width: 1000px) {
+  .device-intro .ui-page-intro { gap: 24px; }
+  .device-intro .ui-page-intro h1 { font-size: 36px; }
+  .device-intro .ui-page-visual { max-width: 220px; }
+}
+@media (prefers-reduced-motion: reduce) { .device-intro-visual > a { transition: none; } }

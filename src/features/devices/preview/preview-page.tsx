@@ -9,7 +9,7 @@ import {
 import type { PairedDevice } from "../../../client/devices/identity";
 import type { FontFamily } from "../../../client/devices/fonts";
 import { validateCss } from "../../../core/css";
-import { Button, Checkbox, ConfirmDialog, Dialog, Select, Textarea, TextField } from "../../../ui";
+import { BackLink, Button, ConfirmDialog, Dialog, PageIntro, SegmentedControl, Select, SelectPill, Slider, Stepper, Textarea, TextField, ToggleChip } from "../../../ui";
 import { Link } from "../../../shared/spa-link";
 import { DeviceProvider, useOptionalDevice } from "../context";
 import type { DeviceManager } from "../../../client/devices/device";
@@ -228,23 +228,17 @@ function DevicePreviewPageInner(props: PreviewProps) {
   onSettled(() => { void loadProfiles(); });
   onCleanup(() => { disposed = true; profileRequest++; chapterRequest++; readingRequest++; if (saveTimer !== undefined) clearTimeout(saveTimer); });
   const src = () => { const section = sections()[chapter()]; return section ? previewContentUrl(bookId(), section.item_path, settingsError() ? EMPTY_SETTINGS : draft().settings) : ""; };
-  return <section class="kt-page" aria-label="排版与预览">
+  return <section class="kt-page device-preview-page" aria-label="排版与预览">
+    <BackLink href={bookId() ? `/book/${encodeURIComponent(bookId())}` : "/devices"}>{bookId() ? "返回书籍" : "设备"}</BackLink>
+    <PageIntro eyebrow={previewName()} title="排版预览" description="所有设备共用排版方案，只改变发送的副本，书库里的原书不变。无需连接也能预览；调整后可直接发送，不必保存为方案。" actions={<>
+      <SelectPill label="预览设备" value={target()?.id ?? ""} disabled={busy()} options={[{ value: "", label: "仅预览型号" }, ...available().map(identity => ({ value: identity.id, label: identity.name }))]} onChange={chooseTarget} />
+      <Show when={!target()}><SelectPill label="设备种类" value={modelKind()} disabled={busy()} options={[{ value: "kindle", label: "Kindle" }, { value: "kobo", label: "Kobo" }]} onChange={value => chooseModelKind(value as DeviceKind)} /><SelectPill label="预览型号" value={model()} disabled={busy()} options={modelOptions(modelKind()).map(([value, label]) => ({ value, label }))} onChange={setModel} /></Show>
+    </>} />
     <div class="kt-preview-layout"><section class="kt-editor" aria-label="排版方案编辑器">
-      <div class="kt-editor-heading"><p class="muted">所有设备共用一套排版参数；传书时写入副本，书库里的 EPUB 不变。调整后可直接发送，不必保存为方案。</p></div>
-      <Select label="预览设备" value={target()?.id ?? ""} disabled={busy()} onChange={event => chooseTarget(event.currentTarget.value)}>
-        <option value="">仅预览型号</option>
-        <For each={available()}>{identity => <option value={identity.id}>{identity.name}</option>}</For>
-      </Select>
-      <Show when={!target()}><div class="kt-profile-controls">
-        <Select label="设备种类" value={modelKind()} disabled={busy()} onChange={event => chooseModelKind(event.currentTarget.value as DeviceKind)}><option value="kindle">Kindle</option><option value="kobo">Kobo</option></Select>
-        <Select label="预览型号" value={model()} disabled={busy()} onChange={event => setModel(event.currentTarget.value)}><For each={modelOptions(modelKind())}>{([id, name]) => <option value={id}>{name}</option>}</For></Select>
-      </div></Show>
       <section class="kt-reading" aria-label="设备阅读设置">
         <h3>设备阅读设置（只用于预览）</h3>
         <Show when={presets().length > 1} fallback={<p class="muted" data-reading-margin>页边距：{presets()[0]!.label}（{geometry().measured ? "实测" : "估算"}）</p>}>
-          <Select label="设备页边距" value={reading().margin} disabled={busy()} onChange={event => editReading({ margin: event.currentTarget.value })}>
-            <For each={presets()}>{preset => <option value={preset.id}>{preset.label}</option>}</For>
-          </Select>
+          <SegmentedControl label="设备页边距" value={reading().margin} disabled={busy()} options={presets().map(preset => ({ value: preset.id, label: preset.label }))} onChange={margin => editReading({ margin })} />
         </Show>
       </section>
       <div class="kt-profile-controls"><Select label="方案" value={draft().id} disabled={busy() || loading()} onChange={event => {
@@ -262,9 +256,11 @@ function DevicePreviewPageInner(props: PreviewProps) {
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={dirty()}><p role="status" class="kt-dirty-note"><span aria-hidden="true" />有未保存的修改</p></Show>
       <Show when={draft().settings.fontFamily && !family()}><p class="muted">所选字体当前预览设备不可用，预览暂用替代字体；发送前请确认目标设备已安装。</p></Show>
-      <For each={ranges}>{range => <div class="kt-range"><label for={`kt-${range.key}`}>{range.label}</label>
-        <input id={`kt-${range.key}`} aria-label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} type="range" min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? marginMax() : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} onInput={event => { const value = Number(event.currentTarget.value); if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />
-        <span class="kt-range-value"><output for={`kt-${range.key}`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output>
+      <For each={ranges}>{range => <div class="kt-range">
+        <Show when={range.key === "paragraphSpacing" || range.key === "textIndent"} fallback={<Slider label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? marginMax() : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} formatValue={value => range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${value}${range.unit}`} onChange={value => { if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />}>
+          <span class="kt-stepper-label">{range.label}</span><Stepper label={`${range.label}（${range.unit}）`} min={range.min} max={range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} onChange={value => edit(range.key, Number(value.toFixed(2)))} />
+        </Show>
+        <span class="kt-range-value"><output aria-label={`${range.label}当前值`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output>
         <button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={locked() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button></span>
       </div>}</For>
       <Select label="字体（预览设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={locked()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
@@ -272,13 +268,9 @@ function DevicePreviewPageInner(props: PreviewProps) {
         <Show when={draft().settings.fontFamily && !family()}><option value={draft().settings.fontFamily!}>{draft().settings.fontFamily}（尚未在当前设备读取到）</option></Show>
         <For each={fonts()}>{font => <option value={font.name}>{font.name}</option>}</For>
       </Select>
-      <div class="kt-checkboxes" role="group" aria-label="正文样式">
-        <Checkbox label="去掉书籍自带字体" checked={draft().settings.stripFonts} disabled={locked()} onChange={event => edit("stripFonts", event.currentTarget.checked)} />
-        <Checkbox label="去掉所有图片" checked={draft().settings.stripImages} disabled={locked()} onChange={event => edit("stripImages", event.currentTarget.checked)} />
-        <Checkbox label="去掉书籍自带页边距" checked={draft().settings.stripPageMargins} disabled={locked()} onChange={event => edit("stripPageMargins", event.currentTarget.checked)} />
-        <Checkbox label="去掉书籍自带行高" checked={draft().settings.stripLineHeight} disabled={locked()} onChange={event => edit("stripLineHeight", event.currentTarget.checked)} />
-        <Checkbox label="去掉书籍自带段间距" checked={draft().settings.stripParagraphSpacing} disabled={locked()} onChange={event => edit("stripParagraphSpacing", event.currentTarget.checked)} />
-      </div>
+      <fieldset class="kt-checkboxes"><legend>去掉书里自带的</legend><div class="kt-actions">
+        <For each={[["stripFonts", "字体"], ["stripImages", "图片"], ["stripPageMargins", "页边距"], ["stripLineHeight", "行高"], ["stripParagraphSpacing", "段间距"]] as const}>{([key, label]) => <ToggleChip aria-label={key === "stripImages" ? "去掉所有图片" : `去掉书籍自带${label}`} selected={draft().settings[key]} disabled={locked()} onClick={() => edit(key, !draft().settings[key])}>{label}</ToggleChip>}</For>
+      </div></fieldset>
       <details class="kt-advanced"><summary>更多设置</summary><div>
         <TextField label="方案名称" value={draft().name} disabled={locked()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
         <Textarea label="额外自定义 CSS" rows={6} value={draft().settings.customCss} disabled={locked()} error={cssError() ?? undefined} onInput={event => edit("customCss", event.currentTarget.value)} />
@@ -298,7 +290,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
       <Show when={bookId() && chapterError()}><Button variant="secondary" disabled={chapterLoading()} onClick={() => chooseBook(bookId())}>重新读取章节</Button></Show>
       <Show when={!props.data.books.length}><p class="notice">书库中还没有可预览的 EPUB。</p></Show><Show when={bookId() && !sections().length && !chapterLoading() && !chapterError()}><p class="notice">这本书没有可预览的章节。</p></Show>
       </div>
-      <ChapterFrame src={src()} geometry={geometry()} label={deviceKindLabel(kind())} css={css()} device={family() ? fontDevice() : null} family={family()} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
+      <ChapterFrame src={src()} geometry={geometry()} kind={kind()} model={target()?.model ?? model()} label={deviceKindLabel(kind())} css={css()} device={family() ? fontDevice() : null} family={family()} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
       <p class="muted" data-kindle-line-estimate data-typeset-estimate>{settingsError() ? "排版参数无效，预览保留上次有效样式。" : `预计每行约 ${estimate().charsPerLine} 字、每页 ${estimate().linesPerPage} 行（${estimate().measured ? "实测" : "估算"} · ${targetInfo().panel.width}×${targetInfo().panel.height}${targetInfo().fallbackPanel ? ` · 其他型号按 ${targetInfo().panel.width}×${targetInfo().panel.height} 预览` : ""}）`}</p>
       <Show when={overflow()}><p class="kt-warning-note" role="alert" data-overflow-note>⚠ 左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。</p></Show>
       <details class="kt-calibration"><summary>校准说明</summary>

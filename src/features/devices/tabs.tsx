@@ -1,21 +1,12 @@
 import { useLocation } from "@tanstack/solid-router";
-import { For } from "solid-js";
-import { Link } from "../../shared/spa-link";
-
-const TABS = [
-  { href: "/devices", label: "设备书籍" },
-  { href: "/devices/transfer", label: "传书" },
-  { href: "/devices/preview", label: "排版与预览" },
-  { href: "/devices/fonts", label: "字体" },
-] as const;
+import { PageTabs } from "../../ui";
+import { useDevice } from "./context";
 
 export function DeviceTabs() {
-  const location = useLocation();
-  const active = (href: string) => (href === "/devices" ? location().pathname === "/devices" || location().pathname === "/devices/" : location().pathname.startsWith(href));
-  return (
-    <nav aria-label="设备管理" class="kindle-tabs">
-      <For each={TABS}>{tab => <Link href={tab.href} class={active(tab.href) ? "kindle-tab on" : "kindle-tab"} aria-current={active(tab.href) ? "page" : undefined}>{tab.label}</Link>}</For>
-    </nav>
-  );
+  const location = useLocation(), device = useDevice();
+  return <PageTabs label="设备内容" value={location().pathname.endsWith("/fonts") ? "fonts" : "books"} tabs={[
+    { value: "books", label: "书", href: "/devices", count: device.inventory()?.books.length ?? 0 },
+    { value: "fonts", label: "字体", href: "/devices/fonts", count: device.inventory()?.fonts.length ?? 0 },
+  ]} />;
 }
 export const KindleTabs = DeviceTabs;

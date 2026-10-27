@@ -16,6 +16,7 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
     const book = obfuscatedEpub();
     writeFileSync(epubPath(fixture.library.base, fixture.id), book.data);
     writeFileSync(join(fixture.root, "typeset-paths.json"), JSON.stringify({ paths: book.paths, css: book.css, importedCss: book.importedCss, image: book.image, font: book.font }));
+    for (const [device_id, section] of [["mapped-device", 1], ["unmapped-device", null], ["stale-device", 999]] as const) fixture.library.db.upsertDeviceReading({ book_id: fixture.id, device_id, device_kind: "kobo", device_name: device_id, section, section_fraction: 0.2, percent: 99, location: null, read_status: "reading", last_read_at: null, time_spent_seconds: 0, rest_estimate_seconds: null, synced_at: new Date().toISOString() });
     const script = join(fixture.root, "check-typeset.mjs");
     writeFileSync(script, `
       import assert from "node:assert/strict";
@@ -34,9 +35,9 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       for (const page of ["/devices/preview?book=" + bookId, "/devices/fonts"]) {
         assert.equal((await get(page, false)).status, 303);
         const response = await get(page); assert.equal(response.status, 200); const html = await response.text();
-        assert.match(html, /检测中/); assert.doesNotMatch(html, /allow-scripts|srcdoc=/); assert.ok(!html.includes(root));
+        assert.match(html, page.includes("preview") ? /正在分页/ : /检测中/); assert.doesNotMatch(html, /allow-scripts|srcdoc=/); assert.ok(!html.includes(root));
         pages[page.includes("preview") ? "preview" : "fonts"] = html;
-        assert.match(html, page.includes("preview") ? /Kindle 章节排版预览/ : /字体管理/);
+        assert.match(html, page.includes("preview") ? /Kindle 章节排版预览/ : /连接设备/);
         if (page.includes("preview")) {
           assert.ok(html.includes("/book/" + bookId + "/epub/" + encodePath(book.paths[0])), "iframe member path must round-trip");
           assert.match(html, /实测：Kindle Paperwhite 3 窄边距、Kobo Libra 2 最小边距/);
@@ -64,6 +65,9 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
       const result = async response => { assert.equal(response.status, 200); const payload = await response.json(); assert.ok(!payload.error, JSON.stringify(payload)); return payload.result; };
       const preview = await result(await rpc("getPreview", "GET", bookId)); assert.equal(preview.bookId, bookId); assert.ok(preview.sections.length > 0);
       assert.deepEqual(preview.sections.map(section => section.item_path), book.paths);
+      const sample = await result(await rpc("loadDevicePage", "GET", { deviceId: "mapped-device", bookId }));
+      assert.equal(sample.path, book.paths[1]); assert.equal(sample.bookId, bookId); assert.equal(sample.chapter, preview.sections[1].title);
+      for (const deviceId of ["unmapped-device", "stale-device", "absent-device"]) assert.equal(await result(await rpc("loadDevicePage", "GET", { deviceId, bookId })), null);
       const assetPath = "/devices/content/" + bookId + "/11000/epub/" + encodePath(preview.sections[0].item_path);
       assert.equal((await get(assetPath, false)).status, 303);
       const asset = await get(assetPath); assert.equal(asset.status, 200); assert.ok((await asset.text()).includes('<base href="http://localhost/devices/content/'));
@@ -108,7 +112,8 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
     expect(byRole(preview, "region", "设备预览")).toBeDefined();
     expect(byRole(preview, "button", "校准说明")).toBeDefined();
     expect(byLabel(preview, /^左右边距/).hasAttribute("disabled")).toBe(false);
-    expect(byRole(preview, "group", "正文样式")).toBeDefined();
+    expect(byRole(preview, "group", "去掉书里自带的")).toBeDefined();
+    expect(byRole(preview, "button", "去掉所有图片").getAttribute("aria-pressed")).toBe("false");
     expect(byRole(preview, "button", "更多设置")).toBeDefined();
     expect(byRole(preview, "button", "另存为方案")).toBeDefined();
     for (const name of ["新建方案", "保存方案"]) expect(allByRole(preview, "button", name)).toHaveLength(0);

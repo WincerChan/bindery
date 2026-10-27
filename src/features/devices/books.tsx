@@ -3,12 +3,12 @@ import { deleteBook } from "../../client/devices";
 import type { DeviceBook } from "../../client/devices/inventory";
 import type { PairedDevice } from "../../client/devices/identity";
 import { EntryAccessError, entryOperation } from "../../client/devices/fs";
-import { BookCover, Button, Checkbox, Chip, ConfirmDialog, EmptyState, TextField } from "../../ui";
+import { BookCover, Button, ConfirmDialog, EmptyState, Menu, ProgressBar, SearchPill, SegmentedControl, ToggleChip, Toolbar } from "../../ui";
+import { useDeviceNavigation } from "./local-navigation";
 import { useDevice } from "./context";
-import { bytes, dateLabel, readingTimeLabel } from "./format";
+import { readingTimeLabel } from "./format";
 import { koboBookFilename } from "../../client/devices/paths";
-import { defaultProfile, DEFAULT_PROFILE_ID, isDefaultSettings } from "../../client/devices/profiles";
-import { KindleIcon } from "../kindle/icons";
+import { DEFAULT_PROFILE_ID } from "../../client/devices/profiles";
 import { Link } from "../../shared/spa-link";
 import { createDeviceLibraryResolver, type DeviceLibraryBook, type DeviceLibraryResolver } from "./library";
 
@@ -33,13 +33,6 @@ function DeviceCover(props: { book: DeviceBook; title: string; author: string | 
 
 const bookTitle = (filename: string) => filename.split("/").at(-1)!.replace(/\.kepub\.epub$/i, "").replace(/\.[^.]+$/, "");
 const deviceNoun = (kind: string | null | undefined) => kind === "kobo" ? "Kobo" : "Kindle";
-// Books sent without a tweak keep the built-in label current; a recorded tweak keeps its snapshot name.
-const profileName = (book: DeviceBook) => {
-  const record = book.record;
-  if (!record || !("profile_name" in record)) return null;
-  const settings = "settings" in record ? record.settings : undefined;
-  return record.profile_id === DEFAULT_PROFILE_ID && (settings === undefined || isDefaultSettings(settings)) ? defaultProfile().name : record.profile_name;
-};
 const progressLabel = (book: DeviceBook, kind: string) => {
   const progress = book.progress;
   if (!progress || !progress.last_read_at && !progress.percent) return "未读";
@@ -48,8 +41,9 @@ const progressLabel = (book: DeviceBook, kind: string) => {
   return `在读 ${Math.round(progress.percent)}%${time ? ` · ${time}` : ""}`;
 };
 
-/** `chapters`: the chapter each book was last read at on a device, as synced to the server (shown on hover). */
+/** `chapters`: the chapter each book was last read at on a device, as synced to the server (shown in the book menu). */
 export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: (deviceId: string) => Promise<Record<string, string>> }) {
+  const navigate = useDeviceNavigation(), [batch, setBatch] = createSignal(false);
   const k = useDevice(), [source, setSource] = createSignal("全部"), [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<string[]>([]), [notice, setNotice] = createSignal("");
   const [notRemoved, setNotRemoved] = createSignal<import("../../client/devices/fs").UnreadableEntry[]>([]);
@@ -119,14 +113,11 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
     });
   }
   return <section aria-label="设备书籍" class="kindle-books">
-    <div class="kindle-toolbar kindle-books-toolbar">
-      <div class="kindle-section-heading"><span class="kindle-count kindle-mono">{all().length} 本 · {bytes(k.inventory()?.usage.books || 0)}</span></div>
-      <div class="kindle-filters" role="group" aria-label="按来源筛选"><For each={["全部", "Bindery", "其他"]}>{value => <Chip variant="filter" selected={source() === value} onClick={() => { setSource(value); setSelected([]); }}>{value === "Bindery" ? "来自 Bindery" : value}{value !== "全部" ? ` ${all().filter(b => b.source === value).length}` : ""}</Chip>}</For></div>
-      <div class="kindle-toolbar-actions">
-        <TextField class="kindle-search search-field" label="搜索设备上的书" labelHidden type="search" placeholder="搜索书名或作者" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />
-        <Button variant="quiet-danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button>
-      </div>
-    </div>
+    <Toolbar search={<SearchPill label="搜索设备上的书" placeholder="搜索书名或作者" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />}>
+      <SegmentedControl label="按来源筛选" value={source()} options={[{ value: "全部", label: "全部" }, { value: "Bindery", label: "来自 Bindery" }, { value: "其他", label: "其他" }]} onChange={value => { setSource(value); setSelected([]); }} />
+      <Button variant="secondary" onClick={() => { setBatch(!batch()); setSelected([]); }}>{batch() ? "取消选择" : "批量选择"}</Button>
+      <Show when={batch()}><ToggleChip aria-label="全选当前筛选书籍" selected={deletableVisible().length > 0 && deletableVisible().every(b => selected().includes(b.filename))} disabled={!connected() || !deletableVisible().length || k.busy()} onClick={() => setSelected(deletableVisible().every(b => selected().includes(b.filename)) ? [] : deletableVisible().map(b => b.filename))}>全选</ToggleChip><Button variant="quiet-danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button></Show>
+    </Toolbar>
     <Show when={notice()}><p role="status" class="notice">{notice()} <Link href="/devices/transfer">查看传输队列</Link></p></Show>
     <Show when={notRemoved().length}>
       <details open class="kindle-small kindle-entry-notice" data-delete-report>
@@ -135,15 +126,16 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
         <ul><For each={notRemoved()}>{entry => <li><span class="kindle-mono">{entry.path}</span>（{entry.reason}；{entry.likelyCause}）</li>}</For></ul>
       </details>
     </Show>
-    <div class="kindle-table-scroll" tabindex={0} role="region" aria-label="设备书籍列表，可横向滚动"><table class="kindle-book-table"><thead><tr>
-      <th scope="col"><Checkbox label="" aria-label="全选当前筛选书籍" disabled={!connected() || !deletableVisible().length || k.busy()} checked={deletableVisible().length > 0 && deletableVisible().every(b => selected().includes(b.filename))} indeterminate={deletableVisible().some(b => selected().includes(b.filename)) && !deletableVisible().every(b => selected().includes(b.filename))} onChange={e => setSelected(e.currentTarget.checked ? deletableVisible().map(b => b.filename) : [])} /></th>
-      <th scope="col">书籍</th><th scope="col">来源</th><th scope="col">格式</th><th scope="col">阅读进度</th><Show when={kindle()}><th scope="col">排版方案</th></Show><th scope="col">大小</th><Show when={kindle()}><th scope="col">传入时间</th></Show><th scope="col">操作</th>
-    </tr></thead><tbody><Show when={connected() && k.inventory()}><For each={visible()}>{book => <tr data-device-book={book.filename}>
-      <td><Checkbox label="" aria-label={`选择 ${title(book)}`} disabled={!deletable(book)} checked={selected().includes(book.filename)} onChange={e => setSelected(current => e.currentTarget.checked ? [...current.filter(n => n !== book.filename), book.filename] : current.filter(n => n !== book.filename))} /></td>
-      <td><div class="kindle-book-info"><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} libraryId={resolvedId(book)} /><div><strong title={book.filename}>{title(book)}</strong><p class="kindle-small">{metadata(book)?.author || book.filename}</p></div></div></td>
-      <td>{book.source}</td><td class="kindle-mono">{book.format.toUpperCase()}</td><td class="kindle-mono" data-device-progress title={chapterTitle(book)}>{progressLabel(book, kind())}</td><Show when={kindle()}><td>{profileName(book) || "—"}</td></Show><td class="kindle-mono">{bytes(book.size)}</td><Show when={kindle()}><td class="kindle-mono kindle-time">{dateLabel(book.record?.transferred_at || null)}</td></Show>
-      <td><div class="kindle-row-actions"><Show when={book.record}><Show when={resolvedId(book)}><Link class="btn btn-icon" href={`/devices/preview?book=${encodeURIComponent(resolvedId(book)!)}`} aria-label={`预览 ${title(book)}`} title={`预览 ${title(book)}`}><KindleIcon name="eye" /></Link></Show><Button variant="icon" aria-label={`重新传入 ${title(book)}`} title="使用记录中的排版方案，覆盖此书首份 Bindery 副本并保留其阅读记录" disabled={k.busy() || !resolvedId(book) || !metadata(book)} onClick={() => resend(book)}><KindleIcon name="redo" /></Button></Show><Button variant="icon" aria-label={`从设备删除 ${title(book)}`} title={deletable(book) ? `从设备删除 ${title(book)}` : "只能删除 Bindery 管理的 KEPUB"} disabled={k.busy() || !deletable(book)} onClick={() => confirm([book])}><KindleIcon name="trash" /></Button></div></td>
-    </tr>}</For></Show></tbody></table></div>
+    <div class="device-book-grid" role="region" aria-label="设备书籍列表"><Show when={connected() && k.inventory()}><For each={visible()}>{book => <article data-device-book={book.filename}>
+      <Show when={resolvedId(book)} fallback={<DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} />}><Link href={`/book/${encodeURIComponent(resolvedId(book)!)}`} aria-label={`打开《${title(book)}》详情（${progressLabel(book, kind())}）`}><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} libraryId={resolvedId(book)} /></Link></Show>
+      <ProgressBar label={`${title(book)}：${progressLabel(book, kind())}`} value={book.progress?.percent ?? 0} />
+      <Menu title={title(book)} trigger={<span><strong>{title(book)}</strong><span class="device-book-author">{metadata(book)?.author}</span></span>} status={<span data-device-progress>{progressLabel(book, kind())}{chapterTitle(book) ? ` · ${chapterTitle(book)}` : ""} · {book.source === "Bindery" ? "来自 Bindery" : "其他来源"}</span>} items={[
+        ...(resolvedId(book) ? [{ label: `预览 ${title(book)}`, onSelect: () => navigate(`/devices/preview?book=${encodeURIComponent(resolvedId(book)!)}`) }] : []),
+        ...(book.record ? [{ label: `重新传入 ${title(book)}`, disabled: k.busy() || !resolvedId(book) || !metadata(book), onSelect: () => resend(book) }] : []),
+        { label: `从设备删除 ${title(book)}`, destructive: true, disabled: k.busy() || !deletable(book), onSelect: () => confirm([book]) },
+      ]} />
+      <Show when={batch()}><ToggleChip aria-label={`选择 ${title(book)}`} disabled={!deletable(book)} selected={selected().includes(book.filename)} onClick={() => setSelected(current => current.includes(book.filename) ? current.filter(n => n !== book.filename) : [...current, book.filename])}>选择</ToggleChip></Show>
+    </article>}</For></Show></div>
     <Show when={connected()} fallback={<EmptyState title={k.ready() ? "请先连接设备" : "检测中…"}><Link href="/devices/connect">连接并授权设备</Link>后，可查看和管理设备上的书籍。</EmptyState>}>
       <Show when={k.inventory()} fallback={<p class="muted" role="status">{k.inventoryError() || "正在读取设备书籍…"}</p>}>
         <Show when={!visible().length}><EmptyState title={all().length ? "没有符合条件的书籍" : "设备上还没有书籍"}>{all().length ? "试试其他来源或搜索词。" : <Link href="/devices/transfer">从书库选择书籍传入</Link>}</EmptyState></Show>
