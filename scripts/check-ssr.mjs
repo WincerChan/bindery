@@ -112,7 +112,9 @@ try {
   assert.equal(vocabularyPage.status, 200);
   const vocabularyHtml = await vocabularyPage.text();
   assert.match(vocabularyHtml, /<title\b[^>]*>生词本 · Bindery<\/title>/);
-  assert.match(vocabularyHtml, /<details[^>]*id="lexitrace-settings"[^>]*\sopen(?:[\s=>])/);
+  // Shared SideSheet opens modally after hydration; SSR preserves the deep-link intent.
+  assert.match(vocabularyHtml, /<dialog[^>]*id="lexitrace-settings"[^>]*aria-modal="true"[^>]*data-state="open"/);
+  assert.match(vocabularyHtml, /<button[^>]*aria-label="LexiTrace 设置"[^>]*aria-expanded="true"/);
   assert.doesNotMatch(vocabularyHtml, /class="kindle-mobile-note"|aria-label="设备管理"/);
   assert.equal((await get("/settings")).status, 303);
   assert.equal((await get("/vocabulary")).status, 303);
