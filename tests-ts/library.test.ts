@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { libraryPage, loadLibraryPage } from "../src/server/library/queries";
-import { librarySummary } from "../src/features/library/local-summary";
+import { librarySummary } from "../src/features/library/summary";
 import { archiveBooks, deleteArchivedBooks, downloadBooks, normalizeBookIds, regenerateBooks, restoreArchivedBooks } from "../src/server/library/actions";
 import { archivePost, deletePost, downloadPost } from "../src/server/library/handlers";
 import { bookHref, devicePreviewHref, deviceTransferHref, gridPageSize, gridPageSizeFromCookie, libraryQueryInput, libraryReturnTo, normalizeSearch, transferSelection } from "../src/features/library/search";

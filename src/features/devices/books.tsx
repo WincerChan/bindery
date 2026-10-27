@@ -4,7 +4,7 @@ import type { DeviceBook } from "../../client/devices/inventory";
 import type { PairedDevice } from "../../client/devices/identity";
 import { EntryAccessError, entryOperation } from "../../client/devices/fs";
 import { BookCover, Button, ConfirmDialog, EmptyState, Menu, ProgressBar, SearchPill, SegmentedControl, ToggleChip, Toolbar } from "../../ui";
-import { useDeviceNavigation } from "./local-navigation";
+import { useDeviceNavigation } from "./navigation";
 import { useDevice } from "./context";
 import { readingTimeLabel } from "./format";
 import { koboBookFilename } from "../../client/devices/paths";

@@ -94,7 +94,10 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(byRole(root, "link", "导出 CSV").getAttribute("href")).toBe(tracker.export_url);
     for (const name of ["添加书籍", "点此前往编辑该条目。"]) expect(byRole(root, "button", name)).toBeDefined();
     expect(byRole(root, "heading", "正在读的有 1 本，还有 24 本在等你。")).toBeDefined();
-    expect(byRole(root, "group", "阅读状态")).toBeDefined();
+    const readTabs = byRole(root, "navigation", "阅读状态");
+    expect(byRole(readTabs, "link", "全部").getAttribute("aria-current")).toBe("page");
+    const unread = new URL(byRole(readTabs, "link", "未读").getAttribute("href")!, "http://localhost");
+    expect(unread.searchParams.get("q")).toBe("科幻"); expect(unread.searchParams.get("read_filter")).toBe("unread");
     expect(byRole(root, "combobox", "书库")).toBeDefined();
     expect(byRole(root, "combobox", "连载")).toBeDefined();
     const list = byRole(root, "list", "追踪列表");
@@ -115,7 +118,7 @@ describe("catalog UI SSR and accessible controls", () => {
       expect(byRole(row, "menuitem", "编辑追踪")).toBeDefined();
       expect(byRole(row, "menuitem", "删除追踪")).toBeDefined();
     }
-    expect(byRole(rows[1]!, "status").textContent).toBe("在读 · 未入库");
+    expect(byRole(byRole(rows[1]!, "dialog"), "status").textContent).toBe("在读 · 未入库");
     expect(allByRole(rows[1]!, "img", /星/)).toHaveLength(0);
     const empty = parseHtml(ui.tracker({ ...tracker, reading_now: [], wishes: [], duplicate_notice: null, filters: { ...tracker.filters, q: "" }, stats: { ...tracker.stats, reading: 0, unread: 0, total: 0, filtered: 0, in_library: 0 } }));
     expect(byRole(empty, "heading", "还有 0 本在等你。")).toBeDefined();

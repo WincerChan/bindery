@@ -4,7 +4,7 @@ import { defaultReadingSettings, readingSettings, type DeviceReadingSettings } f
 import type { DeviceKind } from "../../client/devices/models";
 import type { DeviceBook } from "../../client/devices/inventory";
 import { BookCover, Button, EmptyState, Pagination, SearchPill, SectionTitle, SegmentedControl, SelectPill, SideSheet, ToggleChip } from "../../ui";
-import { useDeviceNavigation } from "./local-navigation";
+import { useDeviceNavigation } from "./navigation";
 import { useDevice } from "./context";
 import { byteProgressDetail, bytes, megabytes } from "./format";
 import { createDeviceLibraryResolver, type DeviceLibraryBook, type DeviceLibraryResolver } from "./library";

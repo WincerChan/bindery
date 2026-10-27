@@ -26,7 +26,7 @@ import { MemoryDevicePreference } from "../src/client/devices/preferences";
 import { clientDocument, elements, fire } from "./support/client-dom";
 import { allByAttribute, allByRole, byAttribute, byLabel, byRole, byText } from "./support/queries";
 import type { DeviceBook } from "../src/client/devices/inventory";
-import type { LoadDevicePageSample } from "../src/features/devices/local-reading-page";
+import type { LoadDevicePageSample } from "../src/features/devices/reading-page";
 import { bookFingerprint } from "../src/core/fingerprint";
 
 type Page = "books" | "connect" | "transfer";
@@ -52,10 +52,10 @@ import { KindleDeviceBar } from '${resolve("src/features/kindle/device-bar")}';
 import { KindleBooksPage } from '${resolve("src/features/kindle/devices/books")}';
 import { KindleConnectPage } from '${resolve("src/features/kindle/devices/connect")}';
 import { KindleTransferPage, KindleTransferQueueProgress, queueSummary } from '${resolve("src/features/kindle/devices/transfer")}';
-import { LocalReadingPage } from '${resolve("src/features/devices/local-reading-page")}';
+import { ReadingPage } from '${resolve("src/features/devices/reading-page")}';
 export function mountSample(root, input) {
   const [props, setProps] = createSignal(input);
-  const dispose = render(() => <LocalReadingPage {...props()} kind="kobo" />, root);
+  const dispose = render(() => <ReadingPage {...props()} kind="kobo" />, root);
   return { update(next) { setProps(next); flush(); }, flush, dispose };
 }
 function Capture(props) { props.receive(useKindle()); return null; }

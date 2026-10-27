@@ -3,6 +3,7 @@ import {
   BackLink,
   BookCover,
   Button,
+  RatingInput,
   SelectPill,
   Select,
   Textarea,
@@ -154,26 +155,7 @@ export function BookEditor(props: {
               class={changed("language")}
             />
             <TextField label="系列" name="series" value={book().series || ""} />
-            <fieldset class="books-rating">
-              <legend>评分</legend>
-              <input type="hidden" name="rating" value={rating() ?? ""} />
-              <For each={[1, 2, 3, 4, 5]}>
-                {(star) => (
-                  <Button
-                    variant="quiet"
-                    aria-label={`${star} 星`}
-                    aria-pressed={rating() === star ? "true" : "false"}
-                    onClick={() => setRating(star)}
-                  >
-                    {star <= (rating() || 0) ? "★" : "☆"}
-                  </Button>
-                )}
-              </For>
-              <Button variant="quiet" onClick={() => setRating(null)}>
-                清除
-              </Button>
-              <output>{rating() === null ? "未评分" : `${rating()} 星`}</output>
-            </fieldset>
+            <RatingInput class="books-wide" value={rating() == null ? "" : String(rating())} onChange={value => setRating(value ? Number(value) : null)} showValue outline />
             <div class="books-lookup">
               <Button
                 type="submit"

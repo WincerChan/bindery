@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, For, onSettled, Show } from "so
 import { Button, EmptyState, IconButton, PageIntro, SearchPill, SegmentedControl, SelectPill, SideSheet, StatusDot, TextField, ToggleSwitch, Toolbar } from "../../ui";
 import type { PushState, VocabularyChoice, VocabularyItem, VocabularyPage } from "../../server/vocabulary/query";
 import type { ConnectionTest, LexiTraceSettingsView } from "../../server/vocabulary/settings";
-import { HighlightedSentence, SourceTitle, vocabularyMonthQuery, WordSource } from "./local-display";
+import { HighlightedSentence, SourceTitle, vocabularyMonthQuery, WordSource } from "./display";
 import "./vocabulary.css";
 
 export interface VocabularySettingsInput { baseUrl?: string; token?: string; clearToken?: boolean; enabled?: boolean }

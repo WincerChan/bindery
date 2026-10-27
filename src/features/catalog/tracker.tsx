@@ -1,12 +1,12 @@
 import { createSignal, For, onCleanup, Show, untrack } from "solid-js";
-import { Button, CenterDialog, ConfirmDialog, EmptyState, Menu, Pagination, PageIntro, SearchPill, SectionTitle, SegmentedControl, SelectPill, Textarea, TextField, Toolbar } from "../../ui";
+import { Button, CenterDialog, ConfirmDialog, EmptyState, Menu, LinkTabs, RatingInput, StarRating, RelativeTime, Pagination, PageIntro, SearchPill, SectionTitle, SegmentedControl, SelectPill, Textarea, TextField, Toolbar } from "../../ui";
 import type { DuplicateData, TrackerItem, TrackerPageData } from "../../server/catalog/tracker";
 import { isRedirect } from "@tanstack/solid-router";
 import { Link } from "../../shared/spa-link";
 import { formFields, useMutation } from "../../shared/client-mutation";
 import { showToast } from "../../client/toast";
 import { checkTracker, deleteTracker, saveTracker } from "./mutations";
-import { LocalTrackerCover, LocalTrackerRating, LocalTrackerStars, LocalTrackerUpdated, trackerBookHref, trackerReadOptions, trackerState, trackerStatusOptions } from "./local-tracker-parts";
+import { TrackerCover, trackerBookHref, trackerReadOptions, trackerState, trackerStatusOptions } from "./tracker-parts";
 
 export function TrackerForm(props: { wish?: TrackerItem; next: string; onClose: () => void }) {
   const mutation = useMutation();
@@ -40,7 +40,7 @@ export function TrackerForm(props: { wish?: TrackerItem; next: string; onClose: 
   return <form action={props.wish ? `/tracker/${props.wish.id}/update` : "/tracker"} method="post" onSubmit={submit} class="tracker-form">
     <input type="hidden" name="next" value={props.next} /><input type="hidden" name="library_book_id" value={props.wish?.library_book_id || ""} />
     <div class="tracker-form-body">
-      <aside class="tracker-form-cover"><LocalTrackerCover wish={props.wish} title={title() || "书名"} author={author()} large />
+      <aside class="tracker-form-cover"><TrackerCover wish={props.wish} title={title() || "书名"} author={author()} large />
         <Show when={props.wish?.library_book_id}><Link href={trackerBookHref(props.wish!, props.next)}>在书库中打开 →</Link></Show>
       </aside>
       <div class="tracker-form-fields">
@@ -54,7 +54,7 @@ export function TrackerForm(props: { wish?: TrackerItem; next: string; onClose: 
             <p>已存在追踪条目</p><For each={duplicates()?.blocking_matches || []}>{item => <p><Link href={`/tracker?duplicate=${item.id}`}>{item.title} · {item.author || "未知作者"} · 点此前往编辑该条目。</Link></p>}</For>
           </Show>
         </div></Show>
-        <LocalTrackerRating value={rating()} onChange={setRating} />
+        <RatingInput value={rating()} onChange={setRating} />
         <div class="tracker-form-statuses">
           <fieldset><legend>阅读</legend><input type="hidden" name="read_status" value={read()} /><SegmentedControl label="阅读状态" value={read()} options={trackerReadOptions} onChange={setRead} /></fieldset>
           <fieldset><legend>连载</legend><input type="hidden" name="book_status" value={status()} /><SegmentedControl label="连载状态" value={status()} options={trackerStatusOptions} onChange={setStatus} /></fieldset>
@@ -84,12 +84,12 @@ export function TrackerPage(props: { data: TrackerPageData }) {
       title={<><Show when={props.data.stats.reading > 0}>正在读的有 {props.data.stats.reading} 本，<br /></Show>还有 {props.data.stats.unread} 本在等你。</>}
       description="想读的、读过的、还在连载的，都记在这里。没入库的书也可以先记下。"
       actions={<><Button size="lg" onClick={() => setActive({})}>添加书籍</Button><a class="btn btn-icon btn-lg" href={props.data.export_url} aria-label="导出 CSV" title="导出 CSV"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg></a></>}
-      visual={<Show when={props.data.reading_now.length}><section class="tracker-reading" aria-label="正在读"><SectionTitle>正在读</SectionTitle><div class="tracker-reading-covers"><For each={props.data.reading_now}>{wish => <Show when={wish.library_book_id} fallback={<button type="button" class="tracker-cover-button" aria-label={`编辑《${wish.title}》（${trackerState(wish)}）`} onClick={() => setActive({ wish })}><LocalTrackerCover wish={wish} /></button>}><Link href={trackerBookHref(wish, props.data.current_url)} aria-label={`打开《${wish.title}》详情（${trackerState(wish)}）`}><LocalTrackerCover wish={wish} /></Link></Show>}</For></div></section></Show>} />
+      visual={<Show when={props.data.reading_now.length}><section class="tracker-reading" aria-label="正在读"><SectionTitle>正在读</SectionTitle><div class="tracker-reading-covers"><For each={props.data.reading_now}>{wish => <Show when={wish.library_book_id} fallback={<button type="button" class="tracker-cover-button" aria-label={`编辑《${wish.title}》（${trackerState(wish)}）`} onClick={() => setActive({ wish })}><TrackerCover wish={wish} /></button>}><Link href={trackerBookHref(wish, props.data.current_url)} aria-label={`打开《${wish.title}》详情（${trackerState(wish)}）`}><TrackerCover wish={wish} /></Link></Show>}</For></div></section></Show>} />
     <Show when={props.data.duplicate_notice}><div class="tracker-notice" role="status"><p>已存在追踪条目：{props.data.duplicate_notice?.title}</p><Button variant="secondary" onClick={() => setActive({ wish: props.data.duplicate_notice! })}>点此前往编辑该条目。</Button></div></Show>
     <form ref={filterForm} action="/tracker" method="get" class="tracker-filter" onSubmit={event => { event.preventDefault(); applyFilters(); }}>
       <input type="hidden" name="read_filter" value={props.data.filters.read_filter} />
       <Toolbar label="追踪筛选" search={<SearchPill name="q" label="搜索书名、作者、标签" value={props.data.filters.q} placeholder="搜索书名、作者、标签" onInput={() => { clearTimeout(searchTimer); searchTimer = setTimeout(() => applyFilters(), 400); }} />}>
-        <SegmentedControl class="tracker-read-filter" label="阅读状态" value={props.data.filters.read_filter} options={[{ value: "all", label: "全部" }, ...trackerReadOptions]} onChange={value => applyFilters({ read_filter: value })} />
+        <LinkTabs class="tracker-read-filter" label="阅读状态" value={props.data.filters.read_filter} tabs={[{ value: "all", label: "全部" }, ...trackerReadOptions].map(option => ({ ...option, href: `/tracker?${new URLSearchParams({ ...props.data.filters, read_filter: option.value })}` }))} onNavigate={value => applyFilters({ read_filter: value })} />
         <div class="tracker-filter-pills">
           <SelectPill name="library_filter" label="书库" value={props.data.filters.library_filter} options={[{ value: "all", label: "全部" }, { value: "in", label: "已入库" }, { value: "out", label: "未入库" }]} onChange={value => applyFilters({ library_filter: value })} />
           <SelectPill name="book_status_filter" label="连载" value={props.data.filters.book_status_filter} options={[{ value: "all", label: "全部" }, ...trackerStatusOptions]} onChange={value => applyFilters({ book_status_filter: value })} />
@@ -99,12 +99,12 @@ export function TrackerPage(props: { data: TrackerPageData }) {
     </form>
     <ul class="tracker-list" aria-label="追踪列表">
       <For each={props.data.wishes}>{wish => <li class="tracker-row" id={`wish-row-${wish.id}`}>
-        <Show when={wish.library_book_id} fallback={<span aria-label={`${wish.title}（${trackerState(wish)}）`}><LocalTrackerCover wish={wish} compact /></span>}><Link class="tracker-cover-link" href={trackerBookHref(wish, props.data.current_url)} aria-label={`打开《${wish.title}》详情（${trackerState(wish)}）`}><LocalTrackerCover wish={wish} compact /></Link></Show>
+        <Show when={wish.library_book_id} fallback={<span aria-label={`${wish.title}（${trackerState(wish)}）`}><TrackerCover wish={wish} compact /></span>}><Link class="tracker-cover-link" href={trackerBookHref(wish, props.data.current_url)} aria-label={`打开《${wish.title}》详情（${trackerState(wish)}）`}><TrackerCover wish={wish} compact /></Link></Show>
         <div class="tracker-row-info">
           <Menu title={wish.title} class={wish.read_status === "unread" ? "tracker-menu-neutral" : undefined} status={trackerState(wish)} statusTone={wish.read ? "ok" : "accent"}
             trigger={<span class="tracker-title-block"><span class="tracker-title">{wish.title}</span><span class="tracker-meta">{[wish.author, wish.book_status_label, wish.tags.join("、")].filter(Boolean).join(" · ")}</span></span>}
-            items={[...(wish.library_book_id ? [{ label: "在书库中打开", onSelect: () => mutation.router.navigate({ href: trackerBookHref(wish, props.data.current_url) }) }] : []), { label: "编辑追踪", onSelect: () => setActive({ wish }) }, { label: "删除追踪", destructive: true, onSelect: () => setDeleting(wish) }]} />
-          <div class="tracker-row-details"><Show when={wish.rating !== null}><LocalTrackerStars rating={wish.rating!} /></Show><LocalTrackerUpdated value={wish.updated_at} /></div>
+            items={[...(wish.library_book_id ? [{ label: "在书库中打开", href: trackerBookHref(wish, props.data.current_url) }] : []), { label: "编辑追踪", onSelect: () => setActive({ wish }) }, { label: "删除追踪", destructive: true, onSelect: () => setDeleting(wish) }]} />
+          <div class="tracker-row-details"><Show when={wish.rating !== null}><StarRating rating={wish.rating!} /></Show><RelativeTime value={wish.updated_at} labelPrefix="更新于" clampFuture /></div>
         </div>
       </li>}</For>
     </ul>

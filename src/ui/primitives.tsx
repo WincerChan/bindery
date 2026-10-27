@@ -1,7 +1,7 @@
 import { createUniqueId, For, omit, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Link } from "../shared/spa-link";
-import { Button, Chip, TextField } from "./controls";
+import { Button, TextField } from "./controls";
 import type { ButtonProps } from "./controls";
 
 export function IconButton(props: Omit<ButtonProps, "variant"> & { "aria-label": string; title: string }) {
@@ -51,8 +51,18 @@ export type ControlOption = { value: string; label: string; disabled?: boolean }
 export function SegmentedControl(props: { label: string; value: string; options: readonly ControlOption[]; onChange: (value: string) => void; disabled?: boolean; class?: string }) {
   return <div role="group" aria-label={props.label} class={`segmented ${props.class || ""}`}><For each={props.options}>{option => <button type="button" aria-pressed={props.value === option.value ? "true" : "false"} disabled={props.disabled || option.disabled} onClick={() => props.onChange(option.value)}>{option.label}</button>}</For></div>;
 }
+export type LinkTab = { value: string; label: string; href: string; count?: number };
+/** URL navigation uses anchors; local state changes use SegmentedControl. */
+export function LinkTabs(props: { label: string; value: string; tabs: readonly LinkTab[]; class?: string; replace?: boolean; resetScroll?: boolean; hashScrollIntoView?: boolean; onNavigate?: (value: string) => void }) {
+  return <nav aria-label={props.label} class={`segmented ui-link-tabs ${props.class || ""}`}><For each={props.tabs}>{tab =>
+    <Link href={tab.href} replace={props.replace} resetScroll={props.resetScroll} hashScrollIntoView={props.hashScrollIntoView} aria-current={props.value === tab.value ? "page" : undefined}
+      onClick={event => { if (props.onNavigate && !event.defaultPrevented && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); props.onNavigate(tab.value); } }}>
+      {tab.label}<Show when={tab.count !== undefined}> · <CountBadge accent={props.value === tab.value}>{tab.count}</CountBadge></Show>
+    </Link>
+  }</For></nav>;
+}
 export function ToggleChip(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { selected: boolean }) {
-  return <Chip {...props} />;
+  return <button {...omit(props, "selected", "class")} type={props.type || "button"} class={`chip ${props.selected ? "is-selected" : ""} ${props.class || ""}`} aria-pressed={props.selected ? "true" : "false"} />;
 }
 export function SelectPill(props: { label: string; value: string; options: readonly ControlOption[]; onChange: (value: string) => void; name?: string; disabled?: boolean; class?: string }) {
   const id = createUniqueId();

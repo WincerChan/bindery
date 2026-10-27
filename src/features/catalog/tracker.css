@@ -9,8 +9,6 @@
 .tracker-reading-covers > :nth-child(2) { margin-bottom: 18px; }
 .tracker-reading-covers > :nth-child(3) { transform: rotate(3deg); }
 .tracker-cover-button { display: block; padding: 0; border: 0; border-radius: var(--radius-cover); background: transparent; color: inherit; }
-.tracker-cover-out { background: var(--color-control); color: var(--color-ink-3); border: 1.5px solid var(--color-line); box-shadow: none; }
-.tracker-cover-out .cover-art::after { display: none; }
 .tracker-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; color: var(--color-ink-2); }
 .tracker-filter .ui-toolbar { justify-content: flex-start; flex-wrap: wrap; gap: 10px; }
 .tracker-filter .ui-toolbar-search { flex: 1 1 220px; max-width: 320px; }
@@ -29,9 +27,6 @@
 .tracker-title { font: 600 var(--text-title)/1.5 var(--font-display); }
 .tracker-meta { font: 400 var(--text-meta)/1.5 var(--font-sans); color: var(--color-ink-2); }
 .tracker-row-details { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-size: var(--text-min); color: var(--color-ink-3); font-variant-numeric: tabular-nums; }
-.tracker-stars { display: inline-flex; gap: 1px; color: var(--color-line-soft); font-size: var(--text-meta); }
-.tracker-star-filled, .tracker-rating .btn.tracker-star-filled { color: var(--color-accent); }
-.tracker-rating .btn.tracker-star-empty { color: var(--color-ink-3); }
 .tracker-menu-neutral .ui-menu-status { background: var(--color-control); color: var(--color-ink-3); }
 .tracker-editor > .dialog-body { display: flex; overflow: hidden; }
 .tracker-form { display: flex; flex-direction: column; width: 100%; min-height: 0; }
@@ -51,8 +46,6 @@
 .tracker-duplicates a { display: inline-flex; align-items: center; min-height: var(--size-control); }
 .tracker-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tracker-form legend { padding: 0; margin-bottom: 10px; color: var(--color-ink-3); font-size: var(--text-meta); }
-.tracker-rating > div { display: flex; align-items: center; flex-wrap: wrap; }
-.tracker-rating .btn[aria-pressed] { width: var(--size-control); padding: 0; font-size: var(--text-heading); }
 .tracker-form-statuses { display: flex; flex-wrap: wrap; gap: 20px; }
 .tracker-form-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-shrink: 0; padding-top: 20px; }
 @media (max-width: 767px) {
@@ -66,7 +59,7 @@
   .tracker-filter .ui-toolbar-search { flex: auto; max-width: none; }
   .tracker-filter .ui-toolbar-controls { display: flex; flex-direction: column; align-items: stretch; gap: 10px; overflow: visible; }
   .tracker-read-filter { display: flex; width: 100%; }
-  .tracker-read-filter > button { flex: 1; }
+  .tracker-read-filter > a { flex: 1; }
   .tracker-filter-pills { overflow-x: auto; padding: 4px; margin: -4px; }
   .tracker-list { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .tracker-row { padding: 12px 0; }

@@ -1,8 +1,9 @@
 import { render, renderToString } from "@solidjs/web";
 import { createSignal, flush } from "solid-js";
-import { AddCoverTile, BackgroundActivityPill, BackLink, BookCover, Button, CenterDialog, CloseButton, CountBadge, GeneratedCover, IconButton, Menu, PageIntro, PageTabs, Pagination, Popover, ProgressBar, SearchPill, SectionTitle, SegmentedControl, SelectPill, SideSheet, Slider, StatusDot, Stepper, ToggleChip, ToggleSwitch, Toolbar } from "../../src/ui";
+import { AddCoverTile, BackgroundActivityPill, BackLink, BookCover, Button, CenterDialog, CloseButton, CountBadge, GeneratedCover, IconButton, Menu, LinkTabs, RatingInput, StarRating, RelativeTime, PageIntro, PageTabs, Pagination, Popover, ProgressBar, SearchPill, SectionTitle, SegmentedControl, SelectPill, SideSheet, Slider, StatusDot, Stepper, ToggleChip, ToggleSwitch, Toolbar } from "../../src/ui";
 
 export { coverTone } from "../../src/ui/cover";
+export { relativeTimeLabel } from "../../src/ui/relative-time";
 
 function Controls() {
   const [value, setValue] = createSignal("all"), [checked, setChecked] = createSignal(true), [size, setSize] = createSignal(21);
@@ -43,6 +44,27 @@ function Overlays() {
     <Menu title="浮生六记" trigger={<span>浮生六记 · 沈复</span>} status="已读" statusTone="ok" items={[{ label: "删除追踪", destructive: true, onSelect() {} }, { label: "阅读", onSelect() {} }, { label: "编辑追踪", onSelect() {} }]} />
   </>;
 }
-const views = { controls: Controls, covers: Covers, pages: Pages, overlays: Overlays };
+function Consolidated() {
+  const [rating, setRating] = createSignal("3"), [tab, setTab] = createSignal("all"), [callbacks, setCallbacks] = createSignal(0), [submits, setSubmits] = createSignal(0);
+  return <>
+    <Menu title="书籍操作" trigger={<span>操作 · 菜单</span>} status="已读" items={[
+      { label: "编辑", onSelect: () => setCallbacks(n => n + 1) },
+      { label: "阅读", href: "/book/a?return_to=%2F#chapter" },
+      { label: "下载", href: "/book/a/download", native: true },
+      { label: "不可用链接", href: "/disabled", disabled: true },
+      { label: "不可用操作", onSelect() {}, disabled: true },
+      { label: "归档", action: "/book/a/archive", fields: { next: "/?q=书#books" }, separatorBefore: true, onSubmit: event => { event.preventDefault(); setSubmits(n => n + 1); } },
+      { label: "删除", action: "/book/a/delete", destructive: true, disabled: true },
+    ]} />
+    <output data-callbacks>{callbacks()}</output><output data-submits>{submits()}</output>
+    <LinkTabs label="筛选链接" value={tab()} tabs={[
+      { value: "all", label: "全部", href: "/?q=书&filter=all#books", count: 12 },
+      { value: "unread", label: "未读", href: "/?q=书&filter=unread#books", count: 3 },
+    ]} onNavigate={setTab} />
+    <RatingInput value={rating()} onChange={setRating} showValue /><StarRating rating={Number(rating())} />
+    <RelativeTime value="2026-10-26T00:30:00+08:00" labelPrefix="更新于" />
+  </>;
+}
+const views = { controls: Controls, covers: Covers, pages: Pages, overlays: Overlays, consolidated: Consolidated };
 export function markup(kind: keyof typeof views) { const View = views[kind]; return renderToString(() => <View />); }
 export function mount(node: HTMLElement, kind: keyof typeof views) { const View = views[kind]; const dispose = render(() => <View />, node); flush(); return { dispose, flush }; }

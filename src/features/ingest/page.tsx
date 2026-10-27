@@ -1,7 +1,7 @@
 import { createSignal, onCleanup, onSettled, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Button, PageIntro, SelectPill, Textarea, TextField, ToggleChip, Toolbar } from "../../ui";
-import { IngestFirstPage } from "./local-first-page";
+import { IngestFirstPage } from "./first-page";
 import { useMutation } from "../../shared/client-mutation";
 import { flashFromUrl } from "../../shared/notifications";
 import { showToast } from "../../client/toast";

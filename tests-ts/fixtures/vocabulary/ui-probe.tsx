@@ -2,7 +2,8 @@ import { render, renderToString } from "@solidjs/web";
 import { createSignal, flush } from "solid-js";
 import { VocabularyPage, filterVocabularyItems, pushStatusLabel } from "../../../src/features/vocabulary/vocabulary";
 import type { VocabularyApi } from "../../../src/features/vocabulary/vocabulary";
-export { sentenceParts, vocabularyMonthQuery, relativeLookupTime } from "../../../src/features/vocabulary/local-display";
+export { sentenceParts, vocabularyMonthQuery } from "../../../src/features/vocabulary/display";
+export { relativeTimeLabel as relativeLookupTime } from "../../../src/ui/relative-time";
 import type { VocabularyItem, VocabularyPage as PageData } from "../../../src/server/vocabulary/query";
 import type { LexiTraceSettingsView } from "../../../src/server/vocabulary/settings";
 

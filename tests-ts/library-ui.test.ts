@@ -27,7 +27,7 @@ describe("library SSR behavior", () => {
     const root = parseHtml(ui.item("00", null, "grid", false, state)), menu = byRole(root, "menu");
     expect(byRole(root, "img").getAttribute("aria-label")).toContain(state === "failed" ? "生成失败" : "生成中");
     expect(byAttribute(root, "data-book-detail-link").getAttribute("aria-label")).toContain(state === "failed" ? "生成失败" : "生成中");
-    if (state === "failed") expect(byRole(root, "status").textContent).toContain("点封面查看并重试");
+    if (state === "failed") expect(byRole(byRole(root, "dialog"), "status").textContent).toContain("点封面查看并重试");
     else { expect(allByRole(root, "status")).toHaveLength(0); expect(byRole(menu, "menuitem", "查看生成进度").getAttribute("href")).toBe("/ingest?jobs_tab=running#jobs"); }
     expect(root.textContent).not.toContain("已写回元数据");
   });
@@ -64,7 +64,7 @@ describe("library SSR behavior", () => {
     for (const name of ["q", "sort", "read_filter", "page", "per_page"]) expect(byName(root, name)).toBeDefined();
     for (const hook of ["data-bulk-mode-toggle", "data-bulk-actions", "data-bulk-select-all", "data-bulk-clear", "data-bulk-done", "data-pagination-total"]) expect(byAttribute(root, hook)).toBeDefined();
     for (const action of ["/books/archive", "/books/download"]) expect(byAttribute(root, "action", action).getAttribute("method")).toBe("post");
-    expect(html).toContain("归档后可在书库「已归档」中恢复"); expect(html).toContain("重新生成"); expect(byRole(root, "button", "未读").getAttribute("aria-pressed")).toBe("true"); expect(byAttribute(root, "data-pagination-total").textContent).toBe("49");
+    expect(html).toContain("归档后可在书库「已归档」中恢复"); expect(html).toContain("重新生成"); expect(byRole(byRole(root, "navigation", "阅读状态"), "link", "未读").getAttribute("aria-current")).toBe("page"); expect(byAttribute(root, "data-pagination-total").textContent).toBe("49");
     const pager = byRole(root, "navigation", "分页");
     for (const name of ["上一页", "下一页"]) expect(byRole(pager, "link", name)).toBeDefined();
     expect(pager.textContent).toContain("共 49 册");
