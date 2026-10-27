@@ -1,7 +1,7 @@
 import { createSignal, For, Show } from "solid-js";
 import { KINDLE_MODELS, type KindleModel } from "../../client/devices/models";
 import { BackLink, Button, PageIntro, SectionTitle, SegmentedControl, TextField } from "../../ui";
-import { LocalDeviceShell } from "./local-device-shell";
+import { DeviceShell } from "./device-shell";
 import { Link } from "../../shared/spa-link";
 import { useDevice } from "./context";
 import { kindLabel, modelLabel } from "./format";
@@ -19,7 +19,7 @@ export function DeviceConnectPage(props: { backLink?: boolean }) {
   return <div class="kindle-split kindle-connect">
     <section aria-label="连接设备">
       <Show when={props.backLink}><BackLink href="/devices">设备</BackLink></Show>
-      <PageIntro eyebrow="设备 · 未连接" title="把 Kindle 或 Kobo 用 USB 接上。" visual={<LocalDeviceShell kind={k.kind()} model={k.state().device?.identity.model ?? "KPW3"} idle><p>等待连接</p></LocalDeviceShell>} />
+      <PageIntro eyebrow="设备 · 未连接" title="把 Kindle 或 Kobo 用 USB 接上。" visual={<DeviceShell kind={k.kind()} model={k.state().device?.identity.model ?? "KPW3"} idle><p>等待连接</p></DeviceShell>} />
       <details class="kindle-connect-heading"><summary>连接与文件访问说明</summary>
         <Show when={detection()} fallback={<p class="muted">用 USB 线连上电脑后，在浏览器里选中设备根目录。Bindery 会根据根目录结构自动识别 Kindle 或 Kobo；设备身份保存在 .bindery/。</p>}>
           <Show when={detectedKind() === "kindle"} fallback={<p class="muted">Kobo 的书写入 Bindery/，字体写入 fonts/，设备身份保存在 .bindery/。只读取阅读进度，不会修改 KoboReader.sqlite。</p>}>
@@ -61,7 +61,7 @@ export function DeviceConnectPage(props: { backLink?: boolean }) {
       <Show when={k.error() || k.state().message}><p class="field-error" role="alert">{k.error() || k.state().message}</p></Show>
       <Show when={k.ready()}><div class="kindle-remembered-list">
         <For each={k.remembered()} fallback={<p class="muted">尚未记住设备。首次配对后会保存在此浏览器中。</p>}>{saved => <div class="kindle-remembered" data-remembered-device={saved.id}>
-          <LocalDeviceShell compact kind={saved.identity.kind} model={saved.identity.model} />
+          <DeviceShell compact kind={saved.identity.kind} model={saved.identity.model} />
           <div class="kindle-remembered-info"><strong>{saved.identity.name}</strong><p class="kindle-small kindle-mono">{modelLabel(saved.identity.kind, saved.identity.model)}</p><p class="kindle-small">{k.state().device?.identity.id === saved.id ? ({ granted: "已连接", disconnected: "已断开", prompt: "需要授权", denied: "已拒绝", unpaired: "待配对" })[k.state().status] : ({ granted: "已记住 · 权限已授予", prompt: "需要授权", denied: "已拒绝" })[k.permissions()[saved.id] || "prompt"]}</p></div>
           <div class="kindle-actions"><Button variant="secondary" size="sm" disabled={k.busy() || !k.supported()} onClick={() => { if (k.state().device?.identity.id === saved.id && k.state().status === "granted") void k.refresh(); else void k.authorize(saved); }}>{k.state().device?.identity.id === saved.id && k.state().status === "granted" ? "重新检测" : "授权 / 选择"}</Button><Button variant="quiet" size="sm" disabled={k.busy()} onClick={() => k.forget(saved.id)}>忘记</Button></div>
         </div>}</For></div>

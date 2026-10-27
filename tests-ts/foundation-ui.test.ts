@@ -31,11 +31,11 @@ describe("reusable UI SSR", () => {
     expect(html).toContain('aria-invalid="true"'); expect(html).toContain('aria-describedby="external-help author-help"');
     expect(html).toContain('id="author-help"'); expect(html).toContain("作者不能为空");
     expect(html).toContain('<select'); expect(html).toContain('<textarea');
-    expect(html).toContain('type="checkbox"'); expect(html).toContain("已读");
-    expect(html).toContain('aria-checked="mixed"');
+    expect(html).toContain('role="switch"'); expect(html).toContain("已读");
+    expect(html).toContain('aria-checked="true"');
     expect(html).toContain('aria-pressed="true"'); expect(html).toContain('aria-pressed="false"');
     expect(html).not.toMatch(/<button[^>]*\sselected=/);
-    expect(html).toContain("tag-failed");
+    expect(html).toContain("ui-status-danger"); expect(html).toContain("转换失败");
   });
   it("ports v2 cover tones and grid/list text with escaped content", () => {
     expect(["00", "01", "02", "03", "04", "ff", "invalid"].map(ui.coverTone)).toEqual([0, 1, 2, 3, 4, 8, 7]);
@@ -45,11 +45,11 @@ describe("reusable UI SSR", () => {
     expect(html).toContain('role="img"'); expect(html).toContain('alt="有封面"');
     expect(html).toContain('loading="lazy"'); expect(html).toContain("cover-tone-2");
   });
-  it("provides opt-in underline filters, quiet danger and icon buttons, and a hidden search label", () => {
+  it("provides toggle chips, quiet danger and icon buttons, and a hidden search label", () => {
     const html = ui.kindleControls();
     expect(html).toContain("btn-quiet-danger"); expect(html).toContain("btn-icon");
     expect(html).toContain('aria-label="预览书籍"'); expect(html).toContain('aria-hidden="true"');
-    expect(html).toMatch(/class="text-filter is-selected [^"]*" aria-pressed="true"/);
+    expect(html).toMatch(/class="chip is-selected [^"]*" aria-pressed="true"/);
     expect(html).toContain('aria-pressed="false"'); expect(html).toContain('class="sr-only">搜索设备上的书</span>');
     expect(html).not.toMatch(/\s(?:variant|selected|labelHidden)=/);
   });

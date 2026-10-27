@@ -1,6 +1,6 @@
 import { render, renderToString } from "@solidjs/web";
 import { createSignal, flush, type ComponentProps } from "solid-js";
-import { IngestFirstPage } from "../../../src/features/ingest/local-first-page";
+import { IngestFirstPage } from "../../../src/features/ingest/first-page";
 import { IngestPage } from "../../../src/features/ingest/page";
 import { UploadPreviews } from "../../../src/features/ingest/preview";
 import { JobsSection } from "../../../src/features/ingest/jobs";

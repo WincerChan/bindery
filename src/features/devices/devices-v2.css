@@ -1,4 +1,4 @@
-/* Device shells: docs/design/README.md §5.2, local until shared consolidation. */
+/* Feature-specific device shells: docs/design/README.md §5.2. */
 .device-shell, .kt-device-bezel {
   --device-body: #23282A;
   --device-button: #3E4144;
@@ -61,7 +61,6 @@
 .device-send-book[aria-pressed="true"] { background: var(--color-accent-soft); box-shadow: inset 0 0 0 2px var(--color-accent); }
 .device-send-book strong { font-size: var(--text-control); overflow-wrap: anywhere; }
 .device-send-sheet .kindle-start { width: 100%; border-radius: 999px; min-height: 48px; }
-.device-send-sheet .kindle-transfer-settings { gap: 16px; }
 .device-send-sheet .kindle-queue { margin-top: 24px; }
 .kindle-connect.kindle-split { display: grid; gap: 48px; }
 .kindle-connect .kindle-aside { padding: 0; border: 0; }

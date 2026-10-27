@@ -54,12 +54,3 @@ export function Textarea(props: JSX.TextareaHTMLAttributes<HTMLTextAreaElement> 
     <FieldHelp {...props} id={id()} />
   </label>;
 }
-export function Checkbox(props: JSX.InputHTMLAttributes<HTMLInputElement> & { label: string; indeterminate?: boolean }) {
-  return <label class={`checkbox ${props.class || ""}`}><input {...omit(props, "label", "class", "indeterminate")} type="checkbox" prop:indeterminate={Boolean(props.indeterminate)} aria-checked={props.indeterminate ? "mixed" : props["aria-checked"]} /><span>{props.label}</span></label>;
-}
-export function Chip(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { selected?: boolean; variant?: "filter" }) {
-  return <button {...omit(props, "selected", "variant", "class")} type={props.type || "button"} class={`${props.variant === "filter" ? "text-filter" : "chip"} ${props.selected ? "is-selected" : ""} ${props.class || ""}`} aria-pressed={props.selected ? "true" : "false"} />;
-}
-export function Tag(props: { children: JSX.Element; tone?: "neutral" | "ok" | "pending" | "failed"; class?: string }) {
-  return <span class={`tag tag-${props.tone || "neutral"} ${props.class || ""}`}>{props.children}</span>;
-}

@@ -4,7 +4,7 @@ import { metadataFromDict } from "../../../src/core/models";
 import type { BookView } from "../../../src/server/book-view";
 import type { LibraryPageData } from "../../../src/server/library/queries";
 import { libraryReturnTo } from "../../../src/features/library/search";
-import type { LibrarySummary } from "../../../src/features/library/local-summary";
+import type { LibrarySummary } from "../../../src/features/library/summary";
 
 function book(prefix = "00", cover_url: string | null = null): BookView {
   return { ...metadataFromDict({ book_id: prefix + "a".repeat(30), title: "长安<&>的荔枝", author: "马伯庸", updated_at: "2026-10-19T08:09:10+00:00", read: true }), status_class: "ok", status_label: "已写回元数据", effective_theme_template: "default", can_regenerate: true, path: "/private/library", cover_url };

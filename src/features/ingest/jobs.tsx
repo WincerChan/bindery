@@ -1,7 +1,6 @@
 import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
-import { BackgroundActivityPill, Button, ConfirmDialog, EmptyState, GeneratedCover, IconButton, Pagination, SideSheet } from "../../ui";
-import { IngestJobTabs, IngestJobTime } from "./local-job-controls";
+import { BackgroundActivityPill, Button, ConfirmDialog, EmptyState, GeneratedCover, IconButton, Pagination, SideSheet, LinkTabs, RelativeTime } from "../../ui";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
 import { cleanupInvalidJobs, retryJob } from "./mutations";
@@ -39,11 +38,11 @@ export function JobsSection(props: { data: JobsPayload }) {
   const refresh = () => mutation.router.invalidate();
   const [cleanupOpen, setCleanupOpen] = createSignal(false);
   return <div id="jobs-section" class="ingest-jobs-section">
-    <IngestJobTabs data={props.data} />
+    <LinkTabs label="任务分组" class="ingest-job-tabs" value={props.data.active_tab} tabs={props.data.tabs.map(tab => ({ value: tab.key, label: tab.label, count: tab.count, href: `/ingest?jobs_tab=${tab.key}&jobs_page=1#jobs` }))} replace resetScroll={false} hashScrollIntoView={false} />
     <Show when={props.data.jobs.length} fallback={<EmptyState title="暂无任务" />}><ul class="ingest-jobs-list"><For each={props.data.jobs}>{job => <li><article class="ingest-job">
       <header class="ingest-job-heading">
         <GeneratedCover compact book_id={job.book_id || job.id} title={job.book_title} state={job.status === "failed" ? "failed" : job.status === "success" ? undefined : "generating"} />
-        <div class="ingest-job-identity"><Show when={job.can_open_book} fallback={<strong>{job.book_title}</strong>}><Link href={`/book/${job.book_id}`}><strong>{job.book_title}</strong></Link></Show><p><Show when={job.book_author}>{job.book_author} · </Show><IngestJobTime value={job.created_at} /></p><Show when={job.status === "failed" && job.message && job.message !== job.stage}><p class="ingest-job-error">{job.message}</p></Show></div>
+        <div class="ingest-job-identity"><Show when={job.can_open_book} fallback={<strong>{job.book_title}</strong>}><Link href={`/book/${job.book_id}`}><strong>{job.book_title}</strong></Link></Show><p><Show when={job.book_author}>{job.book_author} · </Show><RelativeTime value={job.created_at} format="elapsed" clampFuture invalidFallback={job.created_at} /></p><Show when={job.status === "failed" && job.message && job.message !== job.stage}><p class="ingest-job-error">{job.message}</p></Show></div>
         <Show when={job.status === "failed" && job.book_id}><form action={`/jobs/${encodeURIComponent(job.id)}/retry`} method="post" onSubmit={event => { event.preventDefault(); void mutation.run(() => retryJob({ data: job.id }), refresh, "已创建重试任务"); }}><IconButton type="submit" aria-label={`重试《${job.book_title}》`} title="一键重试" disabled={mutation.busy()}>↻</IconButton></form></Show>
       </header>
       <details class="ingest-job-log"><summary>展开详细日志</summary><p>{job.status === "success" ? "已完成" : job.status === "failed" ? "失败" : "进行中"} · {job.action_label}</p><Show when={job.stage}><p>{job.stage}</p></Show><Show when={job.rule_template}><p>切章规则：{job.rule_template}</p></Show><p class="ingest-job-id">任务 ID：{job.id}</p><Show when={job.status !== "failed" && job.message && job.message !== job.stage}><p>{job.message}</p></Show><Show when={job.can_open_book}><Link class="ingest-job-output" href={`/book/${job.book_id}`}>打开产物</Link></Show><Show when={job.log}><pre>{job.log}</pre></Show></details>

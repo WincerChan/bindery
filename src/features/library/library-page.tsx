@@ -1,7 +1,6 @@
 import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
-import { BookCover, Button, CloseButton, ConfirmDialog, EmptyState, GeneratedCover, PageIntro, PageTabs, Pagination, SearchPill, SegmentedControl, SelectPill, ToggleChip, Toolbar, coverStateLabel, type CoverState } from "../../ui";
-import { LocalBookMenu } from "./local-book-menu";
-import type { LibrarySummary } from "./local-summary";
+import { BookCover, Button, CloseButton, ConfirmDialog, EmptyState, GeneratedCover, Menu, LinkTabs, PageIntro, PageTabs, Pagination, SearchPill, SegmentedControl, SelectPill, ToggleChip, Toolbar, coverStateLabel, type CoverState } from "../../ui";
+import type { LibrarySummary } from "./summary";
 import { showToast } from "../../client/toast";
 import { browserSupportsWebAuthn } from "../../client/passkeys";
 import { Link } from "../../shared/spa-link";
@@ -33,21 +32,20 @@ export function LibraryBook(props: { book: BookView; returnTo: string; view: Vie
         <button type="button" data-book-select class="library-cover-link" aria-label={`选择《${book().title}》`} aria-pressed={props.selected ? "true" : "false"} onClick={props.toggle}><span class="library-selection-mark" aria-hidden="true">{props.selected ? "✓" : "＋"}</span></button>
       </Show>
     </div>
-    <Show when={props.selecting} fallback={<LocalBookMenu title={book().title} author={book().author} failed={state() === "failed"} status={state() === "failed" ? "生成失败 · 点封面查看并重试" : book().read ? "已读" : undefined}>
-      {close => <Show when={book().archived} fallback={<>
-        <Link role="menuitem" href={bookHref(book().book_id, props.returnTo, true)} onClick={close}>阅读</Link>
-        <Link role="menuitem" class="library-desktop-action" href={devicePreviewHref(book().book_id)} onClick={close}>设备预览</Link>
-        <a role="menuitem" href={`/book/${book().book_id}/download`} onClick={close}>下载</a>
-        <Link role="menuitem" class="library-desktop-action" href={deviceTransferHref([book().book_id])} onClick={close}>发送到设备</Link>
-        <Show when={state() === "generating"}><Link role="menuitem" href="/ingest?jobs_tab=running#jobs" onClick={close}>查看生成进度</Link></Show>
-        <hr />
-        <form action={`/book/${book().book_id}/archive`} method="post" onSubmit={event => { if (props.confirmArchive) { event.preventDefault(); close(); props.confirmArchive(event.currentTarget); } }}><input type="hidden" name="next" value={props.returnTo} /><Button role="menuitem" type="submit" variant="quiet">归档</Button></form>
-      </>}>
-        <form action={`/book/${book().book_id}/restore`} method="post" onSubmit={event => { if (props.restoreBook) { event.preventDefault(); close(); props.restoreBook(book().book_id); } }}><input type="hidden" name="next" value={props.returnTo} /><Button role="menuitem" type="submit" variant="quiet">恢复</Button></form>
-        <hr />
-        <form action={`/book/${book().book_id}/delete`} method="post" onSubmit={event => { if (props.confirmDelete) { event.preventDefault(); close(); props.confirmDelete(event.currentTarget); } }}><input type="hidden" name="next" value={props.returnTo} /><Button role="menuitem" type="submit" variant="quiet-danger" class="is-destructive">彻底删除</Button></form>
-      </Show>}
-    </LocalBookMenu>}>
+    <Show when={props.selecting} fallback={<Menu title={book().title} subtitle={book().author || undefined} class="library-menu" dialogClass="library-book-menu"
+      statusTone={state() === "failed" ? "danger" : "ok"} status={state() === "failed" ? "生成失败 · 点封面查看并重试" : book().read ? "已读" : undefined}
+      trigger={<span class="library-book-info"><span class="library-title">{book().title}</span><Show when={book().author}><span class="library-author">{book().author}</span></Show></span>}
+      items={book().archived ? [
+        { label: "恢复", action: `/book/${book().book_id}/restore`, fields: { next: props.returnTo }, onSubmit: event => { if (props.restoreBook) { event.preventDefault(); props.restoreBook(book().book_id); } } },
+        { label: "彻底删除", destructive: true, action: `/book/${book().book_id}/delete`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmDelete) { event.preventDefault(); props.confirmDelete(event.currentTarget); } } },
+      ] : [
+        { label: "阅读", href: bookHref(book().book_id, props.returnTo, true) },
+        { label: "设备预览", class: "library-desktop-action", href: devicePreviewHref(book().book_id) },
+        { label: "下载", href: `/book/${book().book_id}/download`, native: true },
+        { label: "发送到设备", class: "library-desktop-action", href: deviceTransferHref([book().book_id]) },
+        ...(state() === "generating" ? [{ label: "查看生成进度", href: "/ingest?jobs_tab=running#jobs" }] : []),
+        { label: "归档", separatorBefore: true, action: `/book/${book().book_id}/archive`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmArchive) { event.preventDefault(); props.confirmArchive(event.currentTarget); } } },
+      ]} />}>
       <ToggleChip class="library-select-title" selected={props.selected} onClick={props.toggle}>{book().title}</ToggleChip>
     </Show>
   </article>;
@@ -179,7 +177,7 @@ export function LibraryPage(props: {
     <form id="library-controls" class="library-controls" action="/" method="get" hidden={selecting()} onSubmit={event => { event.preventDefault(); void search({}); }}>
       <input type="hidden" name="scope" value={props.data.scope} /><input type="hidden" name="read_filter" value={props.data.read_filter} /><input type="hidden" name="page" value="1" data-page-input /><input type="hidden" name="per_page" value={props.data.per_page} data-per-page-input />
       <Toolbar search={<SearchPill label="搜索书名、作者" name="q" placeholder="搜索书名、作者" value={query()} onInput={event => { setQuery(event.currentTarget.value); clearTimeout(timer); timer = setTimeout(() => void search({}), 400); }} />}>
-        <Show when={!archived()}><SegmentedControl label="阅读状态" value={props.data.read_filter} options={[{ value: "all", label: "全部" }, { value: "unread", label: "未读" }]} onChange={value => void search({ read_filter: value === "unread" ? "unread" : "all" })} /></Show>
+        <Show when={!archived()}><LinkTabs label="阅读状态" value={props.data.read_filter} tabs={(["all", "unread"] as const).map(value => ({ value, label: value === "all" ? "全部" : "未读", href: libraryReturnTo({ ...props.data, q: query(), read_filter: value, page: 1 }) }))} onNavigate={value => void search({ read_filter: value === "unread" ? "unread" : "all" })} /></Show>
         <SelectPill label="排序" name="sort" value={props.data.sort} options={[{ value: "updated", label: "最近修改" }, { value: "created", label: "最近导入" }]} onChange={value => void search({ sort: value === "created" ? "created" : "updated" })} />
         <SegmentedControl label="显示方式" value={view()} options={[{ value: "grid", label: "封面墙" }, { value: "list", label: "列表" }]} onChange={value => changeView(value as View)} />
         <Button data-bulk-mode-toggle variant="secondary" aria-pressed={selecting() ? "true" : "false"} onClick={() => setSelecting(true)}>批量选择</Button>

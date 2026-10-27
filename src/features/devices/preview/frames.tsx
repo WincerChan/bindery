@@ -4,7 +4,7 @@ import type { FontFamily, PairedDevice } from "../../../client/kindle";
 import { DocumentFonts, PreviewDocument, previewTurnKey } from "./frame";
 import type { PageGeometry } from "../../../client/devices/typeset";
 import { Button } from "../../../ui";
-import { hasSideGrip } from "../local-device-shell";
+import { hasSideGrip } from "../device-shell";
 
 /** A page whose column pitch is twice the screen width, so sideways overflow never leaks into the next page. */
 export function ChapterFrame(props: { src: string; geometry: PageGeometry; kind?: "kindle" | "kobo"; model?: string; label?: string; css: string | null; device: PairedDevice | null; family?: FontFamily; start: { page: number }; hasPrevious: boolean; hasNext: boolean; onChapter: (direction: -1 | 1) => void }) {

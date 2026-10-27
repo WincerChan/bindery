@@ -1,7 +1,7 @@
 import { DeviceBodySkeleton } from "../ui/skeleton";
 import { createFileRoute } from "@tanstack/solid-router";
 import { VocabularyPage } from "../features/vocabulary/vocabulary";
-import { vocabularyMonthQuery } from "../features/vocabulary/local-display";
+import { vocabularyMonthQuery } from "../features/vocabulary/display";
 import { getLexiTraceSettings, listVocabulary, retryVocabularyPush, saveLexiTraceSettings, testLexiTraceConnection } from "../server/vocabulary/functions";
 
 export const Route = createFileRoute("/_app/vocabulary")({

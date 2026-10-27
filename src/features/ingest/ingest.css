@@ -50,9 +50,8 @@
 .ingest-submit { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 24px; }
 .ingest-jobs-sheet { width: min(560px, 100%); }
 .ingest-jobs-section { min-width: 0; }
-.ingest-job-tabs { display: flex; align-items: center; gap: 2px; padding: 4px; background: var(--color-control); border-radius: var(--radius-shell); overflow-x: auto; margin-bottom: 24px; }
-.ingest-job-tabs a { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; min-height: var(--size-control); padding: 0 12px; white-space: nowrap; border-radius: var(--radius-shell); color: var(--color-ink-2); text-decoration: none; font-size: var(--text-control); }
-.ingest-job-tabs a[aria-current] { background: var(--color-surface); color: var(--color-ink); }
+.ingest-job-tabs { display: flex; margin-bottom: 24px; }
+.ingest-job-tabs a { flex: 1; }
 .ingest-jobs-list { list-style: none; margin: 0; padding: 0; }
 .ingest-jobs-list > li { padding-block: 16px; border-bottom: 1px solid var(--color-line-hair); }
 .ingest-job { overflow-wrap: anywhere; }

@@ -7,7 +7,7 @@ export const loadLibrary = createServerFn({ method: "GET" }).middleware([authent
     const request = (await import("@tanstack/solid-start/server")).getRequest();
     const remembered = data.perPageGiven ? null : gridPageSizeFromCookie(request.headers.get("cookie"));
     const page = (await import("../../server/library/queries")).loadLibraryPage(context.library, remembered ? { ...data, search: { ...data.search, per_page: remembered } } : data);
-    return { ...page, summary: (await import("./local-summary")).librarySummary(context.library), passkey_prompt: (await import("../../server/auth-views")).passkeyEnrollmentPrompt(request, context.library.db) };
+    return { ...page, summary: (await import("./summary")).librarySummary(context.library), passkey_prompt: (await import("../../server/auth-views")).passkeyEnrollmentPrompt(request, context.library.db) };
   });
 export const restoreSelection = createServerFn({ method: "POST" }).middleware([authenticated])
   .validator(selectionInput).handler(async ({ context, data }) =>

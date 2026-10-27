@@ -33,14 +33,6 @@
   --font-display: "Iowan Old Style", "Palatino Linotype", "Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, serif;
   --font-mono: "IBM Plex Mono", "Noto Sans SC", ui-monospace, "Cascadia Mono", Menlo, monospace;
   --font-latin-serif: "Newsreader", serif;
-
-  /* legacy aliases: remove when all pages use v2 components */
-  --color-surface-subtle: var(--color-control);
-  --color-control-line: var(--color-line);
-  --color-primary: var(--color-ink);
-  --color-primary-hover: var(--color-ink);
-  --color-accent-hover: var(--color-ink);
-  --color-danger-hover: var(--color-danger);
 }
 :root {
   --shadow-cover: 0 1px 2px rgba(32,41,35,.16), 0 22px 30px -16px rgba(32,41,35,.45);
@@ -66,16 +58,14 @@
   --space-page: 56px;
   --space-section: 48px;
   --nav-rail: 92px;
-  /* legacy aliases: remove when all pages use v2 components */
-  --control-height: var(--size-control);
 }
 @media (max-width: 767px) {
   :root { --text-hero: 30px; --text-tab: 24px; --space-page: 16px; --space-section: 32px; }
 }
 @layer base {
+  html, body { background: var(--color-app-bg); }
   body {
     margin: 0;
-    background: var(--color-bg);
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: var(--text-body);
@@ -94,28 +84,25 @@
 .login-password > summary::-webkit-details-marker { display: none; }
 .login-password > summary::after { content: "＋"; margin-left: 6px; }
 .login-password[open] > summary::after { content: "－"; }
-.security-page { max-width: 52rem; }
 .form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
 .passkey-hint { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 20px; padding: 10px 12px 10px 14px; border: 0; border-left: 2px solid var(--color-accent); border-radius: 0; background: var(--color-accent-soft); }
 .passkey-hint a { color: var(--color-ink-2); font-size: 14px; text-decoration: none; }
 .passkey-hint a:hover { color: var(--color-accent); text-decoration: underline; }
 .passkey-hint button { width: 32px; min-height: 32px; padding: 0; border-radius: 2px; font-size: 20px; line-height: 1; }
 .passkey-hint button:hover { background: rgb(162 72 50 / 10%); color: var(--color-accent); }
-.eyebrow { letter-spacing: .16em; font-size: .7rem; color: var(--color-ink-3); margin-top: 2.5rem; }
+.eyebrow { letter-spacing: .16em; font-size: var(--text-min); color: var(--color-ink-3); margin-top: 2.5rem; }
 h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 600; margin: .5rem 0 1rem; }
 h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
-.security-page section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--color-line); }
 .muted { color: var(--color-ink-3); font-size: .9rem; line-height: 1.7; }
 .notice { margin: 1rem 0; padding: .8rem 1rem; border-left: 2px solid var(--color-line); background: rgb(251 250 246 / 45%); overflow-wrap: anywhere; }
-.divider { text-align: center; margin: 1rem 0; }
 .form-stack { display: grid; gap: 1rem; margin-top: 1rem; }
 label { display: grid; gap: .4rem; font-size: .9rem; }
 input:not([type="checkbox"]):not([type="radio"]), select, textarea {
-  width: 100%; min-height: var(--control-height); border: 1px solid var(--color-control-line); padding: .55rem .8rem;
+  width: 100%; min-height: var(--size-control); border: 1px solid var(--color-line); padding: .55rem .8rem;
   background: var(--color-surface); border-radius: 3px; color: var(--color-ink); font: inherit;
   box-shadow: none; transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }
-input::placeholder, textarea::placeholder { color: #7B8179; opacity: 1; }
+input::placeholder, textarea::placeholder { color: var(--color-ink-tab); opacity: 1; }
 input:not([type="checkbox"]):not([type="radio"]):not(:disabled):hover, select:not(:disabled):hover, textarea:not(:disabled):hover { border-color: var(--color-ink-3); }
 input:not([type="checkbox"]):not([type="radio"]):focus-visible, select:focus-visible, textarea:focus-visible {
   outline: none; border-color: var(--color-accent); background-color: var(--color-surface);
@@ -124,18 +111,11 @@ input:not([type="checkbox"]):not([type="radio"]):focus-visible, select:focus-vis
 /* Own the dropdown arrow: the native one sits flush against the border and ignores padding. Pages that
    override padding must keep --select-arrow-gap of room on the right. */
 select { --select-arrow-gap: 12px; appearance: none; -webkit-appearance: none; padding-right: calc(var(--select-arrow-gap) + 24px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23656D66' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right var(--select-arrow-gap) center; background-size: 12px 12px; cursor: pointer; }
-button { min-height: 40px; cursor: pointer; background: var(--color-primary); color: #FFFFFF; padding: .65rem 1rem; border: 1px solid transparent; border-radius: 3px; font-size: .9rem; transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease; }
+button { min-height: 40px; cursor: pointer; background: var(--color-ink); color: #FFFFFF; padding: .65rem 1rem; border: 1px solid transparent; border-radius: 3px; font-size: .9rem; transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease; }
 button:disabled { opacity: .5; cursor: default; }
 button.quiet { color: var(--color-ink-2); background: transparent; padding: .4rem 0; }
 button.danger { color: var(--color-danger); }
 a { color: var(--color-accent); text-underline-offset: 3px; }
-.passkey-row { padding: 1rem 0; border-bottom: 1px solid var(--color-line-soft); }
-.passkey-row:last-child { border-bottom: 0; padding-bottom: 0; }
-.passkey-row > p { font-size: .8rem; color: var(--color-ink-3); margin-bottom: .75rem; }
-.inline-form { display: flex; align-items: end; gap: .75rem; flex-wrap: wrap; }
-.inline-form label { flex: 1; min-width: 10rem; }
-/* Field rows align their button with the same control height as inputs/selects, not just the row bottom. */
-.inline-form > .btn { min-height: var(--control-height); }
 
 * { box-sizing: border-box; }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
@@ -146,10 +126,11 @@ html { scrollbar-gutter: stable; }
 .toast-region.is-visible { visibility: visible; }
 .toast { display: flex; align-items: center; gap: 16px; padding: 10px 12px 10px 16px; background: var(--color-surface); color: var(--color-ink); border: 1px solid var(--color-line); border-left: 3px solid var(--color-ok); border-radius: 4px; box-shadow: 0 12px 32px rgb(32 41 35 / 13%); overflow-wrap: anywhere; }
 .toast-error { border-left-color: var(--color-danger); }
-.toast-warning { border-left-color: #a77700; }
+.toast-warning { border-left-color: var(--color-warning); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 @media (max-width: 767px) {
+  html, body { background: var(--color-bg); }
   .toast-region { inset: 16px 16px auto; max-width: none; }
 }

@@ -41,16 +41,12 @@
 .books-edit-heading h1 { font-size: var(--text-heading); }
 .books-edit-top { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: var(--space-section); }
 .books-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; min-width: 0; }
-.books-wide, .books-rating, .books-lookup { grid-column: 1 / -1; }
+.books-wide, .books-lookup { grid-column: 1 / -1; }
 .books-editor :is(input:not([type="hidden"]), select, textarea) { min-height: var(--size-control); border: 1px solid transparent; border-radius: var(--radius-field); background-color: var(--color-control); color: var(--color-ink); font-size: var(--text-control); }
 .books-editor :is(input, textarea)::placeholder { color: var(--color-ink-3); }
 .books-editor :is(input, select, textarea):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; box-shadow: none; }
 .books-editor textarea { padding: 16px; line-height: 1.8; }
-.books-editor .field-label, .books-rating legend { color: var(--color-ink-3); font-size: var(--text-min); }
 .books-editor .field-hint, .books-wide > p { color: var(--color-ink-3); font-size: var(--text-meta); line-height: 1.7; }
-.books-rating { padding: 0; border: 0; margin: 0; }
-.books-rating .btn { color: var(--color-accent); }
-.books-rating output { font-size: var(--text-meta); color: var(--color-ink-3); }
 .books-lookup { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .books-lookup span { font-size: var(--text-meta); color: var(--color-ink-3); }
 .books-build, .books-cover-tools, .books-lookup-result { margin-top: var(--space-section); }
@@ -59,7 +55,6 @@
 .books-wide h3 { margin: 0; font-size: var(--text-control); }
 .books-wide .books-actions { margin-bottom: 12px; }
 .books-cover-tools form { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
-.books-autofill .field-label::after { content: " · 有修改"; color: var(--color-accent); }
 .books-notice { padding: 16px 0; color: var(--color-ink-2); overflow-wrap: anywhere; }
 .books-notice[role="alert"] { color: var(--color-danger); }
 .books-editor details > summary { min-height: var(--size-control); padding: 12px 0; cursor: pointer; }

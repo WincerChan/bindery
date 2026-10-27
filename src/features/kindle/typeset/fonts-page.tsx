@@ -4,7 +4,7 @@ import { deviceInventory } from "../../../client/kindle/inventory";
 import { errorMessage } from "../../../client/kindle/fs";
 import type { KindleDeviceManager } from "../../../client/kindle/device";
 import { Button, ConfirmDialog, Menu } from "../../../ui";
-import { useDeviceNavigation } from "../../devices/local-navigation";
+import { useDeviceNavigation } from "../../devices/navigation";
 import { useOptionalKindle } from "../context";
 import { usePageDevice } from "./device";
 import { FontSample } from "../../devices/preview/frames";

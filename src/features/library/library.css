@@ -27,11 +27,6 @@
 .library-title { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 600 var(--text-title)/1.4 var(--font-display); color: var(--color-ink); }
 .library-author { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-meta); color: var(--color-ink-2); }
 .library-select-title { white-space: normal; overflow-wrap: anywhere; }
-.library-book-menu a { text-decoration: none; }
-.library-book-menu form { margin: 0; }
-.library-native-actions { margin-top: 10px; font-size: var(--text-meta); }
-.library-native-actions summary { min-height: var(--size-control); cursor: pointer; }
-.library-native-actions a { display: block; padding: 12px 0; }
 .library-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 28px; }
 .library-bulk-count { color: var(--color-ink-3); font-size: var(--text-meta); }
 .library-bulk-count strong { color: var(--color-ink); }

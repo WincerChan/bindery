@@ -1,5 +1,5 @@
 import { renderToString } from "@solidjs/web";
-import { Button, TextField, Select, Textarea, Checkbox, Chip, Tag, BookCover, GeneratedCover, Dialog, ConfirmDialog, EmptyState, Pagination } from "../../src/ui";
+import { Button, TextField, Select, Textarea, ToggleSwitch, ToggleChip, StatusDot, BookCover, GeneratedCover, Dialog, ConfirmDialog, EmptyState, Pagination } from "../../src/ui";
 import { SettingsHub } from "../../src/features/settings/hub";
 import type { SettingsSummary } from "../../src/server/settings/summary";
 export function settings(summary: SettingsSummary) { return renderToString(() => <SettingsHub summary={summary} now={Date.parse("2026-10-26T12:00:00Z")} />); }
@@ -13,15 +13,14 @@ export function controls() {
     <TextField id="author" label="作者" error="作者不能为空" aria-describedby="external-help" />
     <Select label="排序" name="sort"><option value="updated">最近更新</option></Select>
     <Textarea label="简介" name="description" rows={4} />
-    <Checkbox label="已读" name="read" checked />
-    <Checkbox label="全选" indeterminate />
-    <Chip selected>未读</Chip><Chip>全部</Chip><Tag tone="failed">转换失败</Tag>
+    <ToggleSwitch label="已读" checked onChange={() => {}} />
+    <ToggleChip selected>未读</ToggleChip><ToggleChip selected={false}>全部</ToggleChip><StatusDot tone="danger" label="转换失败" />
   </>);
 }
 export function kindleControls() {
   return renderToString(() => <>
     <Button variant="quiet-danger">删除所选</Button><Button variant="icon" aria-label="预览书籍"><svg aria-hidden="true" /></Button>
-    <Chip variant="filter" selected>全部</Chip><Chip variant="filter">其他</Chip>
+    <ToggleChip selected>全部</ToggleChip><ToggleChip selected={false}>其他</ToggleChip>
     <TextField label="搜索设备上的书" labelHidden type="search" />
   </>);
 }

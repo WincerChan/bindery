@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { solidOptions } from "../scripts/solid-options";
 import { clientDocument, elements, fire } from "./support/client-dom";
 import { overlayPresentation } from "../src/ui/overlay-behavior";
+import { allByRole, byAttribute, byName, byRole, parseHtml } from "./support/queries";
 
 type Probe = typeof import("./fixtures/ui-v2");
 let server: Probe, client: Probe, phone = false;
@@ -189,6 +190,84 @@ describe("v2 client interaction", () => {
     fire(items[0]!, "click"); mounted.flush(); expect(dialog.open).toBe(false); expect(document.activeElement).toBe(trigger);
     fire(trigger, "click"); mounted.flush(); expect(dialog.open).toBe(true);
     fire(dialog, "keydown", { key: "Escape" }); mounted.flush(); expect(dialog.open).toBe(false); expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe("consolidated primitives", () => {
+  it("keeps a real details fallback with links and POST fields, disabling JS-only actions", () => {
+    const root = parseHtml(server.markup("consolidated"));
+    const fallback = root.getElementsByTagName("details")[0]!;
+    expect(fallback.getElementsByTagName("summary")[0]!.textContent).toContain("操作 · 菜单");
+    expect(byRole(fallback, "link", "阅读").getAttribute("href")).toBe("/book/a?return_to=%2F#chapter");
+    expect(byRole(fallback, "link", "下载").getAttribute("href")).toBe("/book/a/download");
+    expect(byRole(fallback, "button", "编辑").hasAttribute("disabled")).toBe(true);
+    const form = byAttribute(fallback, "action", "/book/a/archive");
+    expect(form.getAttribute("method")).toBe("post"); expect(byName(form, "next").getAttribute("value")).toBe("/?q=书#books");
+    expect(byRole(form, "button", "归档").getAttribute("type")).toBe("submit");
+    expect(byRole(fallback, "button", "删除").hasAttribute("disabled")).toBe(true);
+    expect(allByRole(fallback, "link", "不可用链接")).toHaveLength(0);
+    expect(byAttribute(root, "aria-haspopup", "menu").hasAttribute("hidden")).toBe(true);
+    const tabs = byRole(root, "navigation", "筛选链接");
+    expect(byRole(tabs, "link", /全部/).getAttribute("aria-current")).toBe("page");
+    expect(byRole(tabs, "link", /未读/).getAttribute("href")).toBe("/?q=书&filter=unread#books");
+  });
+  it("enhances mixed menus without losing their trigger, keyboard order or POST confirmation hook", async () => {
+    const mounted = mount("consolidated"); await settle(); mounted.flush();
+    const trigger = elements(mounted.root, "button", "aria-haspopup")[0] as HTMLButtonElement;
+    expect(trigger.textContent).toContain("操作 · 菜单"); expect(trigger.hasAttribute("hidden")).toBe(false);
+    expect(elements(mounted.root, "details")).toHaveLength(0);
+    trigger.focus(); fire(trigger, "click"); mounted.flush();
+    const dialog = elements(mounted.root, "dialog")[0] as HTMLDialogElement;
+    const callback = elements(dialog, "button").find(button => button.textContent === "编辑")!;
+    const read = elements(dialog, "a")[0]!;
+    expect(document.activeElement).toBe(callback);
+    fire(dialog, "keydown", { key: "ArrowDown" }); expect(document.activeElement).toBe(read);
+    const preventDefault = vi.fn(); fire(read, "click", { button: 0, metaKey: true, preventDefault }); mounted.flush();
+    expect(preventDefault).not.toHaveBeenCalled(); expect(dialog.open).toBe(false); expect(document.activeElement).toBe(trigger);
+    fire(trigger, "click"); mounted.flush(); fire(callback, "click"); mounted.flush();
+    expect(elements(mounted.root, "output", "data-callbacks")[0]!.textContent).toBe("1"); expect(dialog.open).toBe(false);
+    fire(trigger, "click"); mounted.flush(); fire(dialog, "keydown", { key: "End" });
+    const form = elements(dialog, "form").find(form => form.getAttribute("action") === "/book/a/archive")!;
+    expect(document.activeElement).toBe(elements(form, "button")[0]);
+    fire(form, "submit", { preventDefault }); mounted.flush();
+    expect(preventDefault).toHaveBeenCalledOnce(); expect(elements(mounted.root, "output", "data-submits")[0]!.textContent).toBe("1");
+    expect(dialog.open).toBe(false); expect(document.activeElement).toBe(trigger);
+  });
+  it("only intercepts ordinary left clicks in URL tabs", () => {
+    const mounted = mount("consolidated");
+    const tabs = elements(mounted.root, "nav")[0]!, unread = elements(tabs, "a")[1]!;
+    for (const modifiers of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }, { defaultPrevented: true }]) {
+      const preventDefault = vi.fn(); fire(unread, "click", { button: 0, preventDefault, ...modifiers }); mounted.flush();
+      expect(preventDefault).not.toHaveBeenCalled(); expect(unread.hasAttribute("aria-current")).toBe(false);
+    }
+    const preventDefault = vi.fn(); fire(unread, "click", { button: 0, preventDefault }); mounted.flush();
+    expect(preventDefault).toHaveBeenCalledOnce(); expect(unread.getAttribute("aria-current")).toBe("page");
+    expect(unread.getAttribute("href")).toBe("/?q=书&filter=unread#books");
+  });
+  it("shares accessible star input/display and submits an empty value when cleared", () => {
+    const mounted = mount("consolidated"), buttons = elements(mounted.root, "button");
+    const star = buttons.find(button => button.getAttribute("aria-label") === "5 星")!;
+    fire(star, "click"); mounted.flush(); expect(star.getAttribute("aria-pressed")).toBe("true");
+    const field = elements(mounted.root, "input").find(input => input.getAttribute("name") === "rating") as HTMLInputElement;
+    expect(field.value).toBe("5");
+    expect(elements(mounted.root, "span").find(span => span.getAttribute("role") === "img")!.getAttribute("aria-label")).toBe("5 星");
+    fire(buttons.find(button => button.getAttribute("aria-label") === "清除评分")!, "click"); mounted.flush();
+    expect(field.value).toBe(""); expect(star.getAttribute("aria-pressed")).toBe("false");
+    expect(elements(mounted.root, "output").map(output => output.textContent)).toContain("未评分");
+  });
+  it("uses a deterministic UTC SSR date and preserves calendar/elapsed/future/invalid formats", () => {
+    const root = parseHtml(server.markup("consolidated")), time = root.getElementsByTagName("time")[0]!;
+    expect(time.textContent).toBe("10-25"); expect(time.getAttribute("aria-label")).toBe("更新于 10-25");
+    const now = new Date(2026, 9, 26, 12), date = (day: number, hour: number, minute = 0) => new Date(2026, 9, day, hour, minute).toISOString();
+    expect(server.relativeTimeLabel(date(26, 11, 58), now)).toBe("2 分钟前");
+    expect(server.relativeTimeLabel(date(26, 10), now)).toBe("今天 10:00");
+    expect(server.relativeTimeLabel(date(25, 21, 15), now)).toBe("昨天 21:15");
+    expect(server.relativeTimeLabel(date(26, 10), now, { format: "elapsed" })).toBe("2 小时前");
+    expect(server.relativeTimeLabel(date(23, 12), now)).toBe("3 天前");
+    expect(server.relativeTimeLabel(date(1, 12), now)).toBe("10-01");
+    expect(server.relativeTimeLabel(date(27, 12), now)).toBe("10-27");
+    expect(server.relativeTimeLabel(date(27, 12), now, { clampFuture: true })).toBe("刚刚");
+    expect(server.relativeTimeLabel("bad", now)).toBe(""); expect(server.relativeTimeLabel("bad", now, { invalidFallback: "bad" })).toBe("bad");
   });
 });
 
