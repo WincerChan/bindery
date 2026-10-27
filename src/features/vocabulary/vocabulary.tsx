@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
-import { Button, EmptyState, IconButton, PageIntro, SearchPill, SegmentedControl, SelectPill, SideSheet, StatusDot, TextField, ToggleSwitch, Toolbar } from "../../ui";
+import { Button, EmptyState, Icon, IconButton, PageIntro, SearchPill, SegmentedControl, SelectPill, SideSheet, StatusDot, TextField, ToggleSwitch, Toolbar } from "../../ui";
 import type { PushState, VocabularyChoice, VocabularyItem, VocabularyPage } from "../../server/vocabulary/query";
 import type { ConnectionTest, LexiTraceSettingsView } from "../../server/vocabulary/settings";
 import { HighlightedSentence, SourceTitle, vocabularyMonthQuery, WordSource } from "./display";
@@ -104,7 +104,7 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
         <Show when={settings().baseUrl && settings().hasToken && !settings().enabled}><p class="vocab-hint">LexiTrace 推送已暂停，生词仍会同步。</p></Show>
         <div class="vocab-action-row"><Show when={page().summary.push.failed}><Button variant="secondary" size="lg" disabled={busy()} onClick={() => retry()}>{busy() ? "处理中…" : "全部重试"}</Button></Show>
           <IconButton size="lg" aria-label="LexiTrace 设置" title="LexiTrace 设置" aria-haspopup="dialog" aria-expanded={settingsOpen() ? "true" : "false"} aria-controls="lexitrace-settings" onClick={() => setSettingsOpen(true)}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7" /><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
+            <Icon name="settings" size={20} />
           </IconButton>
         </div>
       </div>}

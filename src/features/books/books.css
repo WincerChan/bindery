@@ -24,8 +24,6 @@
 .books-management { border-top: 1px solid var(--color-line-soft); }
 .books-management > summary { display: flex; align-items: center; min-height: 64px; gap: 12px; cursor: pointer; list-style: none; font-size: var(--text-body); }
 .books-management > summary::-webkit-details-marker { display: none; }
-.books-management > summary::after { content: "⌄"; margin-left: auto; color: var(--color-ink-3); }
-.books-management[open] > summary::after { transform: rotate(180deg); }
 .books-management > summary span { color: var(--color-ink-3); font-size: var(--text-meta); }
 .books-management-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; padding: 20px 0; border-top: 1px solid var(--color-line-hair); }
 .books-management-row > div { flex: 1 1 240px; }

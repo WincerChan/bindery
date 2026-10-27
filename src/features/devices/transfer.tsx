@@ -3,7 +3,7 @@ import { defaultProfile, DEFAULT_PROFILE_ID, type TypesettingProfile } from "../
 import { defaultReadingSettings, readingSettings, type DeviceReadingSettings } from "../../client/devices/typeset";
 import type { DeviceKind } from "../../client/devices/models";
 import type { DeviceBook } from "../../client/devices/inventory";
-import { BookCover, Button, EmptyState, Pagination, SearchPill, SectionTitle, SegmentedControl, SelectPill, SideSheet, ToggleChip } from "../../ui";
+import { BookCover, Button, EmptyState, Icon, Pagination, SearchPill, SectionTitle, SegmentedControl, SelectPill, SideSheet, ToggleChip } from "../../ui";
 import { useDeviceNavigation } from "./navigation";
 import { useDevice } from "./context";
 import { byteProgressDetail, bytes, megabytes } from "./format";
@@ -190,7 +190,7 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
           }} />
           <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
           <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId())}>重试</Button></p></Show>
-          <Link class="kindle-preview-link" href="/devices/preview">排版 › 编辑排版方案…</Link>
+          <Link class="kindle-preview-link" href="/devices/preview">排版<Icon name="chevron-right" size={14} class="ui-icon-inline" />编辑排版方案…</Link>
           <div class="kindle-check-group">
             <Show when={kindle()}><p class="kindle-small">写入封面缩略图（有封面时自动写入）</p></Show>
             <ToggleChip aria-label="覆盖设备上的同名书" selected={overwrite()} onClick={() => setOverwrite(!overwrite())}>覆盖同名</ToggleChip>

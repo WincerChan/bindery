@@ -9,7 +9,7 @@ import {
 import type { PairedDevice } from "../../../client/devices/identity";
 import type { FontFamily } from "../../../client/devices/fonts";
 import { validateCss } from "../../../core/css";
-import { BackLink, Button, ConfirmDialog, Dialog, PageIntro, SegmentedControl, Select, SelectPill, Slider, Stepper, Textarea, TextField, ToggleChip } from "../../../ui";
+import { BackLink, Button, ConfirmDialog, Dialog, Icon, PageIntro, SegmentedControl, Select, SelectPill, Slider, Stepper, Textarea, TextField, ToggleChip } from "../../../ui";
 import { Link } from "../../../shared/spa-link";
 import { DeviceProvider, useOptionalDevice } from "../context";
 import type { DeviceManager } from "../../../client/devices/device";
@@ -251,7 +251,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
       </Select></div>
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
       <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
-      <Show when={notice()}><p role="status" class="kt-success-note">✓ {notice()}</p></Show>
+      <Show when={notice()}><p role="status" class="kt-success-note"><Icon name="check" size={16} /> {notice()}</p></Show>
       <Show when={switchNotice()}>{pending => <p role="status" class="notice">已连接「{pending().name}」，当前排版有未保存的修改。<Button variant="quiet" disabled={busy()} onClick={switchToPendingGrant}>切换到 {pending().name}</Button></p>}</Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={dirty()}><p role="status" class="kt-dirty-note"><span aria-hidden="true" />有未保存的修改</p></Show>

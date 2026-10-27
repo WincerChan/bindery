@@ -21,7 +21,6 @@
 .ingest-layout[data-enhanced="true"] .ingest-css:not([open]) > summary:focus-visible { position: static; width: auto; height: auto; min-height: var(--size-control); clip-path: none; }
 .ingest-css textarea { font-family: var(--font-mono); font-size: var(--text-control); border-radius: var(--radius-field); background: var(--color-control); }
 .ingest-page details summary { min-height: var(--size-control); display: flex; align-items: center; cursor: pointer; color: var(--color-ink-3); font-size: var(--text-control); }
-.ingest-page details summary::after { content: '⌄'; margin-left: 8px; }
 .ingest-cover-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 44px 32px; align-items: start; }
 .ingest-ghost-cover { aspect-ratio: 2 / 3; border-radius: var(--radius-cover); background: var(--color-control); }
 .ingest-book { min-width: 0; }

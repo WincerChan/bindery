@@ -1,13 +1,13 @@
-export const gearIcon = "M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7";
-export const vocabularyIcon = "M3.5 18l4.5-12 4.5 12M5.2 13.5h5.6M15 8h5.5M15 12h5.5M15 16h4";
+import type { IconName } from "../ui/icon";
+
 export const navigation = [
-  { href: "/", label: "书库", icon: "M4 4h4v16H4zM10 4h4v16h-4zM17 5l3-.7 3 15-3 .7z" },
-  { href: "/ingest", label: "入库", icon: "M12 15V4M7 9l5-5 5 5M4 15v5h16v-5" },
-  { href: "/tracker", label: "追踪", icon: "M6 3h12v18l-6-4-6 4z" },
-  { href: "/vocabulary", label: "生词本", icon: vocabularyIcon },
-  { href: "/devices", label: "设备", icon: "M6 3h12v18H6zM10 18h4" },
-] as const;
-export const settingsLink = { href: "/settings", label: "设置", icon: gearIcon } as const;
+  { href: "/", label: "书库", icon: "books" },
+  { href: "/ingest", label: "入库", icon: "upload" },
+  { href: "/tracker", label: "追踪", icon: "bookmark" },
+  { href: "/vocabulary", label: "生词本", icon: "vocabulary" },
+  { href: "/devices", label: "设备", icon: "device-tablet" },
+] as const satisfies readonly { href: string; label: string; icon: IconName }[];
+export const settingsLink = { href: "/settings", label: "设置", icon: "settings" } as const satisfies { href: string; label: string; icon: IconName };
 export const phoneNavigation = [...navigation.filter(item => item.href !== "/devices"), settingsLink];
 
 const within = (path: string, root: string) => path === root || path.startsWith(`${root}/`);

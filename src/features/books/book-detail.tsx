@@ -2,7 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
 import { mutateBook } from "./mutations";
-import { BackLink, BookCover, Button, ConfirmDialog, LocalTime, ProgressBar, SectionTitle, SelectPill } from "../../ui";
+import { BackLink, BookCover, Button, ConfirmDialog, Icon, LocalTime, ProgressBar, SectionTitle, SelectPill } from "../../ui";
 import type { BookPage } from "../../server/books/service";
 import { BookEditor } from "./book-editor";
 import { sectionUrl } from "../reader/model";
@@ -39,7 +39,7 @@ export function BookDetail(props: { page: BookPage }) {
   const readingHref = () => section() === null ? nav().preview_url : sectionUrl(book().book_id, section()!, nav().return_to, { resume: "1" });
   const readingLabel = () => {
     const label = section() !== null ? resumeLabel(latest()?.section_title) : null;
-    return label ? `从${label}接着读 ↗` : latest() ? "继续阅读 ↗" : "开始阅读 ↗";
+    return label ? `从${label}接着读` : latest() ? "继续阅读" : "开始阅读";
   };
   async function perform(action: "read" | "archive" | "delete" | "regenerate", form: HTMLFormElement) {
     const data = new FormData(form); data.set("book_id", book().book_id); data.set("action", action);
@@ -68,7 +68,7 @@ export function BookDetail(props: { page: BookPage }) {
             <div class="books-byline">
               <Show when={book().author}><span>{book().author}</span></Show>
               <Show when={book().language}><span>{languageLabel(book().language!)}</span></Show>
-              <Show when={book().rating !== null}><span class="books-stars" aria-label={`评分 ${book().rating} 星`}>{"★".repeat(book().rating || 0)}{"☆".repeat(5 - (book().rating || 0))}</span></Show>
+              <Show when={book().rating !== null}><span class="books-stars" aria-label={`评分 ${book().rating} 星`}><For each={[1, 2, 3, 4, 5]}>{n => <Icon name={n <= book().rating! ? "star-filled" : "star"} size={16} />}</For></span></Show>
             </div>
           </header>
           <Show when={book().description}><p class="books-description">{book().description}</p></Show>
@@ -79,10 +79,10 @@ export function BookDetail(props: { page: BookPage }) {
             <p class="books-progress-meta">上次阅读 <LocalTime value={item().read_at} />{durationLabel(item().time_spent_seconds) ? ` · 用时 ${durationLabel(item().time_spent_seconds)}` : ""}{durationLabel(item().rest_estimate_seconds) ? ` · 剩余 ${durationLabel(item().rest_estimate_seconds)}` : ""}</p>
           </section>}</Show>
           <div class="books-actions">
-            <Link class="btn btn-primary btn-lg books-continue" href={readingHref()}>{readingLabel()}</Link>
-            <Link class="btn btn-icon btn-lg books-desktop-action" href={devicePreviewHref(book().book_id)} aria-label="设备预览" title="设备预览"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18H6zM10 18h4" stroke="currentColor" stroke-width="1.6" /></svg></Link>
-            <a class="btn btn-icon btn-lg" href={`/book/${book().book_id}/download`} aria-label="下载 EPUB" title="下载 EPUB"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke="currentColor" stroke-width="1.6" /></svg></a>
-            <Link class="btn btn-icon btn-lg" href={nav().edit_url} aria-label="编辑书目信息" title="编辑" onClick={event => { if (!event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setEditing(true); } }}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" stroke="currentColor" stroke-width="1.6" /></svg></Link>
+            <Link class="btn btn-primary btn-lg books-continue" href={readingHref()}>{readingLabel()}<Icon name="arrow-up-right" size={16} /></Link>
+            <Link class="btn btn-icon btn-lg books-desktop-action" href={devicePreviewHref(book().book_id)} aria-label="设备预览" title="设备预览"><Icon name="device-tablet" size={20} /></Link>
+            <a class="btn btn-icon btn-lg" href={`/book/${book().book_id}/download`} aria-label="下载 EPUB" title="下载 EPUB"><Icon name="download" size={20} /></a>
+            <Link class="btn btn-icon btn-lg" href={nav().edit_url} aria-label="编辑书目信息" title="编辑" onClick={event => { if (!event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setEditing(true); } }}><Icon name="pencil" size={20} /></Link>
             <form action={`/book/${book().book_id}/read`} method="post" onSubmit={event => { event.preventDefault(); void perform("read", event.currentTarget); }}>
               <input type="hidden" name="read" value={book().read ? "0" : "1"} /><input type="hidden" name="next" value={nav().detail_url} />
               <Button type="submit" variant="secondary" disabled={mutation.busy()}>{book().read ? "标记未读" : "标记已读"}</Button>
@@ -92,7 +92,7 @@ export function BookDetail(props: { page: BookPage }) {
       </div>
       <section class="books-about" aria-labelledby="books-about-title"><SectionTitle id="books-about-title">关于这本书</SectionTitle><dl class="books-spec"><For each={specs()}>{item => <div><dt>{item[0]}</dt><dd>{item[1]}</dd></div>}</For></dl></section>
       <details class="books-management" ref={management}>
-        <summary>管理这本书 <span>重新生成、归档或删除</span></summary>
+        <summary>管理这本书 <span>重新生成、归档或删除</span><Icon name="chevron-down" size={16} class="ui-summary-chevron is-end" /></summary>
         <Show when={book().can_regenerate}><section class="books-management-row">
           <div><h2>重新生成</h2><p>换一条切章规则，重新切章并生成 EPUB。</p></div>
           <form ref={regenerateForm} action={`/book/${book().book_id}/regenerate`} method="post" onSubmit={event => { event.preventDefault(); void perform("regenerate", event.currentTarget); }}>

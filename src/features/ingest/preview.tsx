@@ -1,6 +1,6 @@
 import { createSignal, createUniqueId, For, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
-import { AddCoverTile, Button, CenterDialog, GeneratedCover, SectionTitle, SegmentedControl } from "../../ui";
+import { AddCoverTile, Button, CenterDialog, GeneratedCover, Icon, SectionTitle, SegmentedControl } from "../../ui";
 import { Link } from "../../shared/spa-link";
 import type { Preview } from "../../server/ingest/preview";
 
@@ -19,7 +19,7 @@ function UploadBook(props: { item: Preview; disabled?: boolean; onRemove?: () =>
   const cover = (large = false) => <GeneratedCover book_id={props.item.filename} title={title()} author={props.item.author} state={state()} large={large} />;
   return <article class="ingest-book" data-preview-format={props.item.format} data-preview-title={props.item.title || ""} data-preview-author={props.item.author || ""} data-preview-filename={props.item.filename} data-upload-token={!props.item.error ? props.item.upload_token || undefined : undefined} data-duplicate-hit={props.item.duplicates.length ? "1" : undefined}>
     <button type="button" class="ingest-cover-trigger" aria-label={label()} aria-haspopup="dialog" aria-controls={id} aria-expanded={open() ? "true" : "false"} onClick={() => setOpen(true)}>{cover()}</button>
-    <button type="button" class="ingest-book-caption" aria-label={label()} aria-haspopup="dialog" aria-controls={id} aria-expanded={open() ? "true" : "false"} onClick={() => setOpen(true)}><strong>{title()} <span aria-hidden="true">⌄</span></strong><Show when={!props.item.error} fallback={<span class="ingest-book-error">无法解析</span>}><span><Show when={props.item.duplicates.length} fallback={<>{props.item.author}{props.item.author ? " · " : ""}{props.item.chapters} 章</>}>{keep() === "keep" ? "新建一本" : "归入已有"}</Show></span></Show></button>
+    <button type="button" class="ingest-book-caption" aria-label={label()} aria-haspopup="dialog" aria-controls={id} aria-expanded={open() ? "true" : "false"} onClick={() => setOpen(true)}><strong>{title()} <span aria-hidden="true"><Icon name="chevron-down" size={14} /></span></strong><Show when={!props.item.error} fallback={<span class="ingest-book-error">无法解析</span>}><span><Show when={props.item.duplicates.length} fallback={<>{props.item.author}{props.item.author ? " · " : ""}{props.item.chapters} 章</>}>{keep() === "keep" ? "新建一本" : "归入已有"}</Show></span></Show></button>
     <Show when={!props.item.error && props.item.upload_token}><input type="hidden" name="upload_tokens" value={props.item.upload_token!} /><Show when={props.item.duplicates.length && keep() === "keep"}><input type="hidden" name="dedupe_keep_tokens" value={props.item.upload_token!} /></Show></Show>
     <CenterDialog id={id} class="ingest-book-dialog" open={open()} title={title()} closeLabel="关闭解析结果" onClose={() => setOpen(false)} actions={<><Show when={props.onRemove}><Button variant="quiet" disabled={props.disabled} aria-label={`移除 ${props.item.filename}`} onClick={() => { setOpen(false); props.onRemove?.(); }}>移除这本</Button></Show><Button size="lg" onClick={() => setOpen(false)}>完成</Button></>}>
       <div class="ingest-book-detail"><div class="ingest-detail-cover">{cover(true)}</div><div class="ingest-book-fields">
@@ -28,7 +28,7 @@ function UploadBook(props: { item: Preview; disabled?: boolean; onRemove?: () =>
         <Show when={!props.item.error && props.item.duplicates.length}><div class="ingest-duplicate"><p>检测到疑似重复书籍：<For each={props.item.duplicates}>{duplicate => <Link href={`/book/${duplicate.book_id}`}>《{duplicate.title}》{duplicate.author ? `（${duplicate.author}）` : ""} </Link>}</For></p><SegmentedControl label="重复书籍的处理方式" value={keep()} options={[{ value: "normalize", label: "归入已有" }, { value: "keep", label: "新建一本" }]} disabled={props.disabled} onChange={setKeep} /><p>默认归入已有书籍；选择「新建一本」将保留为独立书籍。</p></div></Show>
         {props.override}
         <Show when={props.item.toc.length}><section><SectionTitle>目录前 10 条</SectionTitle><ol class="ingest-toc"><For each={props.item.toc.slice(0, 10)}>{title => <li>{title}</li>}</For></ol></section></Show>
-        <details class="ingest-file-details"><summary>文件信息</summary><dl><dt>格式</dt><dd>{props.item.format}</dd><dt>文件名</dt><dd>{props.item.filename}</dd><Show when={props.item.output}><dt>输出文件</dt><dd>{props.item.output}</dd></Show></dl></details>
+        <details class="ingest-file-details"><summary>文件信息<Icon name="chevron-down" size={16} class="ui-summary-chevron" /></summary><dl><dt>格式</dt><dd>{props.item.format}</dd><dt>文件名</dt><dd>{props.item.filename}</dd><Show when={props.item.output}><dt>输出文件</dt><dd>{props.item.output}</dd></Show></dl></details>
       </div></div>
     </CenterDialog>
   </article>;

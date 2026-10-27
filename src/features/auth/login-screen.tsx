@@ -1,6 +1,6 @@
 import { createSignal, onSettled, Show } from "solid-js";
 import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, cancelPasskeyCeremony, loginWithPasskey, passkeyMessage } from "../../client/passkeys";
-import { Button, PageHeader } from "../../ui";
+import { Button, Icon, PageHeader } from "../../ui";
 
 export interface LoginScreenData {
   hash_configured: boolean;
@@ -61,7 +61,7 @@ export function LoginScreen(props: { data: LoginScreenData }) {
       <Button variant="primary" class="login-passkey" disabled={busy()} onClick={login}>{busy() ? "等待验证…" : "使用通行密钥登录"}</Button>
       <Show when={message()}><p class="notice" role="alert">{message()}</p></Show>
       <details class="login-password" open={passwordOpen()} onToggle={event => setPasswordOpen(event.currentTarget.open)}>
-        <summary>使用密码登录</summary>
+        <summary>使用密码登录<Icon name={passwordOpen() ? "minus" : "plus"} size={16} class="ui-icon-inline" /></summary>
         {passwordForm()}
       </details>
     </Show>
