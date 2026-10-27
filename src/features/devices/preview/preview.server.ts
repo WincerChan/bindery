@@ -8,6 +8,13 @@ export function previewChapters(library: LibraryStorage, bookId: string) {
   requireBook(bookId, library);
   return readBookArchive(bookId, library).metadata().sections;
 }
+/** Use the synced device chapter, never derive a chapter number from book percentage. */
+export function devicePageSample(library: LibraryStorage, deviceId: string, bookId: string) {
+  const row = library.db.listDeviceReadingForDevice(deviceId).find(row => row.book_id === bookId);
+  if (row?.section === null || row?.section === undefined) return null;
+  const book = requireBook(bookId, library), section = previewChapters(library, bookId)[row.section];
+  return section ? { bookId, title: book.title || "未命名", chapter: section.title, path: section.item_path } : null;
+}
 export function previewData(library: LibraryStorage, requested: string): PreviewData {
   const books = library.listBooks().filter(book => statSync(epubPath(library.base, book.book_id), { throwIfNoEntry: false })?.isFile())
     .map(book => ({ id: book.book_id, title: book.title || "未命名", author: book.author }));

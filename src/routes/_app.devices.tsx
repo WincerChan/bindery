@@ -1,13 +1,23 @@
 import { DeviceSkeleton } from "../ui/skeleton";
+import { createServerFn } from "@tanstack/solid-start";
+import { authenticated } from "../server/functions";
 import { createFileRoute, Outlet, useLocation } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
 import { Link } from "../shared/spa-link";
-import { DeviceProvider } from "../features/devices/context";
+import { DeviceProvider, useDevice } from "../features/devices/context";
+import { DeviceConnectPage } from "../features/devices/connect";
 import { syncKoboDevice } from "../features/devices/kobo-sync";
 import { syncKindleDevice } from "../features/devices/kindle-sync";
 import { DeviceBar } from "../features/devices/device-bar";
 import { DeviceTabs } from "../features/devices/tabs";
 import "../features/kindle/devices/devices.css";
+import "../features/devices/devices-v2.css";
+
+const loadDevicePage = createServerFn({ method: "GET" }).middleware([authenticated])
+  .validator((input: { deviceId: string; bookId: string }) => {
+    if (!input || typeof input.deviceId !== "string" || typeof input.bookId !== "string" || !/^[\w-]{1,128}$/.test(input.deviceId) || !/^[\w-]{1,128}$/.test(input.bookId)) throw new Error("无效的设备或书籍");
+    return input;
+  }).handler(async ({ context, data }) => (await import("../features/devices/preview/preview.server")).devicePageSample(context.library, data.deviceId, data.bookId));
 
 export const Route = createFileRoute("/_app/devices")({
   pendingComponent: DeviceSkeleton,
@@ -15,9 +25,16 @@ export const Route = createFileRoute("/_app/devices")({
   component: DeviceLayout,
 });
 
+function DeviceContent() {
+  const location = useLocation(), device = useDevice();
+  const path = () => location().pathname.replace(/\/$/, "");
+  const standalone = () => path() === "/devices/preview" || path() === "/devices/connect";
+  return <div class="kindle-page kindle-device-content">
+    <Show when={!standalone()}><Show when={device.ready() && device.state().status === "granted"} fallback={<DeviceConnectPage />}><DeviceBar compact={path() === "/devices/fonts"} loadPage={(deviceId, bookId) => loadDevicePage({ data: { deviceId, bookId } })} /><DeviceTabs /></Show></Show>
+    <Show when={standalone() || path() === "/devices/transfer" || device.ready() && device.state().status === "granted"}><Outlet /></Show>
+  </div>;
+}
 function DeviceLayout() {
-  const location = useLocation();
-  const connecting = () => location().pathname.replace(/\/$/, "") === "/devices/connect";
   return (
     <DeviceProvider koboReadingSync={syncKoboDevice} kindleReadingSync={syncKindleDevice}>
       <section class="kindle-mobile-note" aria-label="桌面端使用提示">
@@ -30,10 +47,7 @@ function DeviceLayout() {
         </section>
         <Link class="btn btn-primary" href="/">回书库</Link>
       </section>
-      <div class={`kindle-page kindle-device-content ${connecting() ? "kindle-connect-page" : ""}`}>
-        <Show when={!connecting()}><DeviceBar /><DeviceTabs /></Show>
-        <Outlet />
-      </div>
+      <DeviceContent />
     </DeviceProvider>
   );
 }

@@ -39,7 +39,7 @@ async function rpc(name, data, method = 'GET') {
 }
 const settings = { marginX: null, marginY: null, lineHeight: null, paragraphSpacing: null, textIndent: null, fontFamily: null, customCss: '' };
 const profile = { name: '宽边距', settings };
-for (const [name, data, method] of [['listTypesetProfiles', undefined, 'GET'], ['createTypesetProfile', profile, 'POST'], ['updateTypesetProfile', { ...profile, id: 'x' }, 'POST'], ['deleteTypesetProfile', { id: 'x' }, 'POST']]) {
+for (const [name, data, method] of [['loadDevicePage', { deviceId: 'device', bookId: 'book' }, 'GET'], ['listTypesetProfiles', undefined, 'GET'], ['createTypesetProfile', profile, 'POST'], ['updateTypesetProfile', { ...profile, id: 'x' }, 'POST'], ['deleteTypesetProfile', { id: 'x' }, 'POST']]) {
   const denied = await rpc(name, data, method); assert.equal(denied.status, 200, 'protected ' + name);
   assert.ok(denied.headers.get('X-Server-Function-Format')); assert.equal(denied.headers.get('Location'), null);
   const payload = await denied.json(); assert.equal(payload.error.isSerializedRedirect, true); assert.equal(payload.error.href, '/login?next=%2F');
@@ -55,6 +55,8 @@ for (const path of ['/devices', '/devices/connect', '/devices/transfer']) {
 }
 async function result(name, data, method = 'GET') { const response = await rpc(name, data, method); assert.equal(response.status, 200, name); return (await response.json()).result; }
 assert.equal((await result('listTypesetProfiles')).length, 1);
+assert.equal(await result('loadDevicePage', { deviceId: 'device', bookId: 'book' }), null);
+const invalidPage = await rpc('loadDevicePage', { deviceId: '../bad', bookId: 'book' }); assert.match(await invalidPage.text(), /error/);
 const created = await result('createTypesetProfile', profile, 'POST'); assert.equal(created.name, '宽边距'); assert.ok(created.id);
 const updated = await result('updateTypesetProfile', { ...profile, id: created.id, name: '更新后的方案', settings: { ...settings, marginX: 2 } }, 'POST'); assert.equal(updated.name, '更新后的方案'); assert.equal(updated.settings.marginX, 2);
 assert.equal((await result('listTypesetProfiles')).length, 2);
@@ -69,10 +71,11 @@ await writeFile(join(root, 'result.json'), JSON.stringify(pages));
     const pages = JSON.parse(await readFile(join(directory, "result.json"), "utf8")) as Record<string, string>;
     expect(Object.keys(pages), result.stderr).toEqual(["/devices", "/devices/connect", "/devices/transfer"]);
     const books = parseHtml(pages["/devices"]!), connection = parseHtml(pages["/devices/connect"]!);
-    expect(byRole(books, "region", "设备书籍")).toBeDefined();
-    expect(byRole(books, "button", "删除所选（0）").hasAttribute("disabled")).toBe(true);
-    expect(byRole(books, "table")).toBeDefined();
-    expect(byRole(connection, "heading", "连接你的设备")).toBeDefined();
+    expect(byRole(books, "region", "连接设备")).toBeDefined();
+    expect(byRole(books, "button", "选择设备目录").hasAttribute("disabled")).toBe(true);
+    expect(allByAttribute(books, "data-device-book")).toHaveLength(0);
+    expect(byRole(connection, "heading", "把 Kindle 或 Kobo 用 USB 接上。")).toBeDefined();
+    expect(byRole(parseHtml(pages["/devices/transfer"]!), "dialog", "发送")).toBeDefined();
     expect(allByAttribute(connection, "data-kindle-device-bar")).toHaveLength(0);
     expect(allByAttribute(connection, "aria-label", "Kindle 管理")).toHaveLength(0);
   } finally { await rm(directory, { recursive: true, force: true }); }

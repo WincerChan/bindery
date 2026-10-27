@@ -142,14 +142,13 @@ function mount(kind: string, manager: KindleDeviceManager | null, extra: Partial
 }
 const button = (root: Element, text: string) => elements(root, "button").find(element => element.textContent === text || element.getAttribute("aria-label") === text)!;
 function setValue(node: Element, value: string, type = "input") { (node as HTMLInputElement).value = value; fire(node, type); ui.flush(); }
-it("renders the fonts summary, actions, five scoped columns and installation help without a redundant title in SSR", () => {
+it("renders the fonts summary, filters, specimen grid and installation help in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = ssr.markup("fonts", { manager: null, data });
   const summary = byText(root, "0 个家族 · 0 个字体文件 · 0 B");
   expect(summary.textContent).not.toContain("设备根目录"); expect(summary.textContent).not.toContain("已忽略");
-  for (const name of ["全部", "中文", "英文", "重新扫描", "添加字体"]) expect(byRole(root, "button", name)).toBeDefined();
-  const table = byRole(byRole(root, "region", "字体列表"), "table");
-  expect(elements(table, "th").map(node => node.textContent)).toEqual(["家族", "样张", "字重 / 样式", "大小", "操作"]);
-  for (const cell of elements(table, "th")) expect(cell.getAttribute("scope")).toBe("col");
+  for (const name of ["全部", "中文", "西文", "重新扫描", "添加字体"]) expect(byRole(root, "button", name)).toBeDefined();
+  expect(byRole(root, "region", "字体列表").className).toBe("device-font-grid");
+  expect(elements(root, "table")).toHaveLength(0);
   const help = byRole(root, "region", "添加字体");
   expect(byRole(help, "heading", "添加字体")).toBeDefined();
 });
@@ -248,7 +247,7 @@ it("hydrates neutral fonts markup, scans after mount, clears after unplug and re
   expect(mounted.root.textContent).toContain("Light"); expect(mounted.root.textContent).toContain("手动安装");
   const sample = elements(mounted.root, "iframe")[0]!; expect(sample.getAttribute("sandbox")).toBe("allow-same-origin");
   expect(elements(mounted.root, "a").find(a => a.getAttribute("aria-label") === "用 Book 预览")!.getAttribute("href")).toBe("/devices/preview?font=Book");
-  expect(byRole(mounted.root, "button", "从设备删除 Book")).toBeDefined();
+  expect(byRole(mounted.root, "menuitem", "从设备删除 Book")).toBeDefined();
   fs.unplug(); await manager.probe(); await settle(); expect(allByAttribute(mounted.root, "data-font-family")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("请连接并授权");
   fs.plug(); await manager.probe(); await settle(); expect(allByAttribute(mounted.root, "data-font-family")).toHaveLength(1);

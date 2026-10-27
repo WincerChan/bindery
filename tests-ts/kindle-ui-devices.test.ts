@@ -25,13 +25,17 @@ import { detectDevice, pairDetectedDevice } from "../src/client/devices/identity
 import { MemoryDevicePreference } from "../src/client/devices/preferences";
 import { clientDocument, elements, fire } from "./support/client-dom";
 import { allByAttribute, allByRole, byAttribute, byLabel, byRole, byText } from "./support/queries";
+import type { DeviceBook } from "../src/client/devices/inventory";
+import type { LoadDevicePageSample } from "../src/features/devices/local-reading-page";
 import { bookFingerprint } from "../src/core/fingerprint";
 
 type Page = "books" | "connect" | "transfer";
 interface SyncResult { synced: number; skipped: number; marked_read: number; unchanged: number; kept: number; lagged: boolean; unmatched: number }
 interface Input { manager: KindleDeviceManager; queue: TransferQueue; books: KindleLibraryBook[]; loadProfiles: (id: string) => Promise<TypesettingProfile[]>; reading?: { get: (deviceId: string, kind: DeviceKind) => Promise<DeviceReadingSettings>; save: (deviceId: string, kind: DeviceKind, settings: DeviceReadingSettings) => Promise<unknown> }; preselected?: string[]; syncKobo?: (device: PairedDevice) => Promise<SyncResult>; syncKindle?: (device: PairedDevice) => Promise<SyncResult>; chapters?: (deviceId: string) => Promise<Record<string, string>> }
 interface Mounted { context(): KindleContextValue; page(page: Page): void; books(books: KindleLibraryBook[]): void; flush(): void; dispose(): void }
+interface SampleInput { deviceId: string; book: DeviceBook; model: string; revision?: string; load: LoadDevicePageSample }
 interface Probe {
+  mountSample(root: HTMLElement, input: SampleInput): { update(input: SampleInput): void; flush(): void; dispose(): void };
   markup(page: Page, input: Input): string; mount(root: HTMLElement, page: Page, input: Input, hydrate: boolean): Mounted;
   progressMarkup(items: TransferItem[]): string;
   mountProgress(root: HTMLElement, items: TransferItem[], hydrate: boolean): { update(items: TransferItem[]): void; dispose(): void };
@@ -48,6 +52,12 @@ import { KindleDeviceBar } from '${resolve("src/features/kindle/device-bar")}';
 import { KindleBooksPage } from '${resolve("src/features/kindle/devices/books")}';
 import { KindleConnectPage } from '${resolve("src/features/kindle/devices/connect")}';
 import { KindleTransferPage, KindleTransferQueueProgress, queueSummary } from '${resolve("src/features/kindle/devices/transfer")}';
+import { LocalReadingPage } from '${resolve("src/features/devices/local-reading-page")}';
+export function mountSample(root, input) {
+  const [props, setProps] = createSignal(input);
+  const dispose = render(() => <LocalReadingPage {...props()} kind="kobo" />, root);
+  return { update(next) { setProps(next); flush(); }, flush, dispose };
+}
 function Capture(props) { props.receive(useKindle()); return null; }
 function view(page, input, books, capture) {
   function child() {
@@ -80,6 +90,7 @@ function globals(support = true) {
   Object.defineProperty(Object.getPrototypeOf(doc.createElement("div")), "style", { configurable: true, get(this: Element) {
     return { setProperty: (name: string, value: string) => this.setAttribute("style", `${name}: ${value}`), removeProperty: () => this.removeAttribute("style") };
   } });
+  Object.defineProperty(Object.getPrototypeOf(doc.createElement("div")), "getBoundingClientRect", { configurable: true, value: () => ({ left: 0, top: 0, bottom: 30, width: 200, height: 30, right: 200 }) });
   const body = doc.createElement("body"); body.dispatchEvent = vi.fn(() => true); Object.defineProperty(doc, "body", { value: body, configurable: true });
   doc.addEventListener = vi.fn(); doc.removeEventListener = vi.fn();
   vi.stubGlobal("document", doc); vi.stubGlobal("self", globalThis);
@@ -109,6 +120,28 @@ beforeAll(async () => {
 });
 afterEach(() => { for (const dispose of disposers.splice(0).reverse()) dispose(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 afterAll(() => rmSync(directory, { force: true, recursive: true }));
+it("reloads chapter samples after sync, ignores stale responses and falls back without a mapping", async () => {
+  const root = document.createElement("div"); document.documentElement.appendChild(root);
+  const pending: ((sample: Awaited<ReturnType<LoadDevicePageSample>>) => void)[] = [];
+  const load = vi.fn<LoadDevicePageSample>(() => new Promise(resolve => pending.push(resolve)));
+  const initial: SampleInput = { deviceId: "old", model: "libra2", book: { filename: "Bindery/book.kepub.epub", book_id: "book" } as DeviceBook, load };
+  const mounted = client.mountSample(root, initial); mounted.flush();
+  const settleSample = async () => { await Promise.resolve(); mounted.flush(); };
+  expect(root.textContent).toContain("暂无可映射的章节样张");
+  mounted.update({ ...initial, deviceId: "new" });
+  pending[0]({ bookId: "book", title: "旧设备", chapter: "过期章节", path: "old.xhtml" }); await settleSample();
+  expect(elements(root, "iframe")).toHaveLength(0);
+  pending[1]({ bookId: "book", title: "书", chapter: "第二章", path: "chapter2.xhtml" }); await settleSample();
+  const frame = elements(root, "iframe")[0]; expect(frame.getAttribute("src")).toContain("chapter2.xhtml"); expect(frame.getAttribute("sandbox")).toBe("allow-same-origin"); expect(frame.getAttribute("tabindex")).toBe("-1");
+  expect(root.textContent).toContain("非真机截图");
+  mounted.update({ ...initial, deviceId: "new", revision: "刚刚同步" });
+  expect(load).toHaveBeenCalledTimes(3); pending[2](null); await settleSample();
+  expect(elements(root, "iframe")).toHaveLength(0); expect(root.textContent).toContain("暂无可映射的章节样张");
+  mounted.update({ ...initial, deviceId: "new", revision: "再次同步" }); mounted.dispose();
+  pending[3]({ bookId: "book", title: "书", chapter: "第二章", path: "chapter2.xhtml" }); await settleSample();
+  expect(elements(root, "iframe")).toHaveLength(0); root.remove();
+});
+
 const book = (id: string, title = id, read = false): KindleLibraryBook => ({ book_id: id, title, author: "作者", cover_url: null, read });
 function repository(initial: RememberedDevice[] = []) {
   const rows = new Map(initial.map(d => [d.id, d]));
@@ -151,6 +184,12 @@ function mount(page: Page, initial: Input, hydrating = true) {
 async function settle(m: Mounted) { for (let i = 0; i < 6; i++) { await new Promise(resolve => setTimeout(resolve, 0)); m.flush(); } }
 function button(root: Element, text: string) { const node = elements(root, "button").find(b => b.textContent === text || b.getAttribute("aria-label") === text); if (!node) throw new Error(`Missing button: ${text}`); return node; }
 function field(root: Element, label: string) { return byLabel(root, label) as HTMLInputElement; }
+function selectBook(m: Mounted & { root: Element }, label: string) {
+  const batch = elements(m.root, "button").find(node => node.textContent === "批量选择");
+  if (batch) { fire(batch, "click"); m.flush(); }
+  fire(button(m.root, label), "click"); m.flush();
+}
+function deleteDialog(root: Element) { return elements(root, "dialog").find(dialog => elements(dialog, "h2").some(h => h.textContent?.startsWith("删除 "))) as HTMLDialogElement; }
 const text = (m: { root: Element }) => m.root.textContent || "";
 // Domain attributes identify records regardless of whether a redesign uses rows or cards.
 
@@ -159,23 +198,21 @@ it("offers device identity, source filters, search and deletion in neutral SSR",
   const root = document.createElement("div"); root.innerHTML = server.markup("books", c.input);
   const bar = byAttribute(root, "data-kindle-device-bar");
   expect(byRole(bar, "heading", "设备")).toBeDefined();
-  expect(byRole(bar, "button", "查看设备规格")).toBeDefined();
-  expect(elements(bar, "details")[0]!.hasAttribute("open")).toBe(false);
-  expect(byText(bar, "通过 USB 连接设备并选择设备根目录")).toBeDefined();
+  expect(byLabel(bar, "切换设备")).toBeDefined();
+  expect(byRole(bar, "link", "打开设备排版预览")).toBeDefined();
   expect(byRole(bar, "status")).toBeDefined();
   expect(bar.textContent).not.toContain("我的 Paperwhite");
 
-  expect(byText(root, "0 本 · 0 B")).toBeDefined();
+  expect(byRole(root, "button", "批量选择")).toBeDefined();
   const filters = byRole(root, "group", "按来源筛选");
   expect(filters.getAttribute("role")).toBe("group"); expect(filters.getAttribute("aria-label")).toBe("按来源筛选");
   expect(elements(filters, "button").map(node => [node.textContent, node.getAttribute("aria-pressed")]))
-    .toEqual([["全部", "true"], ["来自 Bindery 0", "false"], ["其他 0", "false"]]);
+    .toEqual([["全部", "true"], ["来自 Bindery", "false"], ["其他", "false"]]);
   expect(byLabel(root, "搜索设备上的书")).toBeDefined();
-  expect(button(root, "删除所选（0）").hasAttribute("disabled")).toBe(true);
+  expect(allByRole(root, "button").some(node => node.textContent?.startsWith("删除所选"))).toBe(false);
   expect(byRole(root, "region", "设备书籍").textContent).not.toContain("从书库传书");
-  const table = byRole(root, "table");
-  expect(elements(table, "th").map(node => node.textContent)).toEqual(["", "书籍", "来源", "格式", "阅读进度", "排版方案", "大小", "传入时间", "操作"]);
-  for (const cell of elements(table, "th")) expect(cell.getAttribute("scope")).toBe("col");
+  expect(elements(root, "table")).toHaveLength(0);
+  expect(byRole(root, "region", "设备书籍列表")).toBeDefined();
   expect(allByAttribute(root, "data-device-book")).toHaveLength(0);
   expect(root.textContent).toContain("连接并授权设备后，可查看和管理设备上的书籍。");
 });
@@ -194,10 +231,12 @@ it("renders the transfer filters, compact search, setting fields and ordered que
   expect(byLabel(aside, "排版方案")).toBeDefined();
   const queue = byRole(aside, "region", "传输队列");
   expect(allByAttribute(queue, "data-queue-item")).toHaveLength(0);
-  const startButton = button(aside, "开始传输");
+  expect(byRole(root, "dialog", "发送")).toBeDefined();
+  const startButton = button(aside, "发送");
   expect(startButton.hasAttribute("disabled")).toBe(true);
   expect(allByAttribute(aside, "data-start-hint")).toHaveLength(1);
   expect(elements(queue, "button")).toHaveLength(0);
+  expect(byRole(root, "button", "选择 书库甲")).toBeDefined();
   expect(aside.textContent).not.toContain("压缩超大图片");
 });
 
@@ -282,11 +321,11 @@ it("carries streaming Content-Length through the real queue into download rows a
   expect(convert).not.toHaveBeenCalled();
 });
 
-it("renders the connection title, four numbered steps and remembered-device sidebar in SSR", () => {
+it("renders the connection title, three numbered steps and remembered devices in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = server.markup("connect", input());
   const connection = byRole(root, "region", "连接设备"), steps = byRole(connection, "list");
-  expect(byRole(connection, "heading", "连接你的设备")).toBeDefined();
-  expect(allByRole(steps, "listitem")).toHaveLength(4);
+  expect(byRole(connection, "heading", "把 Kindle 或 Kobo 用 USB 接上。")).toBeDefined();
+  expect(allByRole(steps, "listitem")).toHaveLength(3);
   // The Kindle model choice appears only after an unpaired Kindle root is picked.
   expect(elements(steps, "input").filter(node => node.getAttribute("type") === "radio")).toHaveLength(0);
   const picker = button(connection, "选择设备目录"); expect(picker.hasAttribute("disabled")).toBe(true);
@@ -301,8 +340,7 @@ it.each(["books", "connect", "transfer"] as const)("hydrates neutral SSR for %s,
   expect(html).toContain("检测中…"); expect(html).not.toContain("我的 Paperwhite");
   const m = mount(page, c.input), ssrBar = byAttribute(m.root, "data-kindle-device-bar");
   await settle(m); expect(text(m)).toContain("我的 Paperwhite");
-  const spec = byAttribute(m.root, "title", "1072×1448 · 300 ppi");
-  expect(spec.textContent).toBe("Kindle Paperwhite 3 · 6″ · 固件 5.16.2.1.1"); expect(spec.getAttribute("title")).toBe("1072×1448 · 300 ppi");
+  expect(text(m)).toContain("Kindle Paperwhite 3"); expect(text(m)).toContain("固件 5.16.2.1.1");
   expect(byAttribute(m.root, "data-kindle-device-bar")).toBe(ssrBar);
   if (page === "books") expect(allByAttribute(m.root, "data-device-book")).toHaveLength(1);
   if (page === "transfer") expect(allByAttribute(m.root, "data-transfer-book").map(b => b.getAttribute("data-transfer-book"))).toEqual(["b"]);
@@ -322,12 +360,13 @@ it("pairs a selected root with the chosen model/name and forgets only the browse
   const fs = await fakeKindle(), manager = new KindleDeviceManager(repository(), async () => fs.root), m = mount("connect", input(manager));
   await settle(m);
   expect(elements(m.root, "input").some(el => el.getAttribute("value") === "KO3")).toBe(false);
-  fire(button(m.root, "选择设备目录"), "click"); await settle(m); expect(text(m)).toContain("完成首次配对"); expect(text(m)).toContain("只读取阅读位置，不会修改 Kindle 上的任何文件");
-  expect(elements(m.root, "input").filter(el => el.getAttribute("type") === "radio").map(el => el.getAttribute("value"))).toEqual(["KPW3", "KO3", "other"]);
-  const ko3 = elements(m.root, "input").find(el => el.getAttribute("value") === "KO3")!; fire(ko3, "change"); m.flush();
+  fire(button(m.root, "选择设备目录"), "click"); await settle(m); expect(text(m)).toContain("完成首次配对"); expect(text(m)).toContain("配对、传书与字体管理会写入相应目录");
+  const models = byRole(m.root, "group", "型号");
+  expect(elements(models, "button").map(node => node.textContent)).toEqual(["Kindle Paperwhite 3", "Kindle Oasis 3", "其他 Kindle"]);
+  fire(button(models, "Kindle Oasis 3"), "click"); m.flush();
   const name = field(m.root, "显示名称"); name.value = "我的 Oasis"; fire(name, "input"); m.flush();
   fire(elements(m.root, "form")[0]!, "submit"); await settle(m);
-  expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ model: "KO3", name: "我的 Oasis" }); expect(byAttribute(m.root, "title", /1264×1680/)).toBeDefined();
+  expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ model: "KO3", name: "我的 Oasis" }); expect(text(m)).toContain("1264×1680");
   fire(button(m.root, "忘记"), "click"); await settle(m); expect(await manager.remembered()).toEqual([]); expect(text(m)).toContain("未配对或未选择设备");
   expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ name: "我的 Oasis" });
 });
@@ -350,13 +389,14 @@ it("reports invalid directory selection and ignores user cancellation", async ()
 it("labels books sent with the built-in profile by its current name, not the one recorded at transfer", async () => {
   const c = await connected([{ ...record("a", "a.kfx"), profile_name: "默认（只用书籍自带样式）" }]);
   const m = mount("books", c.input); await settle(m);
-  expect(text(m)).toContain("默认"); expect(text(m)).not.toContain("只用书籍自带样式");
+  expect(text(m)).not.toContain("默认（只用书籍自带样式）");
+  expect(elements(m.root, "table")).toHaveLength(0);
 });
 
 it("filters device books using library metadata and filename fallback, including the empty state", async () => {
   const c = await connected([record("a", "a.kfx", "wide")]); await c.fs.write("documents/陌生的书.azw3", "other");
-  const m = mount("books", c.input); await settle(m); expect(text(m)).toContain("书库甲"); expect(text(m)).toContain("陌生的书"); expect(text(m)).toContain("宽边距");
-  fire(button(m.root, "其他 1"), "click"); m.flush(); expect(allByAttribute(m.root, "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["陌生的书.azw3"]);
+  const m = mount("books", c.input); await settle(m); expect(text(m)).toContain("书库甲"); expect(text(m)).toContain("陌生的书"); expect(text(m)).not.toContain("宽边距");
+  fire(button(m.root, "其他"), "click"); m.flush(); expect(allByAttribute(m.root, "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["陌生的书.azw3"]);
   fire(button(m.root, "全部"), "click"); m.flush(); const search = field(m.root, "搜索设备上的书"); search.value = "作者"; fire(search, "input"); m.flush(); expect(allByAttribute(m.root, "data-device-book")).toHaveLength(1);
   search.value = "不存在"; fire(search, "input"); m.flush(); expect(allByAttribute(m.root, "data-device-book")).toHaveLength(0); expect(text(m)).toContain("没有符合条件的书籍");
 });
@@ -364,17 +404,17 @@ it("filters device books using library metadata and filename fallback, including
 it("confirms selected deletion, removes the matching sidecar/record/thumbnail, and refreshes usage", async () => {
   const r = record("a", "a.kfx"); r.thumbnail = "thumbnail_id_a_EBOK_portrait.jpg";
   const c = await connected([r]); await c.fs.write("documents/a.sdr/reading-position", "position"); await c.fs.write(`system/thumbnails/${r.thumbnail}`, "jpeg"); await c.fs.write("documents/other.txt", "other");
-  const m = mount("books", c.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush();
+  const m = mount("books", c.input); await settle(m); selectBook(m, "选择 书库甲");
   fire(button(m.root, "删除所选（1）"), "click"); m.flush(); expect(text(m)).toContain(".sdr 文件夹"); expect(text(m)).toContain("此操作无法撤销");
-  expect((elements(m.root, "dialog")[0] as HTMLDialogElement).open).toBe(true); fire(button(m.root, "确认删除"), "click"); await settle(m);
+  expect(deleteDialog(m.root).open).toBe(true); fire(button(m.root, "确认删除"), "click"); await settle(m);
   await expect(c.fs.bytes("documents/a.kfx")).rejects.toMatchObject({ name: "NotFoundError" }); await expect(c.fs.bytes("documents/a.sdr/reading-position")).rejects.toMatchObject({ name: "NotFoundError" }); await expect(c.fs.bytes(`system/thumbnails/${r.thumbnail}`)).rejects.toMatchObject({ name: "NotFoundError" });
   expect(JSON.parse(await c.fs.text(".bindery/manifest.json")).books).toEqual([]); expect(allByAttribute(m.root, "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["other.txt"]); expect(m.context().inventory()!.usage.books).toBe(5);
 });
 
 it("clears old inventory and selection when switching devices and prevents deletion against the new device", async () => {
   const a = await connected([record("a", "a.kfx")]), b = await connected([record("b", "a.kfx")]);
-  const m = mount("books", a.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "删除所选（1）"), "click"); m.flush();
-  await a.manager.restore(saved(b.device)); await settle(m); expect((elements(m.root, "dialog")[0] as HTMLDialogElement).open).toBe(false); expect(button(m.root, "删除所选（0）")).toBeDefined();
+  const m = mount("books", a.input); await settle(m); selectBook(m, "选择 书库甲"); fire(button(m.root, "删除所选（1）"), "click"); m.flush();
+  await a.manager.restore(saved(b.device)); await settle(m); expect(deleteDialog(m.root).open).toBe(false); expect(button(m.root, "删除所选（0）")).toBeDefined();
   expect(text(m)).toContain("书库乙"); expect(await b.fs.text("documents/a.kfx")).toBe("BOOK");
 });
 
@@ -388,8 +428,8 @@ it("matches a foreign-id device record by fingerprint across the books and trans
   const transfer = vi.fn(async () => { throw new Error("测试队列尚未接入转换服务"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
   const m = mount("books", c.input); await settle(m);
   expect(text(m)).toContain(libraryTitle);
-  expect(byAttribute(m.root, "data-device-progress").getAttribute("title")).toBe("读到：第一章");
-  expect(elements(m.root, "a").find(a => a.getAttribute("aria-label") === `预览 ${libraryTitle}`)?.getAttribute("href")).toBe(`/devices/preview?book=${libraryId}`);
+  expect(byAttribute(m.root, "data-device-progress").textContent).toContain("读到：第一章");
+  expect(button(m.root, `预览 ${libraryTitle}`)).toBeDefined();
   const resend = button(m.root, `重新传入 ${libraryTitle}`); expect(resend.hasAttribute("disabled")).toBe(false);
   fire(resend, "click"); await settle(m);
   expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), libraryId, "wide", expect.objectContaining({ overwrite: true }));
@@ -399,11 +439,12 @@ it("matches a foreign-id device record by fingerprint across the books and trans
 
 it("enqueues a retransmission with the recorded profile and overwrite enabled", async () => {
   const c = await connected([record("a", "a.kfx", "wide")]); const transfer = vi.fn(async () => { throw new Error("profile was removed"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
-  const m = mount("books", c.input); await settle(m); const href = elements(m.root, "a").find(a => a.getAttribute("aria-label") === "预览 书库甲")?.getAttribute("href"); expect(href).toBe("/devices/preview?book=a");
+  const m = mount("books", c.input); await settle(m);
   const row = byAttribute(m.root, "data-device-book", "a.kfx");
-  expect(byRole(row, "link", "预览 书库甲")).toBeDefined();
-  expect(byRole(row, "button", "重新传入 书库甲")).toBeDefined();
-  expect(byRole(row, "button", "从设备删除 书库甲")).toBeDefined();
+  fire(elements(row, "button").find(node => node.getAttribute("aria-haspopup") === "menu")!, "click"); m.flush();
+  expect(byRole(row, "menuitem", "预览 书库甲")).toBeDefined();
+  expect(byRole(row, "menuitem", "重新传入 书库甲")).toBeDefined();
+  expect(byRole(row, "menuitem", "从设备删除 书库甲")).toBeDefined();
   fire(button(m.root, "重新传入 书库甲"), "click"); await settle(m); expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), "a", "wide", expect.objectContaining({ overwrite: true }));
   expect(text(m)).toContain("已加入传输队列：书库甲");
 });
@@ -413,7 +454,7 @@ it("retransmits a tweaked Kindle book with its recorded settings snapshot", asyn
   const c = await connected([{ ...record("a", "a.kfx"), profile_name: "默认（已调整）", settings }]);
   const transfer = vi.fn(async () => { throw new Error("conversion stop"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
   const m = mount("books", c.input); await settle(m);
-  expect(text(m)).toContain("默认（已调整）");
+  expect(text(m)).not.toContain("默认（已调整）");
   fire(button(m.root, "重新传入 书库甲"), "click"); await settle(m);
   expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), "a", "default", expect.objectContaining({ overwrite: true, settings }));
 });
@@ -441,7 +482,7 @@ it("loads device profiles, applies library filters/search and preserves selectio
   const m = mount("transfer", c.input); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledWith(); expect(elements(m.root, "option").map(n => n.textContent)).toContain("宽边距");
   expect(allByAttribute(m.root, "data-transfer-book")).toHaveLength(24); expect(text(m)).not.toContain("已在设备");
   await c.manager.probe(); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledOnce();
-  const checkbox = field(m.root, "选择 书库乙"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "下一页"), "click"); m.flush(); expect(text(m)).toContain("已选 1 本");
+  selectBook(m, "选择 书库乙"); fire(button(m.root, "下一页"), "click"); m.flush(); expect(text(m)).toContain("已选 1 本");
   expect(byAttribute(m.root, "data-transfer-selection").textContent).not.toContain("已选");
   await c.manager.probe(); await settle(m); expect(text(m)).toContain("已选 1 本");
   fire(button(m.root, "未读"), "click"); m.flush(); expect(allByAttribute(m.root, "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).not.toContain("b"); expect(text(m)).toContain("已在设备");
@@ -465,7 +506,7 @@ it("keeps the queue running while moving among Kindle pages, supports cancel and
   const c = await connected(); let reject!: (e: Error) => void;
   const transfer = vi.fn((_device: PairedDevice, _book: string, _profile: string, options: TransferOptions = {}) => new Promise<ManifestBook>((_resolve, r) => { reject = r; options.signal?.addEventListener("abort", () => r(new DOMException("cancel", "AbortError"))); options.progress?.({ state: "转换", phase: "convert", message: "正在转换 KFX", startedAt: Date.now(), phaseStartedAt: Date.now() }); }));
   c.input.queue = new TransferQueue({ transferBook: transfer });
-  const m = mount("transfer", c.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "开始传输 · 1 本"), "click"); await settle(m);
+  const m = mount("transfer", c.input); await settle(m); selectBook(m, "选择 书库甲"); fire(button(m.root, "发送 1 本"), "click"); await settle(m);
   expect(text(m)).toContain("正在转换 KFX"); expect(transfer).toHaveBeenCalledOnce(); const context = m.context(); m.page("books"); await settle(m); m.page("connect"); await settle(m); m.page("transfer"); await settle(m);
   expect(m.context()).toBe(context); expect(transfer).toHaveBeenCalledOnce(); expect(text(m)).toContain("正在转换 KFX");
   fire(button(m.root, "取消 书库甲"), "click"); await settle(m); expect(text(m)).toContain("失败"); expect(text(m)).toContain("操作已取消");
@@ -478,17 +519,17 @@ it("starts with the books sent from the library selected, under 全部, once the
   const c = await connected([record("a", "a.kfx")]); c.input.preselected = ["a", "missing"];
   const m = mount("transfer", c.input); await settle(m);
   expect(button(m.root, "全部").getAttribute("aria-pressed")).toBe("true");
-  expect(allByAttribute(m.root, "data-transfer-book").filter(row => { const control = byRole(row, "checkbox") as HTMLInputElement; return control.checked ?? control.hasAttribute("checked"); }).map(row => row.getAttribute("data-transfer-book"))).toEqual(["a"]);
-  expect(button(m.root, "开始传输 · 1 本").hasAttribute("disabled")).toBe(false);
+  expect(allByAttribute(m.root, "data-transfer-book").filter(row => byRole(row, "button").getAttribute("aria-pressed") === "true").map(row => row.getAttribute("data-transfer-book"))).toEqual(["a"]);
+  expect(button(m.root, "发送 1 本").hasAttribute("disabled")).toBe(false);
 });
 
 it("uses the selected profile and overwrite setting, shows failure, and retries profile loading", async () => {
   const c = await connected([record("a", "a.kfx")]); const transfer = vi.fn(async () => { throw new Error("Kindle 空间不足"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
   let fail = true; c.input.loadProfiles = async () => { if (fail) throw new Error("配置服务暂时不可用"); const profile = defaultProfile(); return [{ ...profile, id: "wide", name: "宽边距", builtIn: false, settings: { ...profile.settings, stripFonts: true, stripImages: true, stripLineHeight: true, stripParagraphSpacing: true } }]; };
   const m = mount("transfer", c.input); await settle(m); expect(text(m)).toContain("配置服务暂时不可用"); fail = false; fire(button(m.root, "重试"), "click"); await settle(m);
-  fire(button(m.root, "全部"), "click"); m.flush(); const select = byLabel(m.root, "排版方案") as HTMLSelectElement; select.value = "wide"; fire(select, "change"); m.flush(); const overwrite = byLabel(m.root, "覆盖设备上的同名书") as HTMLInputElement; overwrite.checked = true; fire(overwrite, "change"); m.flush();
+  fire(button(m.root, "全部"), "click"); m.flush(); const select = byLabel(m.root, "排版方案") as HTMLSelectElement; select.value = "wide"; fire(select, "change"); m.flush(); fire(button(m.root, "覆盖设备上的同名书"), "click"); m.flush();
   expect(byAttribute(m.root, "data-profile-summary").textContent).toBe("去掉书籍自带字体 · 去掉所有图片（保留封面） · 去掉书籍自带行高 · 去掉书籍自带段间距");
-  const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); expect(text(m)).toContain("约 4 B（按设备已有副本）"); fire(button(m.root, "开始传输 · 1 本"), "click"); await settle(m);
+  selectBook(m, "选择 书库甲"); expect(text(m)).toContain("约 4 B（按设备已有副本）"); fire(button(m.root, "发送 1 本"), "click"); await settle(m);
   expect(transfer).toHaveBeenCalledWith(expect.anything(), "a", "wide", expect.objectContaining({ overwrite: true })); expect(text(m)).toContain("Kindle 空间不足");
   // Retry re-queues the same book with the same profile and options, replacing the failed row.
   fire(button(m.root, "重试 书库甲"), "click"); await settle(m);
@@ -498,7 +539,7 @@ it("uses the selected profile and overwrite setting, shows failure, and retries 
 
 it("refreshes inventory after queue completion and exposes accurate enumerated usage", async () => {
   const c = await connected(); const transfer = vi.fn(async () => { const r = record("a", "a.kfx"); await c.fs.write("documents/a.kfx", "BOOK"); await c.fs.write(".bindery/manifest.json", JSON.stringify({ version: 1, books: [r] })); return r; }); c.input.queue = new TransferQueue({ transferBook: transfer });
-  const m = mount("transfer", c.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "开始传输 · 1 本"), "click"); await settle(m);
+  const m = mount("transfer", c.input); await settle(m); selectBook(m, "选择 书库甲"); fire(button(m.root, "发送 1 本"), "click"); await settle(m);
   expect(text(m)).toContain("已传入 Kindle"); expect(m.context().inventory()!.usage.books).toBe(4); expect(m.context().inventory()!.usage.capacity).toBeNull(); expect(allByAttribute(m.root, "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).toEqual(["b"]);
 });
 
@@ -528,7 +569,7 @@ it("reports precisely which sidecar paths could not be removed after successful 
   const report = byAttribute(m.root, "data-delete-report");
   expect(report.textContent).toContain("书籍文件已删除"); expect(report.textContent).toContain("documents/a.sdr/blocked"); expect(report.textContent).not.toContain("documents/a.sdr/after");
   expect(report.textContent).toContain("设备本机"); expect(report.textContent).toContain("支持长路径的工具"); expect(report.textContent).toContain("NotFoundError");
-  expect(m.context().state().status).toBe("granted"); expect(text(m)).toContain("已删除 1 本设备书籍"); expect((elements(m.root, "dialog")[0] as HTMLDialogElement).open).toBe(false);
+  expect(m.context().state().status).toBe("granted"); expect(text(m)).toContain("已删除 1 本设备书籍"); expect(deleteDialog(m.root).open).toBe(false);
   expect(JSON.parse(await c.fs.text(".bindery/manifest.json")).books).toEqual([]);
   for (const path of ["documents/a.kfx", "documents/a.sdr/after", `system/thumbnails/${r.thumbnail}`]) await expect(c.fs.bytes(path)).rejects.toMatchObject({ name: "NotFoundError" });
 });
@@ -536,15 +577,15 @@ it("reports precisely which sidecar paths could not be removed after successful 
 it("retries only remaining books after a partially successful bulk deletion", async () => {
   const c = await connected([record("a", "a.kfx"), record("b", "b.kfx")]);
   const m = mount("books", c.input); await settle(m);
-  const selectAll = field(m.root, "全选当前筛选书籍"); selectAll.checked = true; fire(selectAll, "change"); m.flush();
+  selectBook(m, "全选当前筛选书籍");
   fire(button(m.root, "删除所选（2）"), "click"); m.flush();
   let fail = true;
   c.fs.beforeOperation = op => { if (fail && op.operation === "remove" && op.path === "/documents/b.kfx") { fail = false; throw new Error("删除暂时失败，请重试"); } };
   fire(button(m.root, "确认删除"), "click"); await settle(m);
   expect(text(m)).toContain("删除暂时失败，请重试"); expect(m.context().inventory()!.books.map(b => b.filename)).toEqual(["b.kfx"]);
-  expect(elements(m.root, "dialog")[0]!.textContent).toContain("所选 1 本书");
+  expect(deleteDialog(m.root).textContent).toContain("所选 1 本书");
   fire(button(m.root, "确认删除"), "click"); await settle(m);
-  expect(m.context().inventory()!.books).toEqual([]); expect((elements(m.root, "dialog")[0] as HTMLDialogElement).open).toBe(false);
+  expect(m.context().inventory()!.books).toEqual([]); expect(deleteDialog(m.root).open).toBe(false);
 });
 
 it("loads device thumbnails and revokes their object URLs when leaving the books page", async () => {
@@ -602,9 +643,10 @@ it("shows Kindle reading progress and never calls a full position finished", asy
   expect(progress).toHaveLength(1);
   expect(progress[0]).toMatch(/^在读 \d+% · /);
   expect(progress[0]).not.toContain("已读完");
-  // The synced chapter is only a hover title, so the column keeps its width.
+  // The synced chapter is click-reachable in the book menu, not hover-only.
   expect(c.input.chapters).toHaveBeenCalledWith(c.device.identity.id);
-  expect(cells[0]!.getAttribute("title")).toBe("读到：第三章 全景敞视主义");
+  expect(cells[0]!.textContent).toContain("读到：第三章 全景敞视主义");
+  expect(byRole(m.root, "progressbar")).toBeDefined();
 });
 
 it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs", async () => {
@@ -660,11 +702,11 @@ it("switches in place from the device bar, persists the choice and restores it o
   const { a, b } = await twoDevices(), repo = repository([saved(a), saved(b)]), preference = new MemoryDevicePreference(a.identity.id);
   const m = mount("books", input(new KindleDeviceManager(repo, undefined, preference))); await settle(m);
   expect(m.context().state().device?.identity.id).toBe(a.identity.id);
-  const select = elements(m.root, "select").find(node => node.getAttribute("aria-label") === "切换当前设备")!;
+  const select = elements(m.root, "select").find(node => node.getAttribute("aria-label") === "切换设备")!;
   expect(elements(select, "option").map(node => node.textContent)).toEqual([
-    "当前设备",
     "Kindle A · 已连接",
     "Kobo B · 已连接",
+    "连接新设备…",
   ]);
   (select as HTMLSelectElement).value = b.identity.id; fire(select, "change"); await settle(m);
   expect(m.context().state().device?.identity.id).toBe(b.identity.id);

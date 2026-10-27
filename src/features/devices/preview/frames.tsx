@@ -4,9 +4,10 @@ import type { FontFamily, PairedDevice } from "../../../client/kindle";
 import { DocumentFonts, PreviewDocument, previewTurnKey } from "./frame";
 import type { PageGeometry } from "../../../client/devices/typeset";
 import { Button } from "../../../ui";
+import { hasSideGrip } from "../local-device-shell";
 
 /** A page whose column pitch is twice the screen width, so sideways overflow never leaks into the next page. */
-export function ChapterFrame(props: { src: string; geometry: PageGeometry; label?: string; css: string | null; device: PairedDevice | null; family?: FontFamily; start: { page: number }; hasPrevious: boolean; hasNext: boolean; onChapter: (direction: -1 | 1) => void }) {
+export function ChapterFrame(props: { src: string; geometry: PageGeometry; kind?: "kindle" | "kobo"; model?: string; label?: string; css: string | null; device: PairedDevice | null; family?: FontFamily; start: { page: number }; hasPrevious: boolean; hasNext: boolean; onChapter: (direction: -1 | 1) => void }) {
   let frame!: HTMLIFrameElement, viewport!: HTMLDivElement, bezel!: HTMLDivElement, controller: PreviewDocument | undefined;
   let resizeFrame = () => {};
   let disposed = false, generation = 0;
@@ -60,7 +61,7 @@ export function ChapterFrame(props: { src: string; geometry: PageGeometry; label
   });
   createEffect(() => props.start, start => { controller?.open(start.page); });
   onSettled(() => {
-    const wide = window.matchMedia("(min-width: 944px)");
+    const wide = window.matchMedia("(min-width: 768px)");
     resizeFrame = () => {
       if (!viewport.clientWidth) return;
       const padding = window.getComputedStyle(bezel), { width, height } = dimensions();
@@ -82,7 +83,7 @@ export function ChapterFrame(props: { src: string; geometry: PageGeometry; label
   createEffect(dimensions, () => { resizeFrame(); });
   onCleanup(() => { disposed = true; generation++; controller?.destroy(); controller = undefined; });
   return <div class="kt-frame-wrap">
-    <div ref={viewport} class="kt-device-space"><div ref={bezel} class="kt-device-bezel" style={{ width: `${dimensions().width * scale()}px` }}><div class="kt-screen" tabindex="0" role="group" aria-label={`${label()} 分页预览，使用左右方向键或 PageUp、PageDown 翻页`} onKeyDown={event => previewTurnKey(event, turn)} style={{ "aspect-ratio": `${dimensions().width} / ${dimensions().height}` }}>
+    <div ref={viewport} class="kt-device-space"><div ref={bezel} class={`kt-device-bezel ${hasSideGrip(props.kind ?? "kindle", props.model ?? "KPW3") ? "device-shell-grip" : ""}`} style={{ width: `${dimensions().width * scale()}px` }}><div class="kt-screen" tabindex="0" role="group" aria-label={`${label()} 分页预览，使用左右方向键或 PageUp、PageDown 翻页`} onKeyDown={event => previewTurnKey(event, turn)} style={{ "aspect-ratio": `${dimensions().width} / ${dimensions().height}` }}>
       <iframe ref={frame} title={`${label()} 章节排版预览`} sandbox="allow-same-origin" referrerpolicy="no-referrer" src={props.src || undefined}
         width={dimensions().width} height={dimensions().height} style={{ transform: `scale(${scale()})`, visibility: ready() ? "visible" : "hidden" }} onLoad={onLoad} />
     </div></div></div>
@@ -104,19 +105,20 @@ export function FontSample(props: { device: PairedDevice; family: FontFamily }) 
     if (!doc?.body || disposed || sampleDocument === doc) return;
     registration?.clear();
     sampleDocument = doc;
-    const lines = ["我可以吞下玻璃而不伤身体。", "The quick brown fox jumps over the lazy dog."].map(sample => {
+    const lines = ["永 书读百遍", "Aa Reading"].map(sample => {
       const line = doc.createElement("p");
       line.textContent = sample;
-      line.style.cssText = 'margin:0; font:22px/1.5 "Bindery Device Sample"; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
+      line.style.cssText = 'margin:0; font:28px/1.5 "Bindery Device Sample"; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--sample-ink);';
       return line;
     });
     doc.body.replaceChildren(...lines); doc.body.style.margin = "0";
+    doc.documentElement.style.setProperty("--sample-ink", getComputedStyle(frame).color);
     const fonts = new DocumentFonts(doc); registration = fonts;
     try { await fonts.load(props.device, props.family, "Bindery Device Sample"); }
     catch (error) { if (!disposed && registration === fonts) setError(errorMessage(error)); }
   }
   onSettled(() => { if (frame.contentDocument?.readyState === "complete") void load(); });
   onCleanup(() => { disposed = true; registration?.clear(); });
-  return <div><iframe ref={frame} class="kt-font-sample" title={`${props.family.name} 字体样张`} sandbox="allow-same-origin" onLoad={load} />
+  return <div><iframe ref={frame} class="kt-font-sample" tabindex={-1} title={`${props.family.name} 字体样张`} sandbox="allow-same-origin" onLoad={load} />
     <Show when={error()}><span class="field-error">样张加载失败：{error()}</span></Show></div>;
 }

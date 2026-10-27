@@ -1,129 +1,89 @@
 .kt-page { display: grid; gap: 28px; min-width: 0; }
-.kt-page h2 { font-size: 18px; font-weight: 700; }
 .kt-page h2, .kt-page h3, .kt-page p { margin: 0; }
-.kt-page .muted { font-size: 12.5px; line-height: 1.6; }
-.kt-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px; }
-.kt-heading > div:first-child { flex: 1 1 420px; display: grid; gap: 6px; }
-.kt-heading .muted { font-size: 13px; }
+.kt-page .muted { font-size: var(--text-meta); line-height: 1.7; }
+.device-preview-page { container-type: inline-size; }
+.device-preview-page .ui-page-intro h1 { font-size: 30px; }
+.device-preview-page .ui-page-intro { padding-block: 0 16px; }
 .kt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .kt-actions .btn { flex-shrink: 0; }
-.kt-preview-layout { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); gap: 20px; align-items: start; }
-.kt-editor { display: grid; gap: 12px; min-width: 0; padding: 4px 24px 0 0; border-right: 1px solid var(--color-line); }
-.kt-editor > .kindle-text-button { justify-self: start; }
-.kt-editor-heading { display: grid; gap: 5px; margin-bottom: 2px; }
-.kt-page .kt-editor .field { font-size: 13px; color: var(--color-ink-2); }
-.kt-profile-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
-.kt-profile-controls > .field { flex: 1 1 140px; }
-.kt-reading { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--color-line-soft); }
-.kt-reading h3 { font-size: 13px; font-weight: 600; color: var(--color-ink-2); }
-.kt-models { display: flex; border: 1px solid var(--color-control-line); border-radius: 6px; overflow: hidden; }
-.kt-models button { height: 38px; min-height: 38px; padding: 0 12px; border: 0; border-radius: 0; background: transparent; color: var(--color-ink-2); font: 500 13px var(--font-mono); }
-.kt-models button[aria-pressed=true] { background: var(--color-ink); color: var(--color-bg); }
-/* Value and reset share one fixed cell: no trailing gap when reset is hidden, no slider jump when it appears. */
-.kt-range { display: grid; grid-template-columns: 84px minmax(0, 1fr) 72px; gap: 6px; align-items: center; min-height: 32px; }
-.kt-range-value { display: flex; justify-content: flex-end; align-items: center; gap: 2px; min-width: 0; }
-.kt-range label { font-size: 13px; color: var(--color-ink-2); }
-.kt-range output { font-family: var(--font-mono); font-size: 12px; text-align: right; white-space: nowrap; }
-.kt-range output.is-inherited { color: var(--color-ink-3); font-family: var(--font-sans); }
-.kt-page .kt-range input[type=range] { appearance: none; -webkit-appearance: none; height: 32px; min-height: 32px; width: 100%; border: 0; padding: 0; margin: 0; background: transparent; box-shadow: none; cursor: pointer; }
-.kt-page .kt-range input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--color-track); }
-.kt-page .kt-range input[type=range]::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border: 2px solid var(--color-surface); border-radius: 50%; background: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); transition: box-shadow .15s ease; }
-.kt-page .kt-range input[type=range]::-moz-range-track { height: 4px; border-radius: 999px; background: var(--color-track); }
-.kt-page .kt-range input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border: 2px solid var(--color-surface); border-radius: 50%; background: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
-.kt-page .kt-range input[type=range]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--color-accent), 0 0 0 5px var(--color-accent-soft); }
-.kt-page .kt-range input[type=range]:focus-visible { outline: none; }
-.kt-page .kt-range input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 5px var(--color-accent); }
-.kt-page .kt-range input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 5px var(--color-accent); }
-.kt-range .kt-range-reset { width: 28px; min-height: 28px; padding: 0; border-radius: 50%; font-size: 18px; }
+.kt-preview-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); gap: 36px; align-items: start; }
+.kt-editor { grid-column: 2; grid-row: 1; display: grid; gap: 20px; min-width: 0; }
+.kt-profile-controls { display: flex; flex-wrap: wrap; gap: 12px; }
+.kt-profile-controls > .field { flex: 1; }
+.kt-reading { display: grid; gap: 12px; }
+.kt-reading h3 { font-size: var(--text-control); color: var(--color-ink-2); }
+.kt-range { display: grid; gap: 6px; }
+.kt-range .ui-slider > output { display: none; } /* The named value and reset share the row below. */
+.kt-range .ui-stepper > span { display: none; } /* Spacing controls aren't font-size controls. */
+.kt-stepper-label { font-size: var(--text-control); color: var(--color-ink-2); }
+.kt-range-value { display: flex; justify-content: flex-end; align-items: center; gap: 8px; min-height: 24px; font: var(--text-meta) var(--font-mono); }
+.kt-range output.is-inherited { color: var(--color-ink-3); }
+.kt-range .kt-range-reset { width: 44px; min-height: 44px; padding: 0; border-radius: 50%; font-size: var(--text-title); }
 .kt-range-reset[hidden] { display: none; }
-.kt-checkboxes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; padding-top: 10px; border-top: 1px solid var(--color-line-soft); }
-.kt-page .kt-checkboxes .checkbox { min-height: 32px; font-size: 13px; color: var(--color-ink-2); gap: 8px; }
-.kt-advanced { padding-top: 8px; border-top: 1px solid var(--color-line-soft); }
-.kt-advanced summary, .kt-calibration summary { cursor: pointer; font-size: 13px; color: var(--color-ink-2); }
-.kt-advanced summary { display: flex; align-items: center; min-height: 32px; }
-.kt-advanced > div { display: grid; gap: 10px; margin-top: 10px; }
-.kt-page .kt-editor .kt-generated textarea { background: var(--color-ink); color: var(--color-line-soft); padding: 12px 14px; font-family: var(--font-mono); font-size: 12px; line-height: 1.7; }
-.kt-profile-actions { padding-top: 12px; border-top: 1px solid var(--color-line-soft); }
-.kt-profile-actions .btn:nth-last-child(2) { margin-left: auto; }
-.kt-preview { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 8px; min-width: 0; }
-/* A fixed stuck size: the frame must not rescale while the settings column scrolls. */
-.kt-preview-sticky { position: sticky; top: 16px; height: calc(100dvh - 32px); }
+.kt-checkboxes { border: 0; padding: 0; margin: 0; }
+.kt-checkboxes legend { font-size: var(--text-control); margin-bottom: 12px; }
+.kt-advanced, .kt-profile-actions { padding-top: 16px; border-top: 1px solid var(--color-line-faint); }
+.kt-advanced summary, .kt-calibration summary { cursor: pointer; min-height: 44px; align-content: center; font-size: var(--text-control); color: var(--color-ink-2); }
+.kt-advanced > div { display: grid; gap: 16px; margin-top: 12px; }
+.kt-page .kt-editor .kt-generated textarea { background: var(--color-paper-dark); color: var(--color-paper); padding: 12px; font: var(--text-meta)/1.7 var(--font-mono); }
+.kt-preview { grid-column: 1; grid-row: 1; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 12px; min-width: 0; }
+/* Fixed viewport: scrolling controls must not change pagination scale. */
+.kt-preview-sticky { position: sticky; top: 16px; height: calc(100dvh - 32px); min-height: 540px; }
 .kt-preview-header { display: grid; gap: 8px; }
 .kt-preview > .muted { text-align: center; }
-.kt-preview-selectors { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; width: 100%; min-width: 0; }
-.kt-page .kt-preview-selectors .field { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--color-ink-2); }
-.kt-preview-selectors .kt-book-picker { flex: 0 1 320px; width: 320px; }
-.kt-preview-selectors > .field:last-child { flex: 0 1 124px; width: 124px; min-width: 112px; }
-.kt-preview-selectors .field > span, .kt-preview-selectors .field > label { flex: none; font-size: 12px; line-height: 18px; white-space: nowrap; }
-.kt-combobox { position: relative; flex: 1 1 auto; min-width: 0; }
-/* Looks like the neighbouring selects: same height, padding and arrow. */
-.kt-page .kt-combobox input { height: 32px; min-height: 32px; padding: 0 28px 0 9px; font-size: 12.5px; text-overflow: ellipsis; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2361666D' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; background-size: 12px 12px; }
+.kt-preview-selectors { display: flex; flex-wrap: wrap; gap: 12px; min-width: 0; }
+.kt-preview-selectors .field { flex: 1 1 120px; min-width: 0; }
+.kt-preview-selectors .kt-book-picker { flex-basis: 240px; }
+.kt-combobox { position: relative; min-width: 0; }
+.kt-page .kt-combobox input { min-height: 44px; width: 100%; border-radius: 999px; text-overflow: ellipsis; cursor: pointer; }
 .kt-page .kt-combobox input[aria-expanded="true"] { cursor: text; }
-.kt-combobox-list { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; right: 0; max-height: 320px; overflow: auto; margin: 0; padding: 6px; list-style: none; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 4px; box-shadow: 0 16px 36px rgb(32 41 35 / 13%); }
-.kt-combobox-list [role="option"] { padding: 9px 10px; border-radius: 2px; font-size: 13px; line-height: 1.4; color: var(--color-ink); cursor: pointer; overflow-wrap: anywhere; }
+.kt-combobox-list { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; right: 0; max-height: 320px; overflow: auto; margin: 0; padding: 8px; list-style: none; background: var(--color-surface); border-radius: var(--radius-menu); box-shadow: var(--shadow-float); }
+.kt-combobox-list [role="option"] { min-height: 44px; padding: 12px; border-radius: var(--radius-row); font-size: var(--text-control); color: var(--color-ink); cursor: pointer; overflow-wrap: anywhere; }
 .kt-combobox-list [role="option"].is-active { background: var(--color-accent-soft); color: var(--color-accent); }
 .kt-combobox-list [role="option"][aria-selected="true"] { font-weight: 600; }
-.kt-combobox-note { padding: 8px 10px; font-size: 12px; color: var(--color-ink-3); }
-.kt-page .kt-preview-selectors select { --select-arrow-gap: 9px; flex: 1 1 auto; width: 100%; height: 32px; min-height: 32px; padding: 0 28px 0 9px; min-width: 0; font-size: 12.5px; text-overflow: ellipsis; }
+.kt-combobox-note { padding: 12px; font-size: var(--text-meta); color: var(--color-ink-3); }
 .kt-calibration { min-height: 0; overflow: auto; }
 .kt-calibration p { padding-top: 6px; }
-.kt-spec { color: var(--color-ink-3); font-family: var(--font-mono); font-size: 12.5px; }
-.kt-frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; min-height: 0; }
+.kt-spec { color: var(--color-ink-3); font: var(--text-meta) var(--font-mono); }
+.kt-frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; min-height: 0; }
 .kt-device-space { flex: 1; width: 100%; min-height: 0; display: grid; place-items: center; contain: size; }
-.kt-device-bezel { box-sizing: content-box; max-width: calc(100% - 44px); padding: 26px 22px 54px; background: #1E2024; border-radius: 26px; box-shadow: 0 30px 60px -30px rgb(21 23 26 / 55%); }
-.kt-screen { width: 100%; position: relative; overflow: hidden; background: #F4F3EE; }
-.kt-screen iframe { position: absolute; left: 0; top: 0; border: 0; background: #F4F3EE; transform-origin: top left; }
+.kt-device-bezel { box-sizing: content-box; max-width: calc(100% - 36px); padding: 18px 18px 48px; }
+.kt-device-bezel.device-shell-grip { max-width: calc(100% - 86px); padding: 18px 68px 18px 18px; }
+.kt-device-bezel.device-shell-grip::before, .kt-device-bezel.device-shell-grip::after { right: 28px; height: 44px; }
+.kt-screen { width: 100%; position: relative; overflow: hidden; background: var(--device-paper); }
+.kt-screen iframe { position: absolute; left: 0; top: 0; border: 0; background: var(--device-paper); transform-origin: top left; }
 .kt-screen:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
-.kt-page-controls { justify-content: center; flex-wrap: nowrap; flex-shrink: 0; gap: 12px; }
-.kt-page .kt-page-controls .btn { min-height: 32px; padding: 0 12px; }
-.kt-page-controls [role=status] { min-width: 110px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
-.kt-font-table { width: 100%; min-width: 1000px; table-layout: fixed; border-collapse: collapse; text-align: left; font-size: 14px; }
-.kt-table-scroll { max-width: 100%; overflow-x: auto; }
-.kt-font-table th { font-weight: 400; color: var(--color-ink-3); font-size: 12px; padding: 10px 24px 10px 0; border-top: 1px solid var(--color-ink); border-bottom: 1px solid var(--color-line); }
-.kt-font-table th:first-child { width: calc((100% - 464px) * .314286 + 24px); }
-.kt-font-table th:nth-child(3) { width: 200px; }
-.kt-font-table th:nth-child(4) { width: 96px; text-align: right; }
-.kt-font-table th:last-child { width: 120px; text-align: right; padding-right: 0; }
-.kt-font-table td { padding: 18px 24px 18px 0; border-bottom: 1px solid var(--color-line-soft); vertical-align: middle; }
-.kt-font-table td:first-child { overflow: hidden; }
-.kt-font-table strong { font-weight: 700; }
-.kt-font-table small { display: block; color: var(--color-ink-3); font-size: 12px; line-height: 1.6; margin-top: 4px; }
-.kt-font-table .kt-font-files { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kt-font-table .kt-font-warning { color: var(--color-warning); }
-.kt-font-table td:nth-child(4) { white-space: nowrap; font-family: var(--font-mono); font-size: 12.5px; text-align: right; }
-.kt-font-table td:last-child { padding-right: 0; }
-.kt-font-sample { display: block; border: 0; width: 100%; height: 68px; background: transparent; }
-.kt-row-actions { display: flex; gap: 2px; justify-content: end; }
-.kt-coverage { display: flex; gap: 4px; }
-.kt-coverage span { display: inline-flex; justify-content: center; align-items: center; width: 32px; height: 24px; border-bottom: 2px solid var(--color-ink); font: 500 11.5px var(--font-mono); }
-.kt-coverage .is-missing { color: var(--color-ink-4); border-color: var(--color-track); }
-.kt-font-help { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center; padding-top: 4px; font-size: 13px; line-height: 1.7; color: var(--color-ink-2); }
-.kt-font-help > div { flex: 1 1 420px; display: grid; gap: 4px; }
-.kt-page .kt-font-help h2 { font-size: 15px; }
-.kt-font-help > p { flex: 1 1 360px; display: flex; gap: 10px; color: var(--color-warning); }
-.kt-font-help > p > svg { flex-shrink: 0; margin-top: 4px; }
+.kt-page-controls { justify-content: center; flex-shrink: 0; gap: 12px; }
+.kt-page-controls [role=status] { text-align: center; font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
+.device-font-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 40px; }
+.device-font-grid article { display: grid; align-content: start; gap: 16px; min-width: 0; }
+.kt-font-sample { display: block; border: 0; width: 100%; height: 100px; background: transparent; color: var(--color-ink); pointer-events: none; }
+.kt-coverage { display: flex; gap: 8px; }
+.kt-coverage span { display: inline-flex; justify-content: center; align-items: center; width: 36px; height: 28px; border-radius: 999px; background: var(--color-control); font: 500 var(--text-min) var(--font-mono); }
+.kt-coverage .is-missing { color: var(--color-ink-3); background: transparent; border: 1px dashed var(--color-line); }
+.kt-font-help { display: flex; flex-wrap: wrap; gap: 24px; font-size: var(--text-control); line-height: 1.7; color: var(--color-ink-2); }
+.kt-font-help > div, .kt-font-help > p { flex: 1 1 300px; }
+.kt-font-help > p { color: var(--color-warning); }
+.kt-font-help svg { display: inline; margin-right: 8px; }
 .kt-dragging { outline: 2px dashed var(--color-accent); outline-offset: 8px; }
 .kt-install { display: grid; gap: 12px; padding-block: 20px; border-block: 1px solid var(--color-line); }
-.kt-dirty-note { display: flex; align-items: center; gap: 7px; color: var(--color-warning); font-size: 12.5px; font-weight: 600; }
-.kt-dirty-note > span { width: 7px; height: 7px; border-radius: 50%; background: #C18412; }
-.kt-success-note { color: var(--color-ok); font-size: 12.5px; font-weight: 550; }
-.kt-warning-note { color: var(--color-warning); font-size: 12.5px; font-weight: 550; line-height: 1.6; }
-@media (max-width: 943px) {
-  .kt-preview-layout { grid-template-columns: minmax(0, 1fr); gap: 28px; }
-  .kt-editor { padding: 0; border-right: 0; }
+.kt-dirty-note, .kt-warning-note { color: var(--color-warning); font-size: var(--text-meta); }
+.kt-success-note { color: var(--color-ok); font-size: var(--text-meta); }
+.kt-send { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid var(--color-line-faint); }
+.kt-send .kt-send-button { width: 100%; }
+.kt-send .kindle-small { text-align: center; }
+/* Narrow desktop content (after the shared rail/gutters) must not collapse the
+   page to a few pixels. This is a content-width adaptation, not a phone breakpoint. */
+@container (max-width: 767px) {
+  .kt-preview-layout { grid-template-columns: minmax(0, 1fr); }
+  .kt-editor { grid-column: 1; grid-row: 2; }
+  .kt-preview-sticky { position: static; }
+}
+@media (max-width: 767px) {
+  .kt-preview-layout { grid-template-columns: minmax(0, 1fr); }
+  .kt-editor { grid-column: 1; grid-row: 2; }
   .kt-preview-sticky { position: static; height: auto; }
   .kt-preview { grid-template-rows: auto; }
   .kt-device-space { flex: none; contain: none; }
   .kt-calibration { overflow: visible; }
 }
-@media (max-width: 480px) {
-  .kt-page .kt-checkboxes .checkbox { min-height: 40px; }
-  .kt-page .kt-preview-selectors select, .kt-page .kt-combobox input { height: 42px; min-height: 42px; }
-  .kt-device-bezel { max-width: calc(100% - 32px); padding: 20px 16px 40px; border-radius: 22px; }
-}
-@media (max-width: 360px) {
-  .kt-checkboxes { grid-template-columns: minmax(0, 1fr); }
-}
-.kt-send { display: grid; gap: 7px; margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--color-line-soft); }
-.kt-send .kt-send-button { width: 100%; }
-.kt-send .kindle-small { margin: 0; color: var(--color-ink-3); font-size: 12px; line-height: 1.6; text-align: center; }
