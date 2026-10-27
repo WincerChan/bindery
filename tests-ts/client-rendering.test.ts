@@ -25,19 +25,13 @@ const directory = mkdtempSync(join(tmpdir(), "bindery-client-rendering-"));
 const disposers: (() => void)[] = [];
 function browserGlobals() {
   const document = clientDocument(), body = document.createElement("body");
-  // Reader now uses shared Slider/ProgressBar inline custom properties. No layout is emulated.
+  // Reader sliders and v2 cover progress bars set inline custom properties. No layout is emulated.
   const styles = new WeakMap<Element, object>();
   Object.defineProperty(Object.getPrototypeOf(body), "style", { configurable: true, get(this: Element) {
     if (!styles.has(this)) styles.set(this, { setProperty(name: string, value: string) { (this as Record<string, unknown>)[name] = value; }, removeProperty(name: string) { delete (this as Record<string, unknown>)[name]; } });
     return styles.get(this);
   } });
   document.addEventListener = vi.fn(); document.removeEventListener = vi.fn();
-  // Ingest's v2 covers include the shared inline progress-bar style.
-  const styles = new WeakMap<Element, Record<string, unknown>>();
-  Object.defineProperty(Object.getPrototypeOf(document.createElement("div")), "style", { configurable: true, get(this: Element) {
-    if (!styles.has(this)) styles.set(this, { setProperty(name: string, value: string) { (this as Record<string, unknown>)[name] = value; }, removeProperty(name: string) { delete (this as Record<string, unknown>)[name]; } });
-    return styles.get(this);
-  } });
   body.dispatchEvent = vi.fn(() => true); Object.defineProperty(document, "body", { configurable: true, value: body });
   vi.stubGlobal("document", document);
   vi.stubGlobal("self", globalThis);
