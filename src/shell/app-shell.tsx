@@ -1,13 +1,11 @@
 import { Outlet, useLocation, useMatches } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
 import { Link } from "../shared/spa-link";
+import { Icon } from "../ui";
 import { PwaInstallProvider } from "../features/settings/install-app";
-import { gearIcon, navigation, navActive, phoneNavigation, settingsLink } from "./navigation";
+import { navigation, navActive, phoneNavigation, settingsLink } from "./navigation";
 import "./shell.css";
 
-export function NavigationIcon(props: { icon: string }) {
-  return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d={props.icon} stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /><Show when={props.icon === gearIcon}><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" /></Show></svg>;
-}
 export function AppShell() {
   const location = useLocation(), matches = useMatches();
   const readerLayout = () => matches().some(match => match.staticData.readerLayout);
@@ -18,16 +16,16 @@ export function AppShell() {
       <Show when={!readerLayout()}><aside class="nav-rail" aria-label="应用导航"><div class="nav-rail-content">
         <Link href="/" class="brand" aria-label="Bindery · 回书库" title="回书库"><img class="brand-mark" src="/logo.svg" width="30" height="30" alt="" /></Link>
         <nav class="desktop-nav" aria-label="主导航"><For each={navigation}>{item =>
-          <Link href={item.href} class={`nav-link ${active(item.href) ? "active" : ""}`} aria-label={item.label} title={item.label} aria-current={active(item.href) ? "page" : undefined}><NavigationIcon icon={item.icon} /></Link>
+          <Link href={item.href} class={`nav-link ${active(item.href) ? "active" : ""}`} aria-label={item.label} title={item.label} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} size={22} /></Link>
         }</For></nav>
-        <Link href={settingsLink.href} class={`nav-link rail-settings ${active(settingsLink.href) ? "active" : ""}`} aria-label={settingsLink.label} title={settingsLink.label} aria-current={active(settingsLink.href) ? "page" : undefined}><NavigationIcon icon={settingsLink.icon} /></Link>
+        <Link href={settingsLink.href} class={`nav-link rail-settings ${active(settingsLink.href) ? "active" : ""}`} aria-label={settingsLink.label} title={settingsLink.label} aria-current={active(settingsLink.href) ? "page" : undefined}><Icon name={settingsLink.icon} size={22} /></Link>
       </div></aside></Show>
       <main id="app-content" tabindex={-1} class={readerLayout() ? "reader-main" : "app-main"}>
         <Outlet />
       </main>
     </div>
     <Show when={!readerLayout()}><nav class="tab-bar" aria-label="手机导航"><For each={phoneNavigation}>{item =>
-      <Link href={item.href} class={`tab ${active(item.href) ? "active" : ""}`} aria-current={active(item.href) ? "page" : undefined}><span class="tab-icon"><NavigationIcon icon={item.icon} /></span><span>{item.label}</span></Link>
+      <Link href={item.href} class={`tab ${active(item.href) ? "active" : ""}`} aria-current={active(item.href) ? "page" : undefined}><span class="tab-icon"><Icon name={item.icon} size={22} /></span><span>{item.label}</span></Link>
     }</For></nav></Show>
   </PwaInstallProvider>;
 }

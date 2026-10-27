@@ -1,5 +1,5 @@
 import { For, Show } from "solid-js";
-import { BackLink, Button, PageIntro } from "../../ui";
+import { BackLink, Button, Icon, PageIntro } from "../../ui";
 import type { catalogPage } from "../../server/catalog/templates";
 import { Editor } from "./editors";
 import { Link } from "../../shared/spa-link";
@@ -29,7 +29,7 @@ export function RulesPage(props: { data: ReturnType<typeof catalogPage> }) {
       <ul class="settings-template-list"><For each={items()}>{item => <li><Link aria-current={item.id === props.data.editor?.id ? "page" : undefined} href={href(item.id)}>
         <span>{item.name}</span><small>v{item.version} · {item.book_count} 本在用{item.id === "default" ? " · 内置" : ""}{item.archived_count ? ` · ${item.archived_count} 本已归档` : ""}</small>
       </Link></li>}</For></ul>
-      <form action={`/${kind()}/new`} method="post" onSubmit={event => { void submit(event); }}><Button type="submit" variant="secondary" class="settings-template-new" disabled={mutation.busy()}>{themes() ? "＋ 新建主题" : "＋ 新建规则"}</Button></form>
+      <form action={`/${kind()}/new`} method="post" onSubmit={event => { void submit(event); }}><Button type="submit" variant="secondary" class="settings-template-new" disabled={mutation.busy()}><Icon name="plus" size={16} />{themes() ? "新建主题" : "新建规则"}</Button></form>
     </nav><Show when={props.data.editor} keyed fallback={<p class="muted">{themes() ? "暂无主题模板。" : "暂无规则模板。"}</p>}>{editor => <Editor kind={kind()} data={editor} usage={usage()} rebuild={<form action="/books/regenerate" method="post" onSubmit={event => { void submit(event, true); }}>
       <input type="hidden" name="scope" value={props.data.tab} /><input type="hidden" name="template_id" value={editor.id} /><Button type="submit" variant="quiet" disabled={mutation.busy()}>{themes() ? "重建使用此主题的书" : "重建使用此规则的书"}</Button>
     </form>} />}</Show></div>

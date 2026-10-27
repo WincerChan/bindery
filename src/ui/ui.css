@@ -49,6 +49,10 @@
 .ui-rating output { font-size: var(--text-meta); color: var(--color-ink-3); }
 .ui-back-link { display: inline-flex; align-items: center; gap: 10px; min-height: var(--size-control); color: var(--color-ink-2); text-decoration: none; font-size: var(--text-control); }
 .ui-back-link > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: var(--color-control); color: var(--color-ink); }
+.ui-icon-inline { display: inline-block; flex: none; margin-left: 6px; vertical-align: -.15em; }
+.ui-summary-chevron { flex: none; margin-left: 8px; color: var(--color-ink-3); transition: transform .16s ease; }
+.ui-summary-chevron.is-end { margin-left: auto; }
+details[open] > summary .ui-summary-chevron { transform: rotate(180deg); }
 .ui-section-title { padding-bottom: 12px; margin: 0 0 20px; border-bottom: 1px solid var(--color-line-soft); font: 400 var(--text-control) var(--font-sans); letter-spacing: .08em; color: var(--color-ink-3); }
 .ui-count { align-self: flex-start; font: 400 var(--text-min)/1.5 var(--font-sans); color: var(--color-ink-3); }
 .ui-count.is-accent { color: var(--color-accent); }
@@ -272,5 +276,5 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
 @media (prefers-reduced-motion: reduce) {
   .dialog[open], .skeleton-bone { animation: none; }
   .skeleton-bone { background-image: none; }
-  .btn, .ui-switch > span, .ui-switch > span::after, .ui-progress > span, .ui-menu-chevron { transition: none; }
+  .btn, .ui-switch > span, .ui-switch > span::after, .ui-progress > span, .ui-menu-chevron, .ui-summary-chevron { transition: none; }
 }

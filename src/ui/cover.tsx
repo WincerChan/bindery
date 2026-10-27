@@ -1,6 +1,7 @@
 import { createSignal, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { IconButton, ProgressBar } from "./primitives";
+import { Icon } from "./icon";
 
 /** Stable across renders and platforms; no runtime/random color sampling. */
 export function coverTone(bookId: string): number {
@@ -25,8 +26,8 @@ function CoverFrame(props: CoverProps & { children: JSX.Element; generated?: boo
   return <div class={`cover ${props.generated ? `cover-gen cover-tone-${coverTone(props.book_id)}` : ""} ${props.compact ? "cover-compact" : ""} ${props.large ? "cover-large" : ""} ${props.state ? `cover-${props.state}` : ""} ${props.class || ""}`}>
     <div class="cover-art" role={props.generated ? "img" : undefined} aria-label={props.generated ? coverLabel(props) : undefined}>{props.children}</div>
     <Show when={props.state === "read" || props.state === "reading"}><span class="cover-ribbon" aria-hidden="true" /></Show>
-    <Show when={props.state === "failed"}><Show when={props.onRetry} fallback={<span class="cover-retry" aria-hidden="true">↻</span>}>
-      {retry => <IconButton class="cover-retry" aria-label={`重试生成《${props.title}》`} title={`重试生成《${props.title}》`} onClick={() => retry()()}>↻</IconButton>}
+    <Show when={props.state === "failed"}><Show when={props.onRetry} fallback={<span class="cover-retry" aria-hidden="true"><Icon name="refresh" size={24} /></span>}>
+      {retry => <IconButton class="cover-retry" aria-label={`重试生成《${props.title}》`} title={`重试生成《${props.title}》`} onClick={() => retry()()}><Icon name="refresh" size={22} /></IconButton>}
     </Show></Show>
     <Show when={props.state === "duplicate" || props.state === "unparseable"}><span class="cover-marker" aria-hidden="true">{props.state === "duplicate" ? "⧉" : "!"}</span></Show>
     <Show when={props.state === "generating" || props.progress !== undefined}><ProgressBar label={`${props.title} ${props.state === "generating" ? "生成" : "阅读"}进度`} value={props.progress} class="cover-progress" /></Show>
@@ -42,5 +43,5 @@ export function BookCover(props: CoverProps & { cover_url?: string | null; eager
   </Show>;
 }
 export function AddCoverTile(props: { label: string; onClick: () => void; class?: string }) {
-  return <button type="button" class={`cover-add ${props.class || ""}`} aria-label={props.label} title={props.label} onClick={props.onClick}><span aria-hidden="true">＋</span><span>{props.label}</span></button>;
+  return <button type="button" class={`cover-add ${props.class || ""}`} aria-label={props.label} title={props.label} onClick={props.onClick}><span aria-hidden="true"><Icon name="plus" size={30} /></span><span>{props.label}</span></button>;
 }

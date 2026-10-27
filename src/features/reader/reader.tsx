@@ -1,6 +1,6 @@
 import { createEffect, createSignal, createUniqueId, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { useRouter } from "@tanstack/solid-router";
-import { BackLink, Button, IconButton, Popover, ProgressBar, SearchPill, SegmentedControl, SideSheet, Slider } from "../../ui";
+import { BackLink, Button, Icon, IconButton, Popover, ProgressBar, SearchPill, SegmentedControl, SideSheet, Slider } from "../../ui";
 import { contentUrl, highlightedParts, initialPosition, normalizeSettings, sectionUrl, storageKey, type ReaderData, type ReaderSettings, type SearchHit, type SearchResults } from "./model";
 import { ReaderSettingsControls } from "./reader-settings";
 import { readerInitialSettings, readerPaper, readerPercent, readerProgressTarget, resumeFraction } from "./reader-presentation";
@@ -192,7 +192,7 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
     <header class="reader-toolbar" aria-label="阅读工具栏">
       <BackLink class="reader-back" href={detailUrl()}><span>{book().title}</span></BackLink>
       <div class="reader-heading" title={current()?.title}>{current()?.title}</div>
-      <IconButton aria-label="目录与检索" title="目录与检索" aria-haspopup="dialog" aria-controls={`${id}-contents`} aria-expanded={sheetOpen() ? "true" : "false"} onClick={() => togglePanel("toc")}><ReaderIcon name="menu" /></IconButton>
+      <IconButton aria-label="目录与检索" title="目录与检索" aria-haspopup="dialog" aria-controls={`${id}-contents`} aria-expanded={sheetOpen() ? "true" : "false"} onClick={() => togglePanel("toc")}><Icon name="menu-2" size={20} /></IconButton>
       <IconButton ref={settingsTrigger} class="reader-aa" aria-label="阅读设置" title="阅读设置" aria-haspopup="dialog" aria-controls={`${id}-settings`} aria-expanded={panel() === "settings" ? "true" : "false"} onClick={() => togglePanel("settings")}>Aa</IconButton>
     </header>
     <div class="reader-column" inert={sheetOpen()}>
@@ -210,17 +210,17 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
       <div class="reader-desktop-progress"><ProgressBar label="全书进度（按章节估算）" value={percent()} /><span>{Math.round(percent())}%</span></div>
       <div class="reader-mobile-controls">
         <div class="reader-chapter-step">
-          <IconButton aria-label="上一章" title={props.data.sections[position().section - 1]?.title || "已是第一章"} disabled={busy() || position().section === 0} onClick={() => openSection(position().section - 1)}><ReaderIcon name="previous" /></IconButton>
+          <IconButton aria-label="上一章" title={props.data.sections[position().section - 1]?.title || "已是第一章"} disabled={busy() || position().section === 0} onClick={() => openSection(position().section - 1)}><Icon name="chevron-left" size={20} /></IconButton>
           <div><strong>{current()?.title}</strong><span>{pageLabel()}</span></div>
-          <IconButton aria-label="下一章" title={props.data.sections[position().section + 1]?.title || "已是最后一章"} disabled={busy() || position().section === props.data.sections.length - 1} onClick={() => openSection(position().section + 1)}><ReaderIcon name="next" /></IconButton>
+          <IconButton aria-label="下一章" title={props.data.sections[position().section + 1]?.title || "已是最后一章"} disabled={busy() || position().section === props.data.sections.length - 1} onClick={() => openSection(position().section + 1)}><Icon name="chevron-right" size={20} /></IconButton>
         </div>
         <div class="reader-scrubber" onChange={seekProgress} onPointerUp={seekProgress} onKeyUp={seekProgress}>
           <Slider label="全书进度（按章节估算）" value={scrub() ?? percent()} step={0.1} formatValue={value => `${Math.round(value)}%`} onChange={setScrub} />
         </div>
       </div>
     </footer>
-    <IconButton class="reader-page-turn reader-page-previous" disabled={previousDisabled()} aria-label="上一页" title="上一页（← / PageUp / Backspace）" hidden={panel() !== null} onClick={() => controller?.turn(-1)}><ReaderIcon name="previous" /></IconButton>
-    <IconButton class="reader-page-turn reader-page-next" disabled={nextDisabled()} aria-label="下一页" title="下一页（→ / PageDown / 空格）" hidden={panel() !== null} onClick={() => controller?.turn(1)}><ReaderIcon name="next" /></IconButton>
+    <IconButton class="reader-page-turn reader-page-previous" disabled={previousDisabled()} aria-label="上一页" title="上一页（← / PageUp / Backspace）" hidden={panel() !== null} onClick={() => controller?.turn(-1)}><Icon name="chevron-left" size={20} /></IconButton>
+    <IconButton class="reader-page-turn reader-page-next" disabled={nextDisabled()} aria-label="下一页" title="下一页（→ / PageDown / 空格）" hidden={panel() !== null} onClick={() => controller?.turn(1)}><Icon name="chevron-right" size={20} /></IconButton>
     <Button variant="quiet" class="reader-chrome-toggle" aria-label={chromeVisible() ? "隐藏工具栏" : "显示工具栏"} aria-expanded={chromeVisible() ? "true" : "false"} onClick={() => setChromeVisible(value => !value)}>工具栏</Button>
     <Show when={saveNotice()}><p role="status" class="reader-save-notice">{saveNotice()}</p></Show>
     <SideSheet id={`${id}-contents`} open={sheetOpen()} side="left" class="reader-contents" title="目录与检索" subtitle={`${book().title}${book().author ? ` · ${book().author}` : ""} · 读到 ${Math.round(percent())}%`} closeLabel="关闭目录与检索" onClose={closePanel}>
@@ -251,12 +251,4 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
 
 function HighlightedText(props: { text: string; query: string }) {
   return <For each={highlightedParts(props.text, props.query)}>{part => <Show when={part.matched} fallback={part.text}><mark>{part.text}</mark></Show>}</For>;
-}
-function ReaderIcon(props: { name: "menu" | "previous" | "next" | "search" | "settings" | "close" }) {
-  const paths = { menu: "M3 6h16M3 12h16M3 18h16", previous: "m14 18-5-6 6-6", next: "m8 18 6-6-6-6", search: "m20 20-4.2-4.2", close: "m5 6 12 12M17 6 6 18", settings: "M18.2 12a7.5 7.5 0 0 0-.08-1l2.02-1.57-2-3.46-2.43.98a7.35 7.35 0 0 0-1.74-1l-.37-2.58H9.4l-.37 2.58a7.35 7.35 0 0 0-1.74 1l-2.43-.98-2 3.46L4.88 11a7.5 7.5 0 0 0 0 2l-2.02 1.57 2 3.46 2.43-.98a7.35 7.35 0 0 0 1.74 1l.37 2.58h5.2l.37-2.58a7.35 7.35 0 0 0 1.74-1l2.43.98 2-3.46L19.12 13c.05-.33.08-.66.08-1Z" };
-  return <svg viewBox="-1 0 24 24" fill="none" stroke="currentColor" stroke-width={props.name === "settings" ? 1 : 2} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d={paths[props.name]} />
-    <Show when={props.name === "search"}><circle cx="10.5" cy="10.5" r="5.5" /></Show>
-    <Show when={props.name === "settings"}><circle cx="11" cy="12" r="3.25" /></Show>
-  </svg>;
 }

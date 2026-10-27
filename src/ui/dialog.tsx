@@ -4,6 +4,7 @@ import { Button } from "./controls";
 import { Link } from "../shared/spa-link";
 import { showToast } from "../client/toast";
 import { CloseButton } from "./primitives";
+import { Icon } from "./icon";
 import { focusableElements, overlayKeydown, overlayPresentation, restoreOverlayFocus } from "./overlay-behavior";
 import type { OverlayVariant } from "./overlay-behavior";
 
@@ -103,7 +104,7 @@ export function Menu(props: { title: string; trigger: JSX.Element; items: readon
     </Show>}</For>;
   }
   const status = () => <Show when={props.status}><div class={`ui-menu-status ui-menu-status-${props.statusTone || "accent"}`} role="status">{props.status}</div></Show>;
-  return <div class={`ui-menu ${props.class || ""}`}><button ref={trigger} type="button" hidden={!enhanced()} class="ui-menu-trigger" aria-haspopup="menu" aria-expanded={open() ? "true" : "false"} aria-controls={id} onClick={() => setOpen(!open())} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}>{props.trigger}<span class="ui-menu-chevron" aria-hidden="true">⌄</span></button>
+  return <div class={`ui-menu ${props.class || ""}`}><button ref={trigger} type="button" hidden={!enhanced()} class="ui-menu-trigger" aria-haspopup="menu" aria-expanded={open() ? "true" : "false"} aria-controls={id} onClick={() => setOpen(!open())} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}>{props.trigger}<span class="ui-menu-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span></button>
     <Dialog id={id} open={open()} title={props.title} subtitle={props.subtitle} variant="menu" anchor={() => trigger} onClose={close} class={props.dialogClass}>
       {status()}<div role="menu" aria-label={props.title}><Items /></div>
     </Dialog>

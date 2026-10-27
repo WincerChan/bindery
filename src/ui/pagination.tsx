@@ -1,5 +1,6 @@
 import { Link } from "../shared/spa-link";
 import { Show } from "solid-js";
+import { Icon, type IconName } from "./icon";
 
 export function paginationItems(page: number, pages: number): (number | "gap")[] {
   const total = Math.max(1, Math.trunc(pages)), current = Math.max(1, Math.min(total, Math.trunc(page)));
@@ -30,9 +31,9 @@ export type PaginationProps = {
   hashScrollIntoView?: boolean;
 };
 
-function PageControl(props: Pick<PaginationProps, "href" | "onPage" | "pageParam" | "replace" | "resetScroll" | "hashScrollIntoView"> & { page: number; label?: string; children: string | number }) {
-  return <Show when={props.onPage} fallback={<Link class="pagination-control" replace={props.replace} resetScroll={props.resetScroll} hashScrollIntoView={props.hashScrollIntoView} href={pageHref(props.href ?? "/", props.page, props.pageParam)} aria-label={props.label}>{props.children}</Link>}>
-    {onPage => <button class="pagination-control" type="button" aria-label={props.label} onClick={() => onPage()(props.page)}>{props.children}</button>}
+function PageControl(props: Pick<PaginationProps, "href" | "onPage" | "pageParam" | "replace" | "resetScroll" | "hashScrollIntoView"> & { page: number; label?: string; icon: IconName }) {
+  return <Show when={props.onPage} fallback={<Link class="pagination-control" replace={props.replace} resetScroll={props.resetScroll} hashScrollIntoView={props.hashScrollIntoView} href={pageHref(props.href ?? "/", props.page, props.pageParam)} aria-label={props.label}><Icon name={props.icon} size={18} /></Link>}>
+    {onPage => <button class="pagination-control" type="button" aria-label={props.label} onClick={() => onPage()(props.page)}><Icon name={props.icon} size={18} /></button>}
   </Show>;
 }
 
@@ -49,8 +50,8 @@ export function Pagination(props: PaginationProps) {
     <span class="pagination-summary"><strong>{shown() ? `${start()}–${end()}` : "0"}</strong> {props.unit ?? "条"} · 共 <span data-pagination-total>{total()}</span> {props.unit ?? "条"}</span>
     <Show when={pages() > 1}><div class="pagination-controls">
       <span class="pagination-page-number" aria-current="page" aria-label={`第 ${current()} 页，当前页`}>{padded(current())}</span><span class="pagination-page-total">/ {padded(pages())} 页<span class="pagination-phone-total"> · 共 {total()} {props.unit ?? "条"}</span></span>
-      <Show when={current() > 1} fallback={<span class="pagination-control" aria-disabled="true" aria-label="上一页">←</span>}><PageControl {...props} page={current() - 1} label="上一页">←</PageControl></Show>
-      <Show when={current() < pages()} fallback={<span class="pagination-control" aria-disabled="true" aria-label="下一页">→</span>}><PageControl {...props} page={current() + 1} label="下一页">→</PageControl></Show>
+      <Show when={current() > 1} fallback={<span class="pagination-control" aria-disabled="true" aria-label="上一页"><Icon name="arrow-left" size={18} /></span>}><PageControl {...props} page={current() - 1} label="上一页" icon="arrow-left" /></Show>
+      <Show when={current() < pages()} fallback={<span class="pagination-control" aria-disabled="true" aria-label="下一页"><Icon name="arrow-right" size={18} /></span>}><PageControl {...props} page={current() + 1} label="下一页" icon="arrow-right" /></Show>
     </div></Show>
   </nav>;
 }

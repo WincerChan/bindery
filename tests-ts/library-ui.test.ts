@@ -17,7 +17,7 @@ describe("library SSR behavior", () => {
     const root = parseHtml(ui.introduction("浮生六记"));
     expect(byRole(root, "heading", "最近阅读的，是《浮生六记》。")).toBeDefined();
     expect(byRole(root, "link", "在库51")).toBeDefined(); expect(byRole(root, "link", "已归档7")).toBeDefined();
-    expect(byRole(root, "link", "继续阅读 ↗").getAttribute("href")).toContain("/preview/0?resume=1");
+    expect(byRole(root, "link", "继续阅读").getAttribute("href")).toContain("/preview/0?resume=1");
     expect(byRole(root, "link", "设备预览").getAttribute("href")).toContain("/devices/preview?book=");
     const long = parseHtml(ui.introduction("这是一本名字确实超过十二个字的书"));
     expect(byRole(long, "heading", "最近阅读的是这本。")).toBeDefined();

@@ -72,7 +72,7 @@ describe("book detail and edit SSR", () => {
     const root = parseHtml(ui.detail(page()));
     for (const suffix of ["read", "archive", "delete", "regenerate"]) expect(byAttribute(root, "action", `/book/${"a".repeat(32)}/${suffix}`).getAttribute("method")).toBe("post");
     expect(byRole(root, "link", "下载 EPUB").getAttribute("href")).toBe(`/book/${"a".repeat(32)}/download`);
-    expect(byRole(root, "link", "开始阅读 ↗").getAttribute("href")).toContain("/preview/0?resume=1&return_to=");
+    expect(byRole(root, "link", "开始阅读").getAttribute("href")).toContain("/preview/0?resume=1&return_to=");
     expect(byRole(root, "heading", "示例书<&>")).toBeDefined();
     expect(byRole(root, "img").getAttribute("aria-label")).toContain("已读");
     expect(byRole(root, "button", "标记未读")).toBeDefined(); expect(byRole(root, "link", "编辑书目信息")).toBeDefined();
@@ -111,7 +111,7 @@ describe("book detail and edit SSR", () => {
   it("keeps return_to in edit, read and preview links and return path in destructive forms", () => {
     const html = ui.detail(page());
     const root = parseHtml(html);
-    for (const name of ["编辑书目信息", "开始阅读 ↗"]) expect(new URL(byRole(root, "link", name).getAttribute("href")!, "https://bindery.test").searchParams.get("return_to")).toBe("/?q=书&page=2");
+    for (const name of ["编辑书目信息", "开始阅读"]) expect(new URL(byRole(root, "link", name).getAttribute("href")!, "https://bindery.test").searchParams.get("return_to")).toBe("/?q=书&page=2");
     for (const action of ["archive", "delete"]) expect(byName(byAttribute(root, "action", `/book/${"a".repeat(32)}/${action}`), "next").getAttribute("value")).toBe("/?q=书&page=2");
   });
   it("shows only the latest source and resumes its real section without a TOC", () => {
@@ -127,13 +127,13 @@ describe("book detail and edit SSR", () => {
     expect(html).not.toContain("第二章 重逢");
     expect(html).toContain("第三章 再见 · 70%");
     // The label comes from the real chapter title; the section index is only the link target.
-    const continueLink = byRole(root, "link", "从第三章接着读 ↗");
+    const continueLink = byRole(root, "link", "从第三章接着读");
     expect(continueLink.getAttribute("href")).toContain("/preview/2?");
     const deep = page();
     deep.reading_progress = [{ ...value.reading_progress[1]!, section: 1234, section_title: "第1235章 风起" }];
-    expect(byRole(parseHtml(ui.detail(deep)), "link", "从第1235章接着读 ↗").getAttribute("href")).toContain("/preview/1234?");
+    expect(byRole(parseHtml(ui.detail(deep)), "link", "从第1235章接着读").getAttribute("href")).toContain("/preview/1234?");
     deep.reading_progress = [{ ...value.reading_progress[1]!, section: 7, section_title: "一个没有分隔符而且特别特别长的章节标题" }];
-    expect(byRole(parseHtml(ui.detail(deep)), "link", "继续阅读 ↗").getAttribute("href")).toContain("/preview/7?");
+    expect(byRole(parseHtml(ui.detail(deep)), "link", "继续阅读").getAttribute("href")).toContain("/preview/7?");
     expect(new URL(continueLink.getAttribute("href")!, "https://bindery.test").searchParams.get("return_to")).toBe("/?q=书&page=2");
     expect(byRole(root, "progressbar", "全书阅读进度").getAttribute("aria-valuenow")).toBe("70");
     expect(html).not.toContain("目录");

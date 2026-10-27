@@ -3,14 +3,13 @@ import { deleteFontFamily, installFonts, type FontFamily, type FontInstallProgre
 import { deviceInventory } from "../../../client/kindle/inventory";
 import { errorMessage } from "../../../client/kindle/fs";
 import type { KindleDeviceManager } from "../../../client/kindle/device";
-import { Button, ConfirmDialog, Menu } from "../../../ui";
+import { Button, ConfirmDialog, Icon, Menu } from "../../../ui";
 import { useDeviceNavigation } from "../../devices/navigation";
 import { useOptionalKindle } from "../context";
 import { usePageDevice } from "./device";
 import { FontSample } from "../../devices/preview/frames";
 import { Link } from "../../../shared/spa-link";
 import { fileSize, inspectFontBatch } from "./model";
-import { KindleIcon } from "../icons";
 import { FontLanguageFilter, matchesFontLanguage, type FontLanguage } from "../../devices/font-language";
 import { byteProgressDetail } from "../devices/format";
 
@@ -159,7 +158,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     </article>}</For></section>
     <Show when={device() && !busy() && families().length === 0 && !error()}><p class="muted">设备 fonts/ 目录中还没有可用字体。</p></Show>
     <Show when={families().length > 0 && shown().length === 0}><p class="muted">没有{language() === "cjk" ? "中文" : "西文"}字体。</p></Show>
-    <section class="kt-font-help" aria-label="添加字体"><div><h2>添加字体</h2><p>把 TTF / OTF 文件拖到这个页面上，或点击「添加字体」。请一起添加同一家族的常规、粗体、斜体与粗斜体文件。</p><p>R 常规 · B 粗体 · I 斜体 · BI 粗斜体。缺少的粗体和斜体可能由设备模拟，效果会与真实字形不同。</p></div><p><KindleIcon name="warning" />增删字体后，需要重启设备或重新插拔，字体列表才会更新。</p></section>
+    <section class="kt-font-help" aria-label="添加字体"><div><h2>添加字体</h2><p>把 TTF / OTF 文件拖到这个页面上，或点击「添加字体」。请一起添加同一家族的常规、粗体、斜体与粗斜体文件。</p><p>R 常规 · B 粗体 · I 斜体 · BI 粗斜体。缺少的粗体和斜体可能由设备模拟，效果会与真实字形不同。</p></div><p><Icon name="alert-triangle" size={18} />增删字体后，需要重启设备或重新插拔，字体列表才会更新。</p></section>
     <ConfirmDialog open={Boolean(deleting())} title="从设备删除字体？" danger confirmLabel="删除整个家族" onClose={() => { if (!busy()) setDeleting(null); }} onConfirm={remove}>
       <p>将删除 {deleting()?.name} 的全部 {deleting()?.fonts.length} 个文件。使用此字体的排版方案不会自动改写。</p>
     </ConfirmDialog>

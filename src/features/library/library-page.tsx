@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
-import { BookCover, Button, CloseButton, ConfirmDialog, EmptyState, GeneratedCover, Menu, LinkTabs, PageIntro, PageTabs, Pagination, SearchPill, SegmentedControl, SelectPill, ToggleChip, Toolbar, coverStateLabel, type CoverState } from "../../ui";
+import { BookCover, Button, CloseButton, ConfirmDialog, EmptyState, GeneratedCover, Icon, Menu, LinkTabs, PageIntro, PageTabs, Pagination, SearchPill, SegmentedControl, SelectPill, ToggleChip, Toolbar, coverStateLabel, type CoverState } from "../../ui";
 import type { LibrarySummary } from "./summary";
 import { showToast } from "../../client/toast";
 import { browserSupportsWebAuthn } from "../../client/passkeys";
@@ -29,7 +29,7 @@ export function LibraryBook(props: { book: BookView; returnTo: string; view: Vie
     <div class="library-cover">
       <Show when={book().archived} fallback={<BookCover {...book()} state={state()} compact={props.view === "list"} />}><GeneratedCover {...book()} state={state()} compact={props.view === "list"} /></Show>
       <Show when={props.selecting} fallback={<Show when={!book().archived}><Link class="library-cover-link" data-book-detail-link href={bookHref(book().book_id, props.returnTo)} aria-label={label()} /></Show>}>
-        <button type="button" data-book-select class="library-cover-link" aria-label={`选择《${book().title}》`} aria-pressed={props.selected ? "true" : "false"} onClick={props.toggle}><span class="library-selection-mark" aria-hidden="true">{props.selected ? "✓" : "＋"}</span></button>
+        <button type="button" data-book-select class="library-cover-link" aria-label={`选择《${book().title}》`} aria-pressed={props.selected ? "true" : "false"} onClick={props.toggle}><span class="library-selection-mark" aria-hidden="true"><Icon name={props.selected ? "check" : "plus"} size={20} /></span></button>
       </Show>
     </div>
     <Show when={props.selecting} fallback={<Menu title={book().title} subtitle={book().author || undefined} class="library-menu" dialogClass="library-book-menu"
@@ -164,9 +164,9 @@ export function LibraryPage(props: {
     <PageIntro eyebrow={`书库 · 在库 ${props.data.summary?.active_count ?? (archived() ? 0 : props.data.total_books)} 册`} title={libraryIntro(props.data.summary)}
       description={props.data.summary?.hero?.description || "把喜欢的书放在一起，随时接着读。"}
       actions={<Show when={props.data.summary?.hero} fallback={<Link href="/ingest" class="btn btn-primary btn-lg">开始入库</Link>}>{hero => <>
-        <Link class="btn btn-primary btn-lg" href={bookHref(hero().book_id, props.data.return_to, true)}>{props.data.summary?.latest ? "继续阅读 ↗" : "开始阅读 ↗"}</Link>
-        <Link class="btn btn-icon btn-lg library-desktop-action" href={devicePreviewHref(hero().book_id)} aria-label="设备预览" title="设备预览"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18H6zM10 18h4" stroke="currentColor" stroke-width="1.6" /></svg></Link>
-        <a class="btn btn-icon btn-lg" href={`/book/${hero().book_id}/download`} aria-label={`下载《${hero().title}》`} title="下载 EPUB"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke="currentColor" stroke-width="1.6" /></svg></a>
+        <Link class="btn btn-primary btn-lg" href={bookHref(hero().book_id, props.data.return_to, true)}>{props.data.summary?.latest ? "继续阅读" : "开始阅读"}<Icon name="arrow-up-right" size={16} /></Link>
+        <Link class="btn btn-icon btn-lg library-desktop-action" href={devicePreviewHref(hero().book_id)} aria-label="设备预览" title="设备预览"><Icon name="device-tablet" size={20} /></Link>
+        <a class="btn btn-icon btn-lg" href={`/book/${hero().book_id}/download`} aria-label={`下载《${hero().title}》`} title="下载 EPUB"><Icon name="download" size={20} /></a>
       </>}</Show>}
       visual={<Show when={props.data.summary?.hero}>{hero => <Link href={bookHref(hero().book_id, props.data.return_to)} aria-label={`打开《${hero().title}》详情`}><BookCover {...hero()} large eager /></Link>}</Show>} />
     <Show when={showPasskeyHint()}><div class="passkey-hint" role="status"><Link href="/security">添加通行密钥，下次免密码登录</Link><CloseButton aria-label="关闭添加通行密钥提示" onClick={dismissPasskeyHint} /></div></Show>

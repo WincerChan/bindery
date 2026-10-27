@@ -1,6 +1,7 @@
 import { createUniqueId, For, omit, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Link } from "../shared/spa-link";
+import { Icon } from "./icon";
 import { Button, TextField } from "./controls";
 import type { ButtonProps } from "./controls";
 
@@ -8,10 +9,10 @@ export function IconButton(props: Omit<ButtonProps, "variant"> & { "aria-label":
   return <Button {...props} variant="icon" />;
 }
 export function CloseButton(props: Omit<ButtonProps, "variant">) {
-  return <IconButton {...props} aria-label={props["aria-label"] || "关闭"} title={props.title || props["aria-label"] || "关闭"}>×</IconButton>;
+  return <IconButton {...props} aria-label={props["aria-label"] || "关闭"} title={props.title || props["aria-label"] || "关闭"}><Icon name="x" size={18} /></IconButton>;
 }
 export function BackLink(props: { href: string; children: JSX.Element; class?: string }) {
-  return <Link href={props.href} class={`ui-back-link ${props.class || ""}`}><span aria-hidden="true">←</span>{props.children}</Link>;
+  return <Link href={props.href} class={`ui-back-link ${props.class || ""}`}><span aria-hidden="true"><Icon name="arrow-left" size={18} /></span>{props.children}</Link>;
 }
 export function SectionTitle(props: { children: JSX.Element; id?: string }) {
   return <h2 id={props.id} class="ui-section-title">{props.children}</h2>;
@@ -39,9 +40,9 @@ export function Slider(props: { label: string; value: number; min?: number; max?
 }
 export function Stepper(props: { label: string; value: number; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }) {
   return <div class="ui-stepper" role="group" aria-label={props.label}><span aria-hidden="true">A</span>
-    <IconButton aria-label={`减小${props.label}`} title={`减小${props.label}`} disabled={props.disabled || props.value <= props.min} onClick={() => props.onChange(Math.max(props.min, props.value - (props.step ?? 1)))}>−</IconButton>
+    <IconButton aria-label={`减小${props.label}`} title={`减小${props.label}`} disabled={props.disabled || props.value <= props.min} onClick={() => props.onChange(Math.max(props.min, props.value - (props.step ?? 1)))}><Icon name="minus" size={16} /></IconButton>
     <output aria-live="polite" aria-label={props.label}>{props.value}</output>
-    <IconButton aria-label={`增大${props.label}`} title={`增大${props.label}`} disabled={props.disabled || props.value >= props.max} onClick={() => props.onChange(Math.min(props.max, props.value + (props.step ?? 1)))}>+</IconButton><span aria-hidden="true" class="ui-stepper-large">A</span>
+    <IconButton aria-label={`增大${props.label}`} title={`增大${props.label}`} disabled={props.disabled || props.value >= props.max} onClick={() => props.onChange(Math.min(props.max, props.value + (props.step ?? 1)))}><Icon name="plus" size={16} /></IconButton><span aria-hidden="true" class="ui-stepper-large">A</span>
   </div>;
 }
 export function ToggleSwitch(props: { label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void; describedBy?: string }) {
@@ -66,7 +67,7 @@ export function ToggleChip(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & 
 }
 export function SelectPill(props: { label: string; value: string; options: readonly ControlOption[]; onChange: (value: string) => void; name?: string; disabled?: boolean; class?: string }) {
   const id = createUniqueId();
-  return <label for={id} class={`ui-select-pill ${props.class || ""}`}><span>{props.label}</span><span class="ui-select-value" aria-hidden="true">{props.options.find(option => option.value === props.value)?.label ?? props.value}</span><span aria-hidden="true">⌄</span>
+  return <label for={id} class={`ui-select-pill ${props.class || ""}`}><span>{props.label}</span><span class="ui-select-value" aria-hidden="true">{props.options.find(option => option.value === props.value)?.label ?? props.value}</span><span aria-hidden="true"><Icon name="chevron-down" size={14} /></span>
     <select id={id} name={props.name} aria-label={props.label} value={props.value} disabled={props.disabled} onChange={event => props.onChange(event.currentTarget.value)}><For each={props.options}>{option => <option value={option.value} disabled={option.disabled}>{option.label}</option>}</For></select>
   </label>;
 }

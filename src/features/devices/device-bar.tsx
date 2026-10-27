@@ -2,7 +2,7 @@ import { For, Show } from "solid-js";
 import { useDevice } from "./context";
 import { bytes } from "./format";
 import { kindleModelInfo, koboModelInfo, modelShortName } from "../../client/devices/models";
-import { BackgroundActivityPill, Button, IconButton, PageIntro, SelectPill, StatusDot } from "../../ui";
+import { BackgroundActivityPill, Button, Icon, IconButton, PageIntro, SelectPill, StatusDot } from "../../ui";
 import { Link } from "../../shared/spa-link";
 import { useDeviceNavigation } from "./navigation";
 import { DeviceShell } from "./device-shell";
@@ -32,12 +32,12 @@ export function DeviceBar(props: { compact?: boolean; loadPage?: LoadDevicePageS
           ...k.remembered().map(saved => ({ value: saved.id, label: `${saved.identity.name.trim() || modelShortName(saved.identity.kind, saved.identity.model)} · ${k.connections()[saved.id] ? "已连接" : "未连接"}` })),
           { value: "new", label: "连接新设备…" },
         ]} onChange={id => { if (id === "new") navigateSpa("/devices/connect"); else if (id) void k.switchDevice(id); }} />
-        <IconButton aria-label="重新检测" title="重新检测" size="lg" disabled={k.busy() || !k.supported()} onClick={k.refresh}>↻</IconButton>
+        <IconButton aria-label="重新检测" title="重新检测" size="lg" disabled={k.busy() || !k.supported()} onClick={k.refresh}><Icon name="refresh" size={22} /></IconButton>
         <Show when={k.state().status === "prompt" || k.state().status === "denied"}><Button onClick={() => k.authorize()}>授权</Button></Show>
       </>}
       visual={!props.compact && <figure class="device-intro-visual"><Link href={preview()} aria-label="打开设备排版预览"><DeviceShell kind={k.kind()} model={device()?.identity.model ?? "KPW3"} idle={!device()}>
         <Show when={current() && device()} fallback={<p>还没有可用的阅读位置。<br />点开预览，选一本书。</p>}><ReadingPage deviceId={device()!.identity.id} book={current()!} kind={k.kind()} model={device()!.identity.model} revision={k.syncSummary()} load={props.loadPage} /></Show>
-      </DeviceShell></Link><figcaption><Link href={preview()}>章节样张 · 点开看排版 →</Link></figcaption></figure>} />
+      </DeviceShell></Link><figcaption><Link href={preview()}>章节样张 · 点开看排版<Icon name="arrow-right" size={15} class="ui-icon-inline" /></Link></figcaption></figure>} />
     <Show when={!props.compact && usage()}><div class="kindle-usage" aria-busy={k.inventoryBusy() ? "true" : "false"}><div class="kindle-usage-bar" role="img" aria-label={`书籍 ${bytes(usage()!.books)}，字体 ${bytes(usage()!.fonts)}，其他 ${bytes(usage()!.other)}`}>
       <span class="books" style={{ width: width(usage()!.books) }} /><span class="fonts" style={{ width: width(usage()!.fonts) }} /><span class="other" style={{ width: width(usage()!.other) }} />
     </div><p class="kindle-small">书籍 {bytes(usage()!.books)} · 字体 {bytes(usage()!.fonts)} · 其他 {bytes(usage()!.other)} · 已枚举文件 {bytes(usage()!.total)}</p></div></Show>
