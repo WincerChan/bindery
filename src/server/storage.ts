@@ -91,6 +91,9 @@ function metadataValues(meta: Metadata): Value[] {
 function rowToMetadata(row: Row): Metadata {
   const {
     tags_json,
+    // Derived EPUB cache is DB-only, never part of Metadata or its exports.
+    word_count,
+    word_count_key,
     ...rest
   } = row;
   const meta = rest as unknown as Metadata;

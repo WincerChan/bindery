@@ -36,11 +36,11 @@ function fixture(name: string) {
   };
 }
 function snapshot(db: BinderyDatabase, base: string) {
-  // Frozen fixtures describe the legacy image's schema; reading-sync adds tables on top.
+  // Frozen fixtures describe the legacy image's schema; omit additive tables and the DB-only EPUB cache.
   const additive = new Set(["device_reading", "vocabulary", "typeset_profiles", "device_typeset"]);
-  const schema = db.all("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name").filter(row => !additive.has(String(row.tbl_name)));
+  const schema = db.all("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name").filter(row => !additive.has(String(row.tbl_name))).map(row => row.name === "books" ? { ...row, sql: String(row.sql).replace(", word_count INTEGER, word_count_key TEXT", "") } : row);
   const tables = Object.fromEntries(["books", "jobs", "sessions", "passkeys", "webauthn_challenges", "app_settings", "reader_progress", "wishlist"].map(t => [t,
-    db.all(`SELECT * FROM ${t} ORDER BY 1`).filter(row => t !== "app_settings" || row.key !== "typeset_profiles_migrated").map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key,
+    db.all(`SELECT * FROM ${t} ORDER BY 1`).filter(row => t !== "app_settings" || row.key !== "typeset_profiles_migrated").map(row => Object.fromEntries(Object.entries(row).filter(([key]) => t !== "books" || !["word_count", "word_count_key"].includes(key)).map(([key, value]) => [key,
       value instanceof Uint8Array ? { blob: Buffer.from(value).toString("hex") } : value,
     ]))),
   ]));

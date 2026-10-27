@@ -11,8 +11,9 @@ export function databaseState(path: string): string {
     const tables = db.prepare("SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('device_reading', 'vocabulary') ORDER BY name").all();
     const literal = (value: unknown): string => value === null ? "NULL" : value instanceof Uint8Array ? `X'${Buffer.from(value).toString("hex")}'` : typeof value === "string" ? `'${value.replaceAll("'", "''")}'` : String(value);
     const statements = tables.flatMap(table => [
-      String(table.sql) + ";",
-      ...db.prepare(`SELECT * FROM "${String(table.name)}"`).all().map(row => `INSERT INTO "${String(table.name)}" VALUES (${Object.values(row).map(literal).join(",")});`),
+      // The frozen legacy recordings predate the derived EPUB cache.
+      (table.name === "books" ? String(table.sql).replace(", word_count INTEGER, word_count_key TEXT", "") : String(table.sql)) + ";",
+      ...db.prepare(`SELECT * FROM "${String(table.name)}"`).all().map(row => `INSERT INTO "${String(table.name)}" VALUES (${Object.entries(row).filter(([key]) => table.name !== "books" || !["word_count", "word_count_key"].includes(key)).map(([, value]) => literal(value)).join(",")});`),
     ]);
     statements.push(...db.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL AND tbl_name NOT IN ('device_reading', 'vocabulary') ORDER BY name").all().map(row => String(row.sql) + ";"));
     return statements.join("\n");

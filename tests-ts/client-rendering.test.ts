@@ -94,7 +94,7 @@ function jobs(names: string[], status = "running"): Cases["jobs"] {
   };
 }
 const editor = (id: string) => ({ id, name: id, version: "1", description: "", raw: "{}", saved: false, error: null });
-const detail = (): Cases["detail"] => ({ book: book("旧书名"), navigation: bookNavigation("旧书名", "/"), rules: [{ rule_id: "default", name: "默认规则", version: "1" }], themes: [{ theme_id: "default", name: "默认主题", version: "1" }], strip_original_css: false, strip_fonts: false });
+const detail = (): Cases["detail"] => ({ book: { ...book("旧书名"), word_count: null, file_size: null }, navigation: bookNavigation("旧书名", "/"), rules: [{ rule_id: "default", name: "默认规则", version: "1" }], themes: [{ theme_id: "default", name: "默认主题", version: "1" }], strip_original_css: false, strip_fonts: false });
 
 it.each([true, false])("updates book cards, selection and empty states (hydration=%s)", async hydrating => {
   const names = ["一", "二", "三", "四", "五", "魔临", "七", "八"];
