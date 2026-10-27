@@ -91,7 +91,7 @@
     "DevicesPreview.dc.html": {
       "expand": "fill",
       "h": 1080,
-      "title": "设备 · 排版预览",
+      "title": "设备 · 排版预览（Kindle Paperwhite 3）",
       "w": 1440,
       "x": 0,
       "y": 6460
@@ -167,9 +167,24 @@
     },
     "ReaderToc.dc.html": {
       "h": 900,
-      "title": "阅读 · 目录与检索",
+      "title": "阅读 · 目录",
       "w": 1440,
       "x": 3040,
+      "y": 9220
+    },
+    "DevicesPreviewKobo.dc.html": {
+      "expand": "fill",
+      "h": 1080,
+      "title": "设备 · 排版预览（Kobo Libra 2）",
+      "w": 1440,
+      "x": 1520,
+      "y": 6460
+    },
+    "ReaderSearch.dc.html": {
+      "h": 900,
+      "title": "阅读 · 检索",
+      "w": 1440,
+      "x": 4560,
       "y": 9220
     }
   },
@@ -209,7 +224,7 @@
       "y": 8960,
       "text": "阅读",
       "kind": "title1",
-      "maxW": 4480
+      "maxW": 6000
     }
   },
   "order": [
@@ -228,13 +243,15 @@
     "DevicesSend.dc.html",
     "DevicesConnect.dc.html",
     "DevicesPreview.dc.html",
+    "DevicesPreviewKobo.dc.html",
     "SettingsHub.dc.html",
     "SettingsRules.dc.html",
     "SettingsThemes.dc.html",
     "SettingsSecurity.dc.html",
     "Reader.dc.html",
     "ReaderSettings.dc.html",
-    "ReaderToc.dc.html"
+    "ReaderToc.dc.html",
+    "ReaderSearch.dc.html"
   ],
   "pages": [],
   "title": "Bindery 书库首页 · 风格提案"
