@@ -4,7 +4,7 @@ Goal: after the first sign-in with a password, the user can add one or more pass
 
 - **Password always remains**: it is the fallback sign-in and the only way to add a passkey (step-up verification). Deleting every passkey never locks anyone out.
 - Single-user app: there is no user table; every passkey belongs to the one Bindery user.
-- Visual language follows [README.md](README.md) (Editorial Index); reuse the existing component classes (`.btn*`, `.field`, `.tag`, `.modal-panel`, `.sheet-row`, `.page-head`, etc.) and add no new visual language.
+- Visual language follows [README.md](README.md) (设计准则 · 书页); the redesigned security page is `prototype/SettingsSecurity.dc.html`.
 
 Non-goals: multiple users, password changes, session-lifetime policy (the cookie stays a browser-session cookie as today), attestation verification, conditional UI / autofill passkeys.
 

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 阅读 · 工具栏 · 手机</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A24832}a:hover{color:#202923}
+.page p{margin:0;text-indent:2em;text-align:justify}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #F4F1E8; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+
+  <main aria-label="阅读正文" class="page" style="position: absolute; top: 52px; bottom: 52px; left: 24px; right: 24px; overflow: hidden; font-family: 'Noto Serif SC', serif; font-size: 19px; line-height: 2; color: #202923; display: flex; flex-direction: column; gap: 4px">
+    <p>人生坎坷何为乎来哉？往往皆自作孽耳，余则非也，多情重诺，爽直不羁，转因之为累。况吾父稼夫公，慷慨豪侠，急人之难，成人之事，嫁人之女，抚人之儿，指不胜屈，挥金如土，多为他人。</p>
+    <p>余夫妇居家，偶有需用，不免典质。始则移东补西，继则左支右绌。谚云：「处家人情，非钱不行。」先起小人之议，渐招同室之讥。「女子无才便是德」，真千古至言也！</p>
+    <p>余虽居长而行三，故上下呼芸为「三娘」；后忽呼为「三太太」。始而戏呼，继成习惯，甚至尊卑长幼皆以「三太太」呼之，此家庭之变机欤？</p>
+  </main>
+
+  <!-- Top bar -->
+  <header style="position: absolute; top: 0; left: 0; right: 0; box-sizing: border-box; padding: 12px 12px 12px 8px; display: flex; align-items: center; gap: 8px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.08), 0 18px 36px -24px rgba(32,41,35,0.45)">
+    <a href="MobileBookDetail.dc.html" style="flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding-left: 4px; color: #4B554E; text-decoration: none; font-size: 14px">
+      <span style="display: flex; flex: 0 0 36px; height: 36px; align-items: center; justify-content: center; border-radius: 999px; background: #ECEAE2; color: #202923"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">浮生六记</span>
+    </a>
+    <a href="MobileReaderToc.dc.html" aria-label="目录与检索" style="display: flex; flex: 0 0 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; background: #ECEAE2; color: #202923">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+    </a>
+    <a href="MobileReaderSettings.dc.html" aria-label="阅读设置" style="display: flex; flex: 0 0 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; background: #ECEAE2; color: #202923; text-decoration: none; font-family: 'Noto Serif SC', serif; font-size: 17px; font-weight: 600">Aa</a>
+  </header>
+
+  <!-- Bottom panel: chapter step + whole-book scrubber -->
+  <section aria-label="阅读位置" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; padding: 14px 16px 34px; background: #FBFAF6; box-shadow: 0 -1px 2px rgba(32,41,35,0.06), 0 -18px 36px -24px rgba(32,41,35,0.45); display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <a href="#" aria-label="上一章：卷二 · 闲情记趣" style="display: flex; flex: 0 0 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; color: #202923">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </a>
+      <p style="flex: 1; min-width: 0; margin: 0; text-align: center; display: flex; flex-direction: column; gap: 2px">
+        <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 16px">卷三 · 坎坷记愁</span>
+        <span style="font-size: 12px; color: #656D66; font-variant-numeric: tabular-nums">第 23 页</span>
+      </p>
+      <a href="#" aria-label="下一章：卷四 · 浪游记快" style="display: flex; flex: 0 0 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; color: #202923">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </a>
+    </div>
+    <label style="display: flex; align-items: center; gap: 14px">
+      <span style="position: relative; flex: 1; display: block; height: 44px">
+        <span aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 21px; height: 2px; border-radius: 999px; background: #DEDDD2"></span>
+        <span aria-hidden="true" style="position: absolute; left: 0; top: 21px; height: 2px; width: 42%; border-radius: 999px; background: {{accent}}"></span>
+        <span aria-hidden="true" style="position: absolute; top: 12px; left: calc(42% - 10px); width: 20px; height: 20px; box-sizing: border-box; border-radius: 999px; background: #FBFAF6; border: 2px solid {{accent}}"></span>
+        <input type="range" min="0" max="100" value="42" aria-label="全书进度" style="position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0">
+      </span>
+      <span style="flex: 0 0 auto; font-size: 13px; color: #4B554E; font-variant-numeric: tabular-nums">42%</span>
+    </label>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#A24832' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 浮生六记</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#E9E6DC}
+a{color:#A24832}a:hover{color:#202923}
+.rail-nav{display:flex;flex-direction:column;align-items:center;gap:10px}
+details>summary::-webkit-details-marker{display:none}
+.book-info .info-chev{opacity:0;transition:opacity .15s, transform .2s}
+.book-info:hover .info-chev,.book-info:focus-visible .info-chev,.book-info[aria-expanded="true"] .info-chev{opacity:1}
+.book-info:hover{background:#EFEDE5 !important}
+@media (max-width: 760px){
+  .rail{flex:1 1 100% !important;flex-direction:row !important;padding:12px 16px !important;border-right:0 !important;border-bottom:1px solid #DEDDD2}
+  .rail-nav{flex-direction:row}
+  .rail-foot{margin-top:0 !important;margin-left:auto}
+  .content{padding:24px 16px 48px !important}
+  .hero-title{font-size:30px !important}
+}
+</style>
+</helmet>
+<div style="box-sizing: border-box; min-height: 100vh; padding: 32px; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+<div style="max-width: 1376px; margin: 0 auto; background: #F6F4EE; border-radius: 28px; box-shadow: 0 30px 60px -30px rgba(32, 41, 35, 0.25); display: flex; flex-wrap: wrap; overflow: hidden">
+
+  <!-- Rail -->
+  <aside class="rail" style="flex: 0 0 92px; box-sizing: border-box; padding: 32px 0; display: flex; flex-direction: column; align-items: center; gap: 44px; border-right: 1px solid #E4E2D8">
+    <a href="#" aria-label="Bindery 首页" style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; color: #202923">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4.5h5.5a2 2 0 0 1 2 2V20a2 2 0 0 0-2-2H5zM19 4.5h-5.5a2 2 0 0 0-2 2V20a2 2 0 0 1 2-2H19z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+    </a>
+    <nav class="rail-nav" aria-label="主导航">
+      <a href="#" aria-label="书库" aria-current="page" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; background: {{accent}}; color: #FBFAF6">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h4v16H4zM10 4h4v16h-4zM17 5l3-.7 3 15-3 .7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+      </a>
+      <a href="#" aria-label="入库" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; color: #4B554E">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v5h16v-5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></svg>
+      </a>
+      <a href="#" aria-label="追踪" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; color: #4B554E">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+      </a>
+      <a href="Vocabulary.dc.html" aria-label="生词本" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; color: #4B554E"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 18l4.5-12 4.5 12M5.2 13.5h5.6M15 8h5.5M15 12h5.5M15 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <a href="#" aria-label="设备" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; color: #4B554E">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18H6zM10 18h4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></svg>
+      </a>
+    </nav>
+    <div class="rail-foot" style="margin-top: auto">
+      <a href="SettingsHub.dc.html" aria-label="设置" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; border: 0; background: #ECEAE2; color: #4B554E;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"></circle><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+      </a>
+    </div>
+  </aside>
+
+  <main class="content" style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 36px 56px 64px; display: flex; flex-direction: column; gap: 56px">
+
+    <!-- Hero: cover + identity -->
+    <section style="display: flex; flex-direction: column; gap: 28px; padding-top: 24px">
+      <a href="Main.dc.html" style="display: inline-flex; align-self: flex-start; align-items: center; gap: 10px; min-height: 44px; padding-right: 8px; color: #4B554E; text-decoration: none; font-size: 14px">
+        <span style="display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 999px; background: #ECEAE2; color: #202923"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+        书库
+      </a>
+
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 64px">
+        <div style="flex: 0 0 260px; padding: 8px 0 0 8px">
+          <div aria-hidden="true" style="position: relative; width: 240px; aspect-ratio: 2 / 3; box-sizing: border-box; border-radius: 4px 10px 10px 4px; background: linear-gradient(90deg, rgba(0,0,0,0.16) 0, rgba(255,255,255,0.08) 6px, rgba(0,0,0,0) 14px), #6E3B2E; box-shadow: 0 2px 3px rgba(32,41,35,0.18), 0 40px 56px -20px rgba(32,41,35,0.55), 0 12px 24px -12px rgba(32,41,35,0.35); padding: 24px 22px; display: flex; flex-direction: column; justify-content: space-between; color: #F3E6DA; transform: rotate(-2deg)">
+            <div style="border-top: 1px solid rgba(243,230,218,0.5); padding-top: 10px; font-size: 12px; letter-spacing: 0.3em">清 · 沈复</div>
+            <div style="font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 46px; line-height: 1.15; writing-mode: vertical-rl; align-self: flex-end; letter-spacing: 0.12em">浮生六记</div>
+            <div style="border-bottom: 1px solid rgba(243,230,218,0.5); padding-bottom: 10px; font-size: 12px">&#8203;</div>
+          </div>
+        </div>
+
+        <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 20px; padding-top: 8px">
+          <h1 style="margin: 0; font-family: 'Noto Serif SC', 'Songti SC', serif; font-weight: 600; font-size: 46px; line-height: 1.25">浮生六记</h1>
+          <p style="margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 15px; color: #4B554E">
+            <span style="color: #202923; font-weight: 500">沈复</span>
+            <span aria-hidden="true" style="color: #92998F">·</span><span>中文</span>
+            <span aria-hidden="true" style="color: #92998F">·</span>
+            <span role="img" aria-label="评分 4 星" style="display: inline-flex; gap: 2px">
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="{{accent}}"></path></svg>
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="{{accent}}"></path></svg>
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="{{accent}}"></path></svg>
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="{{accent}}"></path></svg>
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" fill="#DEDDD2"></path></svg>
+            </span>
+          </p>
+          <p style="margin: 0; max-width: 620px; font-size: 15px; line-height: 1.9; color: #4B554E">清代文人沈复的自传体散文。从与妻子陈芸的闺房记乐写起，到闲情、坎坷与浪游，平常日子里见深情。</p>
+          <div style="display: flex; flex-direction: column; gap: 10px; max-width: 460px; margin-top: 10px">
+            <p style="margin: 0; display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: #4B554E">在书房的 Kindle 上读到<span style="font-family: 'Noto Serif SC', serif; font-weight: 600; color: #202923">卷三 · 坎坷记愁</span><span style="margin-left: auto; font-variant-numeric: tabular-nums; color: #656D66">42% · 2 分钟前</span></p>
+            <div aria-hidden="true" style="height: 3px; border-radius: 999px; background: #E4E2D8; overflow: hidden"><div style="width: 42%; height: 100%; background: {{accent}}"></div></div>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px">
+            <a href="#" style="display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 26px; border-radius: 999px; background: #202923; color: #FBFAF6; text-decoration: none; font-size: 15px; font-weight: 500">
+              从卷三接着读
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </a>
+            <a href="DevicesPreview.dc.html" aria-label="设备预览" title="设备预览" style="display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; border-radius: 999px; background: #ECEAE2; color: #202923">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18H6zM10 18h4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></svg>
+            </a>
+            <a href="#" aria-label="下载 EPUB" title="下载 EPUB" style="display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; border-radius: 999px; background: #ECEAE2; color: #202923">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </a>
+            <button type="button" aria-label="编辑书目信息" title="编辑" style="display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: #ECEAE2; color: #202923; cursor: pointer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+            </button>
+            <button type="button" style="display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 20px; border: 1px solid #C8C8BB; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #202923; cursor: pointer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 12.5l4 4L18 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              标记已读
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- About the book: bibliographic facts only, empty ones hidden -->
+    <section aria-labelledby="about-title" style="display: flex; flex-direction: column; gap: 8px">
+      <h2 id="about-title" style="margin: 0 0 8px; font-size: 14px; font-weight: 400; letter-spacing: 0.08em; color: #656D66">关于这本书</h2>
+      <dl style="margin: 0; padding-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 28px 40px; border-top: 1px solid #DEDDD2">
+        <sc-for list="{{facts}}" as="f" hint-placeholder-count="6">
+          <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0">
+            <dt style="font-size: 12px; letter-spacing: 0.06em; color: #656D66">{{f.k}}</dt>
+            <dd style="margin: 0; font-family: 'Noto Serif SC', serif; font-size: 17px; color: #202923">{{f.v}}</dd>
+          </div>
+        </sc-for>
+      </dl>
+    </section>
+
+    <!-- Manage: second-level, folded -->
+    <details open style="border-top: 1px solid #DEDDD2">
+      <summary style="display: flex; align-items: center; gap: 12px; min-height: 64px; cursor: pointer; list-style: none">
+        <span style="font-size: 15px; font-weight: 500; color: #202923">管理这本书</span>
+        <span style="font-size: 13px; color: #656D66">重新生成、归档或删除</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin-left: auto; color: #656D66; transform: rotate(180deg)"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </summary>
+      <div style="display: flex; flex-direction: column; padding-bottom: 8px">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 20px 0; border-top: 1px solid #ECEAE2">
+          <span style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 500">重新生成</span><span style="font-size: 13px; color: #656D66">换一条切章规则，重新切章并生成 EPUB。</span></span>
+          <label style="position: relative; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px 0 18px; border-radius: 999px; background: #ECEAE2; font-size: 14px; cursor: pointer">
+            <span style="color: #656D66">切章</span><span style="font-weight: 500; color: #202923">默认 · v1</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color: #656D66"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            <select aria-label="切章规则" style="position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer"><option>默认 · v1</option><option>网文常见格式 · v3</option><option>古籍卷回 · v2</option></select>
+          </label>
+          <button type="button" style="height: 44px; padding: 0 20px; border: 1px solid #C8C8BB; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #202923; cursor: pointer">重新生成</button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 20px 0; border-top: 1px solid #ECEAE2">
+          <span style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 500">归档</span><span style="font-size: 13px; color: #656D66">从书库里收起来，随时可以在「已归档」里恢复。</span></span>
+          <button type="button" style="height: 44px; padding: 0 20px; border: 1px solid #C8C8BB; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #202923; cursor: pointer">归档</button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 20px 0; border-top: 1px solid #ECEAE2">
+          <span style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 500; color: #A43B2B">永久删除</span><span style="font-size: 13px; color: #656D66">源文件、EPUB 和全部记录一起删掉，无法恢复。</span></span>
+          <button type="button" style="display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #A43B2B; cursor: pointer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            永久删除
+          </button>
+        </div>
+      </div>
+    </details>
+  </main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832"},"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var rows = [
+      ['出版社', '[出版社]'], ['出版日期', '[出版日期]'], ['ISBN', '[ISBN]'], ['系列', ''],
+      ['字数', '约 4 万字'], ['标签', '散文、清'], ['入库', '2026-10-24']
+    ];
+    return {
+      accent: this.props.accent ?? '#A24832',
+      facts: rows.filter(function (r) { return r[1]; }).map(function (r) { return { k: r[0], v: r[1] }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

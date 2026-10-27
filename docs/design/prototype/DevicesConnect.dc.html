@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 设备 · 未连接</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#E9E6DC}
+a{color:#A24832}a:hover{color:#202923}
+.rail-nav{display:flex;flex-direction:column;align-items:center;gap:10px}
+@media (max-width: 760px){
+  .rail{flex:1 1 100% !important;flex-direction:row !important;padding:12px 16px !important;border-right:0 !important;border-bottom:1px solid #DEDDD2}
+  .rail-nav{flex-direction:row}
+  .rail-foot{margin-top:0 !important;margin-left:auto}
+  .content{padding:24px 16px 48px !important}
+  .hero-title{font-size:30px !important}
+}
+</style>
+</helmet>
+<div style="box-sizing: border-box; min-height: 100vh; padding: 32px; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+<div style="max-width: 1376px; margin: 0 auto; background: #F6F4EE; border-radius: 28px; box-shadow: 0 30px 60px -30px rgba(32, 41, 35, 0.25); display: flex; flex-wrap: wrap; overflow: hidden">
+
+  <aside class="rail" style="flex: 0 0 92px; box-sizing: border-box; padding: 32px 0; display: flex; flex-direction: column; align-items: center; gap: 44px; border-right: 1px solid #E4E2D8">
+    <a href="Main.dc.html" aria-label="Bindery 首页" style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; color: #202923">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4.5h5.5a2 2 0 0 1 2 2V20a2 2 0 0 0-2-2H5zM19 4.5h-5.5a2 2 0 0 0-2 2V20a2 2 0 0 1 2-2H19z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+    </a>
+    <nav class="rail-nav" aria-label="主导航">
+      <a href="Main.dc.html" aria-label="书库" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; color: #4B554E"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h4v16H4zM10 4h4v16h-4zM17 5l3-.7 3 15-3 .7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg></a>
+      <a href="Ingest.dc.html" aria-label="入库" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; color: #4B554E"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v5h16v-5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></svg></a>
+      <a href="Tracker.dc.html" aria-label="追踪" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; color: #4B554E"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg></a>
+      <a href="Vocabulary.dc.html" aria-label="生词本" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; color: #4B554E"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 18l4.5-12 4.5 12M5.2 13.5h5.6M15 8h5.5M15 12h5.5M15 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <a href="Devices.dc.html" aria-label="设备" aria-current="page" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; background: {{accent}}; color: #FBFAF6"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18H6zM10 18h4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></svg></a>
+    </nav>
+    <div class="rail-foot" style="margin-top: auto">
+      <a href="SettingsHub.dc.html" aria-label="设置" style="display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 999px; border: 0; background: #ECEAE2; color: #4B554E"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"></circle><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg></a>
+    </div>
+  </aside>
+
+  <main class="content" style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 36px 56px 64px; display: flex; flex-direction: column; gap: 56px">
+
+    <section style="display: flex; flex-wrap: wrap; align-items: center; gap: 56px; padding-top: 40px">
+      <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 28px">
+        <p style="margin: 0; display: flex; align-items: center; gap: 10px; font-size: 14px; color: #656D66; letter-spacing: 0.08em">
+          <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #C8C8BB"></span>
+          设备 · 未连接
+        </p>
+        <h1 class="hero-title" style="margin: 0; font-family: 'Noto Serif SC', 'Songti SC', serif; font-weight: 600; font-size: 46px; line-height: 1.25">把 Kindle 或 Kobo<br>用 USB 接上。</h1>
+        <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 18px; max-width: 520px">
+          <li style="display: flex; gap: 18px; align-items: baseline"><span style="flex: 0 0 36px; font-family: 'Noto Serif SC', serif; font-size: 22px; font-weight: 600; color: {{accent}}">01</span><span style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 500">用 USB 线连接设备</span><span style="font-size: 14px; color: #656D66">两种设备都会作为 USB 磁盘出现，传书时保持连接。</span></span></li>
+          <li style="display: flex; gap: 18px; align-items: baseline"><span style="flex: 0 0 36px; font-family: 'Noto Serif SC', serif; font-size: 22px; font-weight: 600; color: {{accent}}">02</span><span style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 500">选择设备磁盘的根目录</span><span style="font-size: 14px; color: #656D66">Kindle 能看到 documents 和 system；Kobo 能看到 .kobo。</span></span></li>
+          <li style="display: flex; gap: 18px; align-items: baseline"><span style="flex: 0 0 36px; font-family: 'Noto Serif SC', serif; font-size: 22px; font-weight: 600; color: {{accent}}">03</span><span style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 500">在浏览器弹窗里允许编辑</span><span style="font-size: 14px; color: #656D66">第一次连接时确认型号、起个名字。</span></span></li>
+        </ol>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+          <button type="button" style="display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 26px; border: 0; border-radius: 999px; background: #202923; color: #FBFAF6; font: inherit; font-size: 15px; font-weight: 500; cursor: pointer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7.5h7l2 2h9V19H3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+            选择设备目录
+          </button>
+          <span style="font-size: 13px; color: #656D66">需要 Chrome 或 Edge 桌面版</span>
+        </div>
+      </div>
+
+      <!-- Idle e-reader -->
+      <figure aria-hidden="true" style="flex: 0 1 300px; min-width: 0; margin: 0 40px 0 0; display: flex; justify-content: center">
+        <div style="position: relative; width: 240px; aspect-ratio: 0.72; box-sizing: border-box; padding: 20px 16px 40px; border-radius: 22px; background: #C9CBC2; box-shadow: 0 40px 60px -30px rgba(32,41,35,0.35); transform: rotate(-2deg)">
+          <div style="height: 100%; border-radius: 4px; background: #EDEBE4; display: flex; align-items: center; justify-content: center; color: #92998F">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none"><path d="M9 3v5M15 3v5M7 8h10v4a5 5 0 0 1-10 0zM12 17v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </div>
+        </div>
+      </figure>
+    </section>
+
+    <!-- Remembered devices -->
+    <section aria-labelledby="known-title" style="display: flex; flex-direction: column; gap: 20px">
+      <h2 id="known-title" style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 30px">记住的设备</h2>
+      <ul style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 8px 40px">
+        <li style="display: flex; align-items: center; gap: 20px; padding: 16px 0">
+          <span aria-hidden="true" style="flex: 0 0 48px; height: 66px; box-sizing: border-box; padding: 6px 5px 12px; border-radius: 8px; background: #23282A"><span style="display: block; height: 100%; border-radius: 2px; background: #EDEBE4"></span></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 17px">书房的 Kindle</span>
+            <span style="font-size: 13px; color: #656D66">Kindle Paperwhite 3 · 2 天前识别 · 37 本</span>
+          </span>
+          <button type="button" style="height: 44px; padding: 0 20px; border: 1px solid #C8C8BB; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #202923">重新授权</button>
+        </li>
+        <li style="display: flex; align-items: center; gap: 20px; padding: 16px 0">
+          <span aria-hidden="true" style="position: relative; flex: 0 0 60px; height: 66px; box-sizing: border-box; padding: 5px 17px 5px 5px; border-radius: 8px; background: #3E4144"><span style="display: block; height: 100%; border-radius: 2px; background: #EDEBE4"></span><span style="position: absolute; right: 6px; top: 20px; width: 5px; height: 10px; border-radius: 2px; background: #656D66"></span><span style="position: absolute; right: 6px; top: 34px; width: 5px; height: 10px; border-radius: 2px; background: #656D66"></span></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 17px">通勤 Kobo</span>
+            <span style="font-size: 13px; color: #656D66">Kobo Libra 2 · 3 周前识别 · 12 本</span>
+          </span>
+          <button type="button" style="height: 44px; padding: 0 20px; border: 1px solid #C8C8BB; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #202923">重新授权</button>
+        </li>
+      </ul>
+      <p style="margin: 0; font-size: 13px; color: #656D66">记住的设备只保存在当前浏览器里。</p>
+    </section>
+  </main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#A24832' };
+  }
+}
+</script>
+</body>
+</html>

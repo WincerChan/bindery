@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 阅读 · 目录 · 手机</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A24832}a:hover{color:#202923}
+.page p{margin:0;text-indent:2em;text-align:justify}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #F4F1E8; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+
+  <main aria-hidden="true" class="page" style="position: absolute; top: 52px; left: 24px; right: 24px; height: 120px; overflow: hidden; font-family: 'Noto Serif SC', serif; font-size: 19px; line-height: 2; color: #202923">
+    <p>人生坎坷何为乎来哉？往往皆自作孽耳，余则非也，多情重诺，爽直不羁，转因之为累。</p>
+  </main>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(32, 41, 35, 0.32)"></div>
+
+  <!-- Contents + search share one near-full sheet -->
+  <section role="dialog" aria-modal="true" aria-labelledby="toc-title" style="position: absolute; left: 0; right: 0; bottom: 0; top: 48px; box-sizing: border-box; padding: 10px 16px 34px; border-radius: 28px 28px 0 0; background: #FBFAF6; box-shadow: 0 -24px 48px -18px rgba(32,41,35,0.45); display: flex; flex-direction: column; gap: 16px">
+    <span aria-hidden="true" style="align-self: center; width: 40px; height: 4px; border-radius: 999px; background: #DEDDD2"></span>
+
+    <header style="display: flex; align-items: center; gap: 12px">
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+        <span id="toc-title" style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 24px; line-height: 1.3">浮生六记</span>
+        <span style="font-size: 13px; color: #656D66">沈复 · 读到 42%</span>
+      </span>
+      <button type="button" aria-label="关闭目录" style="display: flex; flex: 0 0 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: #ECEAE2; color: #202923">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+      </button>
+    </header>
+
+      <div role="tablist" aria-label="目录与检索" style="display: flex; padding: 4px; gap: 2px; border-radius: 999px; background: #ECEAE2">
+        <button type="button" role="tab" aria-selected="true" style="flex: 1; height: 36px; border: 0; border-radius: 999px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.12); font: inherit; font-size: 14px; font-weight: 500; color: #202923">目录</button>
+        <button type="button" role="tab" aria-selected="false" style="flex: 1; height: 36px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #656D66">检索</button>
+      </div>
+
+    <ol style="flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px">
+      <sc-for list="{{toc}}" as="c" hint-placeholder-count="6">
+        <li><a href="MobileReader.dc.html" aria-current="{{c.current}}" style="display: flex; align-items: baseline; gap: 14px; min-height: 52px; box-sizing: border-box; padding: 14px; border-radius: 14px; background: {{c.bg}}; color: #202923; text-decoration: none">
+          <span style="flex: 0 0 auto; font-size: 12px; letter-spacing: 0.2em; color: #656D66">{{c.no}}</span>
+          <span style="flex: 1; font-family: 'Noto Serif SC', serif; font-weight: {{c.weight}}; font-size: 16px">{{c.title}}</span>
+          <sc-if value="{{c.here}}" hint-placeholder-val="{{false}}"><span style="font-size: 12px; color: {{accent}}">正在读</span></sc-if>
+        </a></li>
+      </sc-for>
+    </ol>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var vols = [['卷一', '闺房记乐'], ['卷二', '闲情记趣'], ['卷三', '坎坷记愁'], ['卷四', '浪游记快'], ['卷五', '中山记历'], ['卷六', '养生记道']];
+    return {
+      accent: this.props.accent ?? '#A24832',
+      toc: vols.map(function (v, i) {
+        var here = i === 2;
+        return { no: v[0], title: v[1], here: here, current: here ? 'true' : 'false', bg: here ? '#ECEAE2' : 'transparent', weight: here ? 600 : 500 };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

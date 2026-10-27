@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bindery 最近任务</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A24832}a:hover{color:#202923}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 1000px; overflow: hidden; background: #E9E6DC; font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif; color: #202923">
+
+  <div aria-hidden="true" style="position: absolute; inset: 32px; border-radius: 28px; background: #F6F4EE; padding: 100px 56px 0 148px">
+    <p style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 46px; line-height: 1.25">这次放进书库的，<br>是下面这几本。</p>
+    <div style="margin-top: 150px; display: flex; gap: 32px">
+      <div style="width: 160px; height: 240px; border-radius: 3px 8px 8px 3px; background: #6E3B2E"></div>
+      <div style="width: 160px; height: 240px; border-radius: 3px 8px 8px 3px; background: #7A2E2A"></div>
+      <div style="width: 160px; height: 240px; border-radius: 3px 8px 8px 3px; background: #DEDDD2"></div>
+    </div>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(32, 41, 35, 0.32)"></div>
+
+  <section role="dialog" aria-modal="true" aria-labelledby="jobs-title" style="position: absolute; top: 0; right: 0; bottom: 0; width: 520px; box-sizing: border-box; background: #F6F4EE; border-radius: 28px 0 0 28px; box-shadow: -30px 0 60px -30px rgba(32,41,35,0.45); display: flex; flex-direction: column">
+
+    <header style="padding: 40px 40px 12px; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <h2 id="jobs-title" style="margin: 0; font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 30px">最近任务</h2>
+        <button type="button" aria-label="关闭最近任务" style="margin-left: auto; display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: #ECEAE2; color: #202923; cursor: pointer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+        </button>
+      </div>
+      <nav aria-label="任务分组" style="display: inline-flex; align-self: flex-start; padding: 4px; gap: 2px; border-radius: 999px; background: #ECEAE2">
+        <a href="#" aria-current="page" style="display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 999px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.12); color: #202923; text-decoration: none; font-size: 14px; font-weight: 500">全部</a>
+        <a href="#" style="display: inline-flex; align-items: flex-start; gap: 4px; height: 36px; padding: 0 16px; border-radius: 999px; color: #4B554E; text-decoration: none; font-size: 14px; line-height: 36px">进行中<span style="font-size: 12px; line-height: 1; margin-top: 8px; font-weight: 600; color: {{accent}}">2</span></a>
+        <a href="#" style="display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 999px; color: #4B554E; text-decoration: none; font-size: 14px">失败</a>
+      </nav>
+    </header>
+
+    <ul style="flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 20px 40px; list-style: none; display: flex; flex-direction: column; gap: 32px">
+
+      <li>
+        <a href="#" title="正在生成 EPUB · 默认 v1" aria-label="《西游记》正在生成 EPUB" style="display: flex; gap: 20px; align-items: center; color: inherit; text-decoration: none">
+          <span aria-hidden="true" style="position: relative; flex: 0 0 56px; height: 84px; box-sizing: border-box; border-radius: 2px 5px 5px 2px; background: #C9A44C; opacity: 0.72; box-shadow: 0 10px 14px -10px rgba(32,41,35,0.5)"><span style="position: absolute; top: 8px; right: 6px; font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 12px; line-height: 1.1; writing-mode: vertical-rl; letter-spacing: 0.08em; color: #2B2416">西游记</span>
+            <span style="position: absolute; left: 7px; right: 7px; bottom: 7px; height: 3px; border-radius: 999px; background: rgba(43,36,22,0.2); overflow: hidden"><span style="display: block; width: 60%; height: 100%; background: #2B2416"></span></span>
+          </span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 17px">西游记</span>
+            <span style="font-size: 13px; color: #656D66">吴承恩 · 13:02</span>
+          </span>
+        </a>
+      </li>
+
+      <li>
+        <a href="#" title="正在切章 · 网文常见格式 v3" aria-label="《水浒传》正在重新生成" style="display: flex; gap: 20px; align-items: center; color: inherit; text-decoration: none">
+          <span aria-hidden="true" style="position: relative; flex: 0 0 56px; height: 84px; box-sizing: border-box; border-radius: 2px 5px 5px 2px; background: #2C3A52; opacity: 0.72; box-shadow: 0 10px 14px -10px rgba(32,41,35,0.5)"><span style="position: absolute; top: 8px; right: 6px; font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 12px; line-height: 1.1; writing-mode: vertical-rl; letter-spacing: 0.08em; color: #E3E1D6">水浒传</span>
+            <span style="position: absolute; left: 7px; right: 7px; bottom: 7px; height: 3px; border-radius: 999px; background: rgba(227,225,214,0.3); overflow: hidden"><span style="display: block; width: 25%; height: 100%; background: #E3E1D6"></span></span>
+          </span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 17px">水浒传</span>
+            <span style="font-size: 13px; color: #656D66">施耐庵 · 13:01</span>
+          </span>
+        </a>
+      </li>
+
+      <li style="display: flex; gap: 20px; align-items: center">
+        <span aria-hidden="true" style="position: relative; flex: 0 0 56px; height: 84px; box-sizing: border-box; border-radius: 2px 5px 5px 2px; background: #8C5A3C; filter: grayscale(0.9) contrast(0.85); box-shadow: 0 10px 14px -10px rgba(32,41,35,0.5)"><span style="position: absolute; top: 8px; right: 6px; font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 12px; line-height: 1.1; writing-mode: vertical-rl; letter-spacing: 0.08em; color: #F6E9D8">老残游记</span></span>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 17px">老残游记</span>
+          <span style="font-size: 13px; color: #A43B2B">[失败原因]</span>
+        </div>
+        <button type="button" aria-label="重试《老残游记》" title="重试" style="flex: 0 0 auto; display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border: 1px solid #C8C8BB; border-radius: 999px; background: transparent; color: #202923; cursor: pointer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.6L4 15.5M4 20v-4.5h4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+      </li>
+
+      <li>
+        <a href="#" aria-label="打开《浮生六记》" style="display: flex; gap: 20px; align-items: center; color: inherit; text-decoration: none">
+          <span aria-hidden="true" style="position: relative; flex: 0 0 56px; height: 84px; border-radius: 2px 5px 5px 2px; background: linear-gradient(90deg, rgba(0,0,0,0.18) 0, rgba(255,255,255,0.08) 4px, rgba(0,0,0,0) 9px), #6E3B2E; box-shadow: 0 10px 14px -10px rgba(32,41,35,0.5)"><span style="position: absolute; top: 8px; right: 6px; font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 12px; line-height: 1.1; writing-mode: vertical-rl; letter-spacing: 0.08em; color: #F3E6DA">浮生六记</span></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 17px">浮生六记</span>
+            <span style="font-size: 13px; color: #656D66">沈复 · 昨天 21:15</span>
+          </span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color: #92998F"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </a>
+      </li>
+
+      <li>
+        <a href="#" aria-label="打开《红楼梦》" style="display: flex; gap: 20px; align-items: center; color: inherit; text-decoration: none">
+          <span aria-hidden="true" style="position: relative; flex: 0 0 56px; height: 84px; border-radius: 2px 5px 5px 2px; background: linear-gradient(90deg, rgba(0,0,0,0.18) 0, rgba(255,255,255,0.08) 4px, rgba(0,0,0,0) 9px), #7A2E2A; box-shadow: 0 10px 14px -10px rgba(32,41,35,0.5)"><span style="position: absolute; top: 8px; right: 6px; font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 12px; line-height: 1.1; writing-mode: vertical-rl; letter-spacing: 0.08em; color: #F4E4D6">红楼梦</span></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 17px">红楼梦</span>
+            <span style="font-size: 13px; color: #656D66">曹雪芹 · 昨天 20:58</span>
+          </span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color: #92998F"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </a>
+      </li>
+    </ul>
+
+    <footer style="padding: 20px 40px 32px; display: flex; align-items: center; gap: 16px">
+      <p style="margin: 0; display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums"><span style="font-family: 'Noto Serif SC', serif; font-size: 26px; font-weight: 600; color: {{accent}}">01</span><span style="font-size: 13px; color: #656D66">/ 02 页</span></p>
+      <div style="margin-left: auto; display: flex; gap: 10px">
+        <a href="#" aria-label="上一页" style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; color: #92998F; border: 1px solid #DEDDD2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </a>
+        <a href="#" aria-label="下一页" style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; color: #202923; border: 1px solid #C8C8BB">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </a>
+      </div>
+    </footer>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#A24832"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#A24832' };
+  }
+}
+</script>
+</body>
+</html>
