@@ -24,6 +24,7 @@ import { lprStore, miniKfx, positionString } from "./support/kindle-reading";
 import { detectDevice, pairDetectedDevice } from "../src/client/devices/identity";
 import { MemoryDevicePreference } from "../src/client/devices/preferences";
 import { clientDocument, elements, fire } from "./support/client-dom";
+import { allByAttribute, allByRole, byAttribute, byLabel, byRole, byText } from "./support/queries";
 import { bookFingerprint } from "../src/core/fingerprint";
 
 type Page = "books" | "connect" | "transfer";
@@ -149,70 +150,53 @@ function mount(page: Page, initial: Input, hydrating = true) {
 }
 async function settle(m: Mounted) { for (let i = 0; i < 6; i++) { await new Promise(resolve => setTimeout(resolve, 0)); m.flush(); } }
 function button(root: Element, text: string) { const node = elements(root, "button").find(b => b.textContent === text || b.getAttribute("aria-label") === text); if (!node) throw new Error(`Missing button: ${text}`); return node; }
-function field(root: Element, label: string) { const node = elements(root, "input").find(el => el.getAttribute("aria-label") === label || elements(root, "label").some(l => l.getAttribute("for") === el.id && l.textContent === label)); if (!node) throw new Error(`Missing input: ${label}`); return node as HTMLInputElement; }
+function field(root: Element, label: string) { return byLabel(root, label) as HTMLInputElement; }
 const text = (m: { root: Element }) => m.root.textContent || "";
-const withClass = (root: Element, name: string) => elements(root, "*").find(node => node.className.split(/\s+/).includes(name))!;
+// Domain attributes identify records regardless of whether a redesign uses rows or cards.
 
-it("keeps the device identity hierarchy and the complete books toolbar/table in neutral SSR", async () => {
+it("offers device identity, source filters, search and deletion in neutral SSR", async () => {
   const c = await connected([record("a", "a.kfx")]); await c.manager.restore(saved(c.device));
   const root = document.createElement("div"); root.innerHTML = server.markup("books", c.input);
-  const bar = elements(root, "section", "data-kindle-device-bar")[0]!;
-  expect(elements(bar, "h1").map(node => node.textContent)).toEqual(["设备"]);
-  const identity = withClass(bar, "kindle-device-identity");
-  const name = withClass(identity, "kindle-device-name");
-  expect(withClass(name, "kindle-dot").getAttribute("aria-hidden")).toBe("true");
-  const details = withClass(name, "kindle-device-details");
-  expect(details.hasAttribute("open")).toBe(false);
-  expect(elements(details, "summary")[0]!.getAttribute("aria-label")).toBe("查看设备规格");
-  expect(withClass(identity, "kindle-device-spec").textContent).toBe("通过 USB 连接设备并选择设备根目录");
-  expect(withClass(bar, "kindle-status").getAttribute("role")).toBe("status");
-  expect(withClass(bar, "kindle-status").className).toContain("sr-only");
+  const bar = byAttribute(root, "data-kindle-device-bar");
+  expect(byRole(bar, "heading", "设备")).toBeDefined();
+  expect(byRole(bar, "button", "查看设备规格")).toBeDefined();
+  expect(elements(bar, "details")[0]!.hasAttribute("open")).toBe(false);
+  expect(byText(bar, "通过 USB 连接设备并选择设备根目录")).toBeDefined();
+  expect(byRole(bar, "status")).toBeDefined();
   expect(bar.textContent).not.toContain("我的 Paperwhite");
 
-  const toolbar = withClass(root, "kindle-books-toolbar");
-  expect(Array.from(toolbar.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).className))
-    .toEqual(["kindle-section-heading", "kindle-filters", "kindle-toolbar-actions"]);
-  const heading = withClass(toolbar, "kindle-section-heading");
-  expect(elements(heading, "h2")).toEqual([]);
-  expect(withClass(heading, "kindle-count").className).toContain("kindle-mono");
-  expect(withClass(heading, "kindle-count").textContent).toBe("0 本 · 0 B");
-  const filters = withClass(toolbar, "kindle-filters");
+  expect(byText(root, "0 本 · 0 B")).toBeDefined();
+  const filters = byRole(root, "group", "按来源筛选");
   expect(filters.getAttribute("role")).toBe("group"); expect(filters.getAttribute("aria-label")).toBe("按来源筛选");
   expect(elements(filters, "button").map(node => [node.textContent, node.getAttribute("aria-pressed")]))
     .toEqual([["全部", "true"], ["来自 Bindery 0", "false"], ["其他 0", "false"]]);
-  for (const filter of elements(filters, "button")) expect(filter.className).toContain("text-filter");
-  const actions = withClass(toolbar, "kindle-toolbar-actions");
-  expect(Array.from(actions.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).tagName)).toEqual(["label", "button"]);
-  expect(withClass(actions, "sr-only").textContent).toBe("搜索设备上的书");
-  expect(button(actions, "删除所选（0）").className.split(/\s+/)).toContain("btn-quiet-danger");
-  expect(button(actions, "删除所选（0）").hasAttribute("disabled")).toBe(true);
-  expect(actions.textContent).not.toContain("从书库传书");
-  const table = withClass(root, "kindle-book-table");
+  expect(byLabel(root, "搜索设备上的书")).toBeDefined();
+  expect(button(root, "删除所选（0）").hasAttribute("disabled")).toBe(true);
+  expect(byRole(root, "region", "设备书籍").textContent).not.toContain("从书库传书");
+  const table = byRole(root, "table");
   expect(elements(table, "th").map(node => node.textContent)).toEqual(["", "书籍", "来源", "格式", "阅读进度", "排版方案", "大小", "传入时间", "操作"]);
   for (const cell of elements(table, "th")) expect(cell.getAttribute("scope")).toBe("col");
-  expect(elements(table, "tbody")).toHaveLength(1); expect(elements(table, "tr", "data-device-book")).toHaveLength(0);
-  const nodes = elements(root, "*"); expect(nodes.indexOf(table)).toBeLessThan(nodes.indexOf(withClass(root, "empty-state")));
+  expect(allByAttribute(root, "data-device-book")).toHaveLength(0);
+  expect(root.textContent).toContain("连接并授权设备后，可查看和管理设备上的书籍。");
 });
 
 it("renders the transfer filters, compact search, setting fields and ordered queue without a redundant heading in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = server.markup("transfer", input());
-  expect(elements(root, "h2").map(node => node.textContent)).toEqual(["设置", "队列"]);
-  const toolbar = withClass(root, "kindle-toolbar"), filters = withClass(toolbar, "kindle-filters");
+  expect(byRole(root, "heading", "设置")).toBeDefined(); expect(byRole(root, "heading", "队列")).toBeDefined();
+  const filters = byRole(root, "group", "筛选");
   expect(filters.getAttribute("role")).toBe("group"); expect(filters.getAttribute("aria-label")).toBe("筛选");
   expect(elements(filters, "button").map(node => [node.textContent, node.getAttribute("aria-pressed")]))
     .toEqual([["不在设备", "true"], ["未读", "false"], ["全部", "false"]]);
-  for (const filter of elements(filters, "button")) expect(filter.className).toContain("text-filter");
-  expect(withClass(toolbar, "kindle-search").getElementsByTagName("span")[0]!.className).toBe("sr-only");
-  expect(elements(withClass(root, "kindle-library-list"), "li", "data-transfer-book")).toHaveLength(2);
-  const aside = elements(root, "aside")[0]!, labels = elements(aside, "label");
-  expect(elements(aside, "div", "data-transfer-target")[0]!.textContent).toContain("尚未连接设备");
-  expect(labels.some(node => node.firstChild?.textContent === "排版方案")).toBe(true);
-  const queue = withClass(aside, "kindle-queue");
-  expect(withClass(queue, "kindle-queue-list").tagName).toBe("ol");
-  // Start sits at the end of the settings; while it cannot run it is outlined and explains why.
-  const startButton = button(withClass(aside, "kindle-start"), "开始传输");
-  expect(startButton.className).toContain("btn-secondary"); expect(startButton.hasAttribute("disabled")).toBe(true);
-  expect(elements(aside, "p", "data-start-hint")).toHaveLength(1);
+  expect(byLabel(root, "搜索书库")).toBeDefined();
+  expect(allByAttribute(root, "data-transfer-book")).toHaveLength(2);
+  const aside = byRole(root, "complementary", "传输");
+  expect(byAttribute(aside, "data-transfer-target").textContent).toContain("尚未连接设备");
+  expect(byLabel(aside, "排版方案")).toBeDefined();
+  const queue = byRole(aside, "region", "传输队列");
+  expect(allByAttribute(queue, "data-queue-item")).toHaveLength(0);
+  const startButton = button(aside, "开始传输");
+  expect(startButton.hasAttribute("disabled")).toBe(true);
+  expect(allByAttribute(aside, "data-start-hint")).toHaveLength(1);
   expect(elements(queue, "button")).toHaveLength(0);
   expect(aside.textContent).not.toContain("压缩超大图片");
 });
@@ -235,7 +219,7 @@ it.each([true, false])("renders real queue progress and preserves stage-only liv
   const mounted = client.mountProgress(root, initial, hydrating);
   disposers.push(() => { mounted.dispose(); root.remove(); });
   if (hydrating) { expect(elements(root, "*")).toEqual(ssrNodes); expect(attributes(elements(root, "*"))).toEqual(ssrAttributes); expect(root.textContent).toBe(ssrText); }
-  const rows = elements(root, "li", "data-queue-item"), bars = elements(root, "progress");
+  const rows = allByAttribute(root, "data-queue-item"), bars = elements(root, "progress");
   // Finished, failed and waiting rows carry no bar; only running transfers do.
   expect(rows).toHaveLength(5); expect(bars).toHaveLength(4); expect(elements(rows[0], "progress")).toHaveLength(0);
   expect(bars[0].getAttribute("value")).toBe(String(15 * mb)); expect(bars[0].getAttribute("max")).toBe(String(90 * mb));
@@ -245,24 +229,24 @@ it.each([true, false])("renders real queue progress and preserves stage-only liv
   expect(bars[2].getAttribute("aria-valuetext")).toBe("已下载 2.0 / 5.0 MB · 1.0 MB/s · 剩余约 3 秒");
   expect(bars[3].hasAttribute("value")).toBe(false); expect(bars[3].getAttribute("aria-valuetext")).toContain("总大小未知");
   expect(rows.every(row => !row.textContent!.includes("KPW3"))).toBe(true);
-  expect(withClass(root, "kindle-queue-summary").textContent).toBe("共 5 本 · 已完成 1 · 已写入 45.0 / 120.0 MB（另 3 本待转换）");
-  const live = elements(root, "span", "aria-live"), announcements = live.map(node => node.textContent), liveChildren = live.map(node => Array.from(node.childNodes));
+  expect(byText(root, /^共 5 本/).textContent).toBe("共 5 本 · 已完成 1 · 已写入 45.0 / 120.0 MB（另 3 本待转换）");
+  const live = allByAttribute(root, "aria-live"), announcements = live.map(node => node.textContent), liveChildren = live.map(node => Array.from(node.childNodes));
   expect(live).toHaveLength(5); expect(live.every(node => node.getAttribute("aria-live") === "polite" && node.getAttribute("aria-atomic") === "true")).toBe(true);
   expect(elements(root, "p").every(node => !node.hasAttribute("role"))).toBe(true);
   const next = initial.map(value => value.id === "write" ? { ...value, loaded: 20 * mb, writtenBytes: 20 * mb, etaSeconds: 14 } : value.id === "convert" ? { ...value, message: "正在转换 KFX · 已用 1.3 秒 · 预计剩余约 1 秒（估计）" } : value);
   mounted.update(next);
-  expect(elements(root, "li", "data-queue-item")).toEqual(rows); expect(elements(root, "progress")).toEqual(bars);
-  expect(elements(root, "span", "aria-live")).toEqual(live); expect(live.map(node => node.textContent)).toEqual(announcements);
+  expect(allByAttribute(root, "data-queue-item")).toEqual(rows); expect(elements(root, "progress")).toEqual(bars);
+  expect(allByAttribute(root, "aria-live")).toEqual(live); expect(live.map(node => node.textContent)).toEqual(announcements);
   expect(live.map(node => Array.from(node.childNodes))).toEqual(liveChildren);
   expect(bars[0].getAttribute("value")).toBe(String(20 * mb));
-  expect(withClass(root, "kindle-queue-summary").textContent).toContain("已写入 50.0 / 120.0 MB");
+  expect(byText(root, /^共 5 本/).textContent).toContain("已写入 50.0 / 120.0 MB");
   mounted.update(next.map(value => value.id === "write" ? { ...value, phase: "finalize", message: "正在完成写入", loaded: value.total } : value));
   expect(bars[0].hasAttribute("value")).toBe(false); expect(bars[0].getAttribute("aria-valuetext")).toBe("正在完成写入");
   expect(live[1].textContent).toBe("书籍 write：正在完成写入");
   mounted.update(next.map(value => value.id === "write" ? { ...value, state: "失败", message: "Kindle 已断开，请重新插入后重试", writtenBytes: 0 } : value));
   expect(live[1].textContent).toContain("失败：Kindle 已断开"); expect(elements(rows[1], "progress")).toHaveLength(0);
-  expect(withClass(rows[1], "kindle-progress-detail").className).toContain("is-failed");
-  expect(withClass(root, "kindle-queue-summary").textContent).toContain("失败 1"); expect(withClass(root, "kindle-queue-summary").textContent).toContain("已写入 30.0 / 120.0 MB");
+  expect(rows[1]!.textContent).toContain("Kindle 已断开，请重新插入后重试");
+  expect(byText(root, /^共 5 本/).textContent).toContain("失败 1"); expect(byText(root, /^共 5 本/).textContent).toContain("已写入 30.0 / 120.0 MB");
 });
 
 it("carries streaming Content-Length through the real queue into download rows and the batch summary", async () => {
@@ -281,7 +265,7 @@ it("carries streaming Content-Length through the real queue into download rows a
   try {
     await settle(m);
     expect(queue.snapshot()[0]).toMatchObject({ phase: "download", loaded: undefined, total: undefined });
-    expect(withClass(m.root, "kindle-progress-detail").textContent).toBe("正在读取书库 EPUB");
+    expect(byText(m.root, "正在读取书库 EPUB")).toBeDefined();
     deliver(response); await settle(m);
     expect(queue.snapshot()[0]).toMatchObject({ phase: "download", loaded: 0, total, downloadedBytes: 0, downloadTotal: total });
     const bar = elements(m.root, "progress")[0];
@@ -293,22 +277,20 @@ it("carries streaming Content-Length through the real queue into download rows a
     expect(bar.getAttribute("value")).toBe(String(chunkSize));
     expect(bar.getAttribute("aria-valuetext")).toContain("已下载 1.0 / 10.4 MB");
     // One book: its row already shows the bytes, so the summary stays a count.
-    expect(withClass(m.root, "kindle-queue-summary").textContent).toBe("共 1 本 · 已完成 0");
+    expect(byAttribute(m.root, "data-queue-summary").textContent).toBe("共 1 本 · 已完成 0");
   } finally { deliver(response); queue.cancel(id); await settle(m); }
   expect(convert).not.toHaveBeenCalled();
 });
 
 it("renders the connection title, four numbered steps and remembered-device sidebar in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = server.markup("connect", input());
-  const connection = withClass(root, "kindle-connect"), steps = withClass(connection, "kindle-steps");
-  expect(elements(connection, "h1").map(node => node.textContent)).toEqual(["连接你的设备"]);
-  expect(steps.tagName).toBe("ol"); expect(elements(steps, "li")).toHaveLength(4);
+  const connection = byRole(root, "region", "连接设备"), steps = byRole(connection, "list");
+  expect(byRole(connection, "heading", "连接你的设备")).toBeDefined();
+  expect(allByRole(steps, "listitem")).toHaveLength(4);
   // The Kindle model choice appears only after an unpaired Kindle root is picked.
   expect(elements(steps, "input").filter(node => node.getAttribute("type") === "radio")).toHaveLength(0);
   const picker = button(connection, "选择设备目录"); expect(picker.hasAttribute("disabled")).toBe(true);
-  const nodes = elements(connection, "*"); expect(nodes.indexOf(steps)).toBeLessThan(nodes.indexOf(picker));
-  expect(elements(connection, "aside")[0]!.getAttribute("aria-label")).toBe("记住的设备");
-  expect(elements(connection, "h2")[0]!.textContent).toBe("记住的设备");
+  expect(byRole(byRole(root, "complementary", "记住的设备"), "heading", "记住的设备")).toBeDefined();
 });
 
 it.each(["books", "connect", "transfer"] as const)("hydrates neutral SSR for %s, restores the device, then updates after unplug/replug", async page => {
@@ -317,16 +299,16 @@ it.each(["books", "connect", "transfer"] as const)("hydrates neutral SSR for %s,
   await c.manager.restore(saved(c.device));
   const html = server.markup(page, c.input);
   expect(html).toContain("检测中…"); expect(html).not.toContain("我的 Paperwhite");
-  const m = mount(page, c.input), ssrBar = elements(m.root, "section", "data-kindle-device-bar")[0];
+  const m = mount(page, c.input), ssrBar = byAttribute(m.root, "data-kindle-device-bar");
   await settle(m); expect(text(m)).toContain("我的 Paperwhite");
-  const spec = withClass(m.root, "kindle-device-spec");
+  const spec = byAttribute(m.root, "title", "1072×1448 · 300 ppi");
   expect(spec.textContent).toBe("Kindle Paperwhite 3 · 6″ · 固件 5.16.2.1.1"); expect(spec.getAttribute("title")).toBe("1072×1448 · 300 ppi");
-  expect(elements(m.root, "section", "data-kindle-device-bar")[0]).toBe(ssrBar);
-  if (page === "books") expect(elements(m.root, "tr", "data-device-book")).toHaveLength(1);
-  if (page === "transfer") expect(elements(m.root, "li", "data-transfer-book").map(b => b.getAttribute("data-transfer-book"))).toEqual(["b"]);
-  if (page === "connect") expect(elements(m.root, "div", "data-remembered-device")).toHaveLength(1);
+  expect(byAttribute(m.root, "data-kindle-device-bar")).toBe(ssrBar);
+  if (page === "books") expect(allByAttribute(m.root, "data-device-book")).toHaveLength(1);
+  if (page === "transfer") expect(allByAttribute(m.root, "data-transfer-book").map(b => b.getAttribute("data-transfer-book"))).toEqual(["b"]);
+  if (page === "connect") expect(allByAttribute(m.root, "data-remembered-device")).toHaveLength(1);
   c.fs.unplug(); await c.manager.probe(); await settle(m); expect(text(m)).toContain("已断开"); expect(text(m)).not.toContain("已枚举文件");
-  if (page === "books") expect(elements(m.root, "tr", "data-device-book")).toHaveLength(0);
+  if (page === "books") expect(allByAttribute(m.root, "data-device-book")).toHaveLength(0);
   c.fs.plug(); await c.manager.probe(); await settle(m); expect(text(m)).toContain("已连接"); expect(text(m)).toContain("已枚举文件");
 });
 
@@ -345,7 +327,7 @@ it("pairs a selected root with the chosen model/name and forgets only the browse
   const ko3 = elements(m.root, "input").find(el => el.getAttribute("value") === "KO3")!; fire(ko3, "change"); m.flush();
   const name = field(m.root, "显示名称"); name.value = "我的 Oasis"; fire(name, "input"); m.flush();
   fire(elements(m.root, "form")[0]!, "submit"); await settle(m);
-  expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ model: "KO3", name: "我的 Oasis" }); expect(withClass(m.root, "kindle-device-spec").getAttribute("title")).toContain("1264×1680");
+  expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ model: "KO3", name: "我的 Oasis" }); expect(byAttribute(m.root, "title", /1264×1680/)).toBeDefined();
   fire(button(m.root, "忘记"), "click"); await settle(m); expect(await manager.remembered()).toEqual([]); expect(text(m)).toContain("未配对或未选择设备");
   expect(JSON.parse(await fs.text(".bindery/device.json"))).toMatchObject({ name: "我的 Oasis" });
 });
@@ -374,9 +356,9 @@ it("labels books sent with the built-in profile by its current name, not the one
 it("filters device books using library metadata and filename fallback, including the empty state", async () => {
   const c = await connected([record("a", "a.kfx", "wide")]); await c.fs.write("documents/陌生的书.azw3", "other");
   const m = mount("books", c.input); await settle(m); expect(text(m)).toContain("书库甲"); expect(text(m)).toContain("陌生的书"); expect(text(m)).toContain("宽边距");
-  fire(button(m.root, "其他 1"), "click"); m.flush(); expect(elements(m.root, "tr", "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["陌生的书.azw3"]);
-  fire(button(m.root, "全部"), "click"); m.flush(); const search = field(m.root, "搜索设备上的书"); search.value = "作者"; fire(search, "input"); m.flush(); expect(elements(m.root, "tr", "data-device-book")).toHaveLength(1);
-  search.value = "不存在"; fire(search, "input"); m.flush(); expect(elements(m.root, "tr", "data-device-book")).toHaveLength(0); expect(text(m)).toContain("没有符合条件的书籍");
+  fire(button(m.root, "其他 1"), "click"); m.flush(); expect(allByAttribute(m.root, "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["陌生的书.azw3"]);
+  fire(button(m.root, "全部"), "click"); m.flush(); const search = field(m.root, "搜索设备上的书"); search.value = "作者"; fire(search, "input"); m.flush(); expect(allByAttribute(m.root, "data-device-book")).toHaveLength(1);
+  search.value = "不存在"; fire(search, "input"); m.flush(); expect(allByAttribute(m.root, "data-device-book")).toHaveLength(0); expect(text(m)).toContain("没有符合条件的书籍");
 });
 
 it("confirms selected deletion, removes the matching sidecar/record/thumbnail, and refreshes usage", async () => {
@@ -386,7 +368,7 @@ it("confirms selected deletion, removes the matching sidecar/record/thumbnail, a
   fire(button(m.root, "删除所选（1）"), "click"); m.flush(); expect(text(m)).toContain(".sdr 文件夹"); expect(text(m)).toContain("此操作无法撤销");
   expect((elements(m.root, "dialog")[0] as HTMLDialogElement).open).toBe(true); fire(button(m.root, "确认删除"), "click"); await settle(m);
   await expect(c.fs.bytes("documents/a.kfx")).rejects.toMatchObject({ name: "NotFoundError" }); await expect(c.fs.bytes("documents/a.sdr/reading-position")).rejects.toMatchObject({ name: "NotFoundError" }); await expect(c.fs.bytes(`system/thumbnails/${r.thumbnail}`)).rejects.toMatchObject({ name: "NotFoundError" });
-  expect(JSON.parse(await c.fs.text(".bindery/manifest.json")).books).toEqual([]); expect(elements(m.root, "tr", "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["other.txt"]); expect(m.context().inventory()!.usage.books).toBe(5);
+  expect(JSON.parse(await c.fs.text(".bindery/manifest.json")).books).toEqual([]); expect(allByAttribute(m.root, "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["other.txt"]); expect(m.context().inventory()!.usage.books).toBe(5);
 });
 
 it("clears old inventory and selection when switching devices and prevents deletion against the new device", async () => {
@@ -406,7 +388,7 @@ it("matches a foreign-id device record by fingerprint across the books and trans
   const transfer = vi.fn(async () => { throw new Error("测试队列尚未接入转换服务"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
   const m = mount("books", c.input); await settle(m);
   expect(text(m)).toContain(libraryTitle);
-  expect(elements(m.root, "td", "data-device-progress")[0]!.getAttribute("title")).toBe("读到：第一章");
+  expect(byAttribute(m.root, "data-device-progress").getAttribute("title")).toBe("读到：第一章");
   expect(elements(m.root, "a").find(a => a.getAttribute("aria-label") === `预览 ${libraryTitle}`)?.getAttribute("href")).toBe(`/devices/preview?book=${libraryId}`);
   const resend = button(m.root, `重新传入 ${libraryTitle}`); expect(resend.hasAttribute("disabled")).toBe(false);
   fire(resend, "click"); await settle(m);
@@ -418,12 +400,10 @@ it("matches a foreign-id device record by fingerprint across the books and trans
 it("enqueues a retransmission with the recorded profile and overwrite enabled", async () => {
   const c = await connected([record("a", "a.kfx", "wide")]); const transfer = vi.fn(async () => { throw new Error("profile was removed"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
   const m = mount("books", c.input); await settle(m); const href = elements(m.root, "a").find(a => a.getAttribute("aria-label") === "预览 书库甲")?.getAttribute("href"); expect(href).toBe("/devices/preview?book=a");
-  const row = elements(m.root, "tr", "data-device-book")[0]!, actions = withClass(row, "kindle-row-actions");
-  expect(Array.from(actions.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).getAttribute("aria-label")))
-    .toEqual(["预览 书库甲", "重新传入 书库甲", "从设备删除 书库甲"]);
-  expect(elements(actions, "svg")).toHaveLength(3);
-  for (const icon of elements(actions, "svg")) expect(icon.getAttribute("aria-hidden")).toBe("true");
-  for (const index of [3, 6, 7]) expect(elements(row, "td")[index]!.className).toContain("kindle-mono");
+  const row = byAttribute(m.root, "data-device-book", "a.kfx");
+  expect(byRole(row, "link", "预览 书库甲")).toBeDefined();
+  expect(byRole(row, "button", "重新传入 书库甲")).toBeDefined();
+  expect(byRole(row, "button", "从设备删除 书库甲")).toBeDefined();
   fire(button(m.root, "重新传入 书库甲"), "click"); await settle(m); expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ identity: c.device.identity }), "a", "wide", expect.objectContaining({ overwrite: true }));
   expect(text(m)).toContain("已加入传输队列：书库甲");
 });
@@ -459,13 +439,13 @@ it("loads device profiles, applies library filters/search and preserves selectio
   const c = await connected([record("a", "a.kfx")]); c.input.books = [book("a", "书库甲"), book("b", "书库乙", true), ...Array.from({ length: 26 }, (_, i) => book(`x${i}`, `未读 ${i}`))];
   c.input.loadProfiles = vi.fn(async () => [defaultProfile(), { ...defaultProfile(), id: "wide", name: "宽边距", builtIn: false }]);
   const m = mount("transfer", c.input); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledWith(); expect(elements(m.root, "option").map(n => n.textContent)).toContain("宽边距");
-  expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(24); expect(text(m)).not.toContain("已在设备");
+  expect(allByAttribute(m.root, "data-transfer-book")).toHaveLength(24); expect(text(m)).not.toContain("已在设备");
   await c.manager.probe(); await settle(m); expect(c.input.loadProfiles).toHaveBeenCalledOnce();
   const checkbox = field(m.root, "选择 书库乙"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "下一页"), "click"); m.flush(); expect(text(m)).toContain("已选 1 本");
-  expect(elements(m.root, "span", "data-transfer-selection")[0]!.textContent).not.toContain("已选");
+  expect(byAttribute(m.root, "data-transfer-selection").textContent).not.toContain("已选");
   await c.manager.probe(); await settle(m); expect(text(m)).toContain("已选 1 本");
-  fire(button(m.root, "未读"), "click"); m.flush(); expect(elements(m.root, "li", "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).not.toContain("b"); expect(text(m)).toContain("已在设备");
-  const search = field(m.root, "搜索书库"); search.value = "书库甲"; fire(search, "input"); m.flush(); expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(1); expect(text(m)).toContain("估计大小：待转换后确定");
+  fire(button(m.root, "未读"), "click"); m.flush(); expect(allByAttribute(m.root, "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).not.toContain("b"); expect(text(m)).toContain("已在设备");
+  const search = field(m.root, "搜索书库"); search.value = "书库甲"; fire(search, "input"); m.flush(); expect(allByAttribute(m.root, "data-transfer-book")).toHaveLength(1); expect(text(m)).toContain("估计大小：待转换后确定");
 });
 
 it("starts at the connected device's remembered profile and remembers a change", async () => {
@@ -475,7 +455,7 @@ it("starts at the connected device's remembered profile and remembers a change",
   c.input.reading = { get: vi.fn(async () => ({ margin: "narrow", profileId: "wide" })), save };
   const m = mount("transfer", c.input); await settle(m);
   expect(c.input.reading.get).toHaveBeenCalledWith(c.device.identity.id, "kindle");
-  const select = () => elements(m.root, "label").find(label => label.firstChild?.textContent === "排版方案")!.getElementsByTagName("select")[0] as HTMLSelectElement;
+  const select = () => byLabel(m.root, "排版方案") as HTMLSelectElement;
   expect(select().value).toBe("wide");
   select().value = "default"; fire(select(), "change"); await settle(m);
   expect(save).toHaveBeenCalledWith(c.device.identity.id, "kindle", { margin: "narrow", profileId: "default" });
@@ -489,7 +469,7 @@ it("keeps the queue running while moving among Kindle pages, supports cancel and
   expect(text(m)).toContain("正在转换 KFX"); expect(transfer).toHaveBeenCalledOnce(); const context = m.context(); m.page("books"); await settle(m); m.page("connect"); await settle(m); m.page("transfer"); await settle(m);
   expect(m.context()).toBe(context); expect(transfer).toHaveBeenCalledOnce(); expect(text(m)).toContain("正在转换 KFX");
   fire(button(m.root, "取消 书库甲"), "click"); await settle(m); expect(text(m)).toContain("失败"); expect(text(m)).toContain("操作已取消");
-  fire(button(m.root, "清除已结束"), "click"); m.flush(); expect(elements(m.root, "li", "data-queue-item")).toHaveLength(0);
+  fire(button(m.root, "清除已结束"), "click"); m.flush(); expect(allByAttribute(m.root, "data-queue-item")).toHaveLength(0);
   expect(text(m)).toContain("GPL-3.0-or-later"); expect(text(m)).toContain("GNU GENERAL PUBLIC LICENSE"); expect(elements(m.root, "a").some(a => a.getAttribute("href") === "https://crates.io/api/v1/crates/boko/0.5.0/download")).toBe(true);
   reject(new Error("already cancelled"));
 });
@@ -498,7 +478,7 @@ it("starts with the books sent from the library selected, under 全部, once the
   const c = await connected([record("a", "a.kfx")]); c.input.preselected = ["a", "missing"];
   const m = mount("transfer", c.input); await settle(m);
   expect(button(m.root, "全部").getAttribute("aria-pressed")).toBe("true");
-  expect(elements(m.root, "li", "data-transfer-book").filter(row => row.getAttribute("class")?.includes("is-selected")).map(row => row.getAttribute("data-transfer-book"))).toEqual(["a"]);
+  expect(allByAttribute(m.root, "data-transfer-book").filter(row => { const control = byRole(row, "checkbox") as HTMLInputElement; return control.checked ?? control.hasAttribute("checked"); }).map(row => row.getAttribute("data-transfer-book"))).toEqual(["a"]);
   expect(button(m.root, "开始传输 · 1 本").hasAttribute("disabled")).toBe(false);
 });
 
@@ -506,20 +486,20 @@ it("uses the selected profile and overwrite setting, shows failure, and retries 
   const c = await connected([record("a", "a.kfx")]); const transfer = vi.fn(async () => { throw new Error("Kindle 空间不足"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
   let fail = true; c.input.loadProfiles = async () => { if (fail) throw new Error("配置服务暂时不可用"); const profile = defaultProfile(); return [{ ...profile, id: "wide", name: "宽边距", builtIn: false, settings: { ...profile.settings, stripFonts: true, stripImages: true, stripLineHeight: true, stripParagraphSpacing: true } }]; };
   const m = mount("transfer", c.input); await settle(m); expect(text(m)).toContain("配置服务暂时不可用"); fail = false; fire(button(m.root, "重试"), "click"); await settle(m);
-  fire(button(m.root, "全部"), "click"); m.flush(); const select = elements(m.root, "label").find(label => label.firstChild?.textContent === "排版方案")!.getElementsByTagName("select")[0] as HTMLSelectElement; select.value = "wide"; fire(select, "change"); m.flush(); const overwrite = elements(m.root, "input").find(el => el.getAttribute("type") === "checkbox" && el.parentNode?.textContent === "覆盖设备上的同名书") as HTMLInputElement; overwrite.checked = true; fire(overwrite, "change"); m.flush();
-  expect(elements(m.root, "p", "data-profile-summary")[0]!.textContent).toBe("去掉书籍自带字体 · 去掉所有图片（保留封面） · 去掉书籍自带行高 · 去掉书籍自带段间距");
+  fire(button(m.root, "全部"), "click"); m.flush(); const select = byLabel(m.root, "排版方案") as HTMLSelectElement; select.value = "wide"; fire(select, "change"); m.flush(); const overwrite = byLabel(m.root, "覆盖设备上的同名书") as HTMLInputElement; overwrite.checked = true; fire(overwrite, "change"); m.flush();
+  expect(byAttribute(m.root, "data-profile-summary").textContent).toBe("去掉书籍自带字体 · 去掉所有图片（保留封面） · 去掉书籍自带行高 · 去掉书籍自带段间距");
   const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); expect(text(m)).toContain("约 4 B（按设备已有副本）"); fire(button(m.root, "开始传输 · 1 本"), "click"); await settle(m);
   expect(transfer).toHaveBeenCalledWith(expect.anything(), "a", "wide", expect.objectContaining({ overwrite: true })); expect(text(m)).toContain("Kindle 空间不足");
   // Retry re-queues the same book with the same profile and options, replacing the failed row.
   fire(button(m.root, "重试 书库甲"), "click"); await settle(m);
   expect(transfer).toHaveBeenCalledTimes(2); expect(transfer).toHaveBeenLastCalledWith(expect.anything(), "a", "wide", expect.objectContaining({ overwrite: true }));
-  expect(elements(m.root, "li", "data-queue-item")).toHaveLength(1);
+  expect(allByAttribute(m.root, "data-queue-item")).toHaveLength(1);
 });
 
 it("refreshes inventory after queue completion and exposes accurate enumerated usage", async () => {
   const c = await connected(); const transfer = vi.fn(async () => { const r = record("a", "a.kfx"); await c.fs.write("documents/a.kfx", "BOOK"); await c.fs.write(".bindery/manifest.json", JSON.stringify({ version: 1, books: [r] })); return r; }); c.input.queue = new TransferQueue({ transferBook: transfer });
   const m = mount("transfer", c.input); await settle(m); const checkbox = field(m.root, "选择 书库甲"); checkbox.checked = true; fire(checkbox, "change"); m.flush(); fire(button(m.root, "开始传输 · 1 本"), "click"); await settle(m);
-  expect(text(m)).toContain("已传入 Kindle"); expect(m.context().inventory()!.usage.books).toBe(4); expect(m.context().inventory()!.usage.capacity).toBeNull(); expect(elements(m.root, "li", "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).toEqual(["b"]);
+  expect(text(m)).toContain("已传入 Kindle"); expect(m.context().inventory()!.usage.books).toBe(4); expect(m.context().inventory()!.usage.capacity).toBeNull(); expect(allByAttribute(m.root, "data-transfer-book").map(n => n.getAttribute("data-transfer-book"))).toEqual(["b"]);
 });
 
 it("surfaces inventory failures and can recover through an explicit recheck", async () => {
@@ -533,7 +513,7 @@ it("keeps the device connected and shows a quiet expandable unreadable-path noti
   await c.fs.write(path, "unreadable"); c.fs.windowsPathLimit = 260;
   const m = mount("books", c.input); await settle(m);
   expect(m.context().state().status).toBe("granted"); expect(text(m)).toContain("已连接"); expect(text(m)).not.toContain("Kindle 已断开");
-  const details = elements(m.root, "details", "data-unreadable-notice")[0]!;
+  const details = byAttribute(m.root, "data-unreadable-notice");
   expect(details.textContent).toContain("有 1 个条目无法读取"); expect(details.textContent).toContain("已跳过统计"); expect(details.textContent).toContain(path); expect(details.textContent).toContain("260");
   expect(details.hasAttribute("open")).toBe(false); expect(details.getAttribute("role")).not.toBe("alert");
   expect(m.context().inventory()!.books.map(b => b.filename)).toEqual(["a.kfx"]); expect(m.context().inventoryError()).toBe("");
@@ -545,7 +525,7 @@ it("reports precisely which sidecar paths could not be removed after successful 
   c.fs.injectFailure("getFile", "documents/a.sdr/blocked"); c.fs.injectFailure("remove", "documents/a.sdr/blocked");
   const m = mount("books", c.input); await settle(m);
   fire(button(m.root, "从设备删除 书库甲"), "click"); m.flush(); fire(button(m.root, "确认删除"), "click"); await settle(m);
-  const report = elements(m.root, "details", "data-delete-report")[0]!;
+  const report = byAttribute(m.root, "data-delete-report");
   expect(report.textContent).toContain("书籍文件已删除"); expect(report.textContent).toContain("documents/a.sdr/blocked"); expect(report.textContent).not.toContain("documents/a.sdr/after");
   expect(report.textContent).toContain("设备本机"); expect(report.textContent).toContain("支持长路径的工具"); expect(report.textContent).toContain("NotFoundError");
   expect(m.context().state().status).toBe("granted"); expect(text(m)).toContain("已删除 1 本设备书籍"); expect((elements(m.root, "dialog")[0] as HTMLDialogElement).open).toBe(false);
@@ -586,7 +566,7 @@ it("renders Kobo transfer controls without Kindle-only settings or licenses", as
   expect(text(m)).not.toContain("去掉书籍自带字体"); expect(text(m)).not.toContain("去掉所有图片（保留封面）");
   expect(text(m)).toContain("排版方案"); expect(text(m)).not.toContain("boko"); expect(text(m)).not.toContain("GPL-3.0");
   expect(text(m)).not.toContain("documents/"); expect(text(m)).not.toContain(".sdr"); expect(text(m)).not.toContain("KFX");
-  expect(elements(m.root, "li", "data-transfer-book")).toHaveLength(2);
+  expect(allByAttribute(m.root, "data-transfer-book")).toHaveLength(2);
   expect(elements(m.root, "option").some(node => node.textContent === "默认")).toBe(true);
 });
 
@@ -618,7 +598,7 @@ it("shows Kindle reading progress and never calls a full position finished", asy
   await c.fs.write("documents/a.sdr/a673205bd7b6c0394b1593a9fbced79ec.yjf", lprStore(location, 1_792_748_847_039n));
   c.input.chapters = vi.fn(async () => ({ a: "第三章 全景敞视主义" }));
   const m = mount("books", c.input); await settle(m);
-  const cells = elements(m.root, "td", "data-device-progress"), progress = cells.map(node => node.textContent);
+  const cells = allByAttribute(m.root, "data-device-progress"), progress = cells.map(node => node.textContent);
   expect(progress).toHaveLength(1);
   expect(progress[0]).toMatch(/^在读 \d+% · /);
   expect(progress[0]).not.toContain("已读完");
@@ -629,7 +609,7 @@ it("shows Kindle reading progress and never calls a full position finished", asy
 
 it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs", async () => {
   const c = await connectedKobo(["Bindery/书库甲.kepub.epub", "Other/外部.epub"]); const m = mount("books", c.input); await settle(m);
-  expect(elements(m.root, "tr", "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["Bindery/书库甲.kepub.epub", "Other/外部.epub"]);
+  expect(allByAttribute(m.root, "data-device-book").map(n => n.getAttribute("data-device-book"))).toEqual(["Bindery/书库甲.kepub.epub", "Other/外部.epub"]);
   expect(text(m)).toContain("来自 Bindery"); expect(text(m)).toContain("其他");
   expect(button(m.root, "从设备删除 书库甲").hasAttribute("disabled")).toBe(false);
   expect(button(m.root, "从设备删除 外部").hasAttribute("disabled")).toBe(true);

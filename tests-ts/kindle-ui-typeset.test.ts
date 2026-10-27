@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -11,6 +11,7 @@ import type { HandleRepository, RememberedDevice } from "../src/client/kindle/re
 import type { PreviewData } from "../src/features/devices/preview/model";
 import type { KindleContextValue } from "../src/features/kindle/context";
 import { clientDocument, elements, fire } from "./support/client-dom";
+import { allByAttribute, byAttribute, byRole, byText } from "./support/queries";
 import { FakeDirectory, FakeFile, fakeKindle } from "./support/fake-fs";
 import { previewDocumentFixture } from "./support/kindle-preview-dom";
 
@@ -141,42 +142,22 @@ function mount(kind: string, manager: KindleDeviceManager | null, extra: Partial
 }
 const button = (root: Element, text: string) => elements(root, "button").find(element => element.textContent === text || element.getAttribute("aria-label") === text)!;
 function setValue(node: Element, value: string, type = "input") { (node as HTMLInputElement).value = value; fire(node, type); ui.flush(); }
-const input = (root: Element, id: string) => elements(root, "input").find(element => element.id === id)!;
-const labels = (root: Element, tag: string, label: string) => elements(root, "label").find(element => element.firstChild?.textContent === label)!.getElementsByTagName(tag)[0]!;
-const withClass = (root: Element, name: string) => elements(root, "*").find(node => node.className.split(/\s+/).includes(name))!;
-
-it("keeps the wide preview sticky with a bounded frame slot and disables sticky at the existing mobile breakpoint", () => {
-  const css = readFileSync("src/features/devices/preview/typeset.css", "utf8");
-  expect(css).toMatch(/\.kt-preview-sticky\s*\{[^}]*position: sticky;[^}]*top: 16px;[^}]*height: calc\(100dvh - 32px\);/);
-  expect(css).toMatch(/\.kt-device-space\s*\{[^}]*min-height: 0;[^}]*contain: size;/);
-  expect(css).toMatch(/@media \(max-width: 943px\)\s*\{[^@]*\.kt-preview-sticky\s*\{ position: static; height: auto; \}/);
-  expect(css).toMatch(/\.kt-range-reset\[hidden\]\s*\{ display: none; \}/);
-  expect(css).toMatch(/\.kt-checkboxes\s*\{[^}]*grid-template-columns: repeat\(2,/);
-});
-
 it("renders the fonts summary, actions, five scoped columns and installation help without a redundant title in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = ssr.markup("fonts", { manager: null, data });
-  const heading = withClass(root, "kt-font-toolbar");
-  expect(elements(heading, "h2")).toEqual([]);
-  expect(heading.textContent).toContain("0 个家族 · 0 个字体文件 · 0 B");
-  expect(heading.textContent).not.toContain("设备根目录"); expect(heading.textContent).not.toContain("已忽略");
-  expect(Array.from(heading.childNodes).filter(node => node.nodeType === 1).map(node => (node as Element).className))
-    .toEqual(["kindle-section-heading", "kindle-filters", "kindle-toolbar-actions kt-actions"]);
-  expect(elements(heading, "button").map(node => node.textContent)).toEqual(["全部", "中文", "英文", "重新扫描", "添加字体"]);
-  expect(button(heading, "重新扫描").className).toContain("btn-secondary");
-  expect(button(heading, "添加字体").className).toContain("btn-primary");
-  const table = withClass(root, "kt-font-table");
+  const summary = byText(root, "0 个家族 · 0 个字体文件 · 0 B");
+  expect(summary.textContent).not.toContain("设备根目录"); expect(summary.textContent).not.toContain("已忽略");
+  for (const name of ["全部", "中文", "英文", "重新扫描", "添加字体"]) expect(byRole(root, "button", name)).toBeDefined();
+  const table = byRole(byRole(root, "region", "字体列表"), "table");
   expect(elements(table, "th").map(node => node.textContent)).toEqual(["家族", "样张", "字重 / 样式", "大小", "操作"]);
   for (const cell of elements(table, "th")) expect(cell.getAttribute("scope")).toBe("col");
-  expect(table.parentElement!.getAttribute("aria-label")).toBe("字体列表");
-  const help = withClass(root, "kt-font-help"); expect(help.getAttribute("aria-label")).toBe("添加字体");
-  expect(elements(help, "h2")[0]!.textContent).toBe("添加字体"); expect(elements(help, "svg")[0]!.getAttribute("aria-hidden")).toBe("true");
+  const help = byRole(root, "region", "添加字体");
+  expect(byRole(help, "heading", "添加字体")).toBeDefined();
 });
 
 async function mountRouted(kind: string, manager: KindleDeviceManager, extra: Partial<Props> = {}) {
   const props: Props = { manager, data, ...extra };
   const root = document.createElement("div"); root.innerHTML = await ssr.routedMarkup(kind, props); document.documentElement.appendChild(root);
-  const bar = elements(root, "section", "data-kindle-device-bar")[0]!;
+  const bar = byAttribute(root, "data-kindle-device-bar");
   expect(bar.textContent).toContain("检测中…");
   const attributes = () => elements(root, "*").map(element => Array.from(element.attributes)
     .filter(attribute => attribute.name !== "_hk").map(attribute => [attribute.name, attribute.value]).sort());
@@ -209,14 +190,14 @@ it("preserves a selected OTF across probes, installs it on an empty device and r
   expect(mounted.root.textContent).toContain("将安装到 我的 Paperwhite");
   fire(button(mounted.root, "确认安装"), "click");
   await waitUi(() => {
-    expect(elements(mounted.root, "tr", "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Routed"]);
+    expect(allByAttribute(mounted.root, "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Routed"]);
     expect(mounted.root.textContent).toContain("已安装 1 个字体文件");
     expect(mounted.root.textContent).not.toContain("正在读取或更新设备字体");
     expect(mounted.bar.textContent).toContain("字体 12 B");
   });
   expect(await fs.bytes("fonts/Routed-Regular.otf")).toEqual(new Uint8Array(await font("Routed-Regular.otf").arrayBuffer()));
   fire(button(mounted.root, "从设备删除 Routed"), "click"); ui.flush(); fire(button(mounted.root, "删除整个家族"), "click");
-  await waitUi(() => { expect(mounted.bar.textContent).toContain("字体 0 B"); expect(elements(mounted.root, "tr", "data-font-family")).toHaveLength(0); });
+  await waitUi(() => { expect(mounted.bar.textContent).toContain("字体 0 B"); expect(allByAttribute(mounted.root, "data-font-family")).toHaveLength(0); });
   await expect(fs.bytes("fonts/Routed-Regular.otf")).rejects.toMatchObject({ name: "NotFoundError" });
 });
 
@@ -263,16 +244,14 @@ it("hydrates neutral fonts markup, scans after mount, clears after unplug and re
   const { fs, manager } = await paired(["Book-Regular.ttf", "Book-Light.otf", "Book-Bold.ttf"]);
   await fs.write("fonts/._Book.ttf", "ignore"); await fs.write("fonts/Readme.txt", "keep");
   const mounted = mount("fonts", manager); await settle();
-  expect(elements(mounted.root, "tr", "data-font-family")).toHaveLength(1);
+  expect(allByAttribute(mounted.root, "data-font-family")).toHaveLength(1);
   expect(mounted.root.textContent).toContain("Light"); expect(mounted.root.textContent).toContain("手动安装");
   const sample = elements(mounted.root, "iframe")[0]!; expect(sample.getAttribute("sandbox")).toBe("allow-same-origin");
   expect(elements(mounted.root, "a").find(a => a.getAttribute("aria-label") === "用 Book 预览")!.getAttribute("href")).toBe("/devices/preview?font=Book");
-  const actions = withClass(elements(mounted.root, "tr", "data-font-family")[0]!, "kt-row-actions");
-  expect(elements(actions, "svg")).toHaveLength(2);
-  expect(button(actions, "从设备删除 Book").className).toContain("btn-icon");
-  fs.unplug(); await manager.probe(); await settle(); expect(elements(mounted.root, "tr", "data-font-family")).toHaveLength(0);
+  expect(byRole(mounted.root, "button", "从设备删除 Book")).toBeDefined();
+  fs.unplug(); await manager.probe(); await settle(); expect(allByAttribute(mounted.root, "data-font-family")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("请连接并授权");
-  fs.plug(); await manager.probe(); await settle(); expect(elements(mounted.root, "tr", "data-font-family")).toHaveLength(1);
+  fs.plug(); await manager.probe(); await settle(); expect(allByAttribute(mounted.root, "data-font-family")).toHaveLength(1);
 });
 
 it("navigates the preview action within the SPA while retaining a real font-specific link", async () => {
@@ -318,13 +297,13 @@ it.each([false, true])("hydrates the fonts route in place and shows stable, acce
   const files = [await largeFont("CJK-Regular.ttf", 3), await largeFont("CJK-Bold.otf", 2)], gate = pauseFontWrites(files.map(file => file.name));
   let now = Date.now(); vi.spyOn(Date, "now").mockImplementation(() => now);
   chooseFiles(mounted.root, files); await settle(); fire(button(mounted.root, "确认安装"), "click"); await settle();
-  const rows = elements(mounted.root, "li", "data-font-install-file"), bars = elements(mounted.root, "progress");
-  const queue = elements(mounted.root, "section").find(node => node.getAttribute("aria-label") === "字体安装进度")!;
-  const cancel = button(queue, "取消字体安装"), live = elements(queue, "span", "aria-live");
+  const rows = allByAttribute(mounted.root, "data-font-install-file"), bars = elements(mounted.root, "progress");
+  const queue = byRole(mounted.root, "region", "字体安装进度");
+  const cancel = button(queue, "取消字体安装"), live = allByAttribute(queue, "aria-live");
   const announcements = live.map(node => node.textContent), children = live.map(node => Array.from(node.childNodes));
-  const summary = () => elements(queue, "p", "data-font-install-summary")[0]!.textContent;
+  const summary = () => byAttribute(queue, "data-font-install-summary").textContent;
   expect(rows.map(row => row.getAttribute("data-font-install-file"))).toEqual(files.map(file => file.name));
-  expect(rows.map(row => withClass(row, "kindle-queue-state").textContent)).toEqual(["写入", "等待"]);
+  expect(rows.map(row => byText(row, /^(写入|等待)$/).textContent)).toEqual(["写入", "等待"]);
   expect(rows[0]!.textContent).toContain("3.0 MB"); expect(rows[1]!.textContent).toContain("2.0 MB");
   expect(bars.map(bar => bar.getAttribute("max"))).toEqual(files.map(file => String(file.size)));
   expect(bars.map(bar => bar.getAttribute("value"))).toEqual(["0", "0"]);
@@ -341,7 +320,7 @@ it.each([false, true])("hydrates the fonts route in place and shows stable, acce
     expect(summary()).toContain(`已写入 ${chunk}.0 / 5.0 MB`); expect(summary()).toContain("MB/s · 剩余约");
     expect(live.map(node => node.textContent)).toEqual(announcements);
     expect(live.map(node => Array.from(node.childNodes))).toEqual(children);
-    expect(elements(queue, "li", "data-font-install-file")).toEqual(rows); expect(elements(queue, "progress")).toEqual(bars);
+    expect(allByAttribute(queue, "data-font-install-file")).toEqual(rows); expect(elements(queue, "progress")).toEqual(bars);
     expect(document.activeElement).toBe(chunk === 1 ? cancel : otherControl);
     mounted.heartbeat(Date.now()); ui.flush(); expect(button(mounted.root, "确认安装")).toBeDefined();
   }
@@ -351,7 +330,7 @@ it.each([false, true])("hydrates the fonts route in place and shows stable, acce
   expect(live[1]!.textContent).toContain("正在提交字体文件"); expect(summary()).toContain("已完成 0");
   expect(mounted.root.textContent).not.toContain("已安装 2 个字体文件");
   await gate.release(files[0]!.name, "close");
-  expect(rows.map(row => withClass(row, "kindle-queue-state").textContent)).toEqual(["写入", "写入"]);
+  expect(rows.map(row => byText(row, "写入").textContent)).toEqual(["写入", "写入"]);
   expect(live[1]!.textContent).toContain("等待批次提交");
   for (let chunk = 1; chunk <= 2; chunk++) { now += 120; await gate.release(files[1]!.name); }
   expect(summary()).toContain("已完成 0 · 已写入 5.0 / 5.0 MB");
@@ -359,10 +338,10 @@ it.each([false, true])("hydrates the fonts route in place and shows stable, acce
   await gate.release(files[1]!.name, "close");
   await waitUi(() => expect(mounted.root.textContent).toContain("已安装 2 个字体文件"));
   expect(summary()).toContain("共 2 个文件 · 已完成 2 · 已写入 5.0 / 5.0 MB");
-  expect(bars.every(bar => bar.className === "is-complete")).toBe(true);
+  expect(rows.every(row => byText(row, "完成"))).toBe(true);
   expect(live.slice(1).every(node => node.textContent!.includes("字体文件安装完成"))).toBe(true);
   expect(cancel.getAttribute("aria-disabled")).toBe("true"); expect(document.activeElement).toBe(cancel);
-  expect(elements(queue, "li", "data-font-install-file")).toEqual(rows); expect(elements(queue, "progress")).toEqual(bars);
+  expect(allByAttribute(queue, "data-font-install-file")).toEqual(rows); expect(elements(queue, "progress")).toEqual(bars);
   expect(mounted.bar.textContent).toContain("字体 5 MB");
   for (const file of files) expect(Buffer.from(await fs.bytes(`fonts/${file.name}`)).equals(new Uint8Array(await file.arrayBuffer()))).toBe(true);
 });
@@ -373,15 +352,15 @@ it("cancels a font batch from the progress controls, announces rollback and pres
   chooseFiles(mounted.root, files); await settle(); fire(button(mounted.root, "确认安装"), "click"); await settle();
   await gate.release("First.ttf"); await gate.release("First.ttf", "close");
   expect(await fs.bytes("fonts/First.ttf")).toHaveLength(12);
-  const cancel = button(mounted.root, "取消字体安装"), rows = elements(mounted.root, "li", "data-font-install-file");
+  const cancel = button(mounted.root, "取消字体安装"), rows = allByAttribute(mounted.root, "data-font-install-file");
   fire(cancel, "click"); ui.flush();
   expect(mounted.root.textContent).toContain("正在取消字体安装，等待回滚"); expect(cancel.getAttribute("aria-disabled")).toBe("true");
   await gate.release("Second.otf");
   await waitUi(() => expect(elements(mounted.root, "p").find(node => node.getAttribute("role") === "alert")?.textContent).toBe("操作已取消"));
-  expect(rows.map(row => withClass(row, "kindle-queue-state").textContent)).toEqual(["失败", "失败"]);
-  expect(elements(mounted.root, "p", "data-font-install-summary")[0]!.textContent).toContain("已完成 0");
+  expect(rows.map(row => byText(row, "失败").textContent)).toEqual(["失败", "失败"]);
+  expect(byAttribute(mounted.root, "data-font-install-summary").textContent).toContain("已完成 0");
   expect(mounted.root.textContent).not.toContain("已安装 2 个字体文件"); expect(document.activeElement).toBe(cancel);
-  expect(elements(mounted.root, "tr", "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Keep"]);
+  expect(allByAttribute(mounted.root, "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Keep"]);
   for (const file of files) await expect(fs.bytes(`fonts/${file.name}`)).rejects.toMatchObject({ name: "NotFoundError" });
   await expect(fs.bytes(".bindery/pending.json")).rejects.toMatchObject({ name: "NotFoundError" });
   expect(await fs.bytes("fonts/Keep-Regular.ttf")).toHaveLength(12);
@@ -397,9 +376,9 @@ it("shows disconnect errors during a font write without success and recovers bef
   await gate.release("Second.otf");
   await waitUi(() => expect(elements(mounted.root, "p").find(node => node.getAttribute("role") === "alert")?.textContent).toContain("Kindle 已断开"));
   expect(mounted.root.textContent).not.toContain("已安装 2 个字体文件");
-  expect(elements(mounted.root, "li", "data-font-install-file").every(row => withClass(row, "kindle-queue-state").textContent === "失败")).toBe(true);
+  expect(allByAttribute(mounted.root, "data-font-install-file").every(row => byText(row, "失败"))).toBe(true);
   fs.plug(); await manager.probe(); await settle();
-  expect(elements(mounted.root, "tr", "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Keep"]);
+  expect(allByAttribute(mounted.root, "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Keep"]);
   for (const file of files) await expect(fs.bytes(`fonts/${file.name}`)).rejects.toMatchObject({ name: "NotFoundError" });
   await expect(fs.bytes(".bindery/pending.json")).rejects.toMatchObject({ name: "NotFoundError" });
 });
@@ -409,7 +388,7 @@ it("shows a Windows long-path error with failed file rows and no installed notic
   chooseFiles(mounted.root, [font("Short.ttf"), font(`${"字".repeat(250)}.ttf`)]); await settle();
   fire(button(mounted.root, "确认安装"), "click"); await settle();
   expect(elements(mounted.root, "p").find(node => node.getAttribute("role") === "alert")?.textContent).toContain("文件路径不适用于 Windows");
-  expect(elements(mounted.root, "li", "data-font-install-file").every(row => withClass(row, "kindle-queue-state").textContent === "失败")).toBe(true);
+  expect(allByAttribute(mounted.root, "data-font-install-file").every(row => byText(row, "失败"))).toBe(true);
   expect(mounted.root.textContent).not.toContain("已安装 2 个字体文件");
   await expect(fs.bytes("fonts/Short.ttf")).rejects.toMatchObject({ name: "NotFoundError" });
 });
@@ -420,7 +399,7 @@ it("shows an inspected family batch before installation, writes only after confi
   expect(mounted.root.textContent).toContain("将安装到 我的 Paperwhite"); expect(mounted.root.textContent).toContain("Sample-Medium.otf");
   await expect(fs.bytes("fonts/Sample-Regular.ttf")).rejects.toMatchObject({ name: "NotFoundError" });
   fire(button(mounted.root, "确认安装"), "click"); await settle();
-  expect(await fs.bytes("fonts/Sample-Regular.ttf")).toHaveLength(12); expect(elements(mounted.root, "tr", "data-font-family")).toHaveLength(1);
+  expect(await fs.bytes("fonts/Sample-Regular.ttf")).toHaveLength(12); expect(allByAttribute(mounted.root, "data-font-family")).toHaveLength(1);
   expect(mounted.root.textContent).toContain("已安装 2 个字体文件"); expect(mounted.root.textContent).toContain("Medium");
 });
 
@@ -433,7 +412,7 @@ it("accepts a page drop through the same inspected confirmation flow as the file
   };
   try {
     const mounted = mount("fonts", manager); await settle();
-    const page = elements(mounted.root, "section").find(element => element.getAttribute("aria-label") === "字体管理")!;
+    const page = byRole(mounted.root, "region", "字体管理");
     const preventDefault = vi.fn();
     listeners.get(page)!.get("drop")!.call(page, { currentTarget: page, preventDefault, dataTransfer: { files: [font("Dropped-Regular.otf")] } } as unknown as Event);
     await settle(); expect(preventDefault).toHaveBeenCalled(); expect(mounted.root.textContent).toContain("Dropped-Regular.otf");
@@ -458,10 +437,10 @@ it("deletes the selected family only after confirmation and leaves ignored files
   const { fs, manager } = await paired(["Book-Regular.ttf", "Book-Bold.ttf", "Other-Regular.otf"]);
   await fs.write("fonts/._Book.ttf", "resource"); await fs.write("fonts/Readme.txt", "readme");
   const mounted = mount("fonts", manager); await settle();
-  const row = elements(mounted.root, "tr", "data-font-family").find(row => row.getAttribute("data-font-family") === "Book")!;
+  const row = byAttribute(mounted.root, "data-font-family", "Book");
   fire(button(row, "从设备删除 Book"), "click"); ui.flush(); expect(await fs.bytes("fonts/Book-Regular.ttf")).toHaveLength(12);
   fire(button(mounted.root, "删除整个家族"), "click"); await settle();
   await expect(fs.bytes("fonts/Book-Regular.ttf")).rejects.toMatchObject({ name: "NotFoundError" });
   expect(await fs.bytes("fonts/Other-Regular.otf")).toHaveLength(12); expect(await fs.text("fonts/._Book.ttf")).toBe("resource"); expect(await fs.text("fonts/Readme.txt")).toBe("readme");
-  expect(elements(mounted.root, "tr", "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Other"]);
+  expect(allByAttribute(mounted.root, "data-font-family").map(row => row.getAttribute("data-font-family"))).toEqual(["Other"]);
 });

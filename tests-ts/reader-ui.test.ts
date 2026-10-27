@@ -5,6 +5,7 @@ import { solidOptions } from "../scripts/solid-options";
 import { resolve } from "node:path";
 import { contentUrl, defaultSettings, fractionPage, highlightedParts, initialPosition, normalizeSettings, pageMetrics, readerReturnTo, sectionUrl, textMatches, type ReaderData } from "../src/features/reader/model";
 import { ProgressWriter } from "../src/features/reader/progress";
+import { allByAttribute, allByRole, byAttribute, byLabel, byRole, parseHtml } from "./support/queries";
 let ui: typeof import("./fixtures/reader/ui");
 beforeAll(async () => {
   const result = await build({ configFile: false, logLevel: "silent", plugins: [solid(solidOptions)], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/reader/ui.tsx") } });
@@ -14,33 +15,40 @@ beforeAll(async () => {
 });
 describe("reader SSR and controls (adapted from test_reader_ui.py)", () => {
   it("renders three sandboxed frames, icon controls, native TOC links and escaped book copy", () => {
-    const html = ui.renderReader();
-    expect(html.match(/<iframe/g)).toHaveLength(3); expect(html.match(/sandbox="allow-same-origin"/g)).toHaveLength(3); expect(html).not.toContain("allow-scripts"); expect(html).not.toContain("srcdoc");
-    for (const label of ["切换目录", "全文检索", "设置", "上一页", "下一页", "返回详情"]) expect(html).toContain(`aria-label="${label}"`);
-    expect(html).toContain("书名&lt;&amp;>"); expect(html).toContain("第一章&lt;&amp;>"); expect(html).toContain("%E7%AC%AC%E4%B8%80%E7%AB%A0.xhtml");
-    expect(html).toContain("return_to=%2Fjobs%3Ftab%3Dsuccess"); expect(html).toContain('aria-label="章节目录"'); expect(html).toContain('data-current-toc="true"');
-    expect(html).toContain('href="/book/' + "d".repeat(32) + '?return_to='); expect(html).toContain('role="status"');
-    expect(html).not.toMatch(/<h1|reader-footer|reader-chapter-nav|>上一页<|>下一页</);
-    expect(html).toContain('aria-expanded="false"'); expect(html).toContain('aria-hidden="true"');
+    const root = parseHtml(ui.renderReader()), frames = Array.from(root.getElementsByTagName("iframe"));
+    expect(frames).toHaveLength(3);
+    for (const frame of frames) { expect(frame.getAttribute("sandbox")).toBe("allow-same-origin"); expect(frame.hasAttribute("srcdoc")).toBe(false); }
+    for (const name of ["切换目录", "全文检索", "设置", "上一页", "下一页"]) expect(byRole(root, "button", name)).toBeDefined();
+    for (const name of ["切换目录", "全文检索", "设置"]) expect(byRole(root, "button", name).getAttribute("aria-expanded")).toBe("false");
+    expect(root.textContent).toContain("书名<&>"); expect(root.textContent).toContain("第一章<&>");
+    expect(byAttribute(root, "title", "阅读正文").getAttribute("src")).toContain("%E7%AC%AC%E4%B8%80%E7%AB%A0.xhtml");
+    expect(byRole(root, "link", "返回详情").getAttribute("href")).toBe(`/book/${"d".repeat(32)}?return_to=%2Fjobs%3Ftab%3Dsuccess`);
+    const toc = byRole(root, "navigation", "章节目录");
+    expect(byAttribute(toc, "aria-current", "page").textContent).toBe("第一章<&>");
+    expect(byAttribute(toc, "data-current-toc", "true")).toBe(byAttribute(toc, "aria-current", "page"));
+    expect(allByRole(root, "status").length).toBeGreaterThan(0);
+    expect(frames.filter(frame => frame.getAttribute("aria-hidden") === "true")).toHaveLength(2);
   });
   it("provides closed drawer/popovers, background segments and no custom controls before mount", () => {
-    const html = ui.renderReader();
-    expect(html.match(/<dialog/g)).toHaveLength(3); expect(html).toContain("aria-labelledby="); expect(html).toContain('type="submit"'); expect(html).toContain('type="search"');
-    for (const copy of ["背景", "书籍", "灰白", "纸张", "砂岩", "薄荷", "样式", "自定义", "亮色", "暗色", "关键词", "书籍：尽量保持 EPUB 原样式；自定义：覆盖字体/字号/行高。"]) expect(html).toContain(copy);
-    expect(html).not.toMatch(/<dialog[^>]*\sopen(?:[\s>])|<select|type="number"/);
-    expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain('src="/book/d/cover?v=1"'); expect(html).not.toMatch(/<main|shadow|class="card/);
+    const root = parseHtml(ui.renderReader());
+    expect(allByRole(root, "dialog")).toHaveLength(3);
+    for (const name of ["目录", "全文检索", "设置"]) expect(byRole(root, "dialog", name).hasAttribute("open")).toBe(false);
+    expect(byRole(root, "button", "检索").getAttribute("type")).toBe("submit"); expect(byLabel(root, "关键词").getAttribute("type")).toBe("search");
+    for (const copy of ["背景", "书籍", "灰白", "纸张", "砂岩", "薄荷", "样式", "自定义", "亮色", "暗色", "书籍：尽量保持 EPUB 原样式；自定义：覆盖字体/字号/行高。"]) expect(root.textContent).toContain(copy);
+    expect(allByRole(root, "combobox")).toHaveLength(0); expect(allByRole(root, "spinbutton")).toHaveLength(0);
+    expect(allByAttribute(root, "aria-pressed", "true").length).toBeGreaterThan(0);
+    expect(byRole(root, "img").getAttribute("src")).toBe("/book/d/cover?v=1"); expect(allByRole(root, "main")).toHaveLength(0);
   });
   it("reports chapter page percentage, including the SSR resume seed", () => {
-    const plain = (query = "") => ui.renderReader(query).replace(/<!--.*?-->/g, "");
+    const plain = (query = "") => parseHtml(ui.renderReader(query)).textContent;
     expect(plain()).toContain("1 / 1 · 100%");
     expect(plain()).toContain("共 2 节 · 当前 1");
     expect(plain("resume=1")).toContain("3 / 8 · 38%");
     expect(plain("resume=1")).toContain("共 2 节 · 当前 2");
   });
   it("restores the saved section only for resume=1; direct chapter links keep the requested chapter", () => {
-    expect(ui.renderReader("resume=1")).toContain("Text/ch2.xhtml");
-    expect(ui.renderReader("resume=0")).toContain("%E7%AC%AC%E4%B8%80%E7%AB%A0.xhtml");
+    expect(byAttribute(parseHtml(ui.renderReader("resume=1")), "title", "阅读正文").getAttribute("src")).toContain("Text/ch2.xhtml");
+    expect(byAttribute(parseHtml(ui.renderReader("resume=0")), "title", "阅读正文").getAttribute("src")).toContain("%E7%AC%AC%E4%B8%80%E7%AB%A0.xhtml");
   });
 });
 describe("reader pagination, resume and settings", () => {

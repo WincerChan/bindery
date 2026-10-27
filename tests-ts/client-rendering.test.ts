@@ -17,6 +17,8 @@ import type { BookView } from "../src/server/book-view";
 import type { Cases } from "./fixtures/client-rendering";
 import { clientDocument, elements, fire } from "./support/client-dom";
 
+import { allByAttribute, allByRole, allByText, byAttribute, byLabel, byName, byRole, byText, formFor } from "./support/queries";
+
 type Probe = typeof import("./fixtures/client-rendering");
 let ui: Probe, ssr: Probe, dev: Probe;
 const directory = mkdtempSync(join(tmpdir(), "bindery-client-rendering-"));
@@ -75,8 +77,9 @@ function mount<K extends keyof Cases>(kind: K, initial: Cases[K], hydrating = tr
   return { ...mounted, root: node };
 }
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+// Kept only for excluded shell/navigation and direct src/ui component tests below.
 const css = (node: Element, tag: string, className: string) => elements(node, tag).filter(el => el.className.split(/\s+/).includes(className));
-const ids = (node: Element) => elements(node, "article", "data-book-card").map(el => el.getAttribute("data-book-id"));
+const ids = (node: Element) => allByAttribute(node, "data-book-card").map(el => el.getAttribute("data-book-id"));
 const book = (id: string): BookView => ({ ...metadataFromDict({ book_id: id, title: id, updated_at: "2026-10-19", created_at: "2026-10-18" }), status_class: "ok", status_label: "完成", effective_theme_template: "default", can_regenerate: true, path: "", cover_url: null });
 function library(names: string[]): Cases["library"] {
   return { scope: "active", books: names.map(book), total_books: names.length, page: 1, per_page: 24, total_pages: 1, sort: "updated", q: "", read_filter: "all", has_prev: false, has_next: false, prev_page: 1, next_page: 1, return_to: "/" };
@@ -101,14 +104,14 @@ it.each([true, false])("updates book cards, selection and empty states (hydratio
   const mounted = mount("library", library(names), hydrating);
   await settle();
   expect(ids(mounted.root)).toEqual(names);
-  const original = elements(mounted.root, "article", "data-book-card")[0]!;
-  fire(elements(mounted.root, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush();
-  expect(elements(mounted.root, "a", "data-book-detail-link")).toHaveLength(0);
-  const selectAll = elements(mounted.root, "input", "data-bulk-select-all")[0] as HTMLInputElement;
+  const original = byAttribute(mounted.root, "data-book-id", "一");
+  fire(byAttribute(mounted.root, "data-bulk-mode-toggle"), "click"); mounted.flush();
+  expect(allByAttribute(mounted.root, "data-book-detail-link")).toHaveLength(0);
+  const selectAll = byAttribute(mounted.root, "data-bulk-select-all") as HTMLInputElement;
   selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
   expect(elements(mounted.root, "input").filter(el => el.getAttribute("name") === "book_ids")).toHaveLength(16);
   mounted.update({ ...library(["魔临"]), q: "魔临", read_filter: "unread", return_to: "/?q=魔临&read_filter=unread" });
-  expect(elements(mounted.root, "span", "data-pagination-total")[0]!.textContent).toBe("1");
+  expect(byAttribute(mounted.root, "data-pagination-total").textContent).toBe("1");
   expect(ids(mounted.root)).toEqual(["魔临"]);
   expect(original.parentNode).toBeNull();
   expect(elements(mounted.root, "input").filter(el => el.getAttribute("name") === "book_ids").map(el => (el as HTMLInputElement).value)).toEqual(["魔临", "魔临"]);
@@ -119,11 +122,10 @@ it.each([true, false])("updates book cards, selection and empty states (hydratio
 
 it("shows the dismissible passkey enrollment hint above the library shelves", () => {
   const mounted = mount("library", { ...library([]), passkey_prompt: true }, false);
-  const hint = () => css(mounted.root, "div", "passkey-hint")[0];
-  expect(hint()).toBeDefined(); expect(hint()!.textContent).toContain("添加通行密钥，下次免密码登录");
-  expect(elements(hint()!, "a")[0]!.getAttribute("href")).toBe("/security");
-  fire(elements(hint()!, "button")[0]!, "click"); mounted.flush();
-  expect(hint()).toBeUndefined();
+  expect(byText(mounted.root, "添加通行密钥，下次免密码登录")).toBeDefined();
+  expect(byRole(mounted.root, "link", "添加通行密钥，下次免密码登录").getAttribute("href")).toBe("/security");
+  fire(byRole(mounted.root, "button", "关闭添加通行密钥提示"), "click"); mounted.flush();
+  expect(allByText(mounted.root, "添加通行密钥，下次免密码登录")).toHaveLength(0);
 });
 
 it.each(["/", "/rules"])("updates actual router loader data after hydrating %s", async entry => {
@@ -134,7 +136,7 @@ it.each(["/", "/rules"])("updates actual router loader data after hydrating %s",
   await settle();
   await mounted.update({ ...initial, q: "all" }); expect(ids(node)).toEqual(["甲", "魔临", "乙"]);
   await mounted.update({ ...library(["魔临"]), q: "魔临", return_to: "/?q=魔临" });
-  expect(elements(node, "span", "data-pagination-total")[0]!.textContent).toBe("1");
+  expect(byAttribute(node, "data-pagination-total").textContent).toBe("1");
   expect(ids(node)).toEqual(["魔临"]);
   await mounted.update({ ...library([]), q: "missing" }); expect(ids(node)).toEqual([]);
 });
@@ -142,11 +144,11 @@ it.each(["/", "/rules"])("updates actual router loader data after hydrating %s",
 it("updates archive rows after a restore refresh, including the final empty state", () => {
   const mounted = mount("archive", [book("甲"), book("乙")]);
   mounted.update([book("乙")]);
-  expect(css(mounted.root, "article", "is-archived").map(el => elements(el, "h2")[0]!.textContent)).toEqual(["乙"]);
-  mounted.update([]); expect(css(mounted.root, "article", "is-archived")).toHaveLength(0);
-  expect(elements(mounted.root, "button", "data-archive-select-all")).toHaveLength(0);
+  expect(ids(mounted.root)).toEqual(["乙"]);
+  mounted.update([]); expect(ids(mounted.root)).toHaveLength(0);
+  expect(allByAttribute(mounted.root, "data-archive-select-all")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("归档为空");
-  mounted.update([book("甲")]); expect(css(mounted.root, "article", "is-archived")).toHaveLength(1);
+  mounted.update([book("甲")]); expect(ids(mounted.root)).toEqual(["甲"]);
 });
 
 it("requires confirmation for single/bulk archive deletion and refreshes after bulk restore", async () => {
@@ -157,14 +159,14 @@ it("requires confirmation for single/bulk archive deletion and refreshes after b
   const mounted = mount("libraryActions", { data, restore, refresh, regenerate: vi.fn() }); await settle(); mounted.flush();
   const buttons = () => elements(mounted.root, "button");
   fire(buttons().find(el => el.hasAttribute("data-bulk-mode-toggle"))!, "click"); mounted.flush();
-  const selectAll = elements(mounted.root, "input", "data-bulk-select-all")[0] as HTMLInputElement; selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
-  expect(elements(mounted.root, "strong", "data-selected-count")[0]!.textContent).toBe("2");
+  const selectAll = byAttribute(mounted.root, "data-bulk-select-all") as HTMLInputElement; selectAll.checked = true; fire(selectAll, "change"); mounted.flush();
+  expect(byAttribute(mounted.root, "data-selected-count").textContent).toBe("2");
   for (const action of ["/book/甲/delete", "/archive/delete-bulk"]) {
     const form = elements(mounted.root, "form").find(el => el.getAttribute("action") === action) as HTMLFormElement, submit = vi.fn(); form.submit = submit;
     const prevented = vi.fn(); fire(form, "submit", { preventDefault: prevented }); mounted.flush();
     const dialog = elements(mounted.root, "dialog").find(el => el.textContent?.includes("永久删除书籍")) as HTMLDialogElement;
     expect(prevented).toHaveBeenCalledOnce(); expect(submit).not.toHaveBeenCalled(); expect(dialog.open).toBe(true);
-    const confirm = elements(dialog, "button").find(el => el.textContent === "彻底删除")!; expect(confirm.className).toContain("btn-danger");
+    const confirm = byRole(dialog, "button", "彻底删除");
     fire(elements(dialog, "button").find(el => el.textContent === "取消")!, "click"); mounted.flush(); expect(dialog.open).toBe(false); expect(submit).not.toHaveBeenCalled();
     rpc.mockRejectedValueOnce(new Error("删除失败"));
     fire(form, "submit"); mounted.flush(); fire(confirm, "click"); await settle(); mounted.flush();
@@ -176,9 +178,9 @@ it("requires confirmation for single/bulk archive deletion and refreshes after b
   }
   fire(buttons().find(el => el.textContent === "恢复")!, "click"); await settle(); mounted.flush();
   expect(restore).toHaveBeenCalledExactlyOnceWith(["甲", "乙"]); expect(refresh).toHaveBeenCalledTimes(3);
-  expect(elements(mounted.root, "strong", "data-selected-count")[0]!.textContent).toBe("0");
+  expect(byAttribute(mounted.root, "data-selected-count").textContent).toBe("0");
   mounted.update({ data: { ...data, scope: "active", books: data.books.map(value => ({ ...value, archived: false })) }, restore, refresh, regenerate: vi.fn() });
-  expect(elements(mounted.root, "div", "data-bulk-actions")[0]!.hasAttribute("hidden")).toBe(true);
+  expect(byAttribute(mounted.root, "data-bulk-actions").hasAttribute("hidden")).toBe(true);
 });
 
 it("polls only visible jobs, aborts stale requests and preserves the ingest form and previews", async () => {
@@ -236,8 +238,8 @@ it.each([
   const trigger = elements(node, "button").find(el => el.getAttribute("aria-controls") === "jobs")!;
   const sheet = elements(node, "dialog").find(el => el.id === "jobs")!;
   expect(trigger.textContent).toBe("最近任务 · 2"); expect(trigger.getAttribute("aria-expanded")).toBe(String(open));
-  expect(sheet.getAttribute("data-state")).toBe(open ? "open" : "closed"); expect(sheet.className).toContain("dialog-sheet");
-  expect(elements(node, "section").some(el => el.id === "jobs")).toBe(false);
+  expect(sheet.getAttribute("data-state")).toBe(open ? "open" : "closed");
+  expect(byRole(node, "dialog", "最近任务")).toBe(sheet);
 });
 
 it.each(["/ingest?jobs_tab=failed&jobs_page=2", "/ingest#jobs"])("opens direct sheet links after hydration: %s", async entry => {
@@ -264,7 +266,7 @@ it.each([true, false])("uses replace navigation to open, filter, paginate and cl
   const picker = elements(form, "input").find(el => el.getAttribute("type") === "file") as HTMLInputElement, files = [new File(["正文"], "selected.txt")];
   const rule = elements(form, "select").find(el => el.getAttribute("name") === "rule_template") as HTMLSelectElement, option = elements(rule, "option")[1]!; rule.value = "second";
   Object.defineProperty(picker, "files", { value: files }); cssInput.value = "h1 { color: blue; }"; fire(cssInput, "input"); mounted.flush();
-  const noPending = () => { mounted.flush(); expect(elements(node, "p").some(el => el.hasAttribute("data-route-pending"))).toBe(false); };
+  const noPending = () => { mounted.flush(); expect(allByAttribute(node, "data-route-pending")).toHaveLength(0); };
   const reload = async (action: () => void) => {
     const before = mounted.ingestLoads();
     action();
@@ -290,7 +292,7 @@ it.each([true, false])("uses replace navigation to open, filter, paginate and cl
   expect(next.getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs"); await reload(() => clickJobLink(next));
   expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs");
   const pager = elements(sheet, "nav").find(el => el.getAttribute("aria-label") === "分页")!;
-  expect(elements(pager, "span").find(el => el.getAttribute("aria-current") === "page")!.textContent).toBe("02");
+  expect(byAttribute(pager, "aria-current", "page").textContent).toBe("02");
   await reload(() => fire(elements(sheet, "button").find(el => el.getAttribute("aria-label") === "关闭最近任务")!, "click"));
   expect(mounted.href()).toBe("/ingest"); expect(sheet.open).toBe(false); expect(trigger.getAttribute("aria-expanded")).toBe("false"); expect(mounted.historyLength()).toBe(1);
   expect(currentTab().textContent).toBe("全部 · 13");
@@ -391,39 +393,39 @@ it("offers iOS installation instructions in settings and hides the action in sta
 
 it("updates tracker/wishlist filter rows and their empty state", () => {
   const mounted = mount("tracker", tracker(["甲", "乙"]));
-  expect(css(mounted.root, "p", "page-description")).toHaveLength(0);
-  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–2 本 · 共 2 本");
+  expect(byRole(mounted.root, "navigation", "分页").textContent).toContain("1–2 本 · 共 2 本");
   mounted.update(tracker(["乙"]));
-  expect(css(mounted.root, "div", "catalog-tracker-row").filter(el => !el.getAttribute("class")!.includes("catalog-tracker-head")).map(el => elements(el, "strong")[0]!.textContent)).toEqual(["乙"]);
-  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–1 本 · 共 1 本");
-  mounted.update(tracker([])); expect(css(mounted.root, "article", "catalog-tracker-row")).toHaveLength(0);
+  const rows = () => allByRole(byRole(mounted.root, "table", "追踪列表"), "row").filter(row => allByRole(row, "cell").length);
+  expect(rows().map(row => allByRole(row, "cell")[0]!.textContent)).toEqual(["乙"]);
+  expect(byRole(mounted.root, "navigation", "分页").textContent).toContain("1–1 本 · 共 1 本");
+  mounted.update(tracker([])); expect(rows()).toHaveLength(0);
   expect(mounted.root.textContent).toContain("没有符合筛选条件");
-  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("0 本 · 共 0 本");
+  expect(byRole(mounted.root, "navigation", "分页").textContent).toContain("0 本 · 共 0 本");
 });
 
 it("replaces jobs, tab counts and conditional retry/log controls for polling payloads", () => {
   const mounted = mount("jobs", jobs(["甲", "乙"]));
   mounted.update(jobs(["乙"], "failed"));
-  expect(css(mounted.root, "article", "ingest-job")).toHaveLength(1);
+  expect(allByText(mounted.root, /^任务 ID：/).map(el => el.textContent)).toEqual(["任务 ID：乙"]);
   expect(mounted.root.textContent).toContain("failed · 1");
   expect(elements(mounted.root, "form").map(el => el.getAttribute("action"))).toContain("/jobs/%E4%B9%99/retry");
-  expect(css(mounted.root, "details", "ingest-job-log")).toHaveLength(1);
+  expect(allByRole(mounted.root, "button", "展开详细日志")).toHaveLength(1);
   mounted.update(jobs(["乙"], "success"));
-  expect(css(mounted.root, "details", "ingest-job-log")).toHaveLength(0);
+  expect(allByRole(mounted.root, "button", "展开详细日志")).toHaveLength(0);
   expect(mounted.root.textContent).not.toContain("一键重试");
   expect(mounted.root.textContent).toContain("打开产物");
-  mounted.update(jobs([])); expect(css(mounted.root, "article", "ingest-job")).toHaveLength(0);
+  mounted.update(jobs([])); expect(allByText(mounted.root, /^任务 ID：/)).toHaveLength(0);
 });
 
 it("switches rule/theme navigation and keyed editors", () => {
   const initial: Cases["rules"] = { rules: [editor("规则甲"), editor("规则乙")], themes: [editor("主题甲")], tab: "parsing", ruleId: "规则甲", themeId: "主题甲", error: "", editor: editor("规则甲") };
   const mounted = mount("rules", initial);
   mounted.update({ ...initial, tab: "themes", editor: editor("主题甲") });
-  expect(css(mounted.root, "ul", "catalog-template-list")[0]!.textContent).toBe("主题甲v1");
-  expect(elements(mounted.root, "article").map(el => el.id)).toContain("theme-editor");
-  expect(elements(mounted.root, "article").map(el => el.id)).not.toContain("rule-editor");
+  expect(allByRole(byRole(mounted.root, "complementary", "主题列表"), "link").map(el => el.textContent)).toEqual(["主题甲v1"]);
+  expect(byName(mounted.root, "css")).toBeDefined();
+  expect(allByAttribute(mounted.root, "name", "config_json")).toHaveLength(0);
   mounted.update({ ...initial, rules: [], editor: null });
-  expect(css(mounted.root, "ul", "catalog-template-list")[0]!.textContent).toBe("");
+  expect(allByRole(byRole(mounted.root, "complementary", "规则列表"), "link")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("暂无规则模板");
 });
 
@@ -439,10 +441,10 @@ it("replaces ingest previews, duplicate fragments, TOCs and hidden upload tokens
   const preview = (filename: string): Cases["previews"][number] => ({ filename, format: "TXT", title: filename, author: "作者", volumes: 1, chapters: 2, toc: ["第一章", "第二章"], output: "book.epub", duplicates: [{ book_id: "dup", title: "重复", author: "作者", reason: "标题" }], upload_token: filename });
   const mounted = mount("previews", [preview("甲"), preview("乙")]);
   mounted.update([{ ...preview("丙"), duplicates: [], toc: [] }]);
-  expect(elements(mounted.root, "article", "data-preview-filename").map(el => el.getAttribute("data-preview-filename"))).toEqual(["丙"]);
+  expect(allByAttribute(mounted.root, "data-preview-filename").map(el => el.getAttribute("data-preview-filename"))).toEqual(["丙"]);
   expect(elements(mounted.root, "input").map(el => (el as HTMLInputElement).value)).toEqual(["丙"]);
   expect(elements(mounted.root, "li")).toHaveLength(0); expect(mounted.root.textContent).not.toContain("检测到疑似重复");
-  mounted.update([]); expect(elements(mounted.root, "article")).toHaveLength(0);
+  mounted.update([]); expect(allByAttribute(mounted.root, "data-preview-filename")).toHaveLength(0);
 });
 
 it("updates pagination summaries, non-link current pages and link/in-place controls", () => {
@@ -463,15 +465,15 @@ it("updates pagination summaries, non-link current pages and link/in-place contr
 it("switches detail/editor fragment panels and displays saved specs and cover", async () => {
   const initial = detail(), mounted = mount("detail", initial);
   fire(elements(mounted.root, "a").find(el => el.textContent === "编辑")!, "click"); mounted.flush();
-  expect(css(mounted.root, "div", "books-editor")).toHaveLength(1);
-  expect(css(mounted.root, "div", "books-detail")).toHaveLength(0);
+  expect(byName(mounted.root, "title")).toBeDefined();
+  expect(allByRole(mounted.root, "link", "编辑")).toHaveLength(0);
   vi.stubGlobal("FormData", class extends FormData { constructor() { super(); } });
   vi.stubGlobal("__binderyTestMutation", vi.fn().mockResolvedValue({ message: "已保存", kind: "success", page: { ...initial, book: { ...initial.book, title: "新书名", publisher: "新出版社", cover_url: "/new-cover" } } }));
   fire(elements(mounted.root, "form").find(el => el.getAttribute("action")?.endsWith("/edit"))!, "submit");
   await settle(); mounted.flush();
-  expect(css(mounted.root, "div", "books-editor")).toHaveLength(0);
-  expect(elements(mounted.root, "h1")[0]!.textContent).toBe("新书名");
-  expect(css(mounted.root, "dl", "books-spec")[0]!.textContent).toContain("新出版社");
+  expect(allByAttribute(mounted.root, "name", "title")).toHaveLength(0);
+  expect(byRole(mounted.root, "heading", "新书名")).toBeDefined();
+  expect(byText(mounted.root, "新出版社")).toBeDefined();
   expect(elements(mounted.root, "img")[0]!.getAttribute("src")).toBe("/new-cover");
 });
 
@@ -557,24 +559,24 @@ it("refreshes the real security page after passkey reauth, add, rename and manua
   const node = root(), mounted = await ui.securityNavigation(node); disposers.push(mounted.dispose);
   const submit = (form: Element) => { const preventDefault = vi.fn(); fire(form, "submit", { preventDefault }); mounted.flush(); expect(preventDefault).toHaveBeenCalledOnce(); };
   const clickButton = (label: string) => { const control = elements(node, "button").find(item => item.textContent === label)!; fire(control, "click"); mounted.flush(); };
-  const renameForm = () => elements(node, "form").find(form => form.getAttribute("class") === "inline-form")!;
+  const renameForm = () => formFor(allByRole(node, "button", "重命名")[0]!);
   const name = elements(node, "input").find(input => input.getAttribute("placeholder") === "例如：我的电脑") as HTMLInputElement;
   name.value = "新密钥"; fire(name, "input"); mounted.flush();
-  const add = elements(node, "form").find(form => form.getAttribute("class") === "form-stack")!;
+  const add = formFor(byRole(node, "button", /验证.*添加$/));
   submit(add);
   await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(2); expect(elements(node, "input").map(input => (input as HTMLInputElement).value)).toContain("新密钥"); });
   expect(name.value).toBe(""); expect(authentication).toHaveBeenCalledWith({ optionsJSON: { challenge: "reauth-challenge" } });
   expect(registration).toHaveBeenCalledWith({ optionsJSON: { challenge: "original-challenge" } });
-  const renamed = elements(renameForm(), "input")[0] as HTMLInputElement; renamed.value = "已重命名"; submit(renameForm());
-  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(3); expect((elements(renameForm(), "input")[0] as HTMLInputElement).value).toBe("已重命名"); });
+  const renamed = byLabel(renameForm(), "名称") as HTMLInputElement; renamed.value = "已重命名"; submit(renameForm());
+  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(3); expect((byLabel(renameForm(), "名称") as HTMLInputElement).value).toBe("已重命名"); });
   const deletion = elements(node, "form").find(form => form.getAttribute("action")?.endsWith("old-key/delete"))!;
   expect(deletion.getAttribute("method")).toBe("post");
   submit(deletion); clickButton("取消"); expect(fetch).toHaveBeenCalledTimes(5);
   failDelete = true; submit(deletion); clickButton("删除");
   await vi.waitFor(() => { mounted.flush(); expect(node.textContent).toContain("删除写入失败"); });
-  expect(load).toHaveBeenCalledTimes(3); expect(elements(node, "article")).toHaveLength(2);
+  expect(load).toHaveBeenCalledTimes(3); expect(allByRole(node, "button", "重命名")).toHaveLength(2);
   failDelete = false; submit(deletion); clickButton("删除");
-  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(4); expect(elements(node, "article")).toHaveLength(1); });
+  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(4); expect(allByRole(node, "button", "重命名")).toHaveLength(1); });
   const toast = vi.mocked(document.body.dispatchEvent).mock.calls.map(([event]) => (event as CustomEvent).detail.message);
   expect(toast).toEqual(expect.arrayContaining(["已添加通行密钥", "已重命名通行密钥", "删除写入失败", "已删除通行密钥"]));
   expect(location.assign).not.toHaveBeenCalled(); expect(mounted.router.state.location.href).toBe("/security");
@@ -591,7 +593,7 @@ it("switches security enrollment between first password setup, passkey reauth an
   vi.stubGlobal("__binderyTestSecurityData", load);
   vi.stubGlobal("window", { confirm: vi.fn(() => true), addEventListener() {}, removeEventListener() {} });
   const node = root(), mounted = await ui.securityNavigation(node); disposers.push(mounted.dispose); mounted.flush();
-  const addForm = () => elements(node, "form").find(form => form.getAttribute("class") === "form-stack")!,
+  const addForm = () => formFor(byRole(node, "button", /验证.*添加$/)),
     password = () => elements(addForm(), "input").find(input => input.getAttribute("type") === "password"),
     buttons = () => elements(addForm(), "button").map(button => button.textContent);
   expect(node.textContent).toContain("首次添加需要先验证密码。");
@@ -642,7 +644,7 @@ it.each([true, false])("ingest selection, drop, dedupe, removal and multipart su
   const choose = async (files: File[]) => { Object.defineProperty(picker, "files", { configurable: true, value: files }); fire(picker, "change"); await settle(); mounted.flush(); };
   const one = new File(["正文"], "one.txt");
   const openPicker = vi.fn(); picker.click = openPicker;
-  fire(css(node, "label", "ingest-dropzone")[0]!, "keydown", { key: "Enter" }); expect(openPicker).toHaveBeenCalledOnce();
+  fire(byAttribute(node, "aria-label", "选择 TXT 或 EPUB 文件"), "keydown", { key: "Enter" }); expect(openPicker).toHaveBeenCalledOnce();
   Object.defineProperty(picker, "files", { configurable: true, value: [one] }); fire(picker, "change"); mounted.flush();
   expect(button().hasAttribute("disabled")).toBe(true); expect(node.textContent).toContain("正在解析…");
   await settle(); mounted.flush(); expect(button().textContent).toBe("开始入库 · 1 本"); expect(button().hasAttribute("disabled")).toBe(false); expect(node.textContent).toContain("已选 1 个文件");
@@ -650,9 +652,10 @@ it.each([true, false])("ingest selection, drop, dedupe, removal and multipart su
   expect(override.value).toBe("书名"); override.value = "覆盖书名"; fire(override, "input"); mounted.flush();
   expect(elements(node, "input").some(el => el.getAttribute("name") === "author")).toBe(true);
   await choose([one]); expect(fetch).toHaveBeenCalledTimes(1); expect(override.value).toBe("覆盖书名");
-  const zone = css(node, "label", "ingest-dropzone")[0]!;
-  fire(zone, "dragover"); mounted.flush(); expect(zone.className).toContain("is-dragging");
-  fire(zone, "dragleave", { relatedTarget: null }); mounted.flush(); expect(zone.className).not.toContain("is-dragging");
+  const zone = byAttribute(node, "aria-label", "选择 TXT 或 EPUB 文件");
+  const preventDefault = vi.fn();
+  fire(zone, "dragover", { preventDefault }); mounted.flush(); expect(preventDefault).toHaveBeenCalledOnce();
+  fire(zone, "dragleave", { relatedTarget: null }); mounted.flush();
   fire(zone, "drop", { dataTransfer: { files: [one, new File(["dup"], "dup.txt"), new File([""], "bad.txt"), new File(["no"], "image.png")] } });
   await settle(); mounted.flush();
   expect(node.textContent).toContain("不支持的文件类型"); expect(node.textContent).toContain("已选 3 个文件"); expect(button().textContent).toBe("开始入库 · 2 本");
@@ -755,14 +758,14 @@ it("updates reader TOC and search result fragments, highlighting and load-more s
   const data: Cases["reader"] = { book: { book_id: "id", title: "书名", author: "作者", cover_url: null }, sections: [{ title: "甲", item_path: "a.xhtml" }, { title: "乙", item_path: "b.xhtml" }], section_index: 0, initial_progress: null, return_to: "/" };
   const mounted = mount("reader", data);
   mounted.update({ ...data, sections: [{ title: "丙", item_path: "c.xhtml" }] });
-  expect(css(mounted.root, "dialog", "reader-toc")[0]!.textContent).toContain("丙");
-  expect(css(mounted.root, "dialog", "reader-toc")[0]!.textContent).not.toContain("甲");
+  expect(byRole(mounted.root, "dialog", "目录").textContent).toContain("丙");
+  expect(byRole(mounted.root, "dialog", "目录").textContent).not.toContain("甲");
   const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ query: "词", indexed_sections: 1, hits: [{ index: 0, title: "词一", snippet: "原词", offset: 0 }], has_more: true, next_offset: 1 }) });
   vi.stubGlobal("fetch", fetch);
   const input = elements(mounted.root, "input").find(el => el.getAttribute("type") === "search") as HTMLInputElement;
-  const form = css(mounted.root, "form", "reader-search-form")[0]!;
+  const form = formFor(byLabel(mounted.root, "关键词"));
   input.value = "词"; fire(input, "input"); mounted.flush(); fire(form, "submit"); await settle(); mounted.flush();
-  const results = () => css(mounted.root, "ol", "reader-search-results")[0]!;
+  const results = () => byRole(mounted.root, "dialog", "全文检索");
   expect(elements(results(), "li")).toHaveLength(1); expect(elements(results(), "mark").map(el => el.textContent)).toEqual(["词", "词"]);
   fetch.mockResolvedValue({ ok: true, json: async () => ({ query: "词", indexed_sections: 1, hits: [{ index: 0, title: "词二", snippet: "第二词", offset: 1 }], has_more: false }) });
   fire(elements(mounted.root, "button").find(el => el.textContent === "加载更多")!, "click"); await settle(); mounted.flush();

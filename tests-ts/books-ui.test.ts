@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import type { BookPage } from "../src/server/books/service";
 import { metadataFromDict } from "../src/core/models";
 import { bookNavigation } from "../src/features/books/navigation";
+import { allByAttribute, allByRole, byAttribute, byLabel, byName, byRole, byText, parseHtml } from "./support/queries";
 let ui: typeof import("./fixtures/books/ui-probe");
 beforeAll(async () => {
   const result = await build({
@@ -67,26 +68,18 @@ function page(): BookPage {
 }
 describe("book detail and edit SSR", () => {
   it("renders detail actions, escaped title and Chinese reading state", () => {
-    const html = ui.detail(page());
-    for (const suffix of [
-      "/download",
-      "/read",
-      "/archive",
-      "/delete",
-      "/regenerate",
-    ])
-      expect(html).toContain(`/book/${"a".repeat(32)}${suffix}`);
-    expect(html).toContain("/preview/0?resume=1&amp;return_to=");
-    expect(html).toContain("示例书&lt;&amp;>");
-    expect(html).toContain('aria-label="阅读状态"');
-    expect(html).toContain("✓ 已读");
-    expect(html).toContain("标记未读");
-    expect(html).toContain("下载 EPUB");
-    expect(html).toContain("编辑");
+    const root = parseHtml(ui.detail(page()));
+    for (const suffix of ["read", "archive", "delete", "regenerate"]) expect(byAttribute(root, "action", `/book/${"a".repeat(32)}/${suffix}`).getAttribute("method")).toBe("post");
+    expect(byRole(root, "link", "下载 EPUB").getAttribute("href")).toBe(`/book/${"a".repeat(32)}/download`);
+    expect(byRole(root, "link", "阅读").getAttribute("href")).toContain("/preview/0?resume=1&return_to=");
+    expect(byRole(root, "heading", "示例书<&>")).toBeDefined();
+    expect(byAttribute(root, "aria-label", "阅读状态").textContent).toContain("已读");
+    expect(byRole(root, "button", "标记未读")).toBeDefined(); expect(byRole(root, "link", "编辑")).toBeDefined();
   });
-  it("uses specification list with dates, description and no cover controls or identifier", () => {
+  it("shows specifications, dates and description without cover controls or identifier", () => {
     const html = ui.detail(page());
-    expect(html).toContain("<dl");
+    const root = parseHtml(html);
+    expect(root.textContent).toContain("第一段"); expect(root.textContent).toContain("第二段");
     for (const label of [
       "系列",
       "出版社",
@@ -110,8 +103,9 @@ describe("book detail and edit SSR", () => {
   });
   it("keeps return_to in edit, read and preview links and return path in destructive forms", () => {
     const html = ui.detail(page());
-    expect(html).toContain("return_to=%2F%3Fq%3D%E4%B9%A6%26page%3D2");
-    expect(html).toContain('name="next" value="/?q=书&amp;page=2"');
+    const root = parseHtml(html);
+    for (const name of ["编辑", "阅读"]) expect(new URL(byRole(root, "link", name).getAttribute("href")!, "https://bindery.test").searchParams.get("return_to")).toBe("/?q=书&page=2");
+    for (const action of ["archive", "delete"]) expect(byName(byAttribute(root, "action", `/book/${"a".repeat(32)}/${action}`), "next").getAttribute("value")).toBe("/?q=书&page=2");
   });
   it("lists each reading source with section, percent, times, estimates and the newest marker", () => {
     const value = page();
@@ -119,18 +113,19 @@ describe("book detail and edit SSR", () => {
       { source: "web", source_label: "网页阅读器", section: 1, section_fraction: 0.5, percent: 50, read_at: "2026-10-22T13:00:00Z", time_spent_seconds: null, rest_estimate_seconds: null, section_title: "第二章 重逢", latest: false },
       { source: { device_id: "kobo-1", device_name: "Libra 2", kind: "kobo" }, source_label: "Libra 2", section: 2, section_fraction: 0.2, percent: 70, read_at: "2026-10-22T13:11:20Z", time_spent_seconds: 132, rest_estimate_seconds: 8943, section_title: "第三章 再见", latest: true },
     ];
-    const html = ui.detail(value).replace(/<!--.*?-->/g, "");
+    const root = parseHtml(ui.detail(value)), html = root.textContent!;
     expect(html).toContain("阅读进度");
     expect(html).toContain("网页阅读器");
     expect(html).toContain("Libra 2");
     expect(html).toContain("第二章 重逢 · 50%");
     expect(html).toContain("第三章 再见 · 70%");
     // The server renders UTC; the browser switches the <time> to the reader's own zone after mounting.
-    expect(html).toMatch(/上次阅读 <time[^>]*datetime="2026-10-22T13:11:20Z"[^>]*>2026-10-22 13:11<\/time>/);
+    expect(byAttribute(root, "datetime", "2026-10-22T13:11:20Z").textContent).toBe("2026-10-22 13:11");
+    expect(root.textContent).toContain("上次阅读");
     expect(html).toContain("用时 约 2 分钟");
     expect(html).toContain("剩余 约 3 小时");
     expect(html).toContain("最新");
-    expect(ui.detail(page()).replace(/<!--.*?-->/g, "")).not.toContain("阅读进度");
+    expect(allByRole(parseHtml(ui.detail(page())), "region", "阅读进度")).toHaveLength(0);
   });
   it("hides regenerate controls without TXT source and renders EPUB source label", () => {
     const value = page();
@@ -142,8 +137,10 @@ describe("book detail and edit SSR", () => {
   });
   it("renders one save action, native labelled fields, cover inputs and accessible ratings", () => {
     const html = ui.editor(page());
-    expect(html.match(/保存并写回/g)).toHaveLength(1);
-    expect(html).toContain('enctype="multipart/form-data"');
+    const root = parseHtml(html);
+    expect(allByRole(root, "button", "保存并写回")).toHaveLength(1);
+    const form = byAttribute(root, "action", `/book/${"a".repeat(32)}/edit`);
+    expect(form.getAttribute("enctype")).toBe("multipart/form-data");
     for (const name of [
       "title",
       "author",
@@ -164,11 +161,10 @@ describe("book detail and edit SSR", () => {
       "metadata_source",
       "strip_original_css",
     ])
-      expect(html).toContain(`name="${name}"`);
-    expect(html).not.toContain('name="identifier"');
-    expect(html).not.toContain("contenteditable");
-    expect(html).toContain('aria-label="3 星"');
-    expect(html).toContain('aria-pressed="true"');
+      expect(byName(form, name)).toBeDefined();
+    expect(allByAttribute(root, "name", "identifier")).toHaveLength(0);
+    expect(allByAttribute(root, "contenteditable")).toHaveLength(0);
+    expect(byRole(root, "button", "3 星").getAttribute("aria-pressed")).toBe("true");
     expect(html).toContain("清除");
     expect(html).toContain("自动填充信息");
     expect(html).toContain("/metadata/fetch");
@@ -176,9 +172,8 @@ describe("book detail and edit SSR", () => {
   });
   it("provides CSS formatter, keep-book theme and original CSS checkbox", () => {
     const html = ui.editor(page());
-    expect(html).toContain('data-format-target="book-custom-css"');
-    expect(html).toContain('id="book-custom-css"');
-    expect(html).toContain("格式化");
+    const root = parseHtml(html);
+    expect(byRole(root, "button", "格式化").getAttribute("data-format-target")).toBe(byName(root, "custom_css").id);
     expect(html).toContain("保持书籍样式（仅 EPUB）");
     expect(html).toContain("清除原书 CSS（link/style）");
     expect(html).toContain("默认主题");
@@ -204,17 +199,20 @@ describe("book detail and edit SSR", () => {
       errors: [],
     };
     const html = ui.editor(value);
-    expect(html).toContain('role="alert"');
-    expect(html).toContain("失败 &lt;script>");
-    expect(html).toContain("books-autofill");
+    const root = parseHtml(html);
+    expect(byRole(root, "alert").textContent).toContain("失败 <script>");
+    expect(root.getElementsByTagName("script").length).toBe(0);
+    expect(allByRole(root, "status").map(node => node.textContent)).toContain(value.info);
+    expect(byLabel(root, "书名")).toBeDefined();
     expect(html).toContain("https://source.test/a.png");
     expect(html).toContain("https://applied.test/a.png");
   });
   it("uses a native confirmation dialog with explicit cancel and confirm actions", () => {
     const html = ui.detail(page());
-    expect(html).toContain("<dialog");
-    expect(html).toContain("确定要永久删除这本书吗？");
-    expect(html).toContain("取消");
-    expect(html).toContain("无法恢复");
+    const dialog = allByRole(parseHtml(html), "dialog").find(dialog => dialog.textContent?.includes("确定要永久删除这本书吗？"))!;
+    expect(dialog).toBeDefined();
+    expect(byRole(dialog, "button", "取消")).toBeDefined();
+    expect(byRole(dialog, "button", "永久删除")).toBeDefined();
+    expect(dialog.textContent).toContain("无法恢复");
   });
 });
