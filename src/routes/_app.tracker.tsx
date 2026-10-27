@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/solid-router";
 import { createServerFn } from "@tanstack/solid-start";
 import { authenticatedRoute } from "../server/http";
 import { TrackerPage } from "../features/catalog/tracker";
-import "../features/catalog/catalog.css";
+import "../features/catalog/tracker.css";
 
 // Global function middleware in src/start.ts authenticates and supplies library.
 const loadTracker = createServerFn({ method: "GET" })

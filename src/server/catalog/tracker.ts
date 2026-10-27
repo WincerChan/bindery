@@ -80,7 +80,7 @@ export function trackerPayload(library: LibraryStorage, search: Record<string, s
     const key = identity(wish.title); unlinked.set(key, [...(unlinked.get(key) || []), wish]);
   }
   for (const meta of books) ensureTrackerForBook(meta, library, unlinked);
-  const filters = trackerFilters(search), items: TrackerItem[] = [], index = libraryIdentity(books);
+  const filters = trackerFilters(search), items: TrackerItem[] = [], reading_now: TrackerItem[] = [], index = libraryIdentity(books);
   const stats = { total: 0, filtered: 0, read: 0, reading: 0, unread: 0, in_library: 0, out_library: 0 };
   for (const wish of library.db.listWishes()) {
     const id = matchBook(wish, index);
@@ -91,6 +91,8 @@ export function trackerPayload(library: LibraryStorage, search: Record<string, s
     syncTrackerMetadata(library, wish, id);
     const item = trackerView(wish, id), query = strip(filters.q).toLowerCase();
     stats.total++; stats[item.read_status as "read" | "reading" | "unread"]++;
+    // The intro is independent of directory filters and pagination; reuse this scan.
+    if (item.read_status === "reading" && reading_now.length < 3) reading_now.push(item);
     if (id) stats.in_library++; else stats.out_library++;
     if (query && ![item.title, item.author || "", item.tags.join(" ")].some(v => v.toLowerCase().includes(query))) continue;
     if (filters.read_filter !== "all" && item.read_status !== filters.read_filter) continue;
@@ -99,7 +101,7 @@ export function trackerPayload(library: LibraryStorage, search: Record<string, s
     items.push(item);
   }
   stats.filtered = items.length;
-  return { filters, stats, items, index };
+  return { filters, stats, items, index, reading_now };
 }
 export function trackerPage(library: LibraryStorage, search: Record<string, string>) {
   const { items, index, ...payload } = trackerPayload(library, search), totalPages = Math.max(1, Math.ceil(items.length / 20));

@@ -1,0 +1,81 @@
+.tracker-page { min-width: 0; }
+.tracker-page .ui-page-intro { gap: 32px; }
+.tracker-page .ui-page-intro-text { flex: 1 1 50%; }
+.tracker-page .ui-page-visual { flex: 1 1 40%; max-width: 440px; min-width: 0; }
+.tracker-reading .ui-section-title { display: none; }
+.tracker-reading-covers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 18px; }
+.tracker-reading-covers > * { min-width: 0; text-decoration: none; }
+.tracker-reading-covers > :first-child { transform: rotate(-3deg); }
+.tracker-reading-covers > :nth-child(2) { margin-bottom: 18px; }
+.tracker-reading-covers > :nth-child(3) { transform: rotate(3deg); }
+.tracker-cover-button { display: block; padding: 0; border: 0; border-radius: var(--radius-cover); background: transparent; color: inherit; }
+.tracker-cover-out { background: var(--color-control); color: var(--color-ink-3); border: 1.5px solid var(--color-line); box-shadow: none; }
+.tracker-cover-out .cover-art::after { display: none; }
+.tracker-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; color: var(--color-ink-2); }
+.tracker-filter .ui-toolbar { justify-content: flex-start; flex-wrap: wrap; gap: 10px; }
+.tracker-filter .ui-toolbar-search { flex: 1 1 220px; max-width: 320px; }
+.tracker-filter .ui-toolbar-controls { gap: 10px; overflow: visible; flex-wrap: wrap; }
+.tracker-filter-pills { display: flex; align-items: center; gap: 10px; }
+.tracker-filter-pills > * { flex-shrink: 0; }
+.tracker-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 24px; list-style: none; padding: 0; margin: 0; }
+.tracker-row { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 16px 0; border-bottom: 1px solid var(--color-line-hair); }
+.tracker-row > :first-child { flex: 0 0 var(--size-control); }
+.tracker-cover-link { display: block; text-decoration: none; }
+.tracker-row-info { min-width: 0; flex: 1; }
+.tracker-row-info .ui-menu { display: block; }
+.tracker-row-info .ui-menu-trigger { width: 100%; padding: 4px 6px; margin-left: -6px; }
+.tracker-title-block { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.tracker-title, .tracker-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tracker-title { font: 600 var(--text-title)/1.5 var(--font-display); }
+.tracker-meta { font: 400 var(--text-meta)/1.5 var(--font-sans); color: var(--color-ink-2); }
+.tracker-row-details { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-size: var(--text-min); color: var(--color-ink-3); font-variant-numeric: tabular-nums; }
+.tracker-stars { display: inline-flex; gap: 1px; color: var(--color-line-soft); font-size: var(--text-meta); }
+.tracker-star-filled, .tracker-rating .btn.tracker-star-filled { color: var(--color-accent); }
+.tracker-rating .btn.tracker-star-empty { color: var(--color-ink-3); }
+.tracker-menu-neutral .ui-menu-status { background: var(--color-control); color: var(--color-ink-3); }
+.tracker-editor > .dialog-body { display: flex; overflow: hidden; }
+.tracker-form { display: flex; flex-direction: column; width: 100%; min-height: 0; }
+.tracker-form-body { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 44px; overflow-y: auto; padding: 8px 8px 16px; }
+.tracker-form-cover { min-width: 0; padding-top: 8px; }
+.tracker-form-cover > a { display: flex; align-items: center; min-height: var(--size-control); margin-top: 14px; font-size: var(--text-control); text-decoration: none; }
+.tracker-form-fields { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.tracker-identity { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.tracker-form .field :is(input, textarea) { border: 0; background: var(--color-control); border-radius: var(--radius-field); font-size: var(--text-body); }
+.tracker-form .field input { border-radius: calc(var(--size-control) / 2); }
+.tracker-form .field textarea { font-family: var(--font-display); line-height: 1.8; }
+.tracker-form .field input[readonly] { background: transparent; padding-inline: 0; }
+.tracker-form .field input::placeholder, .tracker-form .field textarea::placeholder { color: var(--color-ink-3); }
+.tracker-hint { margin: -8px 0 0; color: var(--color-ink-3); font-size: var(--text-meta); }
+.tracker-duplicates { color: var(--color-ink-2); font-size: var(--text-control); }
+.tracker-duplicates :is(p, ul) { margin: 0; }
+.tracker-duplicates a { display: inline-flex; align-items: center; min-height: var(--size-control); }
+.tracker-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.tracker-form legend { padding: 0; margin-bottom: 10px; color: var(--color-ink-3); font-size: var(--text-meta); }
+.tracker-rating > div { display: flex; align-items: center; flex-wrap: wrap; }
+.tracker-rating .btn[aria-pressed] { width: var(--size-control); padding: 0; font-size: var(--text-heading); }
+.tracker-form-statuses { display: flex; flex-wrap: wrap; gap: 20px; }
+.tracker-form-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-shrink: 0; padding-top: 20px; }
+@media (max-width: 767px) {
+  .tracker-page .ui-page-intro { flex-direction: column; align-items: stretch; gap: var(--space-section); }
+  .tracker-page .ui-page-visual { display: block; flex: auto; width: 100%; max-width: none; }
+  .tracker-page .ui-page-visual:empty { display: none; }
+  .tracker-reading .ui-section-title { display: block; border: 0; padding: 0; margin-bottom: 14px; }
+  .tracker-reading-covers { gap: 14px; }
+  .tracker-reading-covers > :nth-child(n) { transform: none; margin: 0; }
+  .tracker-filter .ui-toolbar { align-items: stretch; }
+  .tracker-filter .ui-toolbar-search { flex: auto; max-width: none; }
+  .tracker-filter .ui-toolbar-controls { display: flex; flex-direction: column; align-items: stretch; gap: 10px; overflow: visible; }
+  .tracker-read-filter { display: flex; width: 100%; }
+  .tracker-read-filter > button { flex: 1; }
+  .tracker-filter-pills { overflow-x: auto; padding: 4px; margin: -4px; }
+  .tracker-list { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .tracker-row { padding: 12px 0; }
+  .tracker-row-info { display: flex; align-items: center; gap: 8px; }
+  .tracker-row-info .ui-menu { flex: 1; min-width: 0; }
+  .tracker-row-details { flex-shrink: 0; flex-direction: column; align-items: flex-end; margin: 0; }
+  .tracker-form-body { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 8px 4px 16px; }
+  .tracker-form-cover { width: 140px; margin: 0 auto; }
+  .tracker-form-fields { gap: 20px; }
+  .tracker-form-actions { padding-bottom: env(safe-area-inset-bottom); }
+  .tracker-form-actions > .btn-primary { flex: 1; }
+}

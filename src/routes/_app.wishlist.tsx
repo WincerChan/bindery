@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/solid-start";
 import { authenticated } from "../server/functions";
 import { authenticatedRoute } from "../server/http";
 import { TrackerPage } from "../features/catalog/tracker";
-import "../features/catalog/catalog.css";
+import "../features/catalog/tracker.css";
 
 const loadTracker = createServerFn({ method: "GET" }).middleware([authenticated])
   .validator((input: Record<string, string>) => input)

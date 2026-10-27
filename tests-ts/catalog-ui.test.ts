@@ -11,7 +11,7 @@ import { allByAttribute, allByRole, byAttribute, byLabel, byName, byRole, byText
 let ui: typeof import("./fixtures/catalog/ui-probe");
 const editor: EditorData = { id: "default", name: "默认规则", version: "1", description: "默认切章规则", raw: '{"name":"<script>"}', saved: false, error: null };
 const wish: TrackerItem = { id: "a".repeat(32), title: "书名<script>", author: "作者", library_book_id: "b".repeat(32), rating: 4, read: false, read_status: "reading", tags: ["科幻"], tags_text: "科幻", comment: "短评", book_status: "completed", created_at: "2026-04-01T10:00:00+00:00", updated_at: "2026-04-01T10:00:00+00:00", updated_at_display: "2026-04-01 10:00", read_status_label: "在读", book_status_label: "已完结", exists_in_library: true, exists_label: "已存在" };
-const tracker: TrackerPageData = { filters: { q: "科幻", read_filter: "all", library_filter: "all", book_status_filter: "all" }, stats: { total: 25, filtered: 25, read: 0, reading: 1, unread: 24, in_library: 1, out_library: 24 }, wishes: [wish], page: 2, total_pages: 2, current_url: "/tracker?q=科幻&page=2", export_url: "/tracker/export?q=科幻", duplicate_notice: wish };
+const tracker: TrackerPageData = { reading_now: [wish], filters: { q: "科幻", read_filter: "all", library_filter: "all", book_status_filter: "all" }, stats: { total: 25, filtered: 25, read: 0, reading: 1, unread: 24, in_library: 1, out_library: 24 }, wishes: [wish], page: 2, total_pages: 2, current_url: "/tracker?q=科幻&page=2", export_url: "/tracker/export?q=科幻", duplicate_notice: wish };
 beforeAll(async () => {
   const result = await build({ configFile: false, logLevel: "silent", plugins: [mutationPlugin(), solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/catalog/ui-probe.tsx") } });
   const outputs = Array.isArray(result) ? result : [result], entry = outputs.flatMap(o => "output" in o ? o.output : []).find(o => o.type === "chunk" && o.isEntry);
@@ -66,22 +66,50 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(filter.getAttribute("method")).toBe("get");
     for (const name of ["q", "read_filter", "library_filter", "book_status_filter"]) expect(byName(filter, name)).toBeDefined();
     expect(byRole(root, "link", "导出 CSV").getAttribute("href")).toBe(tracker.export_url);
-    for (const name of ["添加书籍", "编辑", "点此前往编辑该条目。"]) expect(byRole(root, "button", name)).toBeDefined();
-    expect(byText(root, "更新")).toBeDefined(); expect(byRole(byRole(root, "navigation", "分页"), "link", "上一页")).toBeDefined();
-    expect(byAttribute(root, "action", `/tracker/${wish.id}/delete`)).toBeDefined();
-    expect(byRole(root, "link", /书名<script>.*打开书库详情/).getAttribute("href")).toBe(`/book/${wish.library_book_id}?return_to=${encodeURIComponent(tracker.current_url)}`);
+    for (const name of ["添加书籍", "点此前往编辑该条目。"]) expect(byRole(root, "button", name)).toBeDefined();
+    expect(byRole(root, "heading", "正在读的有 1 本，还有 24 本在等你。")).toBeDefined();
+    expect(byRole(root, "group", "阅读状态")).toBeDefined();
+    expect(byRole(root, "combobox", "书库")).toBeDefined();
+    expect(byRole(root, "combobox", "连载")).toBeDefined();
+    const list = byRole(root, "list", "追踪列表");
+    expect(byRole(list, "button", /书名<script>.*作者/).getAttribute("aria-haspopup")).toBe("menu");
+    expect(byRole(list, "img", "4 星")).toBeDefined();
+    expect(byRole(byRole(root, "navigation", "分页"), "link", "上一页")).toBeDefined();
+    expect(byRole(list, "link", /打开《书名<script>》详情/).getAttribute("href")).toBe(`/book/${wish.library_book_id}?return_to=${encodeURIComponent(tracker.current_url)}`);
     expect(root.textContent).toContain("书名<script>"); expect(root.getElementsByTagName("script").length).toBe(0);
     expect(ui.tracker({ ...tracker, wishes: [] })).toContain("没有符合筛选条件的书籍。");
+  });
+  it("keeps library navigation conditional, exposes menu states, and handles the no-reading intro", () => {
+    const manual = { ...wish, id: "c".repeat(32), title: "未入库的书", library_book_id: null, exists_in_library: false, rating: null };
+    const root = parseHtml(ui.tracker({ ...tracker, wishes: [wish, manual] }));
+    const rows = allByRole(byRole(root, "list", "追踪列表"), "listitem");
+    expect(byRole(rows[0]!, "menuitem", "在书库中打开")).toBeDefined();
+    expect(allByRole(rows[1]!, "menuitem", "在书库中打开")).toHaveLength(0);
+    for (const row of rows) {
+      expect(byRole(row, "menuitem", "编辑追踪")).toBeDefined();
+      expect(byRole(row, "menuitem", "删除追踪")).toBeDefined();
+    }
+    expect(byRole(rows[1]!, "status").textContent).toBe("在读 · 未入库");
+    expect(allByRole(rows[1]!, "img", /星/)).toHaveLength(0);
+    const empty = parseHtml(ui.tracker({ ...tracker, reading_now: [], wishes: [], duplicate_notice: null, filters: { ...tracker.filters, q: "" }, stats: { ...tracker.stats, reading: 0, unread: 0, total: 0, filtered: 0, in_library: 0 } }));
+    expect(byRole(empty, "heading", "还有 0 本在等你。")).toBeDefined();
+    expect(allByRole(empty, "region", "正在读")).toHaveLength(0);
+    expect(empty.textContent).toContain("还没有追踪的书籍");
   });
   it("renders all tracker form fields, completed/unread defaults and immutable linked identity", () => {
     const html = ui.form();
     for (const field of ["title", "author", "tags", "rating", "comment", "library_book_id", "read_status", "book_status", "next"]) expect(byName(parseHtml(html), field)).toBeDefined();
     for (const label of ["书名", "作者", "状态", "评分", "阅读状态", "未读", "在读", "已读", "更新中", "已断更", "已完结"]) expect(html).toContain(label);
     const root = parseHtml(html);
-    for (const [name, value] of [["book_status", "completed"], ["read_status", "unread"]]) expect(byAttribute(byName(root, name!), "value", value).hasAttribute("selected")).toBe(true);
+    for (const [name, value] of [["book_status", "completed"], ["read_status", "unread"]]) expect(byName(root, name!).getAttribute("value")).toBe(value);
+    expect(byRole(byRole(root, "group", "阅读状态"), "button", "未读").getAttribute("aria-pressed")).toBe("true");
+    expect(byRole(byRole(root, "group", "连载状态"), "button", "已完结").getAttribute("aria-pressed")).toBe("true");
+    expect(byRole(root, "button", "保存").getAttribute("type")).toBe("submit");
     const linked = parseHtml(ui.form(wish)); expect(byAttribute(linked, "action", `/tracker/${wish.id}/update`)).toBeDefined();
     for (const name of ["title", "author"]) expect(byName(linked, name).hasAttribute("readonly")).toBe(true);
-    expect(linked.textContent).toContain("已入库条目的书名/作者由书库元数据维护");
+    expect(linked.textContent).toContain("书名和作者跟随书库");
+    expect(byRole(linked, "button", "4 星").getAttribute("aria-pressed")).toBe("true");
+    expect(byRole(linked, "button", "清除评分")).toBeDefined();
   });
 });
 describe("theme formatting and preview safety", () => {
