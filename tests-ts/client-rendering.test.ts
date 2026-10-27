@@ -26,6 +26,12 @@ const disposers: (() => void)[] = [];
 function browserGlobals() {
   const document = clientDocument(), body = document.createElement("body");
   document.addEventListener = vi.fn(); document.removeEventListener = vi.fn();
+  // Ingest's v2 covers include the shared inline progress-bar style.
+  const styles = new WeakMap<Element, Record<string, unknown>>();
+  Object.defineProperty(Object.getPrototypeOf(document.createElement("div")), "style", { configurable: true, get(this: Element) {
+    if (!styles.has(this)) styles.set(this, { setProperty(name: string, value: string) { (this as Record<string, unknown>)[name] = value; }, removeProperty(name: string) { delete (this as Record<string, unknown>)[name]; } });
+    return styles.get(this);
+  } });
   body.dispatchEvent = vi.fn(() => true); Object.defineProperty(document, "body", { configurable: true, value: body });
   vi.stubGlobal("document", document);
   vi.stubGlobal("self", globalThis);
@@ -195,7 +201,7 @@ it("polls only visible jobs, aborts stale requests and preserves the ingest form
   const mounted = mount("ingest", initial); await settle(); mounted.flush();
   expect(interval).not.toHaveBeenCalled();
   const trigger = () => elements(mounted.root, "button").find(el => el.getAttribute("aria-controls") === "jobs")!;
-  expect(trigger().textContent).toBe("最近任务 · 1");
+  expect(trigger().textContent).toBe("最近任务1 进行中");
   mounted.update({ ...initial, jobsOpen: true });
   expect(interval).toHaveBeenCalledWith(expect.any(Function), 5000);
   const form = elements(mounted.root, "form").find(el => el.getAttribute("action") === "/ingest")!, picker = elements(form, "input").find(el => el.getAttribute("type") === "file") as HTMLInputElement;
@@ -237,7 +243,7 @@ it.each([
   const node = root(await ssr.routedIngestMarkup(initial, entry));
   const trigger = elements(node, "button").find(el => el.getAttribute("aria-controls") === "jobs")!;
   const sheet = elements(node, "dialog").find(el => el.id === "jobs")!;
-  expect(trigger.textContent).toBe("最近任务 · 2"); expect(trigger.getAttribute("aria-expanded")).toBe(String(open));
+  expect(trigger.textContent).toBe("最近任务2 进行中"); expect(trigger.getAttribute("aria-expanded")).toBe(String(open));
   expect(sheet.getAttribute("data-state")).toBe(open ? "open" : "closed");
   expect(byRole(node, "dialog", "最近任务")).toBe(sheet);
 });
@@ -411,8 +417,8 @@ it("replaces jobs, tab counts and conditional retry/log controls for polling pay
   expect(elements(mounted.root, "form").map(el => el.getAttribute("action"))).toContain("/jobs/%E4%B9%99/retry");
   expect(allByRole(mounted.root, "button", "展开详细日志")).toHaveLength(1);
   mounted.update(jobs(["乙"], "success"));
-  expect(allByRole(mounted.root, "button", "展开详细日志")).toHaveLength(0);
-  expect(mounted.root.textContent).not.toContain("一键重试");
+  expect(allByRole(mounted.root, "button", "展开详细日志")).toHaveLength(1); // Technical metadata stays click-reachable even without a log.
+  expect(allByRole(mounted.root, "button", "重试《乙》")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("打开产物");
   mounted.update(jobs([])); expect(allByText(mounted.root, /^任务 ID：/)).toHaveLength(0);
 });
@@ -623,6 +629,7 @@ it.each([true, false])("ingest selection, drop, dedupe, removal and multipart su
   } });
   let version = 0, fail = false;
   const fetch = vi.fn(async (url: string, init: RequestInit) => {
+    if (url === "/ingest/first-page") return { ok: true, json: async () => ({ section_title: "第一章", volume_title: null, html: "<p>正文</p>" }) };
     const data = init.body as FormData;
     expect(init.method).toBe("POST"); expect(data).toBeInstanceOf(FormData);
     if (url === "/ingest") return new Response(null, { headers: { "HX-Redirect": `/ingest?jobs_tab=running&toast=${encodeURIComponent("已创建任务")}&toast_kind=success#jobs` } });
@@ -644,29 +651,37 @@ it.each([true, false])("ingest selection, drop, dedupe, removal and multipart su
   const choose = async (files: File[]) => { Object.defineProperty(picker, "files", { configurable: true, value: files }); fire(picker, "change"); await settle(); mounted.flush(); };
   const one = new File(["正文"], "one.txt");
   const openPicker = vi.fn(); picker.click = openPicker;
-  fire(byAttribute(node, "aria-label", "选择 TXT 或 EPUB 文件"), "keydown", { key: "Enter" }); expect(openPicker).toHaveBeenCalledOnce();
+  expect(byAttribute(node, "aria-label", "选择 TXT 或 EPUB 文件")).toBe(picker);
+  fire(byRole(node, "button", "添加书籍"), "click"); expect(openPicker).toHaveBeenCalledOnce();
   Object.defineProperty(picker, "files", { configurable: true, value: [one] }); fire(picker, "change"); mounted.flush();
   expect(button().hasAttribute("disabled")).toBe(true); expect(node.textContent).toContain("正在解析…");
-  await settle(); mounted.flush(); expect(button().textContent).toBe("开始入库 · 1 本"); expect(button().hasAttribute("disabled")).toBe(false); expect(node.textContent).toContain("已选 1 个文件");
+  await settle(); mounted.flush(); expect(button().textContent).toBe("开始入库1 本"); expect(button().hasAttribute("disabled")).toBe(false); expect(node.textContent).toContain("已选 1 个文件");
   const override = elements(node, "input").find(el => el.getAttribute("name") === "title") as HTMLInputElement;
   expect(override.value).toBe("书名"); override.value = "覆盖书名"; fire(override, "input"); mounted.flush();
   expect(elements(node, "input").some(el => el.getAttribute("name") === "author")).toBe(true);
   await choose([one]); expect(fetch).toHaveBeenCalledTimes(1); expect(override.value).toBe("覆盖书名");
-  const zone = byAttribute(node, "aria-label", "选择 TXT 或 EPUB 文件");
+  const zone = byAttribute(node, "action", "/ingest");
   const preventDefault = vi.fn();
   fire(zone, "dragover", { preventDefault }); mounted.flush(); expect(preventDefault).toHaveBeenCalledOnce();
   fire(zone, "dragleave", { relatedTarget: null }); mounted.flush();
   fire(zone, "drop", { dataTransfer: { files: [one, new File(["dup"], "dup.txt"), new File([""], "bad.txt"), new File(["no"], "image.png")] } });
   await settle(); mounted.flush();
-  expect(node.textContent).toContain("不支持的文件类型"); expect(node.textContent).toContain("已选 3 个文件"); expect(button().textContent).toBe("开始入库 · 2 本");
-  expect(node.textContent).toContain("1 本疑似重复：不勾选「仍然新建」将归入已有书籍"); expect(node.textContent).toContain("仍然新建一本"); expect(node.textContent).toContain("文本为空");
+  expect(node.textContent).toContain("不支持的文件类型"); expect(node.textContent).toContain("已选 3 个文件"); expect(button().textContent).toBe("开始入库2 本");
+  expect(node.textContent).toContain("1 本疑似重复：默认归入已有书籍"); expect(node.textContent).toContain("新建一本"); expect(node.textContent).toContain("文本为空");
   expect(elements(node, "input").filter(el => el.getAttribute("name") === "upload_tokens").map(el => (el as HTMLInputElement).value)).toEqual(["2-one.txt", "2-dup.txt"]);
   expect(elements(node, "input").some(el => el.getAttribute("name") === "title")).toBe(false);
   // Removal restages the remaining files; no removed/failed/obsolete token leaks.
   fire(elements(node, "button").find(el => el.getAttribute("aria-label") === "移除 one.txt")!, "click"); await settle(); mounted.flush();
   expect((fetch.mock.lastCall![1].body as FormData).getAll("files").map(file => (file as File).name)).toEqual(["dup.txt", "bad.txt"]);
-  expect(button().textContent).toBe("开始入库 · 1 本");
-  const keep = elements(node, "input").find(el => el.getAttribute("name") === "dedupe_keep_tokens") as HTMLInputElement; keep.checked = true;
+  expect(button().textContent).toBe("开始入库1 本");
+  const duplicate = byAttribute(node, "data-preview-filename", "dup.txt");
+  fire(allByRole(duplicate, "button", /查看《dup.txt》解析结果/)[0]!, "click"); mounted.flush();
+  const detail = byRole(duplicate, "dialog", "dup.txt") as HTMLDialogElement;
+  expect(detail.open).toBe(true);
+  fire(byRole(detail, "button", "新建一本"), "click"); mounted.flush();
+  expect(byRole(detail, "button", "新建一本").getAttribute("aria-pressed")).toBe("true");
+  expect(allByRole(duplicate, "button", "查看《dup.txt》解析结果（疑似重复，将新建一本）")).toHaveLength(2);
+  fire(byRole(detail, "button", "完成"), "click"); mounted.flush(); expect(detail.open).toBe(false);
   const form = elements(node, "form").find(el => el.getAttribute("action") === "/ingest")!;
   fire(form, "submit"); mounted.flush(); expect(button().hasAttribute("disabled")).toBe(true); expect(node.textContent).toContain("正在提交…"); await settle(); mounted.flush();
   const sent = fetch.mock.calls.find(([url]) => url === "/ingest")![1];
@@ -684,6 +699,15 @@ it.each([true, false])("ingest selection, drop, dedupe, removal and multipart su
   mounted.flush(); fire(form, "submit"); await settle(); mounted.flush();
   const last = fetch.mock.calls.filter(([url]) => url === "/ingest").at(-1)![1].body as FormData;
   expect(last.get("title")).toBe("覆盖标题"); expect(last.get("author")).toBe("覆盖作者"); expect(last.get("dedupe_mode")).toBe("keep"); expect(last.getAll("files")).toEqual([]);
+  // Invalid entries do not become the first staged book, even if the server
+  // attaches an unusable token to them. The real hero follows the next valid one.
+  await choose([new File([""], "bad.txt"), one]);
+  await vi.waitFor(() => { mounted.flush(); expect(byAttribute(node, "title", "《书名》第一页")).toBeDefined(); });
+  const firstPage = fetch.mock.calls.filter(([url]) => url === "/ingest/first-page").at(-1)![1];
+  expect(JSON.parse(firstPage.body as string)).toMatchObject({ upload_token: `${version}-one.txt`, rule_id: "default", theme_id: "default" });
+  fire(byRole(node, "button", "清空"), "click"); mounted.flush();
+  await choose([new File([""], "bad.txt")]);
+  expect(node.textContent).toContain("没有可预览的书籍"); expect(button().hasAttribute("disabled")).toBe(true);
 });
 
 it.each(["archive", "restore", "delete"] as const)("refreshes library %s through RPC without losing archived/search state", async action => {
@@ -727,7 +751,11 @@ it("refreshes retry/cleanup in the open sheet and Router-navigates shell, pagina
   const loads = mounted.ingestLoads();
   fire(elements(node, "form").find(el => el.getAttribute("action") === "/jobs/failed-job/retry")!, "submit");
   await vi.waitFor(() => { mounted.flush(); expect(node.textContent).toContain("retried"); }); expect(mounted.ingestLoads()).toBe(loads + 1);
-  fire(elements(node, "form").find(el => el.getAttribute("action") === "/jobs/cleanup-invalid")!, "submit");
+  fire(elements(node, "form").find(el => el.getAttribute("action") === "/jobs/cleanup-invalid")!, "submit"); mounted.flush();
+  expect(rpc).toHaveBeenCalledTimes(1); // Opening confirmation is not a mutation.
+  fire(byRole(node, "button", "取消"), "click"); mounted.flush(); expect(rpc).toHaveBeenCalledTimes(1);
+  fire(elements(node, "form").find(el => el.getAttribute("action") === "/jobs/cleanup-invalid")!, "submit"); mounted.flush();
+  fire(byRole(node, "button", "确认清空"), "click");
   await vi.waitFor(() => { mounted.flush(); expect(node.textContent).toContain("暂无任务"); });
   expect(rpc.mock.calls).toEqual([["retryJob", { data: "failed-job" }], ["cleanupInvalidJobs", { data: "failed" }]]); expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs"); expect((elements(node, "dialog").find(el => el.id === "jobs") as HTMLDialogElement).open).toBe(true);
   await click(css(node, "a", "nav-link").find(el => el.getAttribute("aria-label") === "书库")!); expect(mounted.href()).toBe("/");
@@ -748,7 +776,8 @@ it.each(["archive", "restore", "delete", "regenerate", "retry", "cleanup"])("Rou
   if (action === "regenerate") { fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush(); const all = elements(node, "input", "data-bulk-select-all")[0] as HTMLInputElement; all.checked = true; fire(all, "change"); mounted.flush(); fire(elements(node, "button").find(el => el.textContent === "重新生成")!, "click"); }
   else {
     const path = action === "retry" ? "/jobs/job/retry" : action === "cleanup" ? "/jobs/cleanup-invalid" : `/book/甲/${action}`;
-    fire(elements(node, "form").find(el => el.getAttribute("action") === path)!, "submit"); mounted.flush();
+    fire(elements(node, "form").find(el => el.getAttribute("action") === path)!, "submit");
+    if (action === "cleanup") { mounted.flush(); fire(byRole(node, "button", "确认清空"), "click"); } mounted.flush();
     if (action === "archive" || action === "delete") { const dialog = elements(node, "dialog").find(el => (el as HTMLDialogElement).open)!; fire(elements(dialog, "button").find(el => el.textContent === (action === "archive" ? "归档" : "彻底删除"))!, "click"); }
   }
   await vi.waitFor(() => { mounted.flush(); expect(mounted.href()).toBe(`/login?next=${encodeURIComponent(entry)}`); }); expect(location.assign).not.toHaveBeenCalled();

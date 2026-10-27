@@ -1,5 +1,7 @@
-import { createSignal, For, onCleanup, Show, untrack } from "solid-js";
-import { Button, Select, Textarea, TextField, PageHeader } from "../../ui";
+import { createSignal, onCleanup, onSettled, Show, untrack } from "solid-js";
+import type { JSX } from "@solidjs/web";
+import { Button, PageIntro, SelectPill, Textarea, TextField, ToggleChip, Toolbar } from "../../ui";
+import { IngestFirstPage } from "./local-first-page";
 import { useMutation } from "../../shared/client-mutation";
 import { flashFromUrl } from "../../shared/notifications";
 import { showToast } from "../../client/toast";
@@ -17,10 +19,14 @@ export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; e
   const [title, setTitle] = createSignal(""), [author, setAuthor] = createSignal(""), [theme, setTheme] = createSignal("default"), [css, setCss] = createSignal(untrack(() => props.custom_css || ""));
   // Jobs loader refreshes must not replace build settings or the selected files.
   const options = untrack(() => props.options);
+  const [rule, setRule] = createSignal(options.rules[0]?.rule_id || "default");
+  const [cssOpen, setCssOpen] = createSignal(untrack(() => !!props.custom_css)), [enhanced, setEnhanced] = createSignal(false);
+  onSettled(() => { setEnhanced(true); });
   const valid = () => previews().filter(item => !item.error && item.upload_token);
   const duplicates = () => valid().filter(item => item.duplicates.length).length;
+  const firstBook = () => valid()[0];
   const disabled = () => !valid().length || busy() || submitting() || parseFailed();
-  const status = () => submitting() ? "正在提交…" : busy() ? "正在解析…" : !files().length ? "先选择文件" : parseFailed() ? "解析失败，请重新解析" : duplicates() ? `${duplicates()} 本疑似重复：不勾选「仍然新建」将归入已有书籍` : valid().length ? `已就绪 · ${valid().length} 本可入库` : "没有可入库的文件，请移除错误项或重新选择";
+  const status = () => submitting() ? "正在提交…" : busy() ? "正在解析…" : !files().length ? "先选择文件" : parseFailed() ? "解析失败，请重新解析" : duplicates() ? `${duplicates()} 本疑似重复：默认归入已有书籍，可点开书籍选择「新建一本」` : valid().length ? `已就绪 · ${valid().length} 本可入库` : "没有可入库的文件，请移除错误项或重新选择";
   let form!: HTMLFormElement, input!: HTMLInputElement, controller: AbortController | undefined;
   onCleanup(() => controller?.abort());
   function clear() {
@@ -84,32 +90,25 @@ export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; e
     } catch (e) { setError(e instanceof Error ? e.message : "入库失败，请稍后重试。"); }
     finally { setSubmitting(false); }
   }
-  return <div class="ingest-page"><PageHeader title="入库" actions={<Show when={props.jobs}>{jobs => <RecentJobs data={jobs()} open={!!props.jobsOpen} onOpen={() => props.openJobs?.()} onClose={() => props.closeJobs?.()} />}</Show>} />
-    <form ref={form} action="/ingest" method="post" enctype="multipart/form-data" onSubmit={submit} class="ingest-layout">
-      <input type="hidden" name="dedupe_mode" value={duplicates() ? "normalize" : "keep"} />
-      <div class="ingest-files">
-        <Show when={files().length}><div class="ingest-selected-heading"><h2>已选 {files().length} 个文件</h2><Button variant="quiet" disabled={submitting()} onClick={clear}>清空</Button></div></Show>
-        <label class={`ingest-dropzone ${files().length ? "is-compact" : ""} ${dragging() ? "is-dragging" : ""}`} tabindex={0} aria-label="选择 TXT 或 EPUB 文件" aria-disabled={submitting() ? "true" : undefined}
-          onKeyDown={event => { if ((event.key === "Enter" || event.key === " ") && !submitting()) { event.preventDefault(); input.click(); } }}
-          onDragOver={event => { event.preventDefault(); if (!submitting()) setDragging(true); }}
-          onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
-          onDrop={event => { event.preventDefault(); setDragging(false); add(Array.from(event.dataTransfer?.files || [])); }}>
-          <input ref={input} class="ingest-file-input" type="file" name="files" accept=".txt,.epub" multiple disabled={submitting()} tabindex={-1} onChange={() => { add(Array.from(input.files || [])); input.value = ""; }} />
-          <Show when={!files().length} fallback={<span>继续添加，或拖入更多文件</span>}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6" stroke="currentColor" stroke-width="1.5" /></svg><span>把文件拖到这里，或 <strong>选择文件</strong></span><small class="muted">支持 .txt / .epub，可多选</small></Show>
-        </label>
-        <Show when={!files().length}><p class="muted ingest-dropzone-hint">选择文件后自动解析书名、作者和目录，确认无误再入库。</p></Show>
-        <Show when={fileError()}><p role="alert" class="field-error">{fileError()}</p></Show>
-        <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
-        <Show when={parseFailed()}><Button variant="secondary" onClick={() => void preview()} disabled={busy() || submitting()}>重新解析</Button></Show>
-        <Show when={busy()}><p class="muted">正在解析…</p></Show>
-        <div id="ingest-preview"><UploadPreviews previews={previews()} onRemove={remove} disabled={submitting()} override={previews().length === 1 && previews()[0]?.format === "TXT" ? <div class="ingest-fields"><TextField name="title" label="书名（TXT 可选覆盖）" value={title()} disabled={submitting()} onInput={e => setTitle(e.currentTarget.value)} /><TextField name="author" label="作者（TXT 可选覆盖）" value={author()} disabled={submitting()} onInput={e => setAuthor(e.currentTarget.value)} /></div> : undefined} /></div>
-      </div>
-      <section class="ingest-settings"><h2>构建设置</h2><div class="ingest-setting-fields">
-        <Select name="rule_template" label="切章规则（仅 TXT）" disabled={submitting()} onChange={() => { if (files().length) void preview(); }} hint="用于 TXT 切章；EPUB 入库会忽略。"><For each={options.rules}>{rule => <option value={rule.rule_id}>{rule.name} · v{rule.version}</option>}</For></Select>
-        <Select name="theme_template" label="渲染主题" disabled={submitting()} value={theme()} onChange={e => setTheme(e.currentTarget.value)} hint="主题 CSS 会作为最后一层追加；本书 CSS 优先生效。"><For each={options.themes}>{theme => <option value={theme.theme_id}>{theme.name} · v{theme.version}</option>}</For><option value="__book__">保持书籍样式（仅 EPUB）</option></Select>
-      </div><details><summary>高级：追加本批书籍的 CSS</summary><Button variant="quiet" size="sm" disabled={submitting()} onClick={() => setCss(formatCss(css()))}>格式化</Button><Textarea name="custom_css" label="本书 CSS" disabled={submitting()} rows={8} value={css()} onInput={event => setCss(event.currentTarget.value)} hint="这段 CSS 会追加在主题之后，优先生效。" /></details>
-        <div class="ingest-submit"><Button type="submit" disabled={disabled()}>{submitting() ? "入库中…" : files().length ? `开始入库 · ${valid().length} 本` : "开始入库"}</Button><p role="status" aria-live="polite">{status()}</p></div>
-      </section>
-    </form>
-  </div>;
+  const content = (jobsTrigger?: JSX.Element) => <form ref={form} action="/ingest" method="post" enctype="multipart/form-data" onSubmit={submit} data-enhanced={enhanced() ? "true" : "false"} class={`ingest-layout ${dragging() ? "is-dragging" : ""}`}
+    onDragOver={event => { event.preventDefault(); if (!submitting()) setDragging(true); }}
+    onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
+    onDrop={event => { event.preventDefault(); setDragging(false); add(Array.from(event.dataTransfer?.files || [])); }}>
+    <input type="hidden" name="dedupe_mode" value={duplicates() ? "normalize" : "keep"} />
+    <PageIntro eyebrow={files().length ? `入库 · 已选 ${files().length} 个文件` : "入库"} title={files().length ? <>这次放进书库的，<br />是下面这几本。</> : "把书放进来。"}
+      description={files().length ? "这是按当前主题排出的第一页，换规则或主题会跟着变。" : "拖到这一页任何地方，或选择文件。支持 TXT 和 EPUB，可多选。"}
+      actions={<label class="btn btn-primary btn-lg ingest-picker" aria-disabled={submitting() ? "true" : undefined}><span>{files().length ? "继续添加文件" : "选择文件"}</span><input ref={input} class="ingest-file-input" aria-label="选择 TXT 或 EPUB 文件" type="file" name="files" accept=".txt,.epub" multiple disabled={submitting()} onChange={() => { add(Array.from(input.files || [])); input.value = ""; }} /></label>}
+      visual={<Show when={files().length}><IngestFirstPage token={firstBook()?.upload_token} title={firstBook()?.title || firstBook()?.filename || ""} rule={rule()} theme={theme()} unavailable={!busy() && !!previews().length && !valid().length} /></Show>} />
+    <div class="ingest-toolbar-row"><Toolbar label="构建设置"><SelectPill name="rule_template" label="切章" value={rule()} disabled={submitting()} options={options.rules.map(rule => ({ value: rule.rule_id, label: `${rule.name} · v${rule.version}` }))} onChange={value => { setRule(value); if (files().length) void preview(); }} /><SelectPill name="theme_template" label="主题" value={theme()} disabled={submitting()} options={[...options.themes.map(theme => ({ value: theme.theme_id, label: `${theme.name} · v${theme.version}` })), { value: "__book__", label: "保持书籍样式（仅 EPUB）" }]} onChange={setTheme} /><ToggleChip selected={cssOpen()} aria-label="追加本批 CSS" aria-expanded={cssOpen() ? "true" : "false"} aria-controls="ingest-css" onClick={() => setCssOpen(!cssOpen())}>CSS</ToggleChip></Toolbar>{jobsTrigger}</div>
+    <details id="ingest-css" class="ingest-css" open={cssOpen()} onToggle={event => setCssOpen(event.currentTarget.open)}><summary>高级：追加本批书籍的 CSS</summary><p>切章规则仅用于 TXT；EPUB 保留原目录。主题之后会追加本书 CSS。</p><Button variant="quiet" disabled={submitting()} onClick={() => setCss(formatCss(css()))}>格式化</Button><Textarea name="custom_css" label="本书 CSS" disabled={submitting()} rows={8} value={css()} onInput={event => setCss(event.currentTarget.value)} hint="这段 CSS 会追加在主题之后，优先生效。第一页预览暂不包含本批追加的 CSS。" /></details>
+    <Show when={fileError()}><p role="alert" class="field-error">{fileError()}</p></Show>
+    <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
+    <Show when={parseFailed()}><Button variant="secondary" onClick={() => void preview()} disabled={busy() || submitting()}>重新解析</Button></Show>
+    <Show when={busy()}><p class="ingest-status">正在解析…</p></Show>
+    <div id="ingest-preview"><UploadPreviews previews={previews()} onRemove={remove} onAdd={() => input.click()} disabled={submitting()} override={previews().length === 1 && previews()[0]?.format === "TXT" ? <div class="ingest-fields"><TextField name="title" label="书名（TXT 可选覆盖）" value={title()} disabled={submitting()} onInput={e => setTitle(e.currentTarget.value)} /><TextField name="author" label="作者（TXT 可选覆盖）" value={author()} disabled={submitting()} onInput={e => setAuthor(e.currentTarget.value)} /></div> : undefined} /></div>
+    <p class="ingest-status" role="status" aria-live="polite">{status()}</p>
+    <div class="ingest-submit" data-active={files().length ? "true" : "false"}><Button variant="quiet" disabled={submitting() || !files().length} onClick={clear}>清空</Button><Button type="submit" size="lg" count={files().length ? `${valid().length} 本` : undefined} disabled={enhanced() && disabled()}>{submitting() ? "入库中…" : "开始入库"}</Button></div>
+  </form>;
+  // The jobs sheet owns retry/cleanup forms; keep it outside the multipart form.
+  return <div class="ingest-page"><Show when={props.jobs} fallback={content()}>{jobs => <RecentJobs data={jobs()} open={!!props.jobsOpen} onOpen={() => props.openJobs?.()} onClose={() => props.closeJobs?.()} layout={(trigger, sheet) => <>{content(trigger)}{sheet}</>} />}</Show></div>;
 }
