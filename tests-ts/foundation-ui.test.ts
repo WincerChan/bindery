@@ -4,6 +4,7 @@ import solid from "vite-plugin-solid";
 import { resolve } from "node:path";
 import { navigation, navActive, phoneNavigation, settingsLink } from "../src/shell/navigation";
 import { flashFromUrl, toastMessage, withToast } from "../src/shared/notifications";
+import { byAttribute, byRole, parseHtml } from "./support/queries";
 import { installToastBridge } from "../src/client/toast";
 
 let ui: typeof import("./support/ui-probe");
@@ -72,6 +73,20 @@ describe("reusable UI SSR", () => {
 });
 
 describe("navigation and global flash messages", () => {
+  it("renders the settings directory with independent themes and live status lines", () => {
+    const root = parseHtml(ui.settings({
+      rules: { count: 3, recently_modified: { id: "web", name: "网文格式" } },
+      themes: { count: 2, ingest_default: { id: "default", name: "默认", version: "2" } },
+      security: { passkey_count: 2, last_used_at: "2026-10-26T11:58:00Z" }, lexitrace: { configured: true, enabled: true },
+    }));
+    expect(byRole(root, "heading", "设置")).toBeDefined();
+    expect(byRole(root, "link", /切章规则/).getAttribute("href")).toBe("/rules");
+    expect(byRole(root, "link", /^主题/).getAttribute("href")).toBe("/themes");
+    expect(byRole(root, "link", /^安全/).getAttribute("href")).toBe("/security");
+    for (const copy of ["3 条 · 最近改过「网文格式」", "2 个 · 入库默认用「默认 v2」", "2 分钟前用过", "手机浏览器连不上阅读器", "安装应用"]) expect(root.textContent).toContain(copy);
+    expect(byAttribute(root, "action", "/logout").getAttribute("method")).toBe("post");
+    expect(byRole(root, "button", "退出登录").getAttribute("type")).toBe("submit");
+  });
   it("uses five rail destinations, a settings link and five phone tabs without devices", () => {
     expect(navigation.map(n => n.label)).toEqual(["书库", "入库", "追踪", "生词本", "设备"]);
     expect(settingsLink).toMatchObject({ href: "/settings", label: "设置" });
@@ -84,7 +99,7 @@ describe("navigation and global flash messages", () => {
       "/ingest": ["/ingest", "/jobs"],
       "/tracker": ["/tracker", "/wishlist", "/wishlist/export"],
       "/vocabulary": ["/vocabulary", "/vocabulary?settings=lexitrace", "/devices/vocabulary/"],
-      "/settings": ["/settings", "/settings/profile", "/rules?tab=themes", "/rules/x/editor", "/themes/x/editor", "/security"],
+      "/settings": ["/settings", "/settings/profile", "/rules?tab=themes", "/themes", "/rules/x/editor", "/themes/x/editor", "/security"],
       "/devices": ["/devices", "/devices/connect", "/devices/fonts", "/kindle/preview"],
     };
     for (const [href, paths] of Object.entries(groups)) for (const path of paths) {

@@ -1,7 +1,7 @@
 import type { ApiContext } from "../http";
 import { HttpError } from "../http";
 import { redirect } from "../auth-http";
-import { deleteTemplate, newTemplate, saveRule, saveTheme, testRule } from "./templates";
+import { deleteTemplate, nameTemplate, newTemplate, saveRule, saveTheme, testRule } from "./templates";
 import { duplicateCheck, removeTracker, trackerCsv, writeTracker } from "./tracker";
 
 async function fields(request: Request) {
@@ -17,8 +17,12 @@ function templateRedirect(request: Request, target: string) {
 export const createTemplateHandler = (kind: "rules" | "themes") => ({ request }: ApiContext<unknown>) => templateRedirect(request, newTemplate(kind));
 export const deleteTemplateHandler = (kind: "rules" | "themes") => ({ request, params, library }: ApiContext<{ rule_id?: string; theme_id?: string }>) => templateRedirect(request, deleteTemplate(kind, (kind === "rules" ? params.rule_id : params.theme_id)!, library));
 export const saveEditorHandler = (kind: "rules" | "themes") => async ({ request, params }: ApiContext<{ rule_id?: string; theme_id?: string }>) => {
-  const body = await fields(request), data = kind === "rules" ? saveRule(params.rule_id!, body.config_json || "") : saveTheme(params.theme_id!, body.css || "");
+  const body = await fields(request), id = (kind === "rules" ? params.rule_id : params.theme_id)!, raw = (kind === "rules" ? body.config_json : body.css) || "";
+  const data = body.operation === "rename" || body.operation === "copy"
+    ? nameTemplate(kind, id, raw, body.name || "", body.operation)
+    : { ...(kind === "rules" ? saveRule(id, raw) : saveTheme(id, raw)), target: undefined };
   if (wantsJson(request)) return Response.json(data);
+  if (data.target) return templateRedirect(request, data.target);
   const { editorResponse } = await import("./responses");
   return editorResponse(data, kind);
 };

@@ -1,0 +1,28 @@
+.settings-security { display: grid; gap: 16px; min-width: 0; }
+.settings-security > .ui-back-link { justify-self: start; }
+.settings-security-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 32px 40px; align-items: start; }
+.settings-security .ui-page-intro { margin: 0; flex-direction: column; align-items: start; gap: 24px; }
+.settings-security .ui-page-eyebrow:empty { display: none; }
+.settings-security-keys { grid-column: 2; grid-row: 1 / span 2; padding-left: 32px; border-left: 1px solid var(--color-line-soft); }
+.settings-security-keys > .notice:first-child { margin-top: 0; }
+.settings-security-key { padding: 20px 16px; border-radius: var(--radius-menu); border-bottom: 1px solid var(--color-line-hair); }
+.settings-security-key:hover { background: var(--color-hover); }
+.settings-security-key h3 { margin: 0 0 6px; font: 600 var(--text-title)/1.5 var(--font-display); overflow-wrap: anywhere; }
+.settings-security-key p { margin: 0 0 16px; color: var(--color-ink-3); font-size: var(--text-meta); line-height: 1.7; }
+.settings-security-rename { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.settings-security-rename label { flex: 1; min-width: min(100%, 160px); }
+.settings-security-key > form:last-child { margin-top: 8px; }
+.settings-security input { border-radius: 999px; background: var(--color-control); border-color: transparent; }
+.settings-security label { color: var(--color-ink-3); font-size: var(--text-control); }
+.settings-security-password { margin-top: 32px; }
+.settings-security-enroll { grid-column: 1; min-width: 0; }
+.settings-security .ui-section-title { margin-top: 0; }
+.settings-security .form-stack { margin-top: 16px; }
+.settings-security .muted { font-size: var(--text-meta); }
+@media (max-width: 767px) {
+  .settings-security-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .settings-security-keys { grid-column: 1; grid-row: auto; padding: 0; border: 0; }
+  .settings-security-key { padding: 16px 0; }
+  .settings-security-enroll { grid-row: 2; }
+  .settings-security .ui-page-actions > .btn { width: 100%; }
+}

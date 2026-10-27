@@ -51,6 +51,7 @@ import { Route as AppKindleConnectRouteImport } from './routes/_app.kindle.conne
 import { Route as AppKindleFontsRouteImport } from './routes/_app.kindle.fonts'
 import { Route as AppKindlePreviewRouteImport } from './routes/_app.kindle.preview'
 import { Route as AppKindleTransferRouteImport } from './routes/_app.kindle.transfer'
+import { Route as AppThemesIndexRouteImport } from './routes/_app.themes.index'
 import { Route as BookBook_idArchiveRouteImport } from './routes/book.$book_id.archive'
 import { Route as BookBook_idCoverRouteImport } from './routes/book.$book_id.cover'
 import { Route as BookBook_idDeleteRouteImport } from './routes/book.$book_id.delete'
@@ -289,6 +290,11 @@ const AppKindleTransferRoute = AppKindleTransferRouteImport.update({
   path: '/transfer',
   getParentRoute: () => AppKindleRoute,
 } as any)
+const AppThemesIndexRoute = AppThemesIndexRouteImport.update({
+  id: '/themes/',
+  path: '/themes/',
+  getParentRoute: () => AppRoute,
+} as any)
 const BookBook_idArchiveRoute = BookBook_idArchiveRouteImport.update({
   id: '/book/$book_id/archive',
   path: '/book/$book_id/archive',
@@ -492,6 +498,7 @@ export interface FileRoutesByFullPath {
   '/wishlist/$wish_id/update': typeof WishlistWish_idUpdateRoute
   '/devices/': typeof AppDevicesIndexRoute
   '/kindle/': typeof AppKindleIndexRoute
+  '/themes/': typeof AppThemesIndexRoute
   '/book/$book_id/edit': typeof AppBookBook_idEditRoute
   '/book/$book_id/preview': typeof AppBookBook_idPreviewRoute
   '/rules/$rule_id/editor': typeof AppRulesRule_idEditorRoute
@@ -561,6 +568,7 @@ export interface FileRoutesByTo {
   '/wishlist/$wish_id/update': typeof WishlistWish_idUpdateRoute
   '/devices': typeof AppDevicesIndexRoute
   '/kindle': typeof AppKindleIndexRoute
+  '/themes': typeof AppThemesIndexRoute
   '/book/$book_id/edit': typeof AppBookBook_idEditRoute
   '/book/$book_id/preview': typeof AppBookBook_idPreviewRoute
   '/rules/$rule_id/editor': typeof AppRulesRule_idEditorRoute
@@ -634,6 +642,7 @@ export interface FileRoutesById {
   '/wishlist/$wish_id/update': typeof WishlistWish_idUpdateRoute
   '/_app/devices/': typeof AppDevicesIndexRoute
   '/_app/kindle/': typeof AppKindleIndexRoute
+  '/_app/themes/': typeof AppThemesIndexRoute
   '/_app/book/$book_id_/edit': typeof AppBookBook_idEditRoute
   '/_app/book/$book_id_/preview': typeof AppBookBook_idPreviewRoute
   '/_app/rules_/$rule_id/editor': typeof AppRulesRule_idEditorRoute
@@ -707,6 +716,7 @@ export interface FileRouteTypes {
     | '/wishlist/$wish_id/update'
     | '/devices/'
     | '/kindle/'
+    | '/themes/'
     | '/book/$book_id/edit'
     | '/book/$book_id/preview'
     | '/rules/$rule_id/editor'
@@ -776,6 +786,7 @@ export interface FileRouteTypes {
     | '/wishlist/$wish_id/update'
     | '/devices'
     | '/kindle'
+    | '/themes'
     | '/book/$book_id/edit'
     | '/book/$book_id/preview'
     | '/rules/$rule_id/editor'
@@ -848,6 +859,7 @@ export interface FileRouteTypes {
     | '/wishlist/$wish_id/update'
     | '/_app/devices/'
     | '/_app/kindle/'
+    | '/_app/themes/'
     | '/_app/book/$book_id_/edit'
     | '/_app/book/$book_id_/preview'
     | '/_app/rules_/$rule_id/editor'
@@ -1199,6 +1211,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AppKindleTransferRouteImport
       parentRoute: typeof AppKindleRoute
     }
+    '/_app/themes/': {
+      id: '/_app/themes/'
+      path: '/themes'
+      fullPath: '/themes/'
+      preLoaderRoute: typeof AppThemesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/book/$book_id/archive': {
       id: '/book/$book_id/archive'
       path: '/book/$book_id/archive'
@@ -1454,6 +1473,7 @@ interface AppRouteChildren {
   AppWishlistRoute: typeof AppWishlistRoute
   AppIndexRoute: typeof AppIndexRoute
   AppBookBook_idRoute: typeof AppBookBook_idRoute
+  AppThemesIndexRoute: typeof AppThemesIndexRoute
   AppBookBook_idEditRoute: typeof AppBookBook_idEditRoute
   AppBookBook_idPreviewRoute: typeof AppBookBook_idPreviewRoute
   AppRulesRule_idEditorRoute: typeof AppRulesRule_idEditorRoute
@@ -1475,6 +1495,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppWishlistRoute: AppWishlistRoute,
   AppIndexRoute: AppIndexRoute,
   AppBookBook_idRoute: AppBookBook_idRoute,
+  AppThemesIndexRoute: AppThemesIndexRoute,
   AppBookBook_idEditRoute: AppBookBook_idEditRoute,
   AppBookBook_idPreviewRoute: AppBookBook_idPreviewRoute,
   AppRulesRule_idEditorRoute: AppRulesRule_idEditorRoute,

@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { build } from "vite";
 import solid from "vite-plugin-solid";
 import { resolve } from "node:path";
-import { allByRole, byName, byRole, formFor, parseHtml } from "./support/queries";
+import { allByRole, byAttribute, byName, byRole, formFor, parseHtml } from "./support/queries";
 let ui: typeof import("./fixtures/auth/ui-probe");
 beforeAll(async () => {
   const result = await build({
@@ -12,6 +12,30 @@ beforeAll(async () => {
   const entry = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);
   if (!entry || entry.type !== "chunk") throw new Error("Missing login UI SSR bundle");
   ui = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(entry.code).toString("base64"));
+});
+describe("security settings SSR", () => {
+  it("provides settings navigation, passkey metadata and protected management forms", () => {
+    const root = parseHtml(ui.security({ passkey_configured: true, toast: null, passkeys: [
+      { credential_id: "synced", name: "我的电脑", device_type: "multi_device", backed_up: 1, created_at: "2025-10-01T00:00:00Z", last_used_at: "2025-10-20T00:00:00Z" },
+      { credential_id: "local", name: "备用密钥", device_type: "single_device", backed_up: 0, created_at: "2025-09-01T00:00:00Z", last_used_at: null },
+    ] }));
+    expect(byRole(root, "link", "设置").getAttribute("href")).toBe("/settings");
+    expect(byRole(root, "heading", "安全")).toBeDefined();
+    expect(byRole(root, "heading", "我的电脑")).toBeDefined();
+    expect(root.textContent).toContain("已同步 · 创建 2025-10-01 · 最近使用 2025-10-20");
+    expect(root.textContent).toContain("仅此设备 · 创建 2025-09-01 · 最近使用 从未");
+    expect(allByRole(root, "button", "重命名")).toHaveLength(2);
+    expect(byAttribute(root, "action", "/security/passkeys/local/delete").getAttribute("method")).toBe("post");
+    expect(byRole(root, "button", "删除通行密钥 备用密钥")).toBeDefined();
+    expect(byRole(root, "button", "添加通行密钥")).toBeDefined();
+    expect(root.textContent).toContain("BINDERY_PASSWORD_HASH");
+  });
+  it("keeps empty and unavailable states explicit without offering unsupported enrollment", () => {
+    const root = parseHtml(ui.security({ passkey_configured: false, toast: null, passkeys: [] }));
+    expect(root.textContent).toContain("还没有通行密钥");
+    expect(root.textContent).toContain("BINDERY_PUBLIC_ORIGIN");
+    expect(byRole(root, "button", "添加通行密钥").hasAttribute("disabled")).toBe(true);
+  });
 });
 describe("passkey-first login SSR", () => {
   it("offers passkey login first and a password disclosure for progressive enhancement", () => {

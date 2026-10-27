@@ -6,15 +6,14 @@ import { Show } from "solid-js";
 import { createServerFn } from "@tanstack/solid-start";
 import { authenticated } from "../server/functions";
 import { authenticatedRoute } from "../server/http";
-import { Editor } from "../features/catalog/editors";
-import { Link } from "../shared/spa-link";
-import "../features/catalog/catalog.css";
+import { RulesPage } from "../features/catalog/rules";
 
 const loadEditor = createServerFn({ method: "GET" }).middleware([authenticated])
   .validator((input: string) => input)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const catalog = await import("../server/catalog/templates");
-    return catalog.themeEditor(data);
+    catalog.themeEditor(data);
+    return catalog.catalogPage({ tab: "themes", theme_id: data }, context.library);
   });
 export const Route = createFileRoute("/_app/themes/$theme_id/editor")({
   pendingComponent: EditorSkeleton,
@@ -24,5 +23,5 @@ export const Route = createFileRoute("/_app/themes/$theme_id/editor")({
   component: Page,
   notFoundComponent: NotFoundPage,
 });
-function Page() { const data = Route.useLoaderData(); return <div class="catalog-page"><p><Link href="/rules?tab=themes">← 规则与主题</Link></p><Show when={data()} keyed>{editor => <Editor kind="themes" data={editor} />}</Show></div>; }
+function Page() { const data = Route.useLoaderData(); return <Show when={data()} keyed>{page => <RulesPage data={page} />}</Show>; }
 

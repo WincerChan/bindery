@@ -106,7 +106,7 @@ try {
   assert.match(settingsHtml, /0 个通行密钥 · 尚未使用/);
   assert.match(settingsHtml, /未配置 · 连接后可自动推送生词/);
   assert.match(settingsHtml, /action="\/logout" method="post"/);
-  assert.match(settingsHtml, /href="\/rules\?tab=themes"/);
+  assert.match(settingsHtml, /href="\/themes"/);
   assert.match(settingsHtml, /href="\/vocabulary\?settings=lexitrace#lexitrace-settings"/);
   const vocabularyPage = await get("/vocabulary?settings=lexitrace", cookie);
   assert.equal(vocabularyPage.status, 200);

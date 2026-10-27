@@ -24,10 +24,11 @@ export const removeTemplate = createServerFn({ method: "POST" }).middleware([aut
     return { target };
   });
 export const saveTemplate = createServerFn({ method: "POST" }).middleware([authenticated])
-  .validator((data: { kind: "rules" | "themes"; id: string; raw: string }) => ({ kind: templateKind(data.kind), id: templateId(data.id), raw: fieldsInput({ raw: data.raw }).raw! }))
+  .validator((data: { kind: "rules" | "themes"; id: string; raw: string; name?: string; operation?: "rename" | "copy" }) => ({ kind: templateKind(data.kind), id: templateId(data.id), raw: fieldsInput({ raw: data.raw }).raw!, name: fieldsInput({ name: data.name ?? "" }).name!, operation: data.operation === "rename" || data.operation === "copy" ? data.operation : undefined }))
   .handler(async ({ data }) => {
     const service = await import("../../server/catalog/templates");
-    return data.kind === "rules" ? service.saveRule(data.id, data.raw) : service.saveTheme(data.id, data.raw);
+    if (data.operation) return service.nameTemplate(data.kind, data.id, data.raw, data.name, data.operation);
+    return { ...(data.kind === "rules" ? service.saveRule(data.id, data.raw) : service.saveTheme(data.id, data.raw)), target: undefined };
   });
 export const testTemplate = createServerFn({ method: "POST" }).middleware([authenticated])
   .validator((data: { id: string; sample: string }) => ({ id: templateId(data.id), sample: fieldsInput({ sample: data.sample }).sample! }))

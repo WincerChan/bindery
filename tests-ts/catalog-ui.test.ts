@@ -5,6 +5,7 @@ import { mutationPlugin } from "./support/mutation-plugin";
 import { resolve } from "node:path";
 import type { EditorData } from "../src/server/catalog/templates";
 import type { TrackerItem, TrackerPageData } from "../src/server/catalog/tracker";
+import { legacyThemeRedirect, legacyThemeTarget } from "../src/features/catalog/settings-redirects";
 import { formatCssText, themePreviewDocument } from "../src/features/catalog/client";
 
 import { allByAttribute, allByRole, byAttribute, byLabel, byName, byRole, byText, parseHtml } from "./support/queries";
@@ -29,9 +30,10 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(allByAttribute(root, "action", "/rules/default/delete")).toHaveLength(0);
     expect(byName(root, "config_json").textContent).toContain("<script>"); expect(root.getElementsByTagName("script").length).toBe(0);
     expect(byLabel(root, "规则 JSON")).toBe(byName(root, "config_json"));
-    expect(byLabel(root, "试切")).toBe(byName(root, "sample"));
+    expect(byLabel(root, "测试文本")).toBe(byName(root, "sample"));
     expect(byRole(root, "button", "保存").getAttribute("type")).toBe("submit");
-    expect(byRole(root, "button", "保存").hasAttribute("disabled")).toBe(true);
+    // A server-rendered form must remain submittable before hydration / without JavaScript.
+    expect(byRole(root, "button", "保存").hasAttribute("disabled")).toBe(false);
   });
   it("renders theme formatting and an isolated preview with a descriptive title", () => {
     const html = ui.editor({ ...editor, raw: "p{color:red}" }, "themes");
@@ -50,9 +52,33 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(byAttribute(root, "action", "/rules/new")).toBeDefined();
     const rebuild = byAttribute(root, "action", "/books/regenerate");
     expect(byName(rebuild, "scope").getAttribute("value")).toBe("parsing"); expect(byName(rebuild, "template_id").getAttribute("value")).toBe("default");
-    expect(byRole(byRole(root, "navigation", "模板类型"), "link", "切章规则").getAttribute("aria-current")).toBe("page");
-    expect(byRole(root, "alert").textContent).toBe("引用错误"); expect(byRole(root, "link", "主题")).toBeDefined();
+    expect(byRole(root, "heading", "切章规则")).toBeDefined();
+    expect(byRole(root, "link", "设置").getAttribute("href")).toBe("/settings");
+    expect(byRole(byRole(root, "navigation", "规则列表"), "link", /默认规则/).getAttribute("aria-current")).toBe("page");
+    expect(byRole(root, "alert").textContent).toBe("引用错误"); expect(allByRole(root, "link", "主题")).toHaveLength(0);
+    expect(byRole(themes, "heading", "主题")).toBeDefined();
+    expect(byRole(byRole(themes, "navigation", "主题列表"), "link", /默认样式/).getAttribute("href")).toBe("/themes?theme_id=default");
+    expect(themes.textContent).toContain("v1 · 0 本在用 · 内置");
     expect(byAttribute(themes, "action", "/themes/new")).toBeDefined(); expect(byName(themes, "scope").getAttribute("value")).toBe("themes");
+  });
+  it("disables deletion for active and archived use and retains naming, restore and test actions", () => {
+    for (const [book_count, archived_count] of [[3, 0], [1, 1], [0, 1]]) {
+      const custom = { ...editor, id: "custom", name: "自定义" };
+      const root = parseHtml(ui.rules({ rules: [{ ...custom, book_count: book_count!, archived_count: archived_count! }], themes: [], tab: "parsing", ruleId: "custom", themeId: "default", error: "", editor: custom }));
+      expect(byRole(byAttribute(root, "action", "/rules/custom/delete"), "button", "删除").hasAttribute("disabled")).toBe(true);
+      expect(root.textContent).toContain("在库或已归档的书仍在使用，不能删除。");
+      for (const name of ["另存为", "重命名", "还原", "格式化", "测试"]) expect(byRole(root, "button", name)).toBeDefined();
+    }
+    const custom = { ...editor, id: "unused" };
+    const root = parseHtml(ui.rules({ rules: [{ ...custom, book_count: 0, archived_count: 0 }], themes: [], tab: "parsing", ruleId: "unused", themeId: "default", error: "", editor: custom }));
+    expect(byRole(byAttribute(root, "action", "/rules/unused/delete"), "button", "删除").hasAttribute("disabled")).toBe(false);
+  });
+  it("preserves theme selection, flash and fragment in the legacy permanent redirect", () => {
+    const href = "/rules?tab=themes&theme_id=theme-a&error=used#theme-editor";
+    expect(legacyThemeTarget(href)).toBe("/themes?theme_id=theme-a&error=used#theme-editor");
+    expect(legacyThemeRedirect(href)).toEqual({ href: legacyThemeTarget(href), replace: true, statusCode: 308 });
+    expect(legacyThemeTarget("/rules?tab=parsing&rule_id=a")).toBeNull();
+    expect(legacyThemeTarget("/rules?tab=themes")).toBe("/themes");
   });
   it("renders escaped TOC counts and empty results", () => {
     expect(ui.preview(null)).toContain("粘贴一段文本后");

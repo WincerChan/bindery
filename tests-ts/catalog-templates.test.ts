@@ -7,7 +7,7 @@ import { BinderyDatabase } from "../src/server/db";
 import { metadataFromDict } from "../src/core/models";
 import { effectiveThemeId } from "../src/server/book-view";
 import { loadRuleTemplates, loadThemeTemplates, templateDirectory } from "../src/server/templates";
-import { catalogPage, deleteTemplate, newTemplate, ruleEditor, saveRule, saveTheme, testRule, themeEditor } from "../src/server/catalog/templates";
+import { catalogPage, deleteTemplate, nameTemplate, newTemplate, ruleEditor, saveRule, saveTheme, testRule, themeEditor } from "../src/server/catalog/templates";
 import { validateThemeCss } from "../src/server/catalog/theme-css";
 
 let root: string, library: LibraryStorage;
@@ -82,6 +82,19 @@ describe("rule and theme template behavior", () => {
     expect(deleteTemplate(kind, id, library)).toContain("&error="); expect(existsSync(path)).toBe(true);
     library.archiveBook(meta.book_id); expect(deleteTemplate(kind, id, library)).toContain("&error=");
     library.deleteBook(meta.book_id); expect(deleteTemplate(kind, id, library)).not.toContain("error"); expect(existsSync(path)).toBe(false);
+  });
+  it.each(["rules", "themes"] as const)("renames and saves a copy of %s without changing source identity or content", kind => {
+    const read = kind === "rules" ? ruleEditor : themeEditor, before = read("default");
+    const copy = nameTemplate(kind, "default", before.raw, "我的副本", "copy");
+    expect(copy).toMatchObject({ name: "我的副本", version: "1", saved: true, error: null });
+    expect(copy.id).not.toBe("default"); expect(copy.target).toContain(`/${kind}?`);
+    expect(read("default")).toEqual(before);
+    const renamed = nameTemplate(kind, copy.id, copy.raw, "新的名称", "rename");
+    expect(renamed).toMatchObject({ id: copy.id, name: "新的名称", saved: true });
+    expect(nameTemplate(kind, copy.id, renamed.raw, " ", "rename").error).toContain("名称");
+    expect(read(copy.id).name).toBe("新的名称");
+    expect(nameTemplate(kind, copy.id, "{", "无效副本", "copy").error).toBeTruthy();
+    expect(read(copy.id).raw).toBe(renamed.raw);
   });
   it("rejects unknown IDs without falling back for the editors", () => {
     expect(() => ruleEditor("../default")).toThrow("规则不存在"); expect(() => themeEditor("missing")).toThrow("主题不存在");
