@@ -1,5 +1,5 @@
 import { Link } from "../shared/spa-link";
-import { For, Show } from "solid-js";
+import { Show } from "solid-js";
 
 export function paginationItems(page: number, pages: number): (number | "gap")[] {
   const total = Math.max(1, Math.trunc(pages)), current = Math.max(1, Math.min(total, Math.trunc(page)));
@@ -15,7 +15,7 @@ export function pageHref(href: string, page: number, pageParam = "page"): string
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-type PaginationProps = {
+export type PaginationProps = {
   page: number;
   total: number;
   perPage: number;
@@ -44,14 +44,13 @@ export function Pagination(props: PaginationProps) {
   const shown = () => Math.max(0, props.shown ?? Math.min(pageSize(), total() - (current() - 1) * pageSize()));
   const start = () => shown() ? (current() - 1) * pageSize() + 1 : 0;
   const end = () => shown() ? start() + shown() - 1 : 0;
+  const padded = (value: number) => String(value).padStart(2, "0");
   return <nav class="pagination" aria-label={props.label ?? "分页"}>
-    <span class="pagination-summary">{shown() ? `${start()}–${end()}` : "0"} / 共 <span data-pagination-total>{total()}</span> {props.unit ?? "条"}</span>
+    <span class="pagination-summary"><strong>{shown() ? `${start()}–${end()}` : "0"}</strong> {props.unit ?? "条"} · 共 <span data-pagination-total>{total()}</span> {props.unit ?? "条"}</span>
     <Show when={pages() > 1}><div class="pagination-controls">
-      <Show when={current() > 1} fallback={<span class="pagination-control" aria-disabled="true">上一页</span>}><PageControl {...props} page={current() - 1}>上一页</PageControl></Show>
-      <div class="pagination-pages"><For each={paginationItems(current(), pages())}>{item => item === "gap"
-        ? <span class="pagination-gap" aria-hidden="true">…</span>
-        : <Show when={item !== current()} fallback={<span class="pagination-control" aria-current="page" aria-label={`第 ${item} 页，当前页`}>{item}</span>}><PageControl {...props} page={item} label={`第 ${item} 页`}>{item}</PageControl></Show>}</For></div>
-      <Show when={current() < pages()} fallback={<span class="pagination-control" aria-disabled="true">下一页</span>}><PageControl {...props} page={current() + 1}>下一页</PageControl></Show>
+      <span class="pagination-page-number" aria-current="page" aria-label={`第 ${current()} 页，当前页`}>{padded(current())}</span><span class="pagination-page-total">/ {padded(pages())} 页<span class="pagination-phone-total"> · 共 {total()} {props.unit ?? "条"}</span></span>
+      <Show when={current() > 1} fallback={<span class="pagination-control" aria-disabled="true" aria-label="上一页">←</span>}><PageControl {...props} page={current() - 1} label="上一页">←</PageControl></Show>
+      <Show when={current() < pages()} fallback={<span class="pagination-control" aria-disabled="true" aria-label="下一页">→</span>}><PageControl {...props} page={current() + 1} label="下一页">→</PageControl></Show>
     </div></Show>
   </nav>;
 }

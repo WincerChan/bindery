@@ -29,7 +29,7 @@ describe("library SSR and editorial UI regressions", () => {
   });
   it.each(["00", "01", "02", "03", "04", "ff"])("reuses stable generated cover tone for %s", prefix => {
     const html = ui.item(prefix, null, "grid");
-    expect(html).toContain(`cover-tone-${parseInt(prefix, 16) % 5}`); expect(html).toContain('class="cover-gen-inner"');
+    expect(html).toContain(`cover-tone-${parseInt(prefix, 16) % 13}`); expect(html).toContain('class="cover-gen-inner"');
     expect(ui.item(prefix, null, "list")).toContain("cover-compact");
   });
   it("renders one lazy real cover per book and keyboard-operable selection without detail navigation", () => {
@@ -45,7 +45,7 @@ describe("library SSR and editorial UI regressions", () => {
     for (const hook of ["data-bulk-mode-toggle", "data-bulk-actions", "data-bulk-select-all", "data-bulk-clear", "data-bulk-done", "data-read-filter-toggle", "data-pagination-total"]) expect(html).toContain(hook);
     expect(html).toContain('action="/books/archive" method="post"'); expect(html).toContain('action="/books/download" method="post"');
     expect(html).toContain("归档后可在书库「已归档」中恢复"); expect(html).toContain("重新生成"); expect(html).toContain("仅看未读"); expect(html.replace(/<!--[\s\S]*?-->/g, "")).toContain("49</span>");
-    expect(html).toContain('aria-label="分页"'); expect(html).toContain("上一页"); expect(html).toContain("下一页"); expect(html.replace(/<!--[\s\S]*?-->/g, "")).toContain("25–25 / 共");
+    expect(html).toContain('aria-label="分页"'); expect(html).toContain("上一页"); expect(html).toContain("下一页"); expect(html.replace(/<!--[\s\S]*?-->/g, "")).toContain("25–25</strong> 册 · 共");
     expect(html).not.toContain('action="/upload'); expect(html).not.toContain('action="/ingest"'); expect(html).not.toContain("书库共有");
   });
   it("keeps empty library copy and omits empty archive controls/headers", () => {
@@ -56,7 +56,7 @@ describe("library SSR and editorial UI regressions", () => {
   it.each(["grid", "list"] as const)("renders archived books with safe actions and selection in %s view", view => {
     const html = ui.archive(false, view);
     for (const hook of ["data-bulk-select-all", "data-bulk-actions", "data-book-select", "data-bulk-clear", "data-book-ids"]) expect(html).toContain(hook);
-    expect(html).toContain("data-pagination-total"); expect(html.replace(/<!--[\s\S]*?-->/g, "")).toContain("25–25 / 共");
+    expect(html).toContain("data-pagination-total"); expect(html.replace(/<!--[\s\S]*?-->/g, "")).toContain("25–25</strong> 册 · 共");
     for (const absent of ["data-book-detail-link", "data-book-hover-actions", "/private-cover", "/download", "/regenerate", "批量归档", "仅看未读", '<img']) expect(html).not.toContain(absent);
     expect(html).toContain("cover-gen-inner"); expect(html).toContain('name="next" value="/?scope=archived');
     expect(html).toContain('class="btn btn-danger btn-sm');

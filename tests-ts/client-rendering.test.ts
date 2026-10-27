@@ -286,11 +286,11 @@ it.each([true, false])("uses replace navigation to open, filter, paginate and cl
   const failed = elements(sheet, "a").find(el => el.textContent === "失败 · 13")!;
   expect(failed.getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs"); await reload(() => clickJobLink(failed));
   expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs"); expect(currentTab().textContent).toBe("失败 · 13");
-  const next = elements(sheet, "a").find(el => el.textContent === "下一页")!;
+  const next = elements(sheet, "a").find(el => el.getAttribute("aria-label") === "下一页")!;
   expect(next.getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs"); await reload(() => clickJobLink(next));
   expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs");
   const pager = elements(sheet, "nav").find(el => el.getAttribute("aria-label") === "分页")!;
-  expect(elements(pager, "span").find(el => el.getAttribute("aria-current") === "page")!.textContent).toBe("2");
+  expect(elements(pager, "span").find(el => el.getAttribute("aria-current") === "page")!.textContent).toBe("02");
   await reload(() => fire(elements(sheet, "button").find(el => el.getAttribute("aria-label") === "关闭最近任务")!, "click"));
   expect(mounted.href()).toBe("/ingest"); expect(sheet.open).toBe(false); expect(trigger.getAttribute("aria-expanded")).toBe("false"); expect(mounted.historyLength()).toBe(1);
   expect(currentTab().textContent).toBe("全部 · 13");
@@ -346,13 +346,13 @@ it("shows the settings install entry for prompt-capable and iOS states, not for 
 it("updates tracker/wishlist filter rows and their empty state", () => {
   const mounted = mount("tracker", tracker(["甲", "乙"]));
   expect(css(mounted.root, "p", "page-description")).toHaveLength(0);
-  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–2 / 共 2 本");
+  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–2 本 · 共 2 本");
   mounted.update(tracker(["乙"]));
   expect(css(mounted.root, "div", "catalog-tracker-row").filter(el => !el.getAttribute("class")!.includes("catalog-tracker-head")).map(el => elements(el, "strong")[0]!.textContent)).toEqual(["乙"]);
-  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–1 / 共 1 本");
+  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–1 本 · 共 1 本");
   mounted.update(tracker([])); expect(css(mounted.root, "article", "catalog-tracker-row")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("没有符合筛选条件");
-  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("0 / 共 0 本");
+  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("0 本 · 共 0 本");
 });
 
 it("replaces jobs, tab counts and conditional retry/log controls for polling payloads", () => {
@@ -402,15 +402,15 @@ it("replaces ingest previews, duplicate fragments, TOCs and hidden upload tokens
 it("updates pagination summaries, non-link current pages and link/in-place controls", () => {
   const mounted = mount("pagination", { page: 1, total: 110, perPage: 10, href: "/?q=甲" });
   mounted.update({ page: 6, total: 110, perPage: 10, href: "/?q=乙" });
-  expect(elements(mounted.root, "a").filter(el => el.hasAttribute("aria-label")).map(el => el.textContent)).toEqual(["1", "5", "7", "11"]);
+  expect(elements(mounted.root, "a").map(el => el.getAttribute("aria-label"))).toEqual(["上一页", "下一页"]);
   const current = elements(mounted.root, "span").find(el => el.getAttribute("aria-current") === "page")!;
-  expect(current.textContent).toBe("6"); expect(css(mounted.root, "a", "pagination-control").some(el => el.getAttribute("aria-current") === "page")).toBe(false);
+  expect(current.textContent).toBe("06"); expect(css(mounted.root, "a", "pagination-control").some(el => el.getAttribute("aria-current") === "page")).toBe(false);
   mounted.update({ page: 1, total: 1, perPage: 10, href: "/" });
   expect(elements(mounted.root, "nav")).toHaveLength(1); expect(css(mounted.root, "div", "pagination-controls")).toHaveLength(0);
-  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–1 / 共 1 条");
+  expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–1 条 · 共 1 条");
   const onPage = vi.fn(), local = mount("pagination", { page: 2, total: 50, perPage: 10, onPage });
-  fire(elements(local.root, "button").find(el => el.textContent === "下一页")!, "click");
-  fire(elements(local.root, "button").find(el => el.getAttribute("aria-label") === "第 1 页")!, "click");
+  fire(elements(local.root, "button").find(el => el.getAttribute("aria-label") === "下一页")!, "click");
+  fire(elements(local.root, "button").find(el => el.getAttribute("aria-label") === "上一页")!, "click");
   expect(onPage.mock.calls).toEqual([[3], [1]]);
 });
 
@@ -666,7 +666,7 @@ it("refreshes retry/cleanup in the open sheet and Router-navigates shell, pagina
   vi.stubGlobal("location", { assign: vi.fn() });
   const click = async (anchor: Element) => { const preventDefault = vi.fn(); fire(anchor, "click", { button: 0, preventDefault }); expect(preventDefault).toHaveBeenCalledOnce(); await settle(); mounted.flush(); };
   const pager = elements(node, "nav").find(el => el.getAttribute("aria-label") === "分页")!;
-  await click(elements(pager, "a").find(el => el.textContent === "下一页")!); expect(mounted.href()).toBe("/?page=2");
+  await click(elements(pager, "a").find(el => el.getAttribute("aria-label") === "下一页")!); expect(mounted.href()).toBe("/?page=2");
   const card = elements(node, "a", "data-book-detail-link")[0]!, href = card.getAttribute("href"); await click(card); expect(mounted.href()).toBe(href);
   await click(css(node, "a", "brand")[0]!); expect(mounted.href()).toBe("/");
   fire(elements(node, "button", "data-bulk-mode-toggle")[0]!, "click"); mounted.flush(); const all = elements(node, "input", "data-bulk-select-all")[0] as HTMLInputElement; all.checked = true; fire(all, "change"); mounted.flush();

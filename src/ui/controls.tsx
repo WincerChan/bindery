@@ -3,10 +3,13 @@ import type { JSX } from "@solidjs/web";
 
 export type ButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "quiet" | "danger" | "quiet-danger" | "icon";
-  size?: "sm";
+  size?: "sm" | "md" | "lg";
+  count?: JSX.Element;
 };
 export function Button(props: ButtonProps) {
-  return <button {...omit(props, "variant", "size", "class")} type={props.type || "button"} class={`btn btn-${props.variant || "primary"} ${props.size === "sm" ? "btn-sm" : ""} ${props.class || ""}`} />;
+  return <button {...omit(props, "variant", "size", "count", "class", "children")} type={props.type || "button"} title={props.title || (props.variant === "icon" ? props["aria-label"] : undefined)} class={`btn btn-${props.variant || "primary"} ${props.size ? `btn-${props.size}` : ""} ${props.class || ""}`}>
+    {props.children}<Show when={props.count !== undefined}><span class="btn-count">{props.count}</span></Show>
+  </button>;
 }
 interface FieldProps { label: string; hint?: string; error?: string; class?: string }
 function descriptionId(id: string, props: FieldProps & { "aria-describedby"?: unknown }) {
