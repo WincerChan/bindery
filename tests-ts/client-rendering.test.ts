@@ -25,6 +25,12 @@ const directory = mkdtempSync(join(tmpdir(), "bindery-client-rendering-"));
 const disposers: (() => void)[] = [];
 function browserGlobals() {
   const document = clientDocument(), body = document.createElement("body");
+  // Reader now uses shared Slider/ProgressBar inline custom properties. No layout is emulated.
+  const styles = new WeakMap<Element, object>();
+  Object.defineProperty(Object.getPrototypeOf(body), "style", { configurable: true, get(this: Element) {
+    if (!styles.has(this)) styles.set(this, { setProperty(name: string, value: string) { (this as Record<string, unknown>)[name] = value; }, removeProperty(name: string) { delete (this as Record<string, unknown>)[name]; } });
+    return styles.get(this);
+  } });
   document.addEventListener = vi.fn(); document.removeEventListener = vi.fn();
   body.dispatchEvent = vi.fn(() => true); Object.defineProperty(document, "body", { configurable: true, value: body });
   vi.stubGlobal("document", document);
@@ -758,14 +764,14 @@ it("updates reader TOC and search result fragments, highlighting and load-more s
   const data: Cases["reader"] = { book: { book_id: "id", title: "书名", author: "作者", cover_url: null }, sections: [{ title: "甲", item_path: "a.xhtml" }, { title: "乙", item_path: "b.xhtml" }], section_index: 0, initial_progress: null, return_to: "/" };
   const mounted = mount("reader", data);
   mounted.update({ ...data, sections: [{ title: "丙", item_path: "c.xhtml" }] });
-  expect(byRole(mounted.root, "dialog", "目录").textContent).toContain("丙");
-  expect(byRole(mounted.root, "dialog", "目录").textContent).not.toContain("甲");
+  expect(byRole(mounted.root, "navigation", "章节目录").textContent).toContain("丙");
+  expect(byRole(mounted.root, "navigation", "章节目录").textContent).not.toContain("甲");
   const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ query: "词", indexed_sections: 1, hits: [{ index: 0, title: "词一", snippet: "原词", offset: 0 }], has_more: true, next_offset: 1 }) });
   vi.stubGlobal("fetch", fetch);
   const input = elements(mounted.root, "input").find(el => el.getAttribute("type") === "search") as HTMLInputElement;
-  const form = formFor(byLabel(mounted.root, "关键词"));
+  const form = formFor(byLabel(mounted.root, "在全书中检索"));
   input.value = "词"; fire(input, "input"); mounted.flush(); fire(form, "submit"); await settle(); mounted.flush();
-  const results = () => byRole(mounted.root, "dialog", "全文检索");
+  const results = () => byRole(mounted.root, "region", "全文检索");
   expect(elements(results(), "li")).toHaveLength(1); expect(elements(results(), "mark").map(el => el.textContent)).toEqual(["词", "词"]);
   fetch.mockResolvedValue({ ok: true, json: async () => ({ query: "词", indexed_sections: 1, hits: [{ index: 0, title: "词二", snippet: "第二词", offset: 1 }], has_more: false }) });
   fire(elements(mounted.root, "button").find(el => el.textContent === "加载更多")!, "click"); await settle(); mounted.flush();

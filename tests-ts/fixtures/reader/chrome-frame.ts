@@ -8,17 +8,17 @@ export class ReaderFrames {
   configurations: ReaderSettings[] = [];
   turns: number[] = [];
   keys: string[] = [];
-  opens: { section: number; page: number; find: string }[] = [];
+  opens: { section: number; page: number; find: string; fraction?: number | null }[] = [];
   destroyed = false;
   location: ReaderLocation;
-  constructor(readonly data: ReaderData, readonly elements: HTMLIFrameElement[], initial: { section: number; page: number }, readonly change: (value: ReaderLocation) => void, readonly busy: (value: boolean) => void, readonly error: (value: string) => void) {
+  constructor(readonly data: ReaderData, readonly elements: HTMLIFrameElement[], initial: { section: number; page: number }, readonly change: (value: ReaderLocation) => void, readonly busy: (value: boolean) => void, readonly error: (value: string) => void, readonly interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean) {
     frames = this;
     this.location = { ...initial, pageCount: 3, frame: 0 };
     this.publish(this.location);
   }
   publish(value: ReaderLocation) { this.location = value; this.change(value); this.busy(false); }
   configure(value: ReaderSettings) { this.configurations.push({ ...value }); }
-  open(section: number, page = 1, find = "") { this.opens.push({ section, page, find }); this.publish({ ...this.location, section, page, frame: 1 }); }
+  open(section: number, page = 1, find = "", _hash = "", fraction: number | null = null) { this.opens.push({ section, page, find, fraction }); this.publish({ ...this.location, section, page, frame: 1 }); }
   turn(direction: -1 | 1) { this.turns.push(direction); }
   key(event: KeyboardEvent) { this.keys.push(event.key); }
   retry() { this.error(""); }

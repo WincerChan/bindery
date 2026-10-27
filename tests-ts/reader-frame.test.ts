@@ -4,6 +4,7 @@ import { runInNewContext } from "node:vm";
 import { ReaderFrames, type ReaderLocation } from "../src/features/reader/frame";
 import { backgroundOptions, brightBgColors, defaultSettings, dimBgColors, normalizeSettings, readerFonts, storageKey, type ReaderData, type ReaderSettings } from "../src/features/reader/model";
 import { clientDocument } from "./support/client-dom";
+import { readerPaper } from "../src/features/reader/reader-presentation";
 
 const template = readFileSync("tests-ts/fixtures/parity/reader/preview-template.html", "utf8");
 const data: ReaderData = {
@@ -100,10 +101,10 @@ function inlineStyle() {
 }
 
 /** Geometry inputs stand in for layout; this DOM does not claim to render CSS. */
-function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, columns = 3) {
+function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, columns = 3, desktop = false, interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean) {
   const doc = clientDocument(), create = doc.createElement.bind(doc);
   const viewportBox = { width: viewport, marginX, paddingX, columns, rawRight: undefined as number | undefined };
-  const width = () => Math.round(Math.min(599, viewportBox.width - 2 * viewportBox.marginX - 2 * viewportBox.paddingX));
+  const width = () => Math.round(viewportBox.width - 2 * viewportBox.marginX - 2 * viewportBox.paddingX);
   doc.createElement = ((tag: string) => {
     const element = create(tag) as HTMLElement;
     Object.defineProperty(element, "style", { value: inlineStyle() });
@@ -137,16 +138,20 @@ function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, co
     URL: { value: "https://reader.test/book/id/epub/one.xhtml" }, readyState: { value: "complete" }, contentType: { value: "text/html" },
   });
   doc.createTreeWalker = (() => ({ nextNode: () => null })) as unknown as typeof doc.createTreeWalker;
-  doc.addEventListener = () => {}; doc.removeEventListener = () => {};
+  const listeners = new Map<string, EventListener>();
+  doc.addEventListener = (type: string, handler: EventListenerOrEventListenerObject) => { listeners.set(type, handler as EventListener); };
+  doc.removeEventListener = (type: string) => { listeners.delete(type); };
+  doc.getSelection = (() => ({ isCollapsed: true })) as typeof doc.getSelection;
   const frame = Object.assign(new EventTarget(), { contentDocument: doc, clientWidth: viewport, inert: false, src: "" }) as unknown as HTMLIFrameElement;
-  vi.stubGlobal("window", { location: new URL("https://reader.test/book/id/preview/0") });
+  vi.stubGlobal("window", { location: new URL("https://reader.test/book/id/preview/0"), matchMedia: (query: string) => ({ matches: query.includes("min-width") ? desktop : !desktop }), getComputedStyle: () => ({ getPropertyValue: (name: string) => name === "--color-paper" ? "rgb(250, 248, 244)" : "" }) });
   vi.stubGlobal("requestAnimationFrame", () => 1); vi.stubGlobal("cancelAnimationFrame", () => {});
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
   const changes: ReaderLocation[] = [], errors: string[] = [];
-  const frames = new ReaderFrames(data, [frame, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement], { section: 0, page: 1 }, value => changes.push(value), () => {}, error => { if (error) errors.push(error); });
+  const frames = new ReaderFrames(data, [frame, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement], { section: 0, page: 1 }, value => changes.push(value), () => {}, error => { if (error) errors.push(error); }, interaction);
   expect(errors).toEqual([]);
   const vars = doc.documentElement.style;
-  return { frames, doc, body, vars, changes, viewportBox, width,
+  return { frames, doc, body, vars, changes, viewportBox, width, listeners,
+    gesture(type: string, x: number, y = 10, interactive = false) { listeners.get(type)?.({ clientX: x, clientY: y, target: { closest: () => interactive ? body : null } } as unknown as Event); },
     scroller: doc.getElementById("bindery-reader-scroller") as HTMLDivElement,
     pages: doc.getElementById("bindery-reader-pages") as HTMLDivElement,
     css: () => head.firstChild!.textContent!,
@@ -177,6 +182,32 @@ function resolvedDeclarations(css: string, selector: string, vars: CSSStyleDecla
 }
 
 describe("iframe style and pagination parity", () => {
+  it("lays out two desktop columns per saved viewport and seeks by fraction", () => {
+    const f = frameFixture(1120, 0, 0, 8, true);
+    f.frames.configure({ ...defaultSettings, styleMode: "custom", pagePaddingX: 40 });
+    expect(f.vars.getPropertyValue("--bindery-column-width")).toBe("480px");
+    expect(f.vars.getPropertyValue("--bindery-column-gap")).toBe("80px");
+    expect(f.vars.getPropertyValue("--bindery-page-step")).toBe("1120px");
+    expect(f.changes.at(-1)).toMatchObject({ page: 1, pageCount: 4 });
+    f.frames.turn(1); expect(f.scroller.scrollLeft).toBe(1120);
+    f.frames.open(0, 1, "", "", 1); expect(f.changes.at(-1)).toMatchObject({ page: 4, pageCount: 4 });
+    f.frames.destroy();
+  });
+  it("handles phone thirds, swipes and middle toggle without hijacking links/selection", () => {
+    const interaction = vi.fn(() => true), f = frameFixture(390, 0, 0, 5, false, interaction);
+    expect(f.vars.getPropertyValue("--bindery-column-width")).toBe("390px");
+    const tap = (x: number, interactive = false) => { f.gesture("pointerdown", x); f.gesture("pointerup", x, 10, interactive); };
+    tap(270); expect(f.changes.at(-1)?.page).toBe(2); expect(interaction).toHaveBeenLastCalledWith("turn");
+    tap(120); expect(f.changes.at(-1)?.page).toBe(1);
+    tap(195); expect(interaction).toHaveBeenLastCalledWith("toggle"); expect(f.changes.at(-1)?.page).toBe(1);
+    f.gesture("pointerdown", 300); f.gesture("pointerup", 180); expect(f.changes.at(-1)?.page).toBe(2);
+    tap(300, true); expect(f.changes.at(-1)?.page).toBe(2);
+    f.doc.getSelection = (() => ({ isCollapsed: false })) as typeof f.doc.getSelection;
+    tap(300); expect(f.changes.at(-1)?.page).toBe(2);
+    f.doc.getSelection = (() => ({ isCollapsed: true })) as typeof f.doc.getSelection;
+    interaction.mockReturnValue(false); tap(300); expect(f.changes.at(-1)?.page).toBe(2);
+    f.frames.destroy(); expect(f.listeners.size).toBe(0);
+  });
   it("keeps author margins/padding and matches reference heights, media and break rules", () => {
     const f = frameFixture(), py = referenceReader();
     Object.assign(py.reader, { getFrame: () => ({ contentDocument: f.doc }) });
@@ -196,15 +227,16 @@ describe("iframe style and pagination parity", () => {
     expect(css).not.toMatch(/object-fit|max-height|white-space|overflow-wrap/);
     f.frames.destroy();
   });
-  it.each(["bright", "dim"] as const)("matches book/custom theme variables for all backgrounds (%s)", brightnessMode => {
+  it.each(["bright", "dim"] as const)("preserves settings application with v2 paper/font tokens for legacy backgrounds (%s)", brightnessMode => {
     const f = frameFixture();
     for (const { value: readerBg } of backgroundOptions) for (const styleMode of ["book", "custom"] as const) {
       const settings = { ...defaultSettings, brightnessMode, readerBg, styleMode };
       f.frames.configure(settings);
       const py = referenceReader(), reference = frameFixture();
       Object.assign(py.reader, settings);
-      const bg = (brightnessMode === "dim" ? py.reference.dimBgColors : py.reference.brightBgColors)[readerBg];
-      py.reader._updateFrameVars(reference.doc, styleMode === "custom" ? settings.pagePaddingX : 0, styleMode === "custom" ? settings.pagePaddingY : 0, readerFonts.serif, settings.fontSize, settings.lineHeight, bg, brightnessMode === "dim" ? "#e5e7eb" : "#111827");
+      const paper = readerPaper(settings), bg = `var(--color-paper${paper === "paper" ? "" : `-${paper}`})`;
+      py.reader._updateFrameVars(reference.doc, styleMode === "custom" ? settings.pagePaddingX : 0, styleMode === "custom" ? settings.pagePaddingY : 0, `var(--font-display, ${readerFonts.serif})`, settings.fontSize, settings.lineHeight, bg, brightnessMode === "dim" ? "var(--color-surface)" : "var(--color-ink)");
+      expect(f.vars.getPropertyValue("--color-paper")).toBe("rgb(250, 248, 244)");
       for (const key of ["font-family", "font-size", "line-height", "reader-bg", "reader-text", "page-padding-x", "page-padding-y", "text-align", "text-justify", "column-width", "column-gap", "page-step"]) {
         expect(f.vars.getPropertyValue(`--bindery-${key}`), key).toBe(reference.vars.getPropertyValue(`--bindery-${key}`));
       }
@@ -214,7 +246,7 @@ describe("iframe style and pagination parity", () => {
     }
     f.frames.destroy();
   });
-  it.each(["book", "custom"] as const)("matches reference CSS declarations in %s mode except the documented integer column width", styleMode => {
+  it.each(["book", "custom"] as const)("matches reference CSS declarations in %s mode except integer width and removing the old single-page cap", styleMode => {
     const f = frameFixture(), py = referenceReader();
     const settings: ReaderSettings = { ...defaultSettings, styleMode, brightnessMode: "dim", readerBg: "paper", textAlignMode: "left" };
     f.frames.configure(settings);
@@ -228,6 +260,7 @@ describe("iframe style and pagination parity", () => {
         expect(actual.width).toBe(`${f.width()}px!important`); expect(actual["min-width"]).toBe(`${f.width()}px!important`);
         delete actual.width; delete actual["min-width"]; delete expected.width; delete expected["min-width"];
       }
+      if (selector === "#bindery-reader-scroller") { expect(actual["max-width"]).toBe("none!important"); delete actual["max-width"]; delete expected["max-width"]; }
       expect(actual, selector).toEqual(expected);
     }
     f.frames.destroy();
@@ -236,7 +269,7 @@ describe("iframe style and pagination parity", () => {
     const f = frameFixture();
     f.frames.configure({ ...defaultSettings, styleMode: "custom", textAlignMode });
     expect(f.vars.getPropertyValue("--bindery-text-justify")).toBe(textAlignMode === "justify" ? "inter-ideograph" : "auto");
-    expect(f.body.style.getPropertyValue("font-family")).toBe(readerFonts.serif);
+    expect(f.body.style.getPropertyValue("font-family")).toBe(`var(--font-display, ${readerFonts.serif})`);
     expect(f.pages.style.getPropertyValue("text-align")).toBe(textAlignMode);
     expect(f.pages.style.getPropertyPriority("text-align")).toBe("important");
     expect(f.css()).toContain("background-image:none!important");

@@ -1,4 +1,5 @@
-import { brightBgColors, contentUrl, defaultSettings, dimBgColors, fractionPage, pageEpsilon, pageMetrics, readerFonts, textMatches, type ReaderData, type ReaderSettings } from "./model";
+import { contentUrl, defaultSettings, fractionPage, pageEpsilon, pageMetrics, readerFonts, textMatches, type ReaderData, type ReaderSettings } from "./model";
+import { readerPaper } from "./reader-presentation";
 interface Anchor { node: Text; offset: number }
 const typographyProperties = ["font-family", "font-size", "line-height", "text-align", "text-justify"] as const;
 interface FrameState { frame: HTMLIFrameElement; section: number; ready: boolean; scroller?: HTMLDivElement; pages?: HTMLDivElement; tail?: HTMLDivElement; style?: HTMLStyleElement; bookTypography?: { value: string; priority: string }[]; observer?: ResizeObserver; cleanup?: () => void; anchor?: Anchor; page: number }
@@ -14,7 +15,7 @@ export class ReaderFrames {
   private animation = 0;
   private searchText = "";
   private removeListeners: (() => void)[] = [];
-  constructor(private data: ReaderData, elements: HTMLIFrameElement[], position: { section: number; page: number; fraction?: number }, private change: (value: ReaderLocation) => void, private busy: (value: boolean) => void, private error: (value: string) => void) {
+  constructor(private data: ReaderData, elements: HTMLIFrameElement[], position: { section: number; page: number; fraction?: number }, private change: (value: ReaderLocation) => void, private busy: (value: boolean) => void, private error: (value: string) => void, private interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean) {
     this.desired = { ...position, fraction: position.fraction ?? null, find: "", hash: "" };
     this.frames = elements.map((frame, index) => ({ frame, section: index === 0 ? position.section : -1, ready: false, page: 1 }));
     this.frames.forEach((state, index) => {
@@ -34,9 +35,9 @@ export class ReaderFrames {
       this.refresh(state, state.page, anchor);
     });
   }
-  open(section: number, page = 1, find = "", hash = "") {
+  open(section: number, page = 1, find = "", hash = "", fraction: number | null = null) {
     if (section < 0 || section >= this.data.sections.length || this.disposed) return;
-    this.desired = { section, page, find, hash, fraction: null };
+    this.desired = { section, page, find, hash, fraction };
     this.busy(true); this.error("");
     const cached = this.frames.findIndex(state => state.section === section);
     if (cached >= 0) { if (this.frames[cached].ready) this.activate(cached); return; }
@@ -93,7 +94,7 @@ export class ReaderFrames {
       Object.assign(state, { scroller, pages, tail, style, bookTypography, ready: true });
       this.layout(state);
       const scroll = () => { if (index === this.active) this.emit(state); };
-      const key = (event: KeyboardEvent) => this.key(event);
+      const key = (event: KeyboardEvent) => { if (this.interaction?.("turn") !== false) this.key(event); };
       const click = (event: MouseEvent) => {
         const anchor = (event.target as Element | null)?.closest("a");
         if (!anchor) return;
@@ -108,13 +109,22 @@ export class ReaderFrames {
       const down = (event: PointerEvent) => { pointer = { x: event.clientX, y: event.clientY }; };
       const up = (event: PointerEvent) => {
         const start = pointer; pointer = undefined;
-        if (!start || index !== this.active || !window.matchMedia("(max-width: 767px)").matches || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10 || !doc.getSelection()?.isCollapsed || (event.target as Element | null)?.closest("a,button,input")) return;
-        if (event.clientX < state.frame.clientWidth * .25) this.turn(-1);
-        else if (event.clientX > state.frame.clientWidth * .75) this.turn(1);
+        if (!start || index !== this.active || !doc.getSelection()?.isCollapsed || (event.target as Element | null)?.closest("a,button,input,textarea,select,[contenteditable]")) return;
+        const dx = event.clientX - start.x, dy = event.clientY - start.y;
+        if (Math.hypot(dx, dy) <= 10 && this.interaction?.("tap") === false) return;
+        if (!window.matchMedia("(max-width: 767px)").matches) return;
+        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          if (this.interaction?.("turn") !== false) this.turn(dx < 0 ? 1 : -1);
+        } else if (Math.hypot(dx, dy) <= 10) {
+          if (event.clientX >= state.frame.clientWidth / 3 && event.clientX <= state.frame.clientWidth * 2 / 3) this.interaction?.("toggle");
+          else if (this.interaction?.("turn") !== false) this.turn(event.clientX < state.frame.clientWidth / 3 ? -1 : 1);
+        }
       };
       scroller.addEventListener("scroll", scroll, { passive: true });
-      doc.addEventListener("keydown", key); doc.addEventListener("click", click); doc.addEventListener("pointerdown", down); doc.addEventListener("pointerup", up);
-      state.cleanup = () => { scroller.removeEventListener("scroll", scroll); doc.removeEventListener("keydown", key); doc.removeEventListener("click", click); doc.removeEventListener("pointerdown", down); doc.removeEventListener("pointerup", up); };
+      const move = (event: PointerEvent) => { if (index === this.active && event.pointerType !== "touch") this.interaction?.("activity"); };
+      const cancel = () => { pointer = undefined; };
+      doc.addEventListener("keydown", key); doc.addEventListener("click", click); doc.addEventListener("pointerdown", down); doc.addEventListener("pointerup", up); doc.addEventListener("pointermove", move); doc.addEventListener("pointercancel", cancel);
+      state.cleanup = () => { scroller.removeEventListener("scroll", scroll); doc.removeEventListener("keydown", key); doc.removeEventListener("click", click); doc.removeEventListener("pointerdown", down); doc.removeEventListener("pointerup", up); doc.removeEventListener("pointermove", move); doc.removeEventListener("pointercancel", cancel); };
       state.observer = new ResizeObserver(() => {
         if (!state.ready || this.disposed) return;
         this.layout(state); this.refresh(state, state.page, state.anchor);
@@ -162,35 +172,43 @@ export class ReaderFrames {
   private layout(state: FrameState) {
     const value = this.settings, doc = state.frame.contentDocument!, vars = doc.documentElement.style;
     const x = value.styleMode === "custom" ? value.pagePaddingX : 0, y = value.styleMode === "custom" ? value.pagePaddingY : 0;
-    const bg = (value.brightnessMode === "dim" ? dimBgColors : brightBgColors)[value.readerBg], color = value.brightnessMode === "dim" ? "#e5e7eb" : "#111827";
+    // CSS custom properties do not cross iframe boundaries. Copy only trusted app tokens,
+    // never book styles, into the isolated document before applying the existing settings.
+    const tokens = window.getComputedStyle?.(state.frame);
+    for (const token of ["--color-paper", "--color-paper-white", "--color-paper-dark", "--color-ink", "--color-surface", "--color-accent-soft", "--font-display", "--font-sans", "--font-mono"]) {
+      const resolved = tokens?.getPropertyValue(token).trim();
+      if (resolved) vars.setProperty(token, resolved);
+    }
+    const paper = readerPaper(value), bg = `var(--color-paper${paper === "paper" ? "" : `-${paper}`})`, color = `var(--color-${paper === "dark" ? "surface" : "ink"})`;
+    const font = value.fontFamily === "kai" ? readerFonts.kai : `var(--font-${value.fontFamily === "serif" ? "display" : value.fontFamily}, ${readerFonts[value.fontFamily]})`;
     doc.documentElement.setAttribute("data-bindery-style", value.styleMode);
     // Preserve the book's html/body box model, including auto body width. Forcing
     // width:100% makes author margins/padding overflow the iframe's viewport.
     state.style!.textContent = `html,body{height:99%!important;background:var(--bindery-reader-bg)!important;}
       body{overflow:hidden!important;}
-      #bindery-reader-scroller{position:relative!important;display:block!important;height:99%!important;width:100%!important;max-width:599px!important;margin:0 auto!important;background:var(--bindery-reader-bg)!important;overflow-x:auto!important;overflow-y:hidden!important;direction:ltr!important;writing-mode:horizontal-tb!important;scroll-behavior:auto!important;scrollbar-width:none;overscroll-behavior-x:contain;}
+      #bindery-reader-scroller{position:relative!important;display:block!important;height:99%!important;width:100%!important;max-width:none!important;margin:0 auto!important;background:var(--bindery-reader-bg)!important;overflow-x:auto!important;overflow-y:hidden!important;direction:ltr!important;writing-mode:horizontal-tb!important;scroll-behavior:auto!important;scrollbar-width:none;overscroll-behavior-x:contain;}
       #bindery-reader-scroller::-webkit-scrollbar{display:none}
       #bindery-reader-pages{position:relative!important;display:block!important;float:none!important;clear:both!important;width:var(--bindery-page-step)!important;min-width:var(--bindery-page-step)!important;max-width:none!important;height:99%!important;box-sizing:border-box!important;column-fill:auto;column-width:var(--bindery-column-width);column-gap:var(--bindery-column-gap);padding-top:var(--bindery-page-padding-y)!important;padding-bottom:var(--bindery-page-padding-y)!important;padding-left:var(--bindery-page-padding-x)!important;padding-right:var(--bindery-page-padding-x)!important;margin:0!important;direction:ltr!important;writing-mode:horizontal-tb!important;}
       #bindery-reader-tail{position:absolute!important;display:block!important;left:calc(100% + var(--bindery-page-tail-offset,0px))!important;top:0!important;width:var(--bindery-page-tail-pad,0px)!important;min-width:var(--bindery-page-tail-pad,0px)!important;height:1px!important;pointer-events:none!important;opacity:0!important;}
       h1,h2,h3,h4,h5,h6,pre,blockquote,figure,table{break-inside:avoid-column;}
       img,svg,video{max-width:99%!important;height:auto!important;}
-      mark[data-reader-search]{background:#fde68a!important;color:#111827!important;}
+      mark[data-reader-search]{background:var(--color-accent-soft)!important;color:var(--color-ink)!important;}
       @media(max-width:767px){#bindery-reader-scroller{overflow-x:hidden!important;touch-action:pan-y!important;overscroll-behavior-x:none!important;}}
-      ${value.styleMode === "custom" ? `html[data-bindery-style="custom"] body,html[data-bindery-style="custom"] #bindery-reader-pages,html[data-bindery-style="custom"] #bindery-reader-pages :is(p,li,div,span,b,strong,blockquote,td,th,h1,h2,h3,h4,h5,h6){font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;color:var(--bindery-reader-text,#111827)!important;}
+      ${value.styleMode === "custom" ? `html[data-bindery-style="custom"] body,html[data-bindery-style="custom"] #bindery-reader-pages,html[data-bindery-style="custom"] #bindery-reader-pages :is(p,li,div,span,b,strong,blockquote,td,th,h1,h2,h3,h4,h5,h6){font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;color:var(--bindery-reader-text)!important;}
       html[data-bindery-style="custom"] #bindery-reader-pages :is(h1,h2,h3,h4,h5,h6,span,b,strong){background-color:transparent!important;background-image:none!important;}` : ""}`;
-    vars.setProperty("--bindery-page-max-width", "599px");
+    vars.setProperty("--bindery-page-max-width", "1120px");
     // Like legacy, retain -1 in the variables: negative CSS padding computes to
     // its initial zero, while column sizing below uses nonnegative padding.
     vars.setProperty("--bindery-page-padding-x", `${x}px`);
     vars.setProperty("--bindery-page-padding-y", `${y}px`);
-    vars.setProperty("--bindery-font-family", readerFonts[value.fontFamily]);
+    vars.setProperty("--bindery-font-family", font);
     vars.setProperty("--bindery-font-size", `${value.fontSize}px`);
     vars.setProperty("--bindery-line-height", String(value.lineHeight));
     vars.setProperty("--bindery-reader-bg", bg);
     vars.setProperty("--bindery-reader-text", color);
     vars.setProperty("--bindery-text-align", value.textAlignMode);
     vars.setProperty("--bindery-text-justify", value.textAlignMode === "justify" ? "inter-ideograph" : "auto");
-    const typography = [readerFonts[value.fontFamily], `${value.fontSize}px`, String(value.lineHeight), value.textAlignMode, value.textAlignMode === "justify" ? "inter-ideograph" : "auto"];
+    const typography = [font, `${value.fontSize}px`, String(value.lineHeight), value.textAlignMode, value.textAlignMode === "justify" ? "inter-ideograph" : "auto"];
     typographyProperties.forEach((name, index) => {
       if (value.styleMode === "custom") {
         doc.body.style.setProperty(name, typography[index], "important");
@@ -209,7 +227,9 @@ export class ReaderFrames {
     // column pitch cannot drift from the integer scroll step over a long chapter.
     const width = Math.max(1, state.scroller!.clientWidth || state.frame.clientWidth);
     vars.setProperty("--bindery-page-step", `${width}px`);
-    vars.setProperty("--bindery-column-width", `${Math.max(1, width - Math.max(0, x) * 2)}px`);
+    // One viewport is still one saved page/turn, now containing two columns on desktop.
+    const columns = window.matchMedia?.("(min-width: 768px)").matches ? 2 : 1;
+    vars.setProperty("--bindery-column-width", `${Math.max(1, width / columns - Math.max(0, x) * 2)}px`);
     vars.setProperty("--bindery-column-gap", `${Math.max(0, x) * 2}px`);
   }
   private refresh(state: FrameState, desiredPage: number, anchor?: Anchor) {
