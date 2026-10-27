@@ -15,9 +15,7 @@
 .reader-layout { background: var(--color-bg, #F6F4EE); }
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 100; min-height: var(--size-control, 44px); padding: 10px; background: var(--color-bg, #F6F4EE); }
 .skip-link:focus { top: 8px; }
-.nav-rail a:focus-visible, .tab:focus-visible, .skip-link:focus-visible, .shell-back:focus-visible { outline: 2px solid var(--color-accent, #A24832); outline-offset: 3px; }
-.shell-back { display: inline-flex; align-items: center; gap: 10px; min-height: var(--size-control, 44px); margin-bottom: 24px; color: var(--color-ink-3, #656D66); font-size: var(--text-control, 14px); text-decoration: none; }
-.shell-back span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: var(--color-control, #ECEAE2); }
+.nav-rail a:focus-visible, .tab:focus-visible, .skip-link:focus-visible { outline: 2px solid var(--color-accent, #A24832); outline-offset: 3px; }
 .tab-bar { display: none; }
 @media (max-width: 767px) {
   .app-frame { padding: 0; background: var(--color-bg, #F6F4EE); }

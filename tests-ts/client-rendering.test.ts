@@ -347,7 +347,8 @@ it("renders a link-only rail, five phone tabs, and active settings for child pag
   for (const nav of [dock, rail]) expect(elements(nav, "a").filter(el => el.getAttribute("aria-current") === "page").map(el => el.getAttribute("href"))).toEqual(["/settings"]);
   expect(css(node, "a", "skip-link")[0]!.getAttribute("href")).toBe("#app-content");
   expect(elements(node, "main")[0]!.getAttribute("tabindex")).toBe("-1");
-  expect(css(node, "a", "shell-back")[0]!.getAttribute("href")).toBe("/settings");
+  // Settings sub-pages render their own back link (README §3.3); the shell adds none.
+  expect(css(node, "a", "shell-back")).toHaveLength(0);
 });
 
 it.each([true, false])("navigates both settings links instead of opening a menu (hydration=%s)", async hydrating => {

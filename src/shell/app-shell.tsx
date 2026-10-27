@@ -12,7 +12,6 @@ export function AppShell() {
   const location = useLocation(), matches = useMatches();
   const readerLayout = () => matches().some(match => match.staticData.readerLayout);
   const active = (href: string) => navActive(location().pathname, href);
-  const settingsChild = () => active("/settings") && location().pathname.replace(/\/$/, "") !== "/settings";
   return <PwaInstallProvider>
     <a class="skip-link" href="#app-content">跳到正文</a>
     <div class={readerLayout() ? "reader-layout" : "app-frame"}>
@@ -25,7 +24,6 @@ export function AppShell() {
           <Link href={settingsLink.href} class={`nav-link rail-settings ${active(settingsLink.href) ? "active" : ""}`} aria-label={settingsLink.label} title={settingsLink.label} aria-current={active(settingsLink.href) ? "page" : undefined}><NavigationIcon icon={settingsLink.icon} /></Link>
         </aside></Show>
         <main id="app-content" tabindex={-1} class={readerLayout() ? "reader-main" : "wrap app-main"}>
-          <Show when={!readerLayout() && settingsChild()}><Link class="shell-back" href="/settings"><span aria-hidden="true">←</span>设置</Link></Show>
           <Outlet />
         </main>
       </div>
