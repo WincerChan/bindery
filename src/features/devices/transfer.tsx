@@ -159,7 +159,7 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
   function toggleBook(id: string, checked = !selected().includes(id)) {
     setSelected(current => checked ? [...current.filter(value => value !== id), id] : current.filter(value => value !== id));
   }
-  return <SideSheet open title={target() ? `发送到${target()}` : "发送到设备"} onClose={() => navigate("/devices")} class="device-send-sheet">
+  return <SideSheet open title={target() ? `发送到${target()}` : "发送到设备"} onClose={() => navigate("/devices")} class="device-send-sheet" actions={<TransferFooter />}>
     <aside aria-label="传输" class="device-send-body">
         <section class="device-send-queue" aria-label="传输队列">
           <div class="device-send-queue-head">
@@ -185,7 +185,13 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
         <Show when={!deviceId() || !k.inventory()}><p class="notice">{!k.ready() ? "检测中…" : !deviceId() ? "请先连接并授权设备。" : "正在读取设备清单，完成后显示设备已有书籍。"} <Link href="/devices/connect">连接与切换设备</Link></p></Show>
         <p class="sr-only" role="status">已选 {chosen().length} 本</p>
       </section>
-      <div class="device-send-footer">
+    </aside>
+    <Show when={kindle()}><BokoLicense /></Show>
+  </SideSheet>;
+
+  // Outside the scrolling queue/picker: actions stay at the bottom for short and long lists.
+  function TransferFooter() {
+    return <div class="device-send-footer">
         <h2 class="sr-only">设置</h2>
         <div class="kindle-target" data-transfer-target>
           <div><span class="kindle-small">目标设备</span><span class="kindle-target-name"><strong>{target() || "尚未连接设备"}</strong><Show when={target()}><span aria-hidden="true" class={`kindle-dot ${deviceId() ? "connected" : ""}`} /><span class={`kindle-small ${deviceId() ? "is-connected" : "is-offline"}`}>{targetStatus()}</span></Show></span></div>
@@ -209,10 +215,8 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
         <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
         <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId())}>重试</Button></p></Show>
         <Show when={startHint()}><p class="kindle-small" data-start-hint>{startHint()}</p></Show>
-      </div>
-    </aside>
-    <Show when={kindle()}><BokoLicense /></Show>
-  </SideSheet>;
+      </div>;
+  }
 }
 export const KindleTransferPage = DeviceTransferPage;
 export const KindleTransferQueueProgress = DeviceTransferQueueProgress;
