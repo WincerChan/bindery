@@ -110,7 +110,7 @@ details[open] > summary .ui-summary-chevron { transform: rotate(180deg); }
 .ui-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--intro-action-gap); margin-top: var(--intro-actions-offset); min-width: 0; }
 .ui-page-note { min-width: 0; }
 .ui-page-visual { display: flex; flex: 0 1 var(--intro-visual-width); align-items: center; justify-content: center; align-self: center; min-width: 0; max-width: var(--intro-visual-width); }
-.ui-page-intro-visual-cover { --intro-visual-width: var(--intro-visual-cover); }
+.ui-page-intro-visual-cover { --intro-visual-width: var(--intro-visual-cover); --intro-lead-max: var(--intro-cover-lead); }
 .ui-page-intro-visual-page { --intro-visual-width: var(--intro-visual-page); }
 .ui-page-intro-visual-reading { --intro-visual-width: var(--intro-visual-reading); }
 .ui-page-intro-visual-vocabulary { --intro-visual-width: var(--intro-visual-vocabulary); --intro-lead-max: var(--intro-wide-lead); --intro-text-basis: var(--intro-vocabulary-basis); }

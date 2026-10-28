@@ -54,6 +54,7 @@
   --intro-lead-size: var(--text-body);
   --intro-lead-line: 1.85;
   --intro-lead-max: 520px;
+  --intro-cover-lead: 56em;
   --intro-gap-next: var(--space-section);
   --intro-text-basis: 380px;
   --intro-eyebrow-line: normal;
