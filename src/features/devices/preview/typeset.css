@@ -120,7 +120,7 @@
 .kt-frame-wrap { width: 100%; gap: 22px; padding-top: 8px; }
 .kt-device-space { --kt-device-max: 28.75rem; display: flex; align-items: flex-start; justify-content: center; flex: none; width: 100%; max-width: var(--kt-device-max); min-height: 0; contain: none; }
 .kt-device-bezel { --kt-bezel-inline: 1.5rem; max-width: calc(100% - 2 * var(--kt-bezel-inline)); padding: 30px var(--kt-bezel-inline) 60px; border-radius: 30px; }
-.kt-device-bezel.device-shell-grip { --kt-bezel-inline: 1.375rem; --kt-bezel-grip: 3.75rem; --kt-grip-button-width: .5rem; --kt-grip-button-height: 2.75rem; max-width: calc(100% - var(--kt-bezel-inline) - var(--kt-bezel-grip)); padding: var(--kt-bezel-inline) var(--kt-bezel-grip) var(--kt-bezel-inline) var(--kt-bezel-inline); }
+.kt-device-bezel.device-shell-grip { --kt-bezel-inline: .75rem; --kt-bezel-grip: 2.5rem; --kt-grip-button-width: .5rem; --kt-grip-button-height: 2.75rem; max-width: calc(100% - var(--kt-bezel-inline) - var(--kt-bezel-grip)); padding: var(--kt-bezel-inline) var(--kt-bezel-grip) var(--kt-bezel-inline) var(--kt-bezel-inline); }
 .kt-device-bezel.device-shell-grip::before, .kt-device-bezel.device-shell-grip::after { right: calc((var(--kt-bezel-grip) - var(--kt-grip-button-width)) / 2); width: var(--kt-grip-button-width); height: var(--kt-grip-button-height); }
 .kt-device-bezel.device-shell-grip::before { top: 35%; }
 .kt-device-bezel.device-shell-grip::after { top: 57%; }
@@ -176,7 +176,7 @@
   .kt-editor { flex-basis: 100%; padding-left: 0; border-left: 0; }
   .kt-device-space { max-width: 100%; }
   .kt-device-bezel { --kt-bezel-inline: 1rem; padding: 22px var(--kt-bezel-inline) 44px; border-radius: 22px; }
-  .kt-device-bezel.device-shell-grip { --kt-bezel-inline: 1.125rem; --kt-bezel-grip: 3.25rem; }
+  .kt-device-bezel.device-shell-grip { --kt-bezel-inline: .625rem; --kt-bezel-grip: 2rem; }
   .kt-preview-caption { font-size: var(--text-meta); }
 }
 .kt-page-controls .kt-page-turn { font-size: 0; overflow: hidden; gap: 0; }

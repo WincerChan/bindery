@@ -1,9 +1,13 @@
-import TablerX from "~icons/tabler/x";
+import TablerAlertTriangle from "~icons/tabler/alert-triangle";
+import TablerCircleCheck from "~icons/tabler/circle-check";
+import TablerCircleX from "~icons/tabler/circle-x";
 import { useRouter } from "@tanstack/solid-router";
 import { createSignal, onSettled } from "solid-js";
 import { installToastBridge } from "../client/toast";
 import { flashFromUrl, type ToastMessage } from "../shared/notifications";
-import { Icon } from "../ui";
+import { CloseButton, Icon } from "../ui";
+
+const toastIcons = { success: TablerCircleCheck, warning: TablerAlertTriangle, error: TablerCircleX };
 
 export function ToastRegion() {
   const router = useRouter(), [toast, setToast] = createSignal<ToastMessage | null>(null);
@@ -25,6 +29,10 @@ export function ToastRegion() {
     return () => { uninstall(); unsubscribe(); clearTimeout(timer); };
   });
   return <div id="bindery-toast" role="status" aria-live="polite" aria-atomic="true" class={`toast-region ${toast() ? "is-visible" : ""}`}>
-    <div class={`toast toast-${toast()?.kind || "success"}`}><span>{toast()?.message}</span><button type="button" class="btn btn-quiet" aria-label="关闭通知" onClick={() => setToast(null)}><Icon icon={TablerX} size={16} /></button></div>
+    <div class={`toast toast-${toast()?.kind || "success"}`}>
+      <span class="toast-symbol" aria-hidden="true"><Icon icon={toastIcons[toast()?.kind || "success"]} /></span>
+      <span class="toast-message">{toast()?.message}</span>
+      <CloseButton aria-label="关闭通知" onClick={() => setToast(null)} />
+    </div>
   </div>;
 }

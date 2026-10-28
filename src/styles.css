@@ -208,14 +208,16 @@ a { color: var(--color-accent); text-underline-offset: 3px; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 button:disabled, input:disabled, select:disabled, textarea:disabled { opacity: .5; cursor: not-allowed; }
 html { scrollbar-gutter: stable; }
-.toast-region { position: fixed; top: 20px; right: 20px; z-index: 100; max-width: min(380px, calc(100% - 32px)); visibility: hidden; }
+.toast-region { --toast-inset: 1.5rem; --toast-max-width: 26rem; position: fixed; top: max(var(--toast-inset), env(safe-area-inset-top)); right: max(var(--toast-inset), env(safe-area-inset-right)); z-index: 100; max-width: min(var(--toast-max-width), calc(100% - 2 * var(--toast-inset))); visibility: hidden; }
 .toast-region.is-visible { visibility: visible; }
-.toast { display: flex; align-items: center; gap: 16px; padding: 10px 12px 10px 16px; background: var(--color-surface); color: var(--color-ink); border: 1px solid var(--color-line); border-left: 3px solid var(--color-ok); border-radius: 4px; box-shadow: 0 12px 32px rgb(32 41 35 / 13%); overflow-wrap: anywhere; }
-.toast-error { border-left-color: var(--color-danger); }
-.toast-warning { border-left-color: var(--color-warning); }
+.toast { --toast-tone: var(--color-ok); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: .75rem; padding: .75rem; background: var(--color-surface); color: var(--color-ink); border: 1px solid var(--color-line-faint); border-radius: var(--radius-popover); box-shadow: var(--shadow-float); font: 400 var(--text-control)/1.7 var(--font-sans); }
+.toast-symbol { display: grid; place-items: center; width: var(--size-control); height: var(--size-control); border-radius: 50%; background: color-mix(in srgb, var(--toast-tone) 10%, var(--color-surface)); color: var(--toast-tone); }
+.toast-message { min-width: 0; align-self: center; overflow-wrap: anywhere; }
+.toast-error { --toast-tone: var(--color-danger); }
+.toast-warning { --toast-tone: var(--color-warning); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 @media (max-width: 767px) {
-  .toast-region { inset: 16px 16px auto; max-width: none; }
+  .toast-region { --toast-inset: 1rem; left: max(var(--toast-inset), env(safe-area-inset-left)); max-width: none; }
 }
