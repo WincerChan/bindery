@@ -61,7 +61,8 @@ and the corrected intro spacing in `prototype/*.dc.html`. Names below omit
 | `title-size/weight/line/tracking` | `text-hero` = 46/600/1.25/.01em → 30/600/1.3/normal | Shared intro title type. Topbar keeps its explicit 30px row. |
 | `eyebrow-size/tracking/line` | 14/.08em/normal → 13/.08em/normal | Shared eyebrow type. Boards inherit `normal`, not the app body's 1.5. |
 | `lead-size/line` | 15/1.85 → 15/1.8 | Shared lead type. Book/guide/subpage intros do not get a different line-height. |
-| `lead-max` | 520 main; 560 subpage/vocabulary; 620 book | Text-column measures, not type or rhythm. They only bound line length. |
+| `lead-max` | 520 main; 560 subpage/vocabulary; 620 book; `cover-lead` for cover intros | Text-column measures, not type or rhythm. They only bound line length. |
+| `cover-lead` | 56em (840px at the shared 15px lead size) | Library summaries can fill the available text column up to this reading measure; the three-line clamp remains. Narrow layouts use the available column width. |
 | `text-basis`, `row-gap`, `visual-gap` | 380 / 56 / stack-gap | Main text basis and desktop text/visual gap; phone single-column stack. Tracker uses section-gap before its reading visual on phone. |
 | `visual-cover/page/reading/vocabulary/device` | 420/580/440/561/300 | Visual-slot sizes are structural and may differ by page. |
 | `cover-pad`, `reading-pad`, `device-inset` | 12px 0 → 6px 0 0 / 0; 40 → 0 | Padding/margin belonging to the visual slot, not the text stack. |
