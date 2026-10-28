@@ -43,9 +43,7 @@
 .kt-spec { color: var(--color-ink-3); font: var(--text-meta) var(--font-mono); }
 .kt-frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; min-height: 0; }
 .kt-device-space { flex: 1; width: 100%; min-height: 0; display: grid; place-items: center; contain: size; }
-.kt-device-bezel { box-sizing: content-box; max-width: calc(100% - 36px); padding: 18px 18px 48px; }
-.kt-device-bezel.device-shell-grip { max-width: calc(100% - 86px); padding: 18px 68px 18px 18px; }
-.kt-device-bezel.device-shell-grip::before, .kt-device-bezel.device-shell-grip::after { right: 28px; height: 44px; }
+.kt-device-bezel { box-sizing: content-box; }
 .kt-screen { width: 100%; position: relative; overflow: hidden; background: var(--device-paper); }
 .kt-screen iframe { position: absolute; left: 0; top: 0; border: 0; background: var(--device-paper); transform-origin: top left; }
 .kt-screen:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
@@ -63,7 +61,7 @@
 .kt-font-help svg { display: inline; margin-right: 8px; }
 .kt-dragging { outline: 2px dashed var(--color-accent); outline-offset: 8px; }
 .kt-install { display: grid; gap: 12px; padding-block: 20px; border-block: 1px solid var(--color-line); }
-.kt-dirty-note, .kt-warning-note { color: var(--color-warning); font-size: var(--text-meta); }
+.kt-dirty-note { color: var(--color-warning); font-size: var(--text-meta); }
 .kt-success-note { color: var(--color-ok); font-size: var(--text-meta); }
 .kt-send { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid var(--color-line-faint); }
 .kt-send .kt-send-button { width: 100%; }
@@ -120,10 +118,10 @@
 .kt-preview { flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 22px; }
 .kt-preview-sticky { position: static; height: auto; min-height: 0; }
 .kt-frame-wrap { width: 100%; gap: 22px; padding-top: 8px; }
-.kt-device-space { display: flex; align-items: flex-start; justify-content: center; flex: none; width: 100%; max-width: 400px; min-height: 0; contain: none; }
-.kt-device-bezel { padding: 30px 24px 60px; border-radius: 30px; }
-.kt-device-bezel.device-shell-grip { padding: 30px 80px 30px 30px; }
-.kt-device-bezel.device-shell-grip::before, .kt-device-bezel.device-shell-grip::after { right: 28px; width: 8px; height: 44px; }
+.kt-device-space { --kt-device-max: 28.75rem; display: flex; align-items: flex-start; justify-content: center; flex: none; width: 100%; max-width: var(--kt-device-max); min-height: 0; contain: none; }
+.kt-device-bezel { --kt-bezel-inline: 1.5rem; max-width: calc(100% - 2 * var(--kt-bezel-inline)); padding: 30px var(--kt-bezel-inline) 60px; border-radius: 30px; }
+.kt-device-bezel.device-shell-grip { --kt-bezel-inline: 1.375rem; --kt-bezel-grip: 3.75rem; --kt-grip-button-width: .5rem; --kt-grip-button-height: 2.75rem; max-width: calc(100% - var(--kt-bezel-inline) - var(--kt-bezel-grip)); padding: var(--kt-bezel-inline) var(--kt-bezel-grip) var(--kt-bezel-inline) var(--kt-bezel-inline); }
+.kt-device-bezel.device-shell-grip::before, .kt-device-bezel.device-shell-grip::after { right: calc((var(--kt-bezel-grip) - var(--kt-grip-button-width)) / 2); width: var(--kt-grip-button-width); height: var(--kt-grip-button-height); }
 .kt-device-bezel.device-shell-grip::before { top: 35%; }
 .kt-device-bezel.device-shell-grip::after { top: 57%; }
 .kt-page-controls { gap: 18px; justify-content: center; }
@@ -177,8 +175,8 @@
   .kt-preview-layout { gap: 32px; }
   .kt-editor { flex-basis: 100%; padding-left: 0; border-left: 0; }
   .kt-device-space { max-width: 100%; }
-  .kt-device-bezel { padding: 22px 16px 44px; border-radius: 22px; }
-  .kt-device-bezel.device-shell-grip { padding: 22px 64px 22px 22px; }
+  .kt-device-bezel { --kt-bezel-inline: 1rem; padding: 22px var(--kt-bezel-inline) 44px; border-radius: 22px; }
+  .kt-device-bezel.device-shell-grip { --kt-bezel-inline: 1.125rem; --kt-bezel-grip: 3.25rem; }
   .kt-preview-caption { font-size: var(--text-meta); }
 }
 .kt-page-controls .kt-page-turn { font-size: 0; overflow: hidden; gap: 0; }

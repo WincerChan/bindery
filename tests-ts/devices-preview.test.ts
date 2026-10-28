@@ -243,11 +243,12 @@ it("sends an edited default without saving or loading a profile and clears the l
   expect(onDirty).toHaveBeenLastCalledWith(true);
 });
 
-it("shows the overflow note without clamping or blocking a save", async () => {
+it("allows negative margins on KO3 without an overflow note, clamping or blocking a save", async () => {
   const { manager } = await paired(), mounted = mount(manager); await settle();
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kindle:KO3", "change");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   setValue(input(mounted.root, "kt-marginX"), "-20");
-  expect(mounted.root.textContent).toContain("左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。");
+  expect(mounted.root.textContent).not.toContain("左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。");
   expect((button(mounted.root, "保存方案") as HTMLButtonElement).disabled).toBe(false);
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("-20");
 });
@@ -648,12 +649,12 @@ it("keeps the saved profile selected after saving when the browser drops the re-
   expect(profileSelect().value).toBe("custom"); expect(input(mounted.root, "kt-lineHeight")).toBeDefined();
 });
 
-it("accepts margins past the device edge, shows the overflow note and labels unmeasured panels as estimates", async () => {
+it("accepts margins past the device edge and labels unmeasured panels as estimates", async () => {
   const { manager } = await paired(), mounted = mount(manager); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   setValue(input(mounted.root, "kt-marginX"), "-20");
   expect((button(mounted.root, "保存方案") as HTMLButtonElement).disabled).toBe(false);
-  expect(mounted.root.textContent).toContain("左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。");
+  expect(mounted.root.textContent).not.toContain("左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。");
   setValue(labels(mounted.root, "select", "预览型号"), "model:kobo:nia", "change");
   expect(elements(mounted.root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("估算");
   expect(elements(mounted.root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("758×1024");

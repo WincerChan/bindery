@@ -97,7 +97,6 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const locked = () => busy() || loading();
   const canStore = () => !busy() && !loading() && !settingsError();
   const estimate = () => previewEstimate(geometry(), draft().settings);
-  const overflow = () => estimate().sideMarginPx < geometry().side;
   const marginPercent = () => {
     const { marginX, marginXUnit } = draft().settings;
     return marginX === null ? null : Math.round(convertMarginX(geometry(), marginX, marginXUnit, "percent") * 10) / 10;
@@ -263,7 +262,6 @@ function DevicePreviewPageInner(props: PreviewProps) {
     <div class="kt-preview-layout"><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
       <ChapterFrame src={src()} geometry={geometry()} kind={kind()} model={target()?.model ?? model()} label={deviceKindLabel(kind())} css={previewCss()} device={family() ? fontDevice() : null} family={family()} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
       <p class="kt-preview-caption">只模拟正文分页，不含页眉页脚，和真机会有少量差异。</p>
-      <Show when={overflow()}><p class="kt-warning-note" role="alert" data-overflow-note>⚠ 左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。</p></Show>
       <details class="kt-calibration"><summary>校准说明</summary>
         <p class="muted" data-kindle-line-estimate>{settingsError() ? "排版参数无效，预览保留上次有效样式。" : `预计每行约 ${estimate().charsPerLine} 字、每页 ${estimate().linesPerPage} 行（${estimate().measured ? "实测" : "估算"} · ${targetInfo().panel.width}×${targetInfo().panel.height}${targetInfo().fallbackPanel ? ` · 其他型号按 ${targetInfo().panel.width}×${targetInfo().panel.height} 预览` : ""}）`}</p>
         <p class="kt-spec">{modelShortName(kind(), target()?.model ?? model())} · {targetInfo().panel.width}×{targetInfo().panel.height} · {targetInfo().panel.ppi} ppi</p>
