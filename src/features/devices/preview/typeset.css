@@ -117,9 +117,6 @@
 .kt-topbar .kt-device-pill > span:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .kt-topbar .kt-device-pill::before { content: "设备"; color: var(--color-ink-3); }
 .kt-topbar .ui-select-pill { min-height: var(--size-control); }
-.kt-margin-pill { gap: 2px; min-height: var(--size-control); padding: 0 4px 0 16px; }
-.kt-margin-pill .kt-margin-label { color: var(--color-ink-3); font-size: var(--text-control); padding-right: 2px; }
-.kt-margin-pill button { min-width: 0; height: 36px; padding: 0 12px; }
 .kt-reading-fallback { margin: 0; font-size: var(--text-meta); }
 .kt-preview-layout { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 56px; }
 .kt-preview { flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 22px; }
@@ -187,9 +184,6 @@
 .device-fonts-page { gap: 32px; }
 .device-fonts-page > .device-shelf-head { margin-bottom: 0; }
 .device-shelf-head .device-font-toolbar { margin-left: auto; }
-.kt-margin-pill-static { display: inline-flex; align-items: center; gap: 8px; min-height: var(--size-control); padding: 0 16px; border-radius: 999px; background: var(--color-control); font-size: var(--text-control); color: var(--color-ink-3); }
-.kt-margin-pill-static strong { font-weight: 500; color: var(--color-ink); }
-.kt-margin-pill-static svg { color: var(--color-ink-3); }
 .kt-profile-controls { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .kt-profile-select select { background-image: none; padding-right: 0; }
 .kt-profile-chevron { flex: none; color: var(--color-ink-3); }

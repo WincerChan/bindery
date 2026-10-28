@@ -133,19 +133,14 @@ function mount(manager: DeviceManager | null, extra: Partial<Props> = {}, prepar
 }
 const button = (root: Element, text: string) => elements(root, "button").find(element => element.textContent === text || element.getAttribute("aria-label") === text)!;
 function setValue(node: Element, value: string, type = "input") {
-  if (node.getAttribute("role") === "group") {
-    const label = ({ narrow: "窄", medium: "中", wide: "宽" } as Record<string, string>)[value];
-    fire(button(node, label), "click");
-  } else {
-    (node as HTMLInputElement).value = value;
-    if (node.getAttribute("type") === "range") Object.defineProperty(node, "valueAsNumber", { configurable: true, value: Number(value) });
-    fire(node, type);
-  }
+  (node as HTMLInputElement).value = value;
+  if (node.getAttribute("type") === "range") Object.defineProperty(node, "valueAsNumber", { configurable: true, value: Number(value) });
+  fire(node, type);
   ui.flush();
 }
 const rangeLabels: Record<string, string> = { "kt-marginX": "左右边距调整（%）", "kt-lineHeight": "行高" };
 const input = (root: Element, id: string) => elements(root, "input").find(element => element.id === id || rangeLabels[id] && element.getAttribute("aria-label") === rangeLabels[id])!;
-const labels = (root: Element, tag: string, label: string) => elements(root, tag).find(node => node.getAttribute("aria-label") === label) ?? elements(root, "label").find(element => element.firstChild?.textContent === label)?.getElementsByTagName(tag)[0] ?? elements(root, "div").find(node => node.getAttribute("role") === "group" && node.getAttribute("aria-label") === label)!;
+const labels = (root: Element, tag: string, label: string) => elements(root, tag).find(node => node.getAttribute("aria-label") === label) ?? elements(root, "label").find(element => element.firstChild?.textContent === label)?.getElementsByTagName(tag)[0]!;
 function controlRow(node: Element): Element {
   for (let parent = node.parentElement; parent; parent = parent.parentElement) if ((parent.getAttribute("class") ?? "").split(" ").includes("kt-range")) return parent;
   throw new Error("Missing control row");
@@ -164,9 +159,10 @@ it("renders one neutral page with both kinds available, no profile-owning device
   expect(elements(root, "h2").map(node => node.textContent)).toContain("设备阅读设置（只用于预览）");
   expect(elements(root, "h3").map(node => node.textContent)).not.toContain("设备阅读设置（只用于预览）");
   expect(root.textContent).not.toContain("方案所属设备");
-  expect(labels(root, "select", "预览设备")).toBeDefined(); expect(labels(root, "select", "方案")).toBeDefined();
-  expect(labels(root, "select", "设备种类")).toBeDefined(); expect(elements(labels(root, "select", "设备种类"), "option").map(option => option.textContent)).toEqual(["Kindle", "Kobo"]);
-  expect(labels(root, "select", "预览型号")).toBeDefined(); expect(elements(labels(root, "select", "预览型号"), "option").find(option => option.hasAttribute("selected"))?.getAttribute("value")).toBe("KPW3");
+  expect(labels(root, "select", "预览型号")).toBeDefined(); expect(labels(root, "select", "方案")).toBeDefined();
+  expect(labels(root, "select", "设备种类")).toBeUndefined();
+  expect(elements(labels(root, "select", "预览型号"), "option").map(option => option.textContent)).toEqual(expect.arrayContaining(["Kindle Paperwhite 3", "Kindle Oasis 3", "Kobo Libra 2"]));
+  expect(elements(labels(root, "select", "预览型号"), "option").find(option => option.hasAttribute("selected"))?.getAttribute("value")).toBe("model:kindle:KPW3");
   expect(frame(root).getAttribute("width")).toBe("1072");
   expect(elements(root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("1072×1448");
   expect(elements(root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("实测");
@@ -181,20 +177,27 @@ it("renders one neutral page with both kinds available, no profile-owning device
   expect(withClass(root, "kt-calibration").hasAttribute("open")).toBe(false);
 });
 
-it("switches the preview device between Kindle and Kobo and updates geometry and preset controls", async () => {
+it("switches directly from a paired device to either model kind and back without losing the draft", async () => {
   const { manager, id } = await paired(), mounted = mount(manager); await settle();
   expect(frame(mounted.root).getAttribute("width")).toBe("1072");
-  expect(labels(mounted.root, "select", "预览设备").getAttribute("value") ?? (labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(id);
-  expect(elements(labels(mounted.root, "select", "设备页边距"), "button").map(option => option.textContent)).toEqual(["窄", "中", "宽"]);
-  setValue(labels(mounted.root, "select", "预览设备"), "", "change");
-  setValue(labels(mounted.root, "select", "设备种类"), "kobo", "change");
+  expect(labels(mounted.root, "select", "预览型号").getAttribute("value") ?? (labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(id);
+  expect(elements(labels(mounted.root, "select", "设备边距"), "option").map(option => option.textContent)).toEqual(["窄", "中", "宽"]);
+  setValue(input(mounted.root, "kt-marginX"), "2.5");
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kobo:libra2", "change");
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
-  expect(elements(mounted.root, "label").find(label => label.firstChild?.textContent === "设备页边距")).toBeUndefined();
-  expect(elements(mounted.root, "p", "data-reading-margin")[0]!.textContent).toBe("页边距：最小（实测）");
-  setValue(labels(mounted.root, "select", "设备种类"), "kindle", "change");
-  setValue(labels(mounted.root, "select", "预览型号"), "KO3", "change");
+  expect(elements(labels(mounted.root, "select", "设备边距"), "option").map(option => option.textContent)).toEqual(["最小"]);
+  expect((labels(mounted.root, "select", "设备边距") as HTMLSelectElement).value).toBe("min");
+  expect((button(mounted.root, "发送到 我的 Paperwhite") as HTMLButtonElement).disabled).toBe(true);
+  await manager.probe(); await settle();
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe("model:kobo:libra2");
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kindle:KO3", "change");
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
   expect(mounted.root.textContent).toContain("Kindle Oasis 3");
+  expect((labels(mounted.root, "select", "设备边距") as HTMLSelectElement).value).toBe("narrow");
+  setValue(labels(mounted.root, "select", "预览型号"), id, "change"); await settle();
+  expect(frame(mounted.root).getAttribute("width")).toBe("1072");
+  expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("2.5");
+  expect((button(mounted.root, "发送到 我的 Paperwhite") as HTMLButtonElement).disabled).toBe(false);
 });
 
 it("persists device reading settings for a paired device, debounced, and keeps model-only settings in memory", async () => {
@@ -202,15 +205,15 @@ it("persists device reading settings for a paired device, debounced, and keeps m
   expect(reading.get).toHaveBeenCalledWith(id, "kindle");
   // Only the device margin is a reading setting; font size and line spacing are not offered.
   expect(input(mounted.root, "kt-reading-scale")).toBeUndefined(); expect(input(mounted.root, "kt-reading-line-height")).toBeUndefined();
-  setValue(labels(mounted.root, "select", "设备页边距"), "wide", "change");
+  setValue(labels(mounted.root, "select", "设备边距"), "wide", "change");
   await new Promise(resolve => setTimeout(resolve, 560)); await settle();
   expect(reading.save).toHaveBeenCalledWith(id, "kindle", { margin: "wide", profileId: "default" });
   const calls = reading.save.mock.calls.length;
-  setValue(labels(mounted.root, "select", "预览设备"), "", "change");
-  setValue(labels(mounted.root, "select", "设备页边距"), "medium", "change");
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kindle:KPW3", "change");
+  setValue(labels(mounted.root, "select", "设备边距"), "medium", "change");
   await new Promise(resolve => setTimeout(resolve, 560)); await settle();
   expect(reading.save).toHaveBeenCalledTimes(calls);
-  setValue(labels(mounted.root, "select", "设备种类"), "kobo", "change");
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kobo:libra2", "change");
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
 });
 
@@ -287,7 +290,7 @@ it("protects a dirty draft while changing the preview device", async () => {
   const mounted = mount(first.manager, { profiles }); await settle();
   setValue(labels(mounted.root, "select", "方案"), "custom", "change"); setValue(input(mounted.root, "kt-marginX"), "3");
   first.fs.operations = [];
-  setValue(labels(mounted.root, "select", "预览设备"), second.id, "change"); await settle();
+  setValue(labels(mounted.root, "select", "预览型号"), second.id, "change"); await settle();
   expect(frame(mounted.root).getAttribute("width")).toBe("1264"); expect(first.fs.operations).toEqual([]);
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("3");
   expect(mounted.root.textContent).toContain("有未保存的修改");
@@ -297,10 +300,10 @@ it("keeps a manually chosen remembered preview target across probes and blocks s
   const first = await paired(), second = await paired("kobo");
   await first.repo.put((await second.manager.remembered())[0]!);
   const mounted = mount(first.manager); await settle();
-  setValue(labels(mounted.root, "select", "预览设备"), second.id, "change");
+  setValue(labels(mounted.root, "select", "预览型号"), second.id, "change");
   await first.manager.probe(); await settle();
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
-  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(second.id);
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(second.id);
   expect(mounted.root.textContent).toContain("预览的是 我的 Libra，请切换到这台设备后发送。");
   expect((button(mounted.root, "发送到 我的 Paperwhite") as HTMLButtonElement).disabled).toBe(true);
 });
@@ -309,11 +312,11 @@ it("switches to a reconnected device after a manual device choice", async () => 
   const first = await paired(), second = await paired("kobo");
   await first.repo.put((await second.manager.remembered())[0]!);
   const mounted = mount(first.manager); await settle();
-  setValue(labels(mounted.root, "select", "预览设备"), second.id, "change"); await settle();
-  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(second.id);
+  setValue(labels(mounted.root, "select", "预览型号"), second.id, "change"); await settle();
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(second.id);
   first.fs.unplug(); await first.manager.probe(); await settle();
   first.fs.plug(); await first.manager.probe(); await settle();
-  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(first.id);
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(first.id);
   expect(frame(mounted.root).getAttribute("width")).toBe("1072");
 });
 
@@ -322,9 +325,9 @@ it("switches a model-only preview to a different device that becomes granted", a
   await first.repo.put((await second.manager.remembered())[0]!);
   reading.store.set(`${second.id}:kobo`, { ...defaultReadingSettings("kobo"), profileId: "custom" });
   const mounted = mount(first.manager, { reading: reading.api }); await settle();
-  setValue(labels(mounted.root, "select", "预览设备"), "", "change"); await settle();
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kindle:KPW3", "change"); await settle();
   await first.manager.restore(second.id); await settle();
-  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(second.id);
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(second.id);
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
   expect((labels(mounted.root, "select", "方案") as HTMLSelectElement).value).toBe("custom");
 });
@@ -335,11 +338,11 @@ it("keeps a dirty draft and offers to switch when a different device becomes gra
   const mounted = mount(first.manager); await settle();
   setValue(input(mounted.root, "kt-marginX"), "2.5");
   await first.manager.restore(second.id); await settle();
-  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(first.id);
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(first.id);
   expect(frame(mounted.root).getAttribute("width")).toBe("1072");
   const notice = button(mounted.root, "切换到 我的 Libra"); expect(notice).toBeDefined();
   fire(notice, "click"); await settle();
-  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(second.id);
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(second.id);
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("2.5");
 });
 
@@ -347,10 +350,10 @@ it("does not let a restored but ungranted device override a manual choice", asyn
   const first = await paired(), second = await paired("kobo");
   await first.repo.put((await second.manager.remembered())[0]!);
   const mounted = mount(first.manager); await settle();
-  setValue(labels(mounted.root, "select", "预览设备"), first.id, "change");
+  setValue(labels(mounted.root, "select", "预览型号"), first.id, "change");
   second.fs.permission = "prompt";
   await first.manager.restore(second.id); await settle();
-  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(first.id);
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(first.id);
   expect(frame(mounted.root).getAttribute("width")).toBe("1072");
 });
 
@@ -360,7 +363,7 @@ it("selects each paired device's remembered profile and saves a manual choice on
   reading.store.set(`${first.id}:kindle`, { ...defaultReadingSettings("kindle"), profileId: "default" });
   reading.store.set(`${second.id}:kobo`, { ...defaultReadingSettings("kobo"), profileId: "custom" });
   const mounted = mount(first.manager, { reading: reading.api }); await settle();
-  const deviceSelect = () => labels(mounted.root, "select", "预览设备") as HTMLSelectElement;
+  const deviceSelect = () => labels(mounted.root, "select", "预览型号") as HTMLSelectElement;
   const profileSelect = () => labels(mounted.root, "select", "方案") as HTMLSelectElement;
   expect(profileSelect().value).toBe("default");
   setValue(deviceSelect(), second.id, "change"); await settle();
@@ -440,7 +443,7 @@ it("ignores a stale chapter response after the book changed", async () => {
   let finish!: (value: { title: string; item_path: string }[]) => void;
   const chapters = vi.fn((id: string) => id === "b" ? new Promise<{ title: string; item_path: string }[]>(resolve => { finish = resolve; }) : Promise.resolve([{ title: "新第一章", item_path: "new.xhtml" }]));
   const mounted = mount(null, { chapters }); await settle();
-  setValue(labels(mounted.root, "select", "预览型号"), "KO3", "change"); expect(frame(mounted.root).getAttribute("width")).toBe("1264");
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kindle:KO3", "change"); expect(frame(mounted.root).getAttribute("width")).toBe("1264");
   pickBook(mounted.root, "乙"); pickBook(mounted.root, "甲"); await settle();
   finish([{ title: "过期第二章", item_path: "stale.xhtml" }]); await settle();
   expect(frame(mounted.root).getAttribute("src")).toBe("/book/a/epub/new.xhtml");
@@ -503,13 +506,13 @@ it("fits the content-height frame by width without shrinking after model changes
   expect((preview as HTMLElement).getAttribute("style")).toBeNull();
   width = 260; height = 900; notify(viewport); expect(scale()).toBeCloseTo((width - 44) / 1072);
   width = 400; height = 300; notify(viewport); expect(scale()).toBeCloseTo((width - 44) / 1072);
-  setValue(labels(mounted.root, "select", "预览型号"), "KO3", "change"); await settle();
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kindle:KO3", "change"); await settle();
   expect(scale()).toBeCloseTo((width - 44) / 1264);
   expect(screen.getAttribute("height")).toBe("1680");
   height = 120; notify(viewport); expect(scale()).toBeCloseTo((width - 44) / 1264);
-  setValue(labels(mounted.root, "select", "预览型号"), "KPW3", "change"); await settle();
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kindle:KPW3", "change"); await settle();
   expect(scale()).toBeCloseTo((width - 44) / 1072);
-  setValue(labels(mounted.root, "select", "预览型号"), "KO3", "change"); await settle();
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kindle:KO3", "change"); await settle();
   width = 1200; notify(viewport); expect(scale()).toBeCloseTo(640 / 1680);
   mounted.dispose();
   expect(observers).toHaveLength(1); expect(observers.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true);
@@ -527,7 +530,7 @@ it("hydrates preview with chapter URLs, device fonts, profile CSS and survives g
   setValue(input(mounted.root, "kt-marginX"), "2.5");
   expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: 2.5% !important");
   fs.unplug(); await manager.probe(); await settle();
-  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(manager.snapshot().device?.identity.id ?? "");
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(manager.snapshot().device?.identity.id ?? "");
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("2.5");
   expect(frame(mounted.root).getAttribute("src")).toBe("/book/a/epub/Text/%E7%AC%AC%E4%B8%80%20%E7%AB%A0.xhtml");
 });
@@ -551,14 +554,14 @@ it("edits and resets signed margins with compact values, previews calibrated cou
   expect(output.textContent).toBe("-4.8%"); expect(reset.hasAttribute("hidden")).toBe(false);
   expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toContain("margin-left: -4.8% !important");
   fire(button(mounted.root, "恢复默认"), "click"); ui.flush();
-  setValue(labels(mounted.root, "select", "设备页边距"), "medium", "change"); expect(estimate()).toContain("约 14 字");
-  setValue(labels(mounted.root, "select", "设备页边距"), "wide", "change"); expect(estimate()).toContain("约 11 字");
+  setValue(labels(mounted.root, "select", "设备边距"), "medium", "change"); expect(estimate()).toContain("约 14 字");
+  setValue(labels(mounted.root, "select", "设备边距"), "wide", "change"); expect(estimate()).toContain("约 11 字");
   expect(margin.getAttribute("min")).toBe("-10");
   await new Promise(resolve => setTimeout(resolve, 560)); await settle();
   expect(reading.save).toHaveBeenLastCalledWith(id, "kindle", expect.objectContaining({ margin: "wide" }));
   mounted.dispose();
   const reloaded = mount(manager, { profiles, reading: reading.api }); await settle();
-  expect(button(labels(reloaded.root, "select", "设备页边距"), "宽").getAttribute("aria-pressed")).toBe("true");
+  expect((labels(reloaded.root, "select", "设备边距") as HTMLSelectElement).value).toBe("wide");
   expect(elements(reloaded.root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("约 11 字");
 });
 
@@ -618,9 +621,7 @@ it("accepts margins past the device edge, shows the overflow note and labels unm
   setValue(input(mounted.root, "kt-marginX"), "-20");
   expect((button(mounted.root, "保存方案") as HTMLButtonElement).disabled).toBe(false);
   expect(mounted.root.textContent).toContain("左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。");
-  setValue(labels(mounted.root, "select", "预览设备"), "", "change");
-  setValue(labels(mounted.root, "select", "设备种类"), "kobo", "change");
-  setValue(labels(mounted.root, "select", "预览型号"), "nia", "change");
+  setValue(labels(mounted.root, "select", "预览型号"), "model:kobo:nia", "change");
   expect(elements(mounted.root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("估算");
   expect(elements(mounted.root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("758×1024");
 });
@@ -633,7 +634,7 @@ it("takes over a chapter already loaded before hydration and applies CSS and dev
   const mounted = mount(manager, {}, root => { Object.defineProperty(frame(root), "contentDocument", { value: doc }); }); await settle();
   expect(elements(head, "style", "data-bindery-profile")).toHaveLength(1);
   expect(Array.from(head.childNodes).map(node => node.textContent)).toEqual([expect.stringContaining("font-size: 55px"), bookStyle.textContent, ""]);
-  setValue(labels(mounted.root, "select", "设备页边距"), "medium", "change");
+  setValue(labels(mounted.root, "select", "设备边距"), "medium", "change");
   expect(head.firstChild!.textContent).toContain("margin: 52px 137px 70px !important");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
   setValue(labels(mounted.root, "select", "字体（预览设备上已安装）"), "Book", "change"); await settle();
@@ -693,7 +694,7 @@ it("supports a remembered Oasis without FSA permission and applies a font link t
   const { manager, fs } = await paired(), saved = (await manager.remembered())[0]!;
   saved.identity.model = "KO3"; fs.permission = "prompt"; await manager.restore(saved);
   const profiles = api(), mounted = mount(manager, { profiles, initialFont: "Book" }); await settle();
-  expect((labels(mounted.root, "select", "预览设备") as HTMLSelectElement).value).toBe(manager.snapshot().device!.identity.id);
+  expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(manager.snapshot().device!.identity.id);
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
   expect(mounted.root.textContent).toContain("字体预览"); expect(mounted.root.textContent).toContain("有未保存的修改");
   expect(profiles.update).not.toHaveBeenCalled(); expect(profiles.create).not.toHaveBeenCalled();
@@ -703,7 +704,7 @@ it("chooses a remembered device's model and profiles without selecting or openin
   const { repo, fs, id } = await paired(); repo.devices.get(id)!.identity.model = "KO3";
   const manager = new DeviceManager(repo);
   const mounted = mount(manager); await settle(); fs.operations = [];
-  setValue(labels(mounted.root, "select", "预览设备"), id, "change"); await settle();
+  setValue(labels(mounted.root, "select", "预览型号"), id, "change"); await settle();
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
   expect(mounted.props.profiles.list).toHaveBeenCalledWith(); expect(fs.operations).toEqual([]);
 });

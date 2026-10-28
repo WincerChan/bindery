@@ -41,7 +41,7 @@ const copyProfile = (profile: TypesettingProfile): TypesettingProfile => ({ ...p
 const modelOptions = (kind: DeviceKind) => kind === "kindle"
   ? Object.entries({ KPW3: kindleModelInfo("KPW3").name, KO3: kindleModelInfo("KO3").name, other: kindleModelInfo("other").name })
   : Object.entries({ libra2: koboModelInfo("libra2").name, libraH2O: koboModelInfo("libraH2O").name, sage: koboModelInfo("sage").name, elipsa: koboModelInfo("elipsa").name, claraHD: koboModelInfo("claraHD").name, clara2e: koboModelInfo("clara2e").name, claraBW: koboModelInfo("claraBW").name, claraColour: koboModelInfo("claraColour").name, libraColour: koboModelInfo("libraColour").name, nia: koboModelInfo("nia").name, forma: koboModelInfo("forma").name, auraOne: koboModelInfo("auraOne").name, auraH2O: koboModelInfo("auraH2O").name, auraEdition2: koboModelInfo("auraEdition2").name, aura: koboModelInfo("aura").name, glo: koboModelInfo("glo").name, touch: koboModelInfo("touch").name, mini: koboModelInfo("mini").name, unknown: koboModelInfo("unknown").name });
-const defaultModel = (kind: DeviceKind) => kind === "kindle" ? "KPW3" : "libra2";
+const previewModels = (["kindle", "kobo"] as const).flatMap(kind => modelOptions(kind).map(([model, label]) => ({ value: `model:${kind}:${model}`, label, kind, model })));
 /** Cover/title pages are not typesetting samples; open the first text chapter instead. */
 const firstTextChapter = (sections: readonly PreviewChapter[]) => { const index = sections.findIndex(section => !/^(封面|cover|title ?page|制作说明|内容简介|简介|作者简介|书评|目录|版权|copyright|扉页|书名页|出版信息|序言|序|前言|后记|附录|插图|彩页)/i.test(section.title.trim())); return index < 0 ? 0 : index; };
 
@@ -110,6 +110,10 @@ function DevicePreviewPageInner(props: PreviewProps) {
     if (selected && !list.some(value => value.id === selected.id)) list.push({ id: selected.id, kind: selected.kind, model: selected.model, name: selected.name, created_at: "" });
     return list.filter(value => !seen.has(value.id) && Boolean(seen.add(value.id)));
   };
+  const previewOptions = () => [
+    ...available().map(identity => ({ value: identity.id, label: `${modelShortName(identity.kind, identity.model)} · ${identity.name}` })),
+    ...previewModels,
+  ];
   function openChapter(index: number, page = 1) { setChapter(index); setChapterStart({ page }); }
   function selectProfile(profile: TypesettingProfile) { const selected = copyProfile(profile); setDraft(selected); setBaseline(JSON.stringify(selected)); setSent(null); setError(""); setNotice(""); }
   function resolveProfileId(id: string) { return id === DEFAULT_PROFILE_ID || profiles().some(profile => profile.id === id) ? id : DEFAULT_PROFILE_ID; }
@@ -136,16 +140,13 @@ function DevicePreviewPageInner(props: PreviewProps) {
     if (!selected?.id || !api) return;
     saveTimer = setTimeout(() => { saveTimer = undefined; if (!disposed) void api.save(selected.id, selected.kind, value).catch(error => { if (!disposed) setError(errorMessage(error)); }); }, 500);
   }
-  function chooseTarget(id: string) {
+  function choosePreview(value: string) {
     if (busy()) return;
-    const identity = available().find(value => value.id === id);
+    const identity = available().find(identity => identity.id === value), selectedModel = previewModels.find(model => model.value === value);
+    if (!identity && !selectedModel) return;
     modelOnlyByUser = !identity; followedId = undefined; setSwitchNotice(null);
+    if (selectedModel) { setModelKind(selectedModel.kind); setModel(selectedModel.model); }
     setTarget(identity ? { id: identity.id, kind: identity.kind, model: identity.model, name: identity.name } : null);
-  }
-  function chooseModelKind(value: DeviceKind) {
-    if (busy()) return;
-    modelOnlyByUser = true; setSwitchNotice(null); setModelKind(value); setModel(defaultModel(value)); setTarget(null);
-    const fallback = defaultReadingSettings(value); setReading(fallback);
   }
   function switchToPendingGrant() {
     const pending = switchNotice();
@@ -238,12 +239,9 @@ function DevicePreviewPageInner(props: PreviewProps) {
         <PreviewBookPicker pill books={props.data.books} value={bookId()} disabled={!props.data.books.length} onChange={id => { void chooseBook(id); }} />
         <SelectPill label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} options={sections().map((section, index) => ({ value: String(index), label: section.title }))} onChange={value => openChapter(Number(value))} />
         <span class="kt-topbar-spacer" />
-        <SelectPill class="kt-device-pill" label="预览设备" value={target()?.id ?? ""} disabled={busy()} options={[{ value: "", label: "仅预览型号" }, ...available().map(identity => ({ value: identity.id, label: identity.name }))]} onChange={chooseTarget} />
-        <Show when={!target()}><SelectPill label="设备种类" value={modelKind()} disabled={busy()} options={[{ value: "kindle", label: "Kindle" }, { value: "kobo", label: "Kobo" }]} onChange={value => chooseModelKind(value as DeviceKind)} /><SelectPill label="预览型号" value={model()} disabled={busy()} options={modelOptions(modelKind()).map(([value, label]) => ({ value, label }))} onChange={setModel} /></Show>
+        <SelectPill class="kt-device-pill" label="预览型号" value={target()?.id ?? `model:${modelKind()}:${model()}`} disabled={busy()} options={previewOptions()} onChange={choosePreview} />
         <h2 class="sr-only">设备阅读设置（只用于预览）</h2>
-        <Show when={presets().length > 1} fallback={<><p class="sr-only" data-reading-margin>页边距：{presets()[0]!.label}（{geometry().measured ? "实测" : "估算"}）</p><span class="kt-margin-pill-static"><span>设备边距</span><strong>{presets()[0]!.label}</strong><Icon icon={TablerChevronDown} size={14} /></span></>}>
-          <div role="group" aria-label="设备页边距" class="segmented kt-margin-pill"><span class="kt-margin-label">设备边距</span><For each={presets()}>{preset => <button type="button" aria-pressed={reading().margin === preset.id ? "true" : "false"} disabled={busy()} onClick={() => editReading({ margin: preset.id })}>{preset.label}</button>}</For></div>
-        </Show>
+        <SelectPill label="设备边距" value={reading().margin} disabled={busy()} options={presets().map(preset => ({ value: preset.id, label: preset.label }))} onChange={margin => editReading({ margin })} />
       </>} />
     <Show when={chapterLoading()}><p role="status" class="kt-chapter-status">正在读取章节…</p></Show>
     <Show when={chapterError()}><p role="alert" class="field-error">{chapterError()}</p></Show>
