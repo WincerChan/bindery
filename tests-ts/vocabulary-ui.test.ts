@@ -188,6 +188,7 @@ describe("生词本 UI", () => {
     expect(byRole(root, "button", "全部重试")).toBeDefined();
     expect(byRole(root, "button", "LexiTrace 设置")).toBeDefined();
     expect(byRole(root, "group", "推送状态")).toBeDefined();
+    expect(byRole(root, "searchbox", "搜索生词、例句、书籍或设备").getAttribute("placeholder")).toBe("搜索生词、例句");
     expect(byRole(root, "list", "生词列表")).toBeDefined();
     expect(byLabel(root, "设备")).toBeDefined();
     expect(byLabel(root, "书")).toBeDefined();
@@ -222,6 +223,7 @@ describe("生词本 UI", () => {
     expect(root.textContent).toContain("尚未配置 LexiTrace");
     expect(root.textContent).not.toContain("全部重试");
     expect(root.textContent).not.toContain("最近查的");
+    expect(html).not.toContain('class="ui-page-visual"');
     expect(byRole(root, "button", "LexiTrace 设置")).toBeDefined();
     expect(html).not.toContain('type="checkbox"');
     expect(ui.vocabularyMonthQuery()).toEqual({});
