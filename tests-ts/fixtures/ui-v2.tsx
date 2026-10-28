@@ -34,6 +34,20 @@ function Pages() {
     <Pagination page={1} total={48} perPage={12} unit="册" href="/?q=书#books" />
   </>;
 }
+function Intros() {
+  return <>
+    <PageIntro eyebrow="书库 · 在库 48 册" title="最近阅读的是这本。" description="接着上次的地方读。" actions={<Button size="lg">继续阅读</Button>} visual={<GeneratedCover book_id="intro-cover" title="浮生六记" large />} />
+    <PageIntro variant="subpage" back={<BackLink href="/settings">设置</BackLink>} title="切章规则" description="决定 TXT 怎么切成卷和章。" actions={<Button>保存</Button>} />
+    <PageIntro variant="title-only" title="设置" titleId="settings-intro-title" />
+    <PageIntro variant="topbar" back={<BackLink href="/devices">设备</BackLink>} title="排版预览" actions={<Button>预览</Button>} />
+    <PageIntro visualSize="cover" eyebrow="书库 · 在库 48 册" title="最近阅读的是这本。" actions={<Button size="lg">继续阅读</Button>} visual={<GeneratedCover book_id="cover-intro" title="浮生六记" large />} />
+    <PageIntro id="book-intro" variant="book" visualSize="cover" back={<BackLink href="/">书库</BackLink>} title="浮生六记" meta={<span>沈复</span>} description="清代文人沈复的自传体散文。" status={<span>读到 42%</span>} actions={<Button>继续阅读</Button>} visual={<GeneratedCover book_id="book-intro" title="浮生六记" large />} />
+    <PageIntro visualSize="page" title="把书放进来。" visual={<span>第一页</span>} />
+    <PageIntro visualSize="reading" title="正在读" visual={<span>封面</span>} />
+    <PageIntro visualSize="vocabulary" title="生词" status={<span>已推送</span>} visual={<span>最近查的</span>} />
+    <PageIntro visualSize="device" title="设备" visual={<span>机身</span>} />
+  </>;
+}
 function Overlays() {
   const [open, setOpen] = createSignal(false), [settings, setSettings] = createSignal(false);
   let trigger!: HTMLButtonElement, settingsTrigger!: HTMLButtonElement;
@@ -66,6 +80,6 @@ function Consolidated() {
     <RelativeTime value="2026-10-26T00:30:00+08:00" labelPrefix="更新于" />
   </>;
 }
-const views = { controls: Controls, covers: Covers, pages: Pages, overlays: Overlays, consolidated: Consolidated };
+const views = { controls: Controls, covers: Covers, pages: Pages, intros: Intros, overlays: Overlays, consolidated: Consolidated };
 export function markup(kind: keyof typeof views) { const View = views[kind]; return renderToString(() => <View />); }
 export function mount(node: HTMLElement, kind: keyof typeof views) { const View = views[kind]; const dispose = render(() => <View />, node); flush(); return { dispose, flush }; }

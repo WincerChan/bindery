@@ -138,11 +138,11 @@ export function TrackerPage(props: { data: TrackerPageData }) {
   }
   const menuTone = (wish: TrackerItem) => wish.read_status === "read" ? "ok" as const : wish.read_status === "reading" ? "accent" as const : "neutral" as const;
   return <div class="tracker-page">
-    <PageIntro eyebrow={`追踪 · 共 ${props.data.stats.total} 本 · ${props.data.stats.in_library} 本已入库`}
+    <PageIntro class="tracker-intro" visualSize="reading" eyebrow={`追踪 · 共 ${props.data.stats.total} 本 · ${props.data.stats.in_library} 本已入库`}
       title={<><Show when={props.data.stats.reading > 0}>正在读的有 {props.data.stats.reading} 本，<br /></Show>还有 {props.data.stats.unread} 本在等你。</>}
       description="想读的、读过的、还在连载的，都记在这里。没入库的书也可以先记下。"
       actions={<><Button size="lg" class="tracker-add" onClick={() => setActive({})}><Icon icon={TablerPlus} size={16} />添加书籍</Button><a class="btn btn-icon btn-lg" href={props.data.export_url} aria-label="导出 CSV" title="导出 CSV"><Icon icon={TablerDownload} size={20} /></a></>}
-      visual={<Show when={props.data.reading_now.length}><section class="tracker-reading" aria-label="正在读"><SectionTitle>正在读</SectionTitle><div class="tracker-reading-covers"><For each={props.data.reading_now}>{wish => <Show when={wish.library_book_id} fallback={<button type="button" class="tracker-cover-button" aria-label={`编辑《${wish.title}》（${trackerState(wish)}）`} onClick={() => setActive({ wish })}><TrackerCover wish={wish} /></button>}><Link href={trackerBookHref(wish, props.data.current_url)} aria-label={`打开《${wish.title}》详情（${trackerState(wish)}）`}><TrackerCover wish={wish} /></Link></Show>}</For></div></section></Show>} />
+      visual={props.data.reading_now.length ? <section class="tracker-reading" aria-label="正在读"><SectionTitle>正在读</SectionTitle><div class="tracker-reading-covers"><For each={props.data.reading_now}>{wish => <Show when={wish.library_book_id} fallback={<button type="button" class="tracker-cover-button" aria-label={`编辑《${wish.title}》（${trackerState(wish)}）`} onClick={() => setActive({ wish })}><TrackerCover wish={wish} /></button>}><Link href={trackerBookHref(wish, props.data.current_url)} aria-label={`打开《${wish.title}》详情（${trackerState(wish)}）`}><TrackerCover wish={wish} /></Link></Show>}</For></div></section> : undefined} />
     <Show when={props.data.duplicate_notice}><div class="tracker-notice" role="status"><p>已存在追踪条目：{props.data.duplicate_notice?.title}</p><Button variant="secondary" onClick={() => setActive({ wish: props.data.duplicate_notice! })}>点此前往编辑该条目。</Button></div></Show>
     <form ref={filterForm} action="/tracker" method="get" class="tracker-filter" onSubmit={event => { event.preventDefault(); applyFilters(); }}>
       <input type="hidden" name="read_filter" value={props.data.filters.read_filter} />

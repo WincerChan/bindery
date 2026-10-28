@@ -39,7 +39,7 @@ export function DeviceBar(props: { compact?: boolean; loadPage?: LoadDevicePageS
     <Show when={k.error() || k.inventoryError() || k.syncError()}><p class="field-error" role="alert">{k.error() || k.inventoryError() || k.syncError()}</p></Show>
   </section>;
   return <section aria-label="当前设备" class="device-intro" data-kindle-device-bar>
-    <PageIntro eyebrow={<><StatusDot label={status()} tone={k.state().status === "granted" ? "ok" : "empty"} /><span role="status">{[status(), model(), firmware() ? `固件 ${firmware()}` : ""].filter(Boolean).join(" · ")}</span></>}
+    <PageIntro class="device-intro-page" visualSize="device" eyebrow={<span class="device-intro-eyebrow"><StatusDot label={status()} tone={k.state().status === "granted" ? "ok" : "empty"} /><span role="status">{[status(), model(), firmware() ? `固件 ${firmware()}` : ""].filter(Boolean).join(" · ")}</span></span>}
       title={device() ? <>{device()!.identity.name}，<br />上面有 {k.inventory()?.books.length ?? 0} 本书。</> : "设备"}
       meta={<Show when={usage()}><div class="device-usage">
         <div class="device-usage-bar" role="img" aria-label={`已枚举 ${bytes(usage()!.total)}：书籍 ${bytes(usage()!.books)}，字体 ${bytes(usage()!.fonts)}，其他 ${bytes(usage()!.other)}`}>

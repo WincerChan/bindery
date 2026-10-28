@@ -9,7 +9,7 @@ import TablerLogout from "~icons/tabler/logout";
 import { Link } from "../../shared/spa-link";
 import type { SettingsSummary } from "../../server/settings/summary";
 import { InstallApp } from "./install-app";
-import { Button, Icon, SectionTitle, StatusDot, type IconComponent } from "../../ui";
+import { Button, Icon, PageIntro, SectionTitle, StatusDot, type IconComponent } from "../../ui";
 import "./settings-hub.css";
 
 export function relativeLastUse(value: string | null, now: number): string {
@@ -32,7 +32,7 @@ function SettingsRow(props: { href: string; title: string; status: string; icon:
 export function SettingsHub(props: { summary: SettingsSummary; now: number }) {
   const rules = () => props.summary.rules, themes = () => props.summary.themes, security = () => props.summary.security, lexi = () => props.summary.lexitrace;
   return <section class="settings-hub" aria-labelledby="settings-title">
-    <h1 id="settings-title" class="page-title">设置</h1>
+    <PageIntro variant="title-only" title="设置" titleId="settings-title" />
     <div class="settings-groups">
       <section aria-labelledby="settings-books"><SectionTitle id="settings-books">书怎么做出来</SectionTitle>
         <SettingsRow href="/rules" title="切章规则" icon={TablerAlignLeft} status={`${rules().count} 条${rules().recently_modified ? ` · 最近改过「${rules().recently_modified!.name}」` : " · 尚未添加规则"}`} />

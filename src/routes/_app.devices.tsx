@@ -8,7 +8,7 @@ import { authenticated } from "../server/functions";
 import { createFileRoute, Outlet, useLocation } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
 import { Link } from "../shared/spa-link";
-import { Icon } from "../ui";
+import { Icon, PageIntro } from "../ui";
 import { DeviceProvider, useDevice } from "../features/devices/context";
 import { DeviceConnectPage } from "../features/devices/connect";
 import { syncKoboDevice } from "../features/devices/kobo-sync";
@@ -42,11 +42,7 @@ function DeviceLayout() {
   return (
     <DeviceProvider koboReadingSync={syncKoboDevice} kindleReadingSync={syncKindleDevice}>
       <section class="kindle-mobile-note" aria-label="桌面端使用提示">
-        <div class="device-mobile-hero">
-          <p class="device-mobile-eyebrow">设备</p>
-          <h1 class="page-title">阅读器要在<br />电脑上连接。</h1>
-          <p class="device-mobile-lead">手机浏览器读不到 Kindle 和 Kobo 的存储。在电脑上用 Chrome 或 Edge 打开 Bindery，插上阅读器就能用。</p>
-        </div>
+        <PageIntro class="device-mobile-hero" eyebrow="设备" title={<>阅读器要在<br />电脑上连接。</>} description="手机浏览器读不到 Kindle 和 Kobo 的存储。在电脑上用 Chrome 或 Edge 打开 Bindery，插上阅读器就能用。" />
         <section class="device-mobile-features" aria-labelledby="desktop-device-features"><h2 id="desktop-device-features">在电脑上可以</h2>
           <ul><For each={[{ icon: TablerSend, text: "把书库里的书发到阅读器" }, { icon: TablerLetterCase, text: "给阅读器装字体" }, { icon: TablerDeviceTablet, text: "看书在阅读器上的排版" }, { icon: TablerRefresh, text: "同步阅读进度和生词" }] as const}>{item => <li><span aria-hidden="true"><Icon icon={item.icon} size={20} /></span>{item.text}</li>}</For></ul>
           <p class="device-mobile-note">同步过来的进度和生词，在手机上的书库和<Link href="/vocabulary">生词本</Link>里都能看到。</p>

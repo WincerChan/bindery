@@ -183,16 +183,17 @@ export function LibraryPage(props: {
     } catch (error) { showToast(error instanceof Error ? error.message : "下载失败，请重试", "error"); }
     finally { setBusy(false); }
   }
+  const heroBook = () => props.data.summary?.hero;
   return <div class="library-page" ref={page}>
-    <PageIntro eyebrow={`书库 · 在库 ${props.data.summary?.active_count ?? (archived() ? 0 : props.data.total_books)} 册`} title={(() => { const intro = libraryIntro(props.data.summary), comma = intro.indexOf("，"); return comma < 0 ? intro : <>{intro.slice(0, comma + 1)}<br />{intro.slice(comma + 1)}</>; })()}
+    <PageIntro class="library-intro" visualSize={heroBook() ? "cover" : undefined} eyebrow={`书库 · 在库 ${props.data.summary?.active_count ?? (archived() ? 0 : props.data.total_books)} 册`} title={(() => { const intro = libraryIntro(props.data.summary), comma = intro.indexOf("，"); return comma < 0 ? intro : <>{intro.slice(0, comma + 1)}<br />{intro.slice(comma + 1)}</>; })()}
       description={props.data.summary?.hero?.description || "把喜欢的书放在一起，随时接着读。"}
-      actions={<Show when={props.data.summary?.hero} fallback={<Link href="/ingest" class="btn btn-primary btn-lg">开始入库</Link>}>{hero => <>
+      actions={<div class="library-intro-actions"><Show when={heroBook()} fallback={<Link href="/ingest" class="btn btn-primary btn-lg">开始入库</Link>}>{hero => <>
         <Link class="btn btn-primary btn-lg" href={bookHref(hero().book_id, props.data.return_to, true)}>{props.data.summary?.latest ? "继续阅读" : "开始阅读"}<Icon icon={TablerArrowUpRight} size={16} /></Link>
         <Link class="btn btn-icon btn-lg library-desktop-action" href={devicePreviewHref(hero().book_id)} aria-label={`在设备排版中预览《${hero().title}》`} title="设备预览"><Icon icon={TablerDeviceTablet} size={20} /></Link>
         <Link class="btn btn-icon btn-lg library-desktop-action" href={deviceTransferHref([hero().book_id])} aria-label={`发送《${hero().title}》到设备`} title="发送到设备"><Icon icon={TablerSend} size={20} /></Link>
         <a class="btn btn-icon btn-lg" href={`/book/${hero().book_id}/download`} aria-label={`下载《${hero().title}》`} title="下载"><Icon icon={TablerDownload} size={20} /></a>
-      </>}</Show>}
-      visual={<Show when={props.data.summary?.hero}>{hero => <Link href={bookHref(hero().book_id, props.data.return_to)} aria-label={`打开《${hero().title}》详情`}><BookCover {...hero()} large eager /></Link>}</Show>} />
+      </>}</Show></div>}
+      visual={heroBook() ? <Link href={bookHref(heroBook()!.book_id, props.data.return_to)} aria-label={`打开《${heroBook()!.title}》详情`}><BookCover {...heroBook()!} large eager /></Link> : undefined} />
     <Show when={showPasskeyHint()}><div class="passkey-hint" role="status"><Link href="/security">添加通行密钥，下次免密码登录</Link><CloseButton aria-label="关闭添加通行密钥提示" onClick={dismissPasskeyHint} /></div></Show>
     <div class="library-head">
       <PageTabs label="书架" value={props.data.scope} tabs={[

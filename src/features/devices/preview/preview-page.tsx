@@ -233,19 +233,18 @@ function DevicePreviewPageInner(props: PreviewProps) {
   onCleanup(() => { disposed = true; profileRequest++; chapterRequest++; readingRequest++; if (saveTimer !== undefined) clearTimeout(saveTimer); });
   const src = () => { const section = sections()[chapter()]; return section ? previewContentUrl(bookId(), section.item_path, settingsError() ? EMPTY_SETTINGS : draft().settings) : ""; };
   return <section class="kt-page device-preview-page" aria-label="排版与预览">
-    <div class="kt-topbar">
-      <BackLink href={bookId() ? `/book/${encodeURIComponent(bookId())}` : "/devices"}>{bookId() ? "返回书籍" : "设备"}</BackLink>
-      <h1 class="kt-topbar-title">排版预览</h1>
-      <PreviewBookPicker pill books={props.data.books} value={bookId()} disabled={!props.data.books.length} onChange={id => { void chooseBook(id); }} />
-      <SelectPill label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} options={sections().map((section, index) => ({ value: String(index), label: section.title }))} onChange={value => openChapter(Number(value))} />
-      <span class="kt-topbar-spacer" />
-      <SelectPill class="kt-device-pill" label="预览设备" value={target()?.id ?? ""} disabled={busy()} options={[{ value: "", label: "仅预览型号" }, ...available().map(identity => ({ value: identity.id, label: identity.name }))]} onChange={chooseTarget} />
-      <Show when={!target()}><SelectPill label="设备种类" value={modelKind()} disabled={busy()} options={[{ value: "kindle", label: "Kindle" }, { value: "kobo", label: "Kobo" }]} onChange={value => chooseModelKind(value as DeviceKind)} /><SelectPill label="预览型号" value={model()} disabled={busy()} options={modelOptions(modelKind()).map(([value, label]) => ({ value, label }))} onChange={setModel} /></Show>
-      <h3 class="sr-only">设备阅读设置（只用于预览）</h3>
-      <Show when={presets().length > 1} fallback={<><p class="sr-only" data-reading-margin>页边距：{presets()[0]!.label}（{geometry().measured ? "实测" : "估算"}）</p><span class="kt-margin-pill-static"><span>设备边距</span><strong>{presets()[0]!.label}</strong><Icon icon={TablerChevronDown} size={14} /></span></>}>
-        <div role="group" aria-label="设备页边距" class="segmented kt-margin-pill"><span class="kt-margin-label">设备边距</span><For each={presets()}>{preset => <button type="button" aria-pressed={reading().margin === preset.id ? "true" : "false"} disabled={busy()} onClick={() => editReading({ margin: preset.id })}>{preset.label}</button>}</For></div>
-      </Show>
-    </div>
+    <PageIntro class="kt-topbar" variant="topbar" back={<BackLink href={bookId() ? `/book/${encodeURIComponent(bookId())}` : "/devices"}>{bookId() ? "返回书籍" : "设备"}</BackLink>} title="排版预览"
+      actions={<>
+        <PreviewBookPicker pill books={props.data.books} value={bookId()} disabled={!props.data.books.length} onChange={id => { void chooseBook(id); }} />
+        <SelectPill label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} options={sections().map((section, index) => ({ value: String(index), label: section.title }))} onChange={value => openChapter(Number(value))} />
+        <span class="kt-topbar-spacer" />
+        <SelectPill class="kt-device-pill" label="预览设备" value={target()?.id ?? ""} disabled={busy()} options={[{ value: "", label: "仅预览型号" }, ...available().map(identity => ({ value: identity.id, label: identity.name }))]} onChange={chooseTarget} />
+        <Show when={!target()}><SelectPill label="设备种类" value={modelKind()} disabled={busy()} options={[{ value: "kindle", label: "Kindle" }, { value: "kobo", label: "Kobo" }]} onChange={value => chooseModelKind(value as DeviceKind)} /><SelectPill label="预览型号" value={model()} disabled={busy()} options={modelOptions(modelKind()).map(([value, label]) => ({ value, label }))} onChange={setModel} /></Show>
+        <h3 class="sr-only">设备阅读设置（只用于预览）</h3>
+        <Show when={presets().length > 1} fallback={<><p class="sr-only" data-reading-margin>页边距：{presets()[0]!.label}（{geometry().measured ? "实测" : "估算"}）</p><span class="kt-margin-pill-static"><span>设备边距</span><strong>{presets()[0]!.label}</strong><Icon icon={TablerChevronDown} size={14} /></span></>}>
+          <div role="group" aria-label="设备页边距" class="segmented kt-margin-pill"><span class="kt-margin-label">设备边距</span><For each={presets()}>{preset => <button type="button" aria-pressed={reading().margin === preset.id ? "true" : "false"} disabled={busy()} onClick={() => editReading({ margin: preset.id })}>{preset.label}</button>}</For></div>
+        </Show>
+      </>} />
     <Show when={chapterLoading()}><p role="status" class="kt-chapter-status">正在读取章节…</p></Show>
     <Show when={chapterError()}><p role="alert" class="field-error">{chapterError()}</p></Show>
     <Show when={bookId() && chapterError()}><Button variant="secondary" disabled={chapterLoading()} onClick={() => chooseBook(bookId())}>重新读取章节</Button></Show>

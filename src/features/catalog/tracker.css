@@ -1,12 +1,6 @@
 .tracker-page { min-width: 0; }
-.tracker-page .ui-page-intro { gap: 56px; }
-.tracker-page .ui-page-intro-text { flex: 1 1 380px; }
-.tracker-page .ui-page-intro h1 { font-weight: 600; line-height: 1.25; }
-.tracker-page .ui-page-eyebrow { font-size: var(--text-control); letter-spacing: .08em; }
-.tracker-page .ui-page-description { max-width: 520px; line-height: 1.85; }
-.tracker-page .ui-page-actions { gap: 12px; }
 .tracker-add { padding-inline: 26px; }
-.tracker-page .ui-page-visual { flex: 0 1 440px; max-width: 440px; min-width: 0; padding: 12px 0; }
+.tracker-page .ui-page-visual { padding: 12px 0; }
 .tracker-reading .ui-section-title { display: none; }
 .tracker-reading-covers { display: flex; align-items: flex-end; gap: 22px; }
 .tracker-reading-covers > * { min-width: 0; text-decoration: none; }
@@ -93,8 +87,6 @@
 .tracker-form-actions .btn-primary { padding-inline: 32px; }
 .tracker-form-actions .btn-quiet-danger { padding-inline: 16px; font-size: var(--text-control); }
 @media (min-width: 768px) {
-  .tracker-page .ui-page-eyebrow { margin-bottom: 22px; }
-  .tracker-page .ui-page-description { margin-top: 22px; }
   .tracker-reading-covers > :nth-child(2) .cover-gen-title { font-size: 26px; }
   .tracker-reading-covers > :nth-child(n) .tracker-cover-long-title .cover-gen-title { font-size: 22px; }
   .tracker-row .cover-gen-inner { display: none; }
@@ -104,16 +96,10 @@
   .tracker-filter .ui-toolbar-controls { padding: 0; }
 }
 @media (max-width: 767px) {
-  .tracker-page .ui-page-intro { flex-direction: column; align-items: stretch; gap: var(--space-section); padding-top: 0; }
-  .tracker-page .ui-page-intro-text { flex: none; }
-  .tracker-page .ui-page-intro h1 { line-height: 1.3; }
-  .tracker-page .ui-page-eyebrow { font-size: var(--text-meta); }
-  .tracker-page .ui-page-description { margin-top: 16px; max-width: none; line-height: 1.8; }
-  .tracker-page .ui-page-actions { margin-top: 16px; gap: 10px; }
+  .tracker-page .tracker-intro { --intro-visual-gap: var(--space-section); }
   .tracker-add { padding-inline: 20px; }
   .tracker-add svg { display: none; }
-  .tracker-page .ui-page-visual { display: block; flex: auto; width: 100%; max-width: none; padding: 0; }
-  .tracker-page .ui-page-visual:not(:has(.tracker-reading)) { display: none; }
+  .tracker-page .ui-page-visual { width: 100%; max-width: none; padding: 0; }
   .tracker-reading .ui-section-title { display: block; border: 0; padding: 0; margin-bottom: 14px; }
   .tracker-reading-covers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
   .tracker-reading-covers > :nth-child(n) { width: auto; transform: none; margin: 0; }
