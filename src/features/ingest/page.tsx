@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, onSettled, Show, untrack } from "solid-js";
+import { createSignal, createUniqueId, onCleanup, onSettled, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Button, Icon, PageIntro, SelectPill, Textarea, TextField, ToggleChip, Toolbar } from "../../ui";
 import { IngestFirstPage } from "./first-page";
@@ -13,6 +13,7 @@ import type { Preview } from "../../server/ingest/preview";
 
 export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; error?: string; custom_css?: string; jobs?: JobsPayload; jobsOpen?: boolean; openJobs?: () => unknown; closeJobs?: () => unknown }) {
   const mutation = useMutation();
+  const fileInputId = createUniqueId();
   const [files, setFiles] = createSignal<File[]>([]), [previews, setPreviews] = createSignal<Preview[]>([]);
   const [busy, setBusy] = createSignal(false), [submitting, setSubmitting] = createSignal(false), [dragging, setDragging] = createSignal(false);
   const [error, setError] = createSignal(untrack(() => props.error || "")), [parseFailed, setParseFailed] = createSignal(false), [fileError, setFileError] = createSignal("");
@@ -90,24 +91,34 @@ export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; e
     } catch (e) { setError(e instanceof Error ? e.message : "入库失败，请稍后重试。"); }
     finally { setSubmitting(false); }
   }
-  const content = (jobsTrigger?: JSX.Element) => <form ref={form} action="/ingest" method="post" enctype="multipart/form-data" onSubmit={submit} data-enhanced={enhanced() ? "true" : "false"} class={`ingest-layout ${dragging() ? "is-dragging" : ""}`}
+  const content = (jobsTrigger?: (variant?: "pill" | "hero") => JSX.Element) => <form ref={form} action="/ingest" method="post" enctype="multipart/form-data" onSubmit={submit} data-enhanced={enhanced() ? "true" : "false"} class={`ingest-layout ${dragging() ? "is-dragging" : ""}`}
     onDragOver={event => { event.preventDefault(); if (!submitting()) setDragging(true); }}
     onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
     onDrop={event => { event.preventDefault(); setDragging(false); add(Array.from(event.dataTransfer?.files || [])); }}>
     <input type="hidden" name="dedupe_mode" value={duplicates() ? "normalize" : "keep"} />
-    <PageIntro eyebrow={files().length ? `入库 · 已选 ${files().length} 个文件` : "入库"} title={files().length ? <>这次放进书库的，<br />是下面这几本。</> : "把书放进来。"}
+    <input ref={input} id={fileInputId} class="ingest-file-input" aria-label="选择 TXT 或 EPUB 文件" type="file" name="files" accept=".txt,.epub" multiple disabled={submitting()} onChange={() => { add(Array.from(input.files || [])); input.value = ""; }} />
+    <Show when={!files().length}><Button type="submit" class="ingest-fallback-submit" disabled={enhanced() && disabled()}>开始入库</Button></Show>
+    <PageIntro class={files().length ? "" : "ingest-intro-empty"} eyebrow={files().length ? `入库 · 已选 ${files().length} 个文件` : "入库"} title={files().length ? <>这次放进书库的，<br />是下面这几本。</> : "把书放进来。"}
       description={files().length ? "这是按当前主题排出的第一页，换规则或主题会跟着变。" : "拖到这一页任何地方，或选择文件。支持 TXT 和 EPUB，可多选。"}
-      actions={<label class="btn btn-primary btn-lg ingest-picker" aria-disabled={submitting() ? "true" : undefined}><span>{files().length ? "继续添加文件" : "选择文件"}</span><input ref={input} class="ingest-file-input" aria-label="选择 TXT 或 EPUB 文件" type="file" name="files" accept=".txt,.epub" multiple disabled={submitting()} onChange={() => { add(Array.from(input.files || [])); input.value = ""; }} /></label>}
+      actions={<div class="ingest-hero-actions" data-staged={files().length ? "true" : "false"}>
+        <Show when={!files().length}>
+          <label for={fileInputId} class="btn btn-primary btn-lg ingest-picker" aria-disabled={submitting() ? "true" : undefined}><Icon name="upload" size={16} /><span>选择文件</span></label>
+          {jobsTrigger?.("hero")}
+        </Show>
+        <Show when={files().length}>
+          <Button type="submit" size="lg" class="ingest-hero-submit" count={`${valid().length} 本`} disabled={enhanced() && disabled()}>{submitting() ? "入库中…" : "开始入库"}</Button>
+          <Button variant="quiet" size="lg" class="ingest-hero-clear" disabled={submitting()} onClick={clear}>清空</Button>
+        </Show>
+      </div>}
       visual={<Show when={files().length}><IngestFirstPage token={firstBook()?.upload_token} title={firstBook()?.title || firstBook()?.filename || ""} rule={rule()} theme={theme()} unavailable={!busy() && !!previews().length && !valid().length} /></Show>} />
-    <div class="ingest-toolbar-row"><Toolbar label="构建设置"><SelectPill name="rule_template" label="切章" value={rule()} disabled={submitting()} options={options.rules.map(rule => ({ value: rule.rule_id, label: `${rule.name} · v${rule.version}` }))} onChange={value => { setRule(value); if (files().length) void preview(); }} /><SelectPill name="theme_template" label="主题" value={theme()} disabled={submitting()} options={[...options.themes.map(theme => ({ value: theme.theme_id, label: `${theme.name} · v${theme.version}` })), { value: "__book__", label: "保持书籍样式（仅 EPUB）" }]} onChange={setTheme} /><ToggleChip selected={cssOpen()} aria-label="追加本批 CSS" aria-expanded={cssOpen() ? "true" : "false"} aria-controls="ingest-css" onClick={() => setCssOpen(!cssOpen())}>CSS</ToggleChip></Toolbar>{jobsTrigger}</div>
+    <div class="ingest-toolbar-row" data-empty={files().length ? undefined : "true"}><Toolbar label="构建设置"><SelectPill class="ingest-select-pill" name="rule_template" label="切章" value={rule()} disabled={submitting()} options={options.rules.map(rule => ({ value: rule.rule_id, label: `${rule.name} · v${rule.version}` }))} onChange={value => { setRule(value); void preview(); }} /><SelectPill class="ingest-select-pill" name="theme_template" label="主题" value={theme()} disabled={submitting()} options={[...options.themes.map(theme => ({ value: theme.theme_id, label: `${theme.name} · v${theme.version}` })), { value: "__book__", label: "保持书籍样式（仅 EPUB）" }]} onChange={setTheme} /><ToggleChip class="ingest-css-chip" selected={cssOpen()} aria-label="追加本批 CSS" aria-expanded={cssOpen() ? "true" : "false"} aria-controls="ingest-css" onClick={() => setCssOpen(!cssOpen())}><Icon name="braces" size={16} /><span>CSS</span></ToggleChip></Toolbar><Show when={files().length}>{jobsTrigger?.()}</Show></div>
     <details id="ingest-css" class="ingest-css" open={cssOpen()} onToggle={event => setCssOpen(event.currentTarget.open)}><summary>高级：追加本批书籍的 CSS<Icon name="chevron-down" size={16} class="ui-summary-chevron" /></summary><p>切章规则仅用于 TXT；EPUB 保留原目录。主题之后会追加本书 CSS。</p><Button variant="quiet" disabled={submitting()} onClick={() => setCss(formatCss(css()))}>格式化</Button><Textarea name="custom_css" label="本书 CSS" disabled={submitting()} rows={8} value={css()} onInput={event => setCss(event.currentTarget.value)} hint="这段 CSS 会追加在主题之后，优先生效。第一页预览暂不包含本批追加的 CSS。" /></details>
     <Show when={fileError()}><p role="alert" class="field-error">{fileError()}</p></Show>
     <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
     <Show when={parseFailed()}><Button variant="secondary" onClick={() => void preview()} disabled={busy() || submitting()}>重新解析</Button></Show>
     <Show when={busy()}><p class="ingest-status">正在解析…</p></Show>
     <div id="ingest-preview"><UploadPreviews previews={previews()} onRemove={remove} onAdd={() => input.click()} disabled={submitting()} override={previews().length === 1 && previews()[0]?.format === "TXT" ? <div class="ingest-fields"><TextField name="title" label="书名（TXT 可选覆盖）" value={title()} disabled={submitting()} onInput={e => setTitle(e.currentTarget.value)} /><TextField name="author" label="作者（TXT 可选覆盖）" value={author()} disabled={submitting()} onInput={e => setAuthor(e.currentTarget.value)} /></div> : undefined} /></div>
-    <p class="ingest-status" role="status" aria-live="polite">{status()}</p>
-    <div class="ingest-submit" data-active={files().length ? "true" : "false"}><Button variant="quiet" disabled={submitting() || !files().length} onClick={clear}>清空</Button><Button type="submit" size="lg" count={files().length ? `${valid().length} 本` : undefined} disabled={enhanced() && disabled()}>{submitting() ? "入库中…" : "开始入库"}</Button></div>
+    <p class="sr-only" role="status" aria-live="polite">{status()}</p>
   </form>;
   // The jobs sheet owns retry/cleanup forms; keep it outside the multipart form.
   return <div class="ingest-page"><Show when={props.jobs} fallback={content()}>{jobs => <RecentJobs data={jobs()} open={!!props.jobsOpen} onOpen={() => props.openJobs?.()} onClose={() => props.closeJobs?.()} layout={(trigger, sheet) => <>{content(trigger)}{sheet}</>} />}</Show></div>;

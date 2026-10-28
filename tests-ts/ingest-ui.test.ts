@@ -62,7 +62,7 @@ describe("ingest and jobs SSR", () => {
     expect(byRole(preview, "button", "归入已有").getAttribute("aria-pressed")).toBe("true");
     expect(byRole(preview, "button", "新建一本").getAttribute("aria-pressed")).toBe("false");
     expect(allByAttribute(preview, "name", "dedupe_keep_tokens")).toHaveLength(0);
-    expect(byRole(preview, "heading", "目录前 10 条")).toBeDefined(); expect(root.textContent).not.toContain("落库路径");
+    expect(byRole(preview, "heading", "目录")).toBeDefined(); expect(root.textContent).not.toContain("落库路径");
     expect(parseHtml(ui.previews([])).textContent).not.toContain("没有可预览的内容。");
     const failed = parseHtml(ui.previews([{ ...item, error: "错误" }]));
     expect(byRole(failed, "alert").textContent).toBe("错误");
@@ -72,7 +72,7 @@ describe("ingest and jobs SSR", () => {
     const data: JobsPayload = { jobs: [{ id: "job", book_id: "a".repeat(32), book_title: "书名 <&>", book_author: "作者", can_open_book: true, action_label: "重新生成", action: "regenerate", status: "failed", stage: "失败", rule_template: "default", message: "转换失败", log: "<script>bad</script>", created_at: "2026", updated_at: "2026" }], tabs: [{ key: "failed", label: "失败", count: 13 }], active_tab: "failed", page: 1, total_pages: 2, total_jobs: 13, invalid_job_count: 2 };
     const root = parseHtml(ui.jobs(data));
     expect(byText(root, "任务 ID：job")).toBeDefined();
-    expect(byRole(byRole(root, "navigation", "任务分组"), "link", "失败 · 13").getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs");
+    expect(byRole(byRole(root, "navigation", "任务分组"), "link", "失败").getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs");
     expect(byRole(byAttribute(root, "action", "/jobs/job/retry"), "button", "重试《书名 <&>》")).toBeDefined();
     expect(byAttribute(root, "action", "/jobs/cleanup-invalid")).toBeDefined();
     expect(byRole(root, "link", "打开产物").getAttribute("href")).toBe(`/book/${"a".repeat(32)}`);

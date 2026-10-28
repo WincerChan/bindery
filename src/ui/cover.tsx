@@ -29,7 +29,7 @@ function CoverFrame(props: CoverProps & { children: JSX.Element; generated?: boo
     <Show when={props.state === "failed"}><Show when={props.onRetry} fallback={<span class="cover-retry" aria-hidden="true"><Icon name="refresh" size={24} /></span>}>
       {retry => <IconButton class="cover-retry" aria-label={`重试生成《${props.title}》`} title={`重试生成《${props.title}》`} onClick={() => retry()()}><Icon name="refresh" size={22} /></IconButton>}
     </Show></Show>
-    <Show when={props.state === "duplicate" || props.state === "unparseable"}><span class="cover-marker" aria-hidden="true">{props.state === "duplicate" ? "⧉" : "!"}</span></Show>
+    <Show when={props.state === "duplicate" || props.state === "unparseable"}><span class="cover-marker" aria-hidden="true"><Icon name={props.state === "duplicate" ? "copy" : "exclamation-mark"} size={props.state === "duplicate" ? 16 : 22} /></span></Show>
     <Show when={props.state === "generating" || props.progress !== undefined}><ProgressBar label={`${props.title} ${props.state === "generating" ? "生成" : "阅读"}进度`} value={props.progress} class="cover-progress" /></Show>
   </div>;
 }
@@ -42,6 +42,6 @@ export function BookCover(props: CoverProps & { cover_url?: string | null; eager
     <CoverFrame {...props}><img src={props.cover_url!} alt={coverLabel(props)} loading={props.eager ? "eager" : "lazy"} onError={() => setFailedUrl(props.cover_url || null)} /></CoverFrame>
   </Show>;
 }
-export function AddCoverTile(props: { label: string; onClick: () => void; class?: string }) {
-  return <button type="button" class={`cover-add ${props.class || ""}`} aria-label={props.label} title={props.label} onClick={props.onClick}><span aria-hidden="true"><Icon name="plus" size={30} /></span><span>{props.label}</span></button>;
+export function AddCoverTile(props: { label?: string; onClick: () => void; class?: string }) {
+  return <div class={`cover-add-tile ${props.class || ""}`}><button type="button" class="cover-add" aria-label={props.label || "添加书籍"} title={props.label || "添加书籍"} onClick={props.onClick}><span aria-hidden="true"><Icon name="plus" size={28} /></span></button><Show when={props.label}><span class="cover-add-label">{props.label}</span></Show></div>;
 }

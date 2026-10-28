@@ -309,15 +309,15 @@ it.each([true, false])("uses replace navigation to open, filter, paginate and cl
   };
   const currentTab = () => elements(elements(sheet, "nav").find(el => el.getAttribute("aria-label") === "任务分组")!, "a").find(el => el.getAttribute("aria-current") === "page")!;
   expect(sheet.open).toBeFalsy(); await reload(() => fire(trigger, "click"));
-  expect(sheet.open).toBe(true); expect(mounted.href()).toBe("/ingest?keep=1&jobs_tab=all#jobs"); expect(currentTab().textContent).toBe("全部 · 13");
+  expect(sheet.open).toBe(true); expect(mounted.href()).toBe("/ingest?keep=1&jobs_tab=all#jobs"); expect(currentTab().textContent).toBe("全部");
   const clickJobLink = (anchor: Element) => {
     const preventDefault = vi.fn();
     fire(anchor, "click", { button: 0, preventDefault });
     expect(preventDefault).toHaveBeenCalledOnce();
   };
-  const failed = elements(sheet, "a").find(el => el.textContent === "失败 · 13")!;
+  const failed = elements(sheet, "a").find(el => el.textContent === "失败")!;
   expect(failed.getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs"); await reload(() => clickJobLink(failed));
-  expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs"); expect(currentTab().textContent).toBe("失败 · 13");
+  expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=1#jobs"); expect(currentTab().textContent).toBe("失败");
   const next = elements(sheet, "a").find(el => el.getAttribute("aria-label") === "下一页")!;
   expect(next.getAttribute("href")).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs"); await reload(() => clickJobLink(next));
   expect(mounted.href()).toBe("/ingest?jobs_tab=failed&jobs_page=2#jobs");
@@ -325,7 +325,7 @@ it.each([true, false])("uses replace navigation to open, filter, paginate and cl
   expect(byAttribute(pager, "aria-current", "page").textContent).toBe("02");
   await reload(() => fire(elements(sheet, "button").find(el => el.getAttribute("aria-label") === "关闭最近任务")!, "click"));
   expect(mounted.href()).toBe("/ingest"); expect(sheet.open).toBe(false); expect(trigger.getAttribute("aria-expanded")).toBe("false"); expect(mounted.historyLength()).toBe(1);
-  expect(currentTab().textContent).toBe("全部 · 13");
+  expect(currentTab().textContent).toBe("全部");
   expect(elements(node, "form").find(el => el.getAttribute("action") === "/ingest")).toBe(form); expect(picker.files).toBe(files); expect(cssInput.value).toBe("h1 { color: blue; }"); expect(rule.value).toBe("second"); expect(elements(rule, "option")[1]).toBe(option);
   await reload(() => fire(trigger, "click")); await reload(() => fire(sheet, "cancel"));
   expect(mounted.href()).toBe("/ingest"); expect(sheet.open).toBe(false);
@@ -494,7 +494,7 @@ it("replaces jobs, tab counts and conditional retry/log controls for polling pay
   const mounted = mount("jobs", jobs(["甲", "乙"]));
   mounted.update(jobs(["乙"], "failed"));
   expect(allByText(mounted.root, /^任务 ID：/).map(el => el.textContent)).toEqual(["任务 ID：乙"]);
-  expect(mounted.root.textContent).toContain("failed · 1");
+  expect(mounted.root.textContent).toContain("failed");
   expect(elements(mounted.root, "form").map(el => el.getAttribute("action"))).toContain("/jobs/%E4%B9%99/retry");
   expect(allByRole(mounted.root, "button", "展开详细日志")).toHaveLength(1);
   mounted.update(jobs(["乙"], "success"));
