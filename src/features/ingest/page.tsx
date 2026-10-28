@@ -1,3 +1,6 @@
+import TablerBraces from "~icons/tabler/braces";
+import TablerChevronDown from "~icons/tabler/chevron-down";
+import TablerUpload from "~icons/tabler/upload";
 import { createSignal, createUniqueId, onCleanup, onSettled, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Button, Icon, PageIntro, SelectPill, Textarea, TextField, ToggleChip, Toolbar } from "../../ui";
@@ -102,7 +105,7 @@ export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; e
       description={files().length ? "这是按当前主题排出的第一页，换规则或主题会跟着变。" : "拖到这一页任何地方，或选择文件。支持 TXT 和 EPUB，可多选。"}
       actions={<div class="ingest-hero-actions" data-staged={files().length ? "true" : "false"}>
         <Show when={!files().length}>
-          <label for={fileInputId} class="btn btn-primary btn-lg ingest-picker" aria-disabled={submitting() ? "true" : undefined}><Icon name="upload" size={16} /><span>选择文件</span></label>
+          <label for={fileInputId} class="btn btn-primary btn-lg ingest-picker" aria-disabled={submitting() ? "true" : undefined}><Icon icon={TablerUpload} size={16} /><span>选择文件</span></label>
           {jobsTrigger?.("hero")}
         </Show>
         <Show when={files().length}>
@@ -111,8 +114,8 @@ export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; e
         </Show>
       </div>}
       visual={<Show when={files().length}><IngestFirstPage token={firstBook()?.upload_token} title={firstBook()?.title || firstBook()?.filename || ""} rule={rule()} theme={theme()} unavailable={!busy() && !!previews().length && !valid().length} /></Show>} />
-    <div class="ingest-toolbar-row" data-empty={files().length ? undefined : "true"}><Toolbar label="构建设置"><SelectPill class="ingest-select-pill" name="rule_template" label="切章" value={rule()} disabled={submitting()} options={options.rules.map(rule => ({ value: rule.rule_id, label: `${rule.name} · v${rule.version}` }))} onChange={value => { setRule(value); void preview(); }} /><SelectPill class="ingest-select-pill" name="theme_template" label="主题" value={theme()} disabled={submitting()} options={[...options.themes.map(theme => ({ value: theme.theme_id, label: `${theme.name} · v${theme.version}` })), { value: "__book__", label: "保持书籍样式（仅 EPUB）" }]} onChange={setTheme} /><ToggleChip class="ingest-css-chip" selected={cssOpen()} aria-label="追加本批 CSS" aria-expanded={cssOpen() ? "true" : "false"} aria-controls="ingest-css" onClick={() => setCssOpen(!cssOpen())}><Icon name="braces" size={16} /><span>CSS</span></ToggleChip></Toolbar><Show when={files().length}>{jobsTrigger?.()}</Show></div>
-    <details id="ingest-css" class="ingest-css" open={cssOpen()} onToggle={event => setCssOpen(event.currentTarget.open)}><summary>高级：追加本批书籍的 CSS<Icon name="chevron-down" size={16} class="ui-summary-chevron" /></summary><p>切章规则仅用于 TXT；EPUB 保留原目录。主题之后会追加本书 CSS。</p><Button variant="quiet" disabled={submitting()} onClick={() => setCss(formatCss(css()))}>格式化</Button><Textarea name="custom_css" label="本书 CSS" disabled={submitting()} rows={8} value={css()} onInput={event => setCss(event.currentTarget.value)} hint="这段 CSS 会追加在主题之后，优先生效。第一页预览暂不包含本批追加的 CSS。" /></details>
+    <div class="ingest-toolbar-row" data-empty={files().length ? undefined : "true"}><Toolbar label="构建设置"><SelectPill class="ingest-select-pill" name="rule_template" label="切章" value={rule()} disabled={submitting()} options={options.rules.map(rule => ({ value: rule.rule_id, label: `${rule.name} · v${rule.version}` }))} onChange={value => { setRule(value); void preview(); }} /><SelectPill class="ingest-select-pill" name="theme_template" label="主题" value={theme()} disabled={submitting()} options={[...options.themes.map(theme => ({ value: theme.theme_id, label: `${theme.name} · v${theme.version}` })), { value: "__book__", label: "保持书籍样式（仅 EPUB）" }]} onChange={setTheme} /><ToggleChip class="ingest-css-chip" selected={cssOpen()} aria-label="追加本批 CSS" aria-expanded={cssOpen() ? "true" : "false"} aria-controls="ingest-css" onClick={() => setCssOpen(!cssOpen())}><Icon icon={TablerBraces} size={16} /><span>CSS</span></ToggleChip></Toolbar><Show when={files().length}>{jobsTrigger?.()}</Show></div>
+    <details id="ingest-css" class="ingest-css" open={cssOpen()} onToggle={event => setCssOpen(event.currentTarget.open)}><summary>高级：追加本批书籍的 CSS<Icon icon={TablerChevronDown} size={16} class="ui-summary-chevron" /></summary><p>切章规则仅用于 TXT；EPUB 保留原目录。主题之后会追加本书 CSS。</p><Button variant="quiet" disabled={submitting()} onClick={() => setCss(formatCss(css()))}>格式化</Button><Textarea name="custom_css" label="本书 CSS" disabled={submitting()} rows={8} value={css()} onInput={event => setCss(event.currentTarget.value)} hint="这段 CSS 会追加在主题之后，优先生效。第一页预览暂不包含本批追加的 CSS。" /></details>
     <Show when={fileError()}><p role="alert" class="field-error">{fileError()}</p></Show>
     <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
     <Show when={parseFailed()}><Button variant="secondary" onClick={() => void preview()} disabled={busy() || submitting()}>重新解析</Button></Show>

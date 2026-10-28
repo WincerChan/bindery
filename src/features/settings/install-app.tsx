@@ -1,3 +1,4 @@
+import TablerDeviceMobileDown from "~icons/tabler/device-mobile-down";
 import { createContext, createSignal, onSettled, Show, useContext } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { PwaInstall, type InstallMode, type InstallState } from "../../client/pwa/install";
@@ -33,7 +34,7 @@ export function InstallApp() {
   }
   return <>
     <div class="settings-row settings-install">
-      <span class="settings-row-icon" aria-hidden="true"><Icon name="device-mobile-down" size={20} /></span>
+      <span class="settings-row-icon" aria-hidden="true"><Icon icon={TablerDeviceMobileDown} size={20} /></span>
       <span class="settings-row-copy"><span class="settings-row-title"><span class="settings-only-desktop">安装应用</span><span class="settings-only-mobile">添加到主屏幕</span></span><span class="settings-row-status"><Show when={state().standalone} fallback={<Show when={state().mode} fallback="可在支持安装的浏览器菜单中安装应用"><span class="settings-only-desktop">装到桌面，像普通应用一样打开</span><span class="settings-only-mobile">像普通应用一样打开</span></Show>}>已安装 · 正在应用中打开</Show></span></span>
       <InstallAppButton mode={state().mode} onInstall={() => void install()} />
     </div>

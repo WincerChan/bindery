@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { mutationPlugin } from "./support/mutation-plugin";
 import { securityPlugin } from "./support/security-plugin";
@@ -44,7 +45,7 @@ beforeAll(async () => {
   for (const mode of ["client", "server", "development"]) {
     const server = mode === "server", development = mode === "development";
     const result = await build({
-      configFile: false, logLevel: "silent", plugins: [mutationPlugin(), securityPlugin(), solid({ ...solidOptions, dev: development, hot: false })],
+      configFile: false, logLevel: "silent", plugins: [...binderyIcons(), mutationPlugin(), securityPlugin(), solid({ ...solidOptions, dev: development, hot: false })],
       // Avoid Vitest's `test` condition selecting the signals dev runtime.
       resolve: { conditions: server ? ["node", "production"] : ["browser", development ? "development" : "production"] },
       define: { "process.env.NODE_ENV": JSON.stringify(development ? "development" : "production") },

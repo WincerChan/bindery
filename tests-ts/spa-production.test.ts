@@ -4,11 +4,12 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 
 const temporary = mkdtempSync(join(tmpdir(), "bindery-redirect-client-"));
 beforeAll(async () => {
-  await build({ configFile: false, plugins: [solid()], resolve: { conditions: ["browser", "development"] }, logLevel: "silent", build: {
+  await build({ configFile: false, plugins: [...binderyIcons(), solid()], resolve: { conditions: ["browser", "development"] }, logLevel: "silent", build: {
     target: "esnext", minify: false, lib: { entry: resolve("tests-ts/fixtures/spa/redirect-client.tsx"), formats: ["es"], fileName: () => "client.mjs" }, outDir: temporary,
   } });
 }, 120_000);

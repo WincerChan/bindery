@@ -1,3 +1,5 @@
+import TablerCircleCheck from "~icons/tabler/circle-check";
+import TablerDotsVertical from "~icons/tabler/dots-vertical";
 import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import { deleteBook } from "../../client/devices";
 import type { DeviceBook } from "../../client/devices/inventory";
@@ -116,7 +118,7 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
   return <section aria-label="设备书籍" class="kindle-books">
     <DeviceTabs value="books" toolbar={<Toolbar search={<SearchPill label="搜索设备上的书" placeholder="搜索设备上的书" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />}>
       <SegmentedControl label="按来源筛选" value={source()} options={[{ value: "全部", label: "全部" }, { value: "Bindery", label: "来自 Bindery" }, { value: "其他", label: "其他" }]} onChange={value => { setSource(value); setSelected([]); }} />
-      <Button variant="secondary" onClick={() => { setBatch(!batch()); setSelected([]); }}><Icon name="circle-check" size={16} />{batch() ? "取消选择" : "批量选择"}</Button>
+      <Button variant="secondary" onClick={() => { setBatch(!batch()); setSelected([]); }}><Icon icon={TablerCircleCheck} size={16} />{batch() ? "取消选择" : "批量选择"}</Button>
       <Show when={batch()}><ToggleChip aria-label="全选当前筛选书籍" selected={deletableVisible().length > 0 && deletableVisible().every(b => selected().includes(b.filename))} disabled={!connected() || !deletableVisible().length || k.busy()} onClick={() => setSelected(deletableVisible().every(b => selected().includes(b.filename)) ? [] : deletableVisible().map(b => b.filename))}>全选</ToggleChip><Button variant="quiet-danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button></Show>
     </Toolbar>} />
     <Show when={notice()}><p role="status" class="notice">{notice()} <Link href="/devices/transfer">查看传输队列</Link></p></Show>
@@ -130,7 +132,7 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
     <div class="device-book-grid" role="region" aria-label="设备书籍列表"><Show when={connected() && k.inventory()}><For each={visible()}>{book => <article data-device-book={book.filename}>
       <Show when={resolvedId(book)} fallback={<DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} />}><Link href={`/book/${encodeURIComponent(resolvedId(book)!)}`} aria-label={`打开《${title(book)}》详情（${progressLabel(book, kind())}）`}><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} libraryId={resolvedId(book)} /></Link></Show>
       <Show when={book.progress && (book.progress.percent ?? 0) > 0 && (book.progress.percent ?? 0) < 100}><ProgressBar label={`${title(book)}：${progressLabel(book, kind())}`} value={book.progress!.percent} /></Show>
-      <div class="device-book-head"><div><strong>{title(book)}</strong><span class="device-book-author">{metadata(book)?.author}</span></div><Menu class="device-book-menu" title={title(book)} trigger={<><span class="sr-only">《{title(book)}》的操作</span><Icon name="dots-vertical" size={18} /></>} status={<span data-device-progress>{progressLabel(book, kind())}{chapterTitle(book) ? ` · ${chapterTitle(book)}` : ""} · {book.source === "Bindery" ? "来自 Bindery" : "其他来源"}</span>} items={[
+      <div class="device-book-head"><div><strong>{title(book)}</strong><span class="device-book-author">{metadata(book)?.author}</span></div><Menu class="device-book-menu" title={title(book)} trigger={<><span class="sr-only">《{title(book)}》的操作</span><Icon icon={TablerDotsVertical} size={18} /></>} status={<span data-device-progress>{progressLabel(book, kind())}{chapterTitle(book) ? ` · ${chapterTitle(book)}` : ""} · {book.source === "Bindery" ? "来自 Bindery" : "其他来源"}</span>} items={[
         ...(resolvedId(book) ? [{ label: `预览 ${title(book)}`, onSelect: () => navigate(`/devices/preview?book=${encodeURIComponent(resolvedId(book)!)}`) }] : []),
         ...(book.record ? [{ label: `重新传入 ${title(book)}`, disabled: k.busy() || !resolvedId(book) || !metadata(book), onSelect: () => resend(book) }] : []),
         { label: `从设备删除 ${title(book)}`, destructive: true, disabled: k.busy() || !deletable(book), onSelect: () => confirm([book]) },

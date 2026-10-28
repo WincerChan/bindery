@@ -1,11 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { resolve } from "node:path";
 
 let probe: typeof import("./fixtures/navigation-redirects");
 beforeAll(async () => {
-  const result = await build({ configFile: false, logLevel: "silent", plugins: [
+  const result = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(),
     // Server-only modules stay out of the client probe, as in the real client build.
     { name: "redirects-client-boundary", enforce: "pre", resolveId: id => id === "../server/http" ? "\0redirects-http" : id === "../server/reader/service" ? "\0redirects-reader" : undefined,
       load: id => id === "\0redirects-http" ? "export const authenticatedRoute = handler => handler;" : id === "\0redirects-reader" ? "export const previewRedirect = () => null;" : undefined },

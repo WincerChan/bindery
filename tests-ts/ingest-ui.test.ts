@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { mutationPlugin } from "./support/mutation-plugin";
 import { resolve } from "node:path";
@@ -12,10 +13,10 @@ let ui: typeof import("./fixtures/ingest/ui-probe"), client: typeof ui;
 const disposers: (() => void)[] = [];
 afterEach(() => { disposers.splice(0).reverse().forEach(dispose => dispose()); vi.useRealTimers(); vi.unstubAllGlobals(); });
 beforeAll(async () => {
-  const result = await build({ configFile: false, logLevel: "silent", plugins: [mutationPlugin(), solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/ingest/ui-probe.tsx") } });
+  const result = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(), mutationPlugin(), solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/ingest/ui-probe.tsx") } });
   const entry = (Array.isArray(result) ? result : [result]).flatMap(o => "output" in o ? o.output : []).find(o => o.type === "chunk" && o.isEntry); if (!entry || entry.type !== "chunk") throw new Error("Missing SSR probe");
   ui = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(entry.code).toString("base64"));
-  const built = await build({ configFile: false, logLevel: "silent", plugins: [mutationPlugin(), solid({ ...solidOptions, dev: false, hot: false })], resolve: { conditions: ["browser", "production"] }, define: { "process.env.NODE_ENV": JSON.stringify("production") }, build: { write: false, minify: false, lib: { entry: resolve("tests-ts/fixtures/ingest/ui-probe.tsx"), formats: ["es"] } } });
+  const built = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(), mutationPlugin(), solid({ ...solidOptions, dev: false, hot: false })], resolve: { conditions: ["browser", "production"] }, define: { "process.env.NODE_ENV": JSON.stringify("production") }, build: { write: false, minify: false, lib: { entry: resolve("tests-ts/fixtures/ingest/ui-probe.tsx"), formats: ["es"] } } });
   const chunk = (Array.isArray(built) ? built : [built]).flatMap(o => "output" in o ? o.output : []).find(o => o.type === "chunk" && o.isEntry);
   if (!chunk || chunk.type !== "chunk") throw new Error("Missing client probe");
   client = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(chunk.code).toString("base64"));

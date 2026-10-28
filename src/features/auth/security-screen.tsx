@@ -1,3 +1,6 @@
+import TablerKey from "~icons/tabler/key";
+import TablerPlus from "~icons/tabler/plus";
+import TablerTrash from "~icons/tabler/trash";
 import { isRedirect, useRouter } from "@tanstack/solid-router";
 import { createSignal, For, onSettled, Show } from "solid-js";
 import { browserSupportsWebAuthn, deletePasskey, passkeyMessage, PasskeyRequestError, postJson, reauthenticateWithPasskey, registerPasskey } from "../../client/passkeys";
@@ -107,7 +110,7 @@ export function SecurityScreen(props: { data: SecurityScreenData }) {
     <div class="settings-security-layout">
       <div class="settings-security-hero">
         <BackLink href="/settings">设置</BackLink>
-        <PageIntro eyebrow={null} title="安全" description="用通行密钥登录就不必再输密码：Windows Hello、面容或指纹都行。密码一直可以作为备用。" actions={<Button size="lg" disabled={busy() || !props.data.passkey_configured || !supported()} onClick={openEnrollment}><Icon name="plus" size={16} />添加通行密钥</Button>} />
+        <PageIntro eyebrow={null} title="安全" description="用通行密钥登录就不必再输密码：Windows Hello、面容或指纹都行。密码一直可以作为备用。" actions={<Button size="lg" disabled={busy() || !props.data.passkey_configured || !supported()} onClick={openEnrollment}><Icon icon={TablerPlus} size={16} />添加通行密钥</Button>} />
         <Show when={enrolling() && canEnroll()}><section class="settings-security-enroll" aria-labelledby="security-enroll-title"><SectionTitle id="security-enroll-title">添加通行密钥</SectionTitle>
           <p class="muted">{hasPasskeys() ? "添加前请先重新验证身份。" : "首次添加需要先验证密码。"}</p>
           <form class="form-stack" onSubmit={add}>
@@ -128,13 +131,13 @@ export function SecurityScreen(props: { data: SecurityScreenData }) {
         <section aria-labelledby="security-keys-title"><SectionTitle id="security-keys-title">已添加的通行密钥 · {props.data.passkeys.length}</SectionTitle>
           <Show when={!hasPasskeys()}><p class="muted">还没有通行密钥。添加后，下次登录无需输入密码。</p></Show>
           <ul class="settings-security-key-list"><For each={props.data.passkeys}>{key => <li class="settings-security-key">
-            <span class="settings-security-key-icon" aria-hidden="true"><Icon name="key" size={22} /></span>
+            <span class="settings-security-key-icon" aria-hidden="true"><Icon icon={TablerKey} size={22} /></span>
             <span class="settings-security-key-copy">
               <h3 class="settings-security-key-name">{key.name}</h3>
               <span class="settings-security-key-meta">{key.device_type === "multi_device" || key.backed_up ? "已同步" : "仅此设备"} · <RelativeTime value={key.created_at} /> 添加 · {key.last_used_at ? <><RelativeTime value={key.last_used_at} /> 用过</> : "尚未用过"}</span>
             </span>
             <Button variant="secondary" disabled={busy() || !props.data.passkey_configured} onClick={() => openRename(key)}>重命名</Button>
-            <form action={`/security/passkeys/${encodeURIComponent(key.credential_id)}/delete`} method="post" onSubmit={event => { event.preventDefault(); setDeleting(key); }}><Button type="submit" variant="quiet-danger" class="settings-security-delete" aria-label={`删除通行密钥 ${key.name}`} title="删除" disabled={busy() || !props.data.passkey_configured}><Icon name="trash" size={18} /></Button></form>
+            <form action={`/security/passkeys/${encodeURIComponent(key.credential_id)}/delete`} method="post" onSubmit={event => { event.preventDefault(); setDeleting(key); }}><Button type="submit" variant="quiet-danger" class="settings-security-delete" aria-label={`删除通行密钥 ${key.name}`} title="删除" disabled={busy() || !props.data.passkey_configured}><Icon icon={TablerTrash} size={18} /></Button></form>
           </li>}</For></ul>
         </section>
         <p class="settings-security-password">要改密码，更新服务器上的 BINDERY_PASSWORD_HASH 后重启。</p>

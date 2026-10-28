@@ -56,6 +56,7 @@
   --size-control-lg: 48px;
   --space-page: 56px;
   --space-section: 48px;
+  --content-max: 96rem;
   --nav-rail: 92px;
 }
 @media (max-width: 767px) {

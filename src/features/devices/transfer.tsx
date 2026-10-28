@@ -1,3 +1,4 @@
+import TablerCheck from "~icons/tabler/check";
 import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { defaultProfile, DEFAULT_PROFILE_ID, type TypesettingProfile } from "../../client/devices/profiles";
@@ -176,7 +177,7 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
         <div class="kindle-toolbar device-send-filters"><SearchPill label="搜索书库" placeholder="搜索书库" value={query()} onInput={e => { setQuery(e.currentTarget.value); setPage(1); }} /><SegmentedControl label="筛选" value={filter()} options={["不在设备", "未读", "全部"].map(value => ({ value, label: value }))} onChange={value => { setFilter(value); setPage(1); }} /></div>
         <Show when={shown().length} fallback={<EmptyState title={props.books.length ? "没有符合条件的书籍" : "书库还是空的"}>可调整筛选，或先向书库添加书籍。</EmptyState>}>
           <ul class="device-send-grid"><For each={shown()}>{book => <li data-transfer-book={book.book_id}><button type="button" class="device-send-book" aria-label={`选择 ${book.title}`} aria-pressed={selected().includes(book.book_id) ? "true" : "false"} onClick={() => toggleBook(book.book_id)}>
-            <span class="device-send-cover"><BookCover book_id={book.book_id} title={book.title} author={book.author} cover_url={book.cover_url} /><Show when={selected().includes(book.book_id)}><span class="device-send-check" aria-hidden="true"><Icon name="check" size={14} /></span></Show></span>
+            <span class="device-send-cover"><BookCover book_id={book.book_id} title={book.title} author={book.author} cover_url={book.cover_url} /><Show when={selected().includes(book.book_id)}><span class="device-send-check" aria-hidden="true"><Icon icon={TablerCheck} size={14} /></span></Show></span>
             <strong>{book.title}</strong><span class="sr-only">{book.author}{book.read ? " · 已读" : ""}{onDevice().has(book.book_id) ? " · 已在设备" : ""}</span>
           </button></li>}</For></ul>
         </Show>

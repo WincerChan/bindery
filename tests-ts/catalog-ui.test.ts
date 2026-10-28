@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { mutationPlugin } from "./support/mutation-plugin";
 import { resolve } from "node:path";
@@ -14,7 +15,7 @@ const editor: EditorData = { id: "default", name: "默认规则", version: "1", 
 const wish: TrackerItem = { id: "a".repeat(32), title: "书名<script>", author: "作者", library_book_id: "b".repeat(32), rating: 4, read: false, read_status: "reading", tags: ["科幻"], tags_text: "科幻", comment: "短评", book_status: "completed", created_at: "2026-04-01T10:00:00+00:00", updated_at: "2026-04-01T10:00:00+00:00", updated_at_display: "2026-04-01 10:00", read_status_label: "在读", book_status_label: "已完结", exists_in_library: true, exists_label: "已存在" };
 const tracker: TrackerPageData = { reading_now: [wish], filters: { q: "科幻", read_filter: "all", library_filter: "all", book_status_filter: "all" }, stats: { total: 25, filtered: 25, read: 0, reading: 1, unread: 24, in_library: 1, out_library: 24 }, wishes: [wish], page: 2, total_pages: 2, current_url: "/tracker?q=科幻&page=2", export_url: "/tracker/export?q=科幻", duplicate_notice: wish };
 beforeAll(async () => {
-  const result = await build({ configFile: false, logLevel: "silent", plugins: [mutationPlugin(), solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/catalog/ui-probe.tsx") } });
+  const result = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(), mutationPlugin(), solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/catalog/ui-probe.tsx") } });
   const outputs = Array.isArray(result) ? result : [result], entry = outputs.flatMap(o => "output" in o ? o.output : []).find(o => o.type === "chunk" && o.isEntry);
   if (!entry || entry.type !== "chunk") throw new Error("Missing catalog UI bundle");
   ui = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(entry.code).toString("base64"));

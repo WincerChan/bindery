@@ -1,3 +1,4 @@
+import TablerX from "~icons/tabler/x";
 import { useRouter } from "@tanstack/solid-router";
 import { createSignal, onSettled } from "solid-js";
 import { installToastBridge } from "../client/toast";
@@ -24,6 +25,6 @@ export function ToastRegion() {
     return () => { uninstall(); unsubscribe(); clearTimeout(timer); };
   });
   return <div id="bindery-toast" role="status" aria-live="polite" aria-atomic="true" class={`toast-region ${toast() ? "is-visible" : ""}`}>
-    <div class={`toast toast-${toast()?.kind || "success"}`}><span>{toast()?.message}</span><button type="button" class="btn btn-quiet" aria-label="关闭通知" onClick={() => setToast(null)}><Icon name="x" size={16} /></button></div>
+    <div class={`toast toast-${toast()?.kind || "success"}`}><span>{toast()?.message}</span><button type="button" class="btn btn-quiet" aria-label="关闭通知" onClick={() => setToast(null)}><Icon icon={TablerX} size={16} /></button></div>
   </div>;
 }

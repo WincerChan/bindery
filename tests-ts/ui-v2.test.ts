@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -41,7 +42,7 @@ beforeAll(async () => {
   browserGlobals();
   for (const ssr of [true, false]) {
     const entry = resolve("tests-ts/fixtures/ui-v2.tsx");
-    const result = await build({ configFile: false, logLevel: "silent", plugins: [solid({ ...solidOptions, dev: false, hot: false })],
+    const result = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(), solid({ ...solidOptions, dev: false, hot: false })],
       resolve: { conditions: ssr ? ["node", "production"] : ["browser", "production"] }, define: { "process.env.NODE_ENV": '"production"' }, ssr: { noExternal: true },
       build: { write: false, minify: true, ...(ssr ? { ssr: entry } : { lib: { entry, formats: ["es"] } }) } });
     const chunk = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);

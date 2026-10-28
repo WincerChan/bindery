@@ -1,3 +1,8 @@
+import TablerChevronLeft from "~icons/tabler/chevron-left";
+import TablerChevronRight from "~icons/tabler/chevron-right";
+import TablerMenu2 from "~icons/tabler/menu-2";
+import TablerSearch from "~icons/tabler/search";
+import TablerX from "~icons/tabler/x";
 import { createEffect, createSignal, createUniqueId, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { useRouter } from "@tanstack/solid-router";
 import { BackLink, Button, CloseButton, Icon, IconButton, Popover, ProgressBar, SegmentedControl, SideSheet, Slider } from "../../ui";
@@ -204,7 +209,7 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
     <header class="reader-toolbar" aria-label="阅读工具栏">
       <BackLink class="reader-back" href={detailUrl()}><span>{book().title}</span></BackLink>
       <div class="reader-heading" title={current()?.title}>{current()?.title}</div>
-      <IconButton aria-label="目录与检索" title="目录与检索" aria-haspopup="dialog" aria-controls={`${id}-contents`} aria-expanded={sheetOpen() ? "true" : "false"} onClick={() => togglePanel("toc")}><Icon name="menu-2" size={20} /></IconButton>
+      <IconButton aria-label="目录与检索" title="目录与检索" aria-haspopup="dialog" aria-controls={`${id}-contents`} aria-expanded={sheetOpen() ? "true" : "false"} onClick={() => togglePanel("toc")}><Icon icon={TablerMenu2} size={20} /></IconButton>
       <IconButton ref={settingsTrigger} class="reader-aa" aria-label="阅读设置" title="阅读设置" aria-haspopup="dialog" aria-controls={`${id}-settings`} aria-expanded={panel() === "settings" ? "true" : "false"} onClick={() => togglePanel("settings")}>Aa</IconButton>
     </header>
     <div class="reader-column" inert={sheetOpen()}>
@@ -226,17 +231,17 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
       <div class="reader-desktop-progress"><ProgressBar label="全书进度（按章节估算）" value={percent()} /><span>{roundedPercent()}%</span></div>
       <div class="reader-mobile-controls">
         <div class="reader-chapter-step">
-          <IconButton aria-label="上一章" title={props.data.sections[position().section - 1]?.title || "已是第一章"} disabled={busy() || position().section === 0} onClick={() => openSection(position().section - 1)}><Icon name="chevron-left" size={18} /></IconButton>
+          <IconButton aria-label="上一章" title={props.data.sections[position().section - 1]?.title || "已是第一章"} disabled={busy() || position().section === 0} onClick={() => openSection(position().section - 1)}><Icon icon={TablerChevronLeft} size={18} /></IconButton>
           <div><strong>{current()?.title}</strong><span>{phonePageLabel()}<span class="sr-only">，共 {position().pageCount} 页</span></span></div>
-          <IconButton aria-label="下一章" title={props.data.sections[position().section + 1]?.title || "已是最后一章"} disabled={busy() || position().section === props.data.sections.length - 1} onClick={() => openSection(position().section + 1)}><Icon name="chevron-right" size={18} /></IconButton>
+          <IconButton aria-label="下一章" title={props.data.sections[position().section + 1]?.title || "已是最后一章"} disabled={busy() || position().section === props.data.sections.length - 1} onClick={() => openSection(position().section + 1)}><Icon icon={TablerChevronRight} size={18} /></IconButton>
         </div>
         <div class="reader-scrubber" onChange={seekProgress} onPointerUp={seekProgress} onKeyUp={seekProgress}>
           <Slider label="全书进度（按章节估算）" value={scrub() ?? percent()} step={0.1} formatValue={value => `${Math.round(value)}%`} onChange={setScrub} />
         </div>
       </div>
     </footer>
-    <IconButton class="reader-page-turn reader-page-previous" disabled={previousDisabled()} aria-label="上一页" title="上一页（← / PageUp / Backspace）" hidden={panel() !== null} onClick={() => controller?.turn(-1)}><Icon name="chevron-left" size={20} /></IconButton>
-    <IconButton class="reader-page-turn reader-page-next" disabled={nextDisabled()} aria-label="下一页" title="下一页（→ / PageDown / 空格）" hidden={panel() !== null} onClick={() => controller?.turn(1)}><Icon name="chevron-right" size={20} /></IconButton>
+    <IconButton class="reader-page-turn reader-page-previous" disabled={previousDisabled()} aria-label="上一页" title="上一页（← / PageUp / Backspace）" hidden={panel() !== null} onClick={() => controller?.turn(-1)}><Icon icon={TablerChevronLeft} size={20} /></IconButton>
+    <IconButton class="reader-page-turn reader-page-next" disabled={nextDisabled()} aria-label="下一页" title="下一页（→ / PageDown / 空格）" hidden={panel() !== null} onClick={() => controller?.turn(1)}><Icon icon={TablerChevronRight} size={20} /></IconButton>
     <Button variant="quiet" class="reader-chrome-toggle" aria-label={chromeVisible() ? "隐藏工具栏" : "显示工具栏"} aria-expanded={chromeVisible() ? "true" : "false"} onClick={() => setChromeVisible(value => !value)}>工具栏</Button>
     <Show when={saveNotice()}><p role="status" class="reader-save-notice">{saveNotice()}</p></Show>
     <SideSheet id={`${id}-contents`} open={sheetOpen()} side="left" class="reader-contents" title="目录与检索" closeLabel="关闭目录与检索" heading={false} onClose={closePanel}>
@@ -249,9 +254,9 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
         <nav class="reader-toc" aria-label="章节目录" hidden={panel() === "search"}><ol><For each={props.data.sections}>{(section, index) => <li><a href={url(index())} title={section.title} aria-current={index() === position().section ? "page" : undefined} onClick={event => { if (controller && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openSection(index()); } }}><span class="reader-toc-number" aria-hidden="true">{String(index() + 1).padStart(2, "0")}</span><span>{section.title}</span><Show when={index() === position().section}><span class="reader-current">正在读</span></Show></a></li>}</For></ol></nav>
         <section class="reader-search" aria-label="全文检索" hidden={panel() !== "search"}>
           <form class="reader-search-form" role="search" aria-label="全文检索" onSubmit={event => { event.preventDefault(); void runSearch(); }}>
-            <Icon name="search" size={16} />
+            <Icon icon={TablerSearch} size={16} />
             <input ref={searchInput} type="search" aria-label="在全书中检索" maxlength={200} placeholder="在全书中检索，回车开始" value={query()} onInput={event => setQuery(event.currentTarget.value)} />
-            <button type="button" class="reader-search-clear" aria-label="清空" title="清空" onClick={clearSearch}><Icon name="x" size={14} /></button>
+            <button type="button" class="reader-search-clear" aria-label="清空" title="清空" onClick={clearSearch}><Icon icon={TablerX} size={14} /></button>
             <button type="submit" hidden disabled={searchBusy() || !query().trim()}>开始检索</button>
           </form>
           <Show when={results() && !searchBusy()}><p class="reader-search-summary" role="status"><span>找到</span><strong>{results()!.hits.length}</strong><span>处，已索引 {results()!.indexed_sections} 节</span></p></Show>

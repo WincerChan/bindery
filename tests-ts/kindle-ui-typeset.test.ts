@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { solidOptions } from "../scripts/solid-options";
 import { KindleDeviceManager } from "../src/client/kindle/device";
@@ -88,7 +89,7 @@ beforeAll(async () => {
     export { flush };
   `);
   for (const server of [false, true]) {
-    const result = await build({ configFile: false, logLevel: "silent", plugins: [
+    const result = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(),
       // Exercise the real route components, injecting only the server RPC boundary.
       { name: "kindle-ui-rpc-boundary", enforce: "pre", resolveId(id, importer) {
         if (!importer) return;

@@ -6,9 +6,11 @@ import tailwind from "@tailwindcss/vite";
 import { solidStartRcCompatibility } from "./scripts/solid-start-compat.ts";
 import { solidOptions } from "./scripts/solid-options.ts";
 import { pwaBuild } from "./src/client/pwa/build.ts";
+import { binderyIcons } from "./scripts/vite-icons.ts";
 
 export default defineConfig({
   plugins: [
+    ...binderyIcons(),
     solidStartRcCompatibility(),
     tanstackStart(),
     solid(solidOptions),

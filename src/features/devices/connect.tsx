@@ -1,3 +1,5 @@
+import TablerFolder from "~icons/tabler/folder";
+import TablerPlug from "~icons/tabler/plug";
 import { createSignal, For, Show } from "solid-js";
 import { KINDLE_MODELS, type KindleModel } from "../../client/devices/models";
 import { BackLink, Button, Icon, SegmentedControl, StatusDot, TextField } from "../../ui";
@@ -45,13 +47,13 @@ export function DeviceConnectPage(props: { backLink?: boolean }) {
           </li></Show>
         </ol>
         <div class="device-connect-actions">
-          <Button size="lg" disabled={!k.ready() || !k.supported() || k.busy()} onClick={k.pick}><Icon name="folder" size={16} />选择设备目录</Button>
+          <Button size="lg" disabled={!k.ready() || !k.supported() || k.busy()} onClick={k.pick}><Icon icon={TablerFolder} size={16} />选择设备目录</Button>
           <span class="device-connect-hint">需要 Chrome 或 Edge 桌面版</span>
         </div>
         <p class="device-connect-preview"><Link href="/devices/preview">排版与预览</Link>不需要连接，可以先看看书库里的书。</p>
         <Show when={k.ready() && k.state().status === "granted"}><p class="notice">已连接 {k.state().device?.identity.name}。<Link href="/devices">查看设备书籍</Link>，或<Link href="/devices/transfer">从书库传书</Link>。</p></Show>
       </div>
-      <figure class="connect-device" aria-hidden="true"><DeviceShell kind={k.kind()} model={k.state().device?.identity.model ?? "KPW3"} idle><Icon name="plug" size={44} /></DeviceShell></figure>
+      <figure class="connect-device" aria-hidden="true"><DeviceShell kind={k.kind()} model={k.state().device?.identity.model ?? "KPW3"} idle><Icon icon={TablerPlug} size={44} /></DeviceShell></figure>
     </section>
     <aside class="device-remembered" aria-labelledby="remembered-title">
       <h2 id="remembered-title">记住的设备</h2>

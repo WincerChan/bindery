@@ -1,3 +1,5 @@
+import TablerPlus from "~icons/tabler/plus";
+import TablerRefresh from "~icons/tabler/refresh";
 import { For, Show } from "solid-js";
 import { BackLink, Button, Icon, PageIntro } from "../../ui";
 import type { catalogPage } from "../../server/catalog/templates";
@@ -40,9 +42,9 @@ export function RulesPage(props: { data: ReturnType<typeof catalogPage> }) {
       <ul class="settings-template-list"><For each={items()}>{item => <li><Link aria-current={item.id === props.data.editor?.id ? "page" : undefined} href={href(item.id)}>
         <span>{item.name}</span><small>{templateMeta(item)}</small>
       </Link></li>}</For></ul>
-      <form action={`/${kind()}/new`} method="post" onSubmit={event => { void submit(event); }}><Button type="submit" variant="secondary" class="settings-template-new" disabled={mutation.busy()}><Icon name="plus" size={16} />{themes() ? "新建主题" : "新建规则"}</Button></form>
+      <form action={`/${kind()}/new`} method="post" onSubmit={event => { void submit(event); }}><Button type="submit" variant="secondary" class="settings-template-new" disabled={mutation.busy()}><Icon icon={TablerPlus} size={16} />{themes() ? "新建主题" : "新建规则"}</Button></form>
     </nav><Show when={props.data.editor} keyed fallback={<p class="muted">{themes() ? "暂无主题模板。" : "暂无规则模板。"}</p>}>{editor => <Editor kind={kind()} data={editor} usage={usage()} rebuild={<form action="/books/regenerate" method="post" onSubmit={event => { void submit(event, true); }}>
-      <input type="hidden" name="scope" value={props.data.tab} /><input type="hidden" name="template_id" value={editor.id} /><Button type="submit" variant="quiet" title={themes() ? `把使用这个主题的 ${total()} 本书重新生成` : `把使用这条规则的 ${total()} 本书重新切章、重新生成`} disabled={mutation.busy()}><Icon name="refresh" size={16} />重建 {total()} 本</Button>
+      <input type="hidden" name="scope" value={props.data.tab} /><input type="hidden" name="template_id" value={editor.id} /><Button type="submit" variant="quiet" title={themes() ? `把使用这个主题的 ${total()} 本书重新生成` : `把使用这条规则的 ${total()} 本书重新切章、重新生成`} disabled={mutation.busy()}><Icon icon={TablerRefresh} size={16} />重建 {total()} 本</Button>
     </form>} />}</Show></div>
   </div>;
 }

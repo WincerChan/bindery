@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { solidOptions } from "../scripts/solid-options";
 import { KindleDeviceManager } from "../src/client/kindle/device";
@@ -102,7 +103,7 @@ beforeAll(async () => {
   globals();
   writeFileSync(virtualId, probeSource);
   for (const ssr of [false, true]) {
-    const result = await build({ configFile: false, logLevel: "silent", plugins: [
+    const result = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(),
       // These tests inject the profile API and queue service. Never bundle server-only RPC handlers into Node-tree DOM probes.
       { name: "kindle-ui-rpc-boundary", enforce: "pre", resolveId: (id, importer) => !importer ? undefined : id.includes("server/kindle/functions") ? "\0kindle-ui-rpc" : id.includes("server/typeset/functions") ? "\0typeset-ui-rpc" : id.includes("server/reading/functions") || id.includes("library/functions") ? "\0reading-ui-rpc" : undefined, load: id => id === "\0kindle-ui-rpc" ? "export const listKindleProfiles = async () => { throw Error('unexpected RPC in UI test') }" : id === "\0typeset-ui-rpc" ? "export const listTypesetProfiles = async () => { throw Error('unexpected RPC in UI test') }" : id === "\0reading-ui-rpc" ? "export const syncKoboReading = async () => { throw Error('unexpected RPC in UI test') }; export const loadLibrary = async () => { throw Error('unexpected RPC in UI test') }" : undefined },
       solid(solidOptions),

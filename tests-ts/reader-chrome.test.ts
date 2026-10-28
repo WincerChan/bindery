@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { solidOptions } from "../scripts/solid-options";
 import { clientDocument, elements, fire } from "./support/client-dom";
@@ -75,7 +76,7 @@ beforeAll(async () => {
   for (const server of [true, false]) {
     const result = await build({
       configFile: false, logLevel: "silent",
-      plugins: [{ name: "reader-chrome-boundaries", enforce: "pre", resolveId(source, importer) {
+      plugins: [...binderyIcons(), { name: "reader-chrome-boundaries", enforce: "pre", resolveId(source, importer) {
         if (!importer?.endsWith("/features/reader/reader.tsx")) return;
         if (source === "./frame") return resolve("tests-ts/fixtures/reader/chrome-frame.ts");
         if (source === "./progress") return resolve("tests-ts/fixtures/reader/chrome-progress.ts");

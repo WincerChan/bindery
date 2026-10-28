@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { solidOptions } from "../scripts/solid-options";
 import { resolve } from "node:path";
@@ -9,7 +10,7 @@ import { readerInitialSettings, readerPaper, readerPercent, readerProgressTarget
 import { allByAttribute, allByRole, byAttribute, byLabel, byRole, parseHtml } from "./support/queries";
 let ui: typeof import("./fixtures/reader/ui");
 beforeAll(async () => {
-  const result = await build({ configFile: false, logLevel: "silent", plugins: [solid(solidOptions)], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/reader/ui.tsx") } });
+  const result = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(), solid(solidOptions)], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/reader/ui.tsx") } });
   const entry = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);
   if (!entry || entry.type !== "chunk") throw new Error("Missing reader SSR bundle");
   ui = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(entry.code).toString("base64"));

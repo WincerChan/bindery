@@ -1,3 +1,4 @@
+import TablerTrash from "~icons/tabler/trash";
 import { createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { isRedirect } from "@tanstack/solid-router";
@@ -18,7 +19,7 @@ export function RulePreview(props: { preview: RulePreviewData }) {
 export function TemplateDelete(props: { kind: "rules" | "themes"; id: string; disabled?: boolean }) {
   const [open, setOpen] = createSignal(false), mutation = useMutation();
   return <><form action={`/${props.kind}/${encodeURIComponent(props.id)}/delete`} method="post" onSubmit={event => { event.preventDefault(); if (!props.disabled) setOpen(true); }}>
-    <Button type="submit" variant="quiet-danger" class="catalog-delete" aria-label={props.kind === "rules" ? "删除这条规则" : "删除这个主题"} title="删除" disabled={mutation.busy() || props.disabled}><Icon name="trash" size={18} /></Button>
+    <Button type="submit" variant="quiet-danger" class="catalog-delete" aria-label={props.kind === "rules" ? "删除这条规则" : "删除这个主题"} title="删除" disabled={mutation.busy() || props.disabled}><Icon icon={TablerTrash} size={18} /></Button>
   </form><ConfirmDialog open={open()} title={props.kind === "rules" ? "删除规则模板" : "删除主题模板"} danger onClose={() => { if (!mutation.busy()) setOpen(false); }} onConfirm={() => mutation.run(() => removeTemplate({ data: { kind: props.kind, id: props.id } }), async result => {
     setOpen(false); await mutation.router.navigate({ href: result.target }); await mutation.router.invalidate();
   }, "已删除模板", true).then(() => {})} confirmLabel="删除">

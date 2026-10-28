@@ -1,3 +1,6 @@
+import TablerDotsVertical from "~icons/tabler/dots-vertical";
+import TablerPlus from "~icons/tabler/plus";
+import TablerRefresh from "~icons/tabler/refresh";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { deleteFontFamily, installFonts, type FontFamily, type FontInstallProgress } from "../../../client/kindle/fonts";
 import { deviceInventory } from "../../../client/kindle/inventory";
@@ -139,8 +142,8 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     onDrop={event => { event.preventDefault(); setDragging(false); if (event.dataTransfer) void choose(Array.from(event.dataTransfer.files)); }}>
     <DeviceTabs value="fonts" toolbar={<div class="device-font-toolbar">
       <SegmentedControl label="语言" value={language()} options={[{ value: "all", label: "全部" }, { value: "cjk", label: "中文" }, { value: "latin", label: "西文" }]} onChange={value => setLanguage(value as FontLanguage)} />
-      <Button variant="secondary" disabled={!device() || busy()} onClick={() => input.click()}><Icon name="plus" size={16} />添加字体</Button>
-      <IconButton aria-label="重新扫描" title="重新扫描" disabled={!device() || busy()} onClick={scan}><Icon name="refresh" size={18} /></IconButton>
+      <Button variant="secondary" disabled={!device() || busy()} onClick={() => input.click()}><Icon icon={TablerPlus} size={16} />添加字体</Button>
+      <IconButton aria-label="重新扫描" title="重新扫描" disabled={!device() || busy()} onClick={scan}><Icon icon={TablerRefresh} size={18} /></IconButton>
     </div>} />
     <input ref={input} type="file" multiple accept=".ttf,.otf" hidden aria-label="选择 TTF 或 OTF 字体文件" onChange={event => { void choose(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
     <Show when={!state()}><p role="status">检测中…</p></Show>
@@ -154,7 +157,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     </section>}</Show>
     <Show when={installProgress()}>{progress => <FontInstallQueueProgress progress={progress()} active={installing() && progress().state !== "完成" && progress().state !== "失败"} cancelling={cancelling()} cancel={() => { setCancelling(true); installation?.controller.abort(); }} />}</Show>
     <section class="device-font-grid" aria-label="字体列表"><For each={shown()}>{family => <article data-font-family={family.name}>
-      <div class="device-font-menu"><Menu title={family.name} trigger={<><span class="sr-only">《{family.name}》的操作</span><Icon name="dots-vertical" size={18} /></>} subtitle={`${family.fonts.length} 个文件 · ${fileSize(family.size)}`} items={[
+      <div class="device-font-menu"><Menu title={family.name} trigger={<><span class="sr-only">《{family.name}》的操作</span><Icon icon={TablerDotsVertical} size={18} /></>} subtitle={`${family.fonts.length} 个文件 · ${fileSize(family.size)}`} items={[
         { label: `用 ${family.name} 预览`, onSelect: () => props.onPreview ? props.onPreview(family.name) : navigate(`/devices/preview?font=${encodeURIComponent(family.name)}`) },
         { label: `从设备删除 ${family.name}`, destructive: true, disabled: busy() || !device(), onSelect: () => setDeleting(family) },
       ]} /></div>

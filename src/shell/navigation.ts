@@ -1,13 +1,19 @@
-import type { IconName } from "../ui/icon";
+import TablerBookmark from "~icons/tabler/bookmark";
+import TablerBooks from "~icons/tabler/books";
+import TablerDeviceTablet from "~icons/tabler/device-tablet";
+import TablerSettings from "~icons/tabler/settings";
+import TablerUpload from "~icons/tabler/upload";
+import TablerVocabulary from "~icons/tabler/vocabulary";
+import type { IconComponent } from "../ui/icon";
 
 export const navigation = [
-  { href: "/", label: "书库", icon: "books" },
-  { href: "/ingest", label: "入库", icon: "upload" },
-  { href: "/tracker", label: "追踪", icon: "bookmark" },
-  { href: "/vocabulary", label: "生词本", icon: "vocabulary" },
-  { href: "/devices", label: "设备", icon: "device-tablet" },
-] as const satisfies readonly { href: string; label: string; icon: IconName }[];
-export const settingsLink = { href: "/settings", label: "设置", icon: "settings" } as const satisfies { href: string; label: string; icon: IconName };
+  { href: "/", label: "书库", icon: TablerBooks },
+  { href: "/ingest", label: "入库", icon: TablerUpload },
+  { href: "/tracker", label: "追踪", icon: TablerBookmark },
+  { href: "/vocabulary", label: "生词本", icon: TablerVocabulary },
+  { href: "/devices", label: "设备", icon: TablerDeviceTablet },
+] as const satisfies readonly { href: string; label: string; icon: IconComponent }[];
+export const settingsLink = { href: "/settings", label: "设置", icon: TablerSettings } as const satisfies { href: string; label: string; icon: IconComponent };
 export const phoneNavigation = [...navigation.filter(item => item.href !== "/devices"), settingsLink];
 
 const within = (path: string, root: string) => path === root || path.startsWith(`${root}/`);
