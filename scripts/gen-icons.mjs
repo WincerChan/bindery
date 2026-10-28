@@ -16,6 +16,7 @@ export const ICON_NAMES = [
   "arrow-right",
   "arrow-up-right",
   "book",
+  "book-2",
   "bookmark",
   "books",
   "braces",

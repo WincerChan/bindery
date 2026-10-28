@@ -43,6 +43,7 @@
 .ui-stars { display: inline-flex; gap: 1px; color: var(--color-line-soft); font-size: var(--text-meta); }
 .ui-star-filled, .ui-rating .btn.ui-star-filled { color: var(--color-accent); }
 .ui-rating .btn.ui-star-empty { color: var(--color-ink-3); }
+.ui-rating .btn.ui-star-soft { color: var(--color-line-soft); }
 .ui-rating { min-width: 0; margin: 0; padding: 0; border: 0; }
 .ui-rating legend { padding: 0; margin-bottom: 10px; color: var(--color-ink-3); font-size: var(--text-meta); }
 .ui-rating > div { display: flex; align-items: center; flex-wrap: wrap; }
@@ -165,12 +166,15 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
 .ui-menu-status-ok { background: var(--color-ok-soft); color: var(--color-ok); }
 .ui-menu-status-accent { background: var(--color-accent-soft); color: var(--color-accent); }
 .ui-menu-status-danger { background: var(--color-danger-soft); color: var(--color-danger); }
-.dialog-menu [role="menuitem"] { display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--size-control); padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--color-ink); font-size: var(--text-control); text-align: left; }
+.ui-menu-status-neutral { background: var(--color-control); color: var(--color-ink-3); }
+.dialog-menu [role="menu"] { display: flex; flex-direction: column; gap: 2px; }
+.dialog-menu [role="menuitem"] { display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--size-control); padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--color-ink); font-size: var(--text-control); text-align: left; }
 .ui-menu-item-icon { display: inline-flex; flex: none; color: var(--color-ink-2); }
 .ui-menu-item-icon-phone { display: none; }
 .dialog-menu [role="menuitem"]:not(:disabled):hover { background: var(--color-hover); }
 .dialog-menu [role="menuitem"].is-destructive { color: var(--color-danger); }
-.dialog-menu hr { margin: 6px 8px; border: 0; border-top: 1px solid var(--color-line-soft); }
+.dialog-menu [role="menuitem"].is-destructive .ui-menu-item-icon { color: var(--color-danger); }
+.dialog-menu hr { margin: 4px 12px; border: 0; border-top: 1px solid var(--color-line-soft); }
 @keyframes ui-overlay-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Fixed cover palette from design §5.1. */
@@ -277,7 +281,10 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
   .dialog-dialog > .dialog-body { flex: 1; }
   .dialog-dialog > .dialog-actions { margin-top: auto; padding-bottom: env(safe-area-inset-bottom); }
   .dialog-actions > .btn-primary { flex: 1; }
-  .dialog-menu [role="menuitem"] { min-height: 52px; font-size: var(--text-body); }
+  .dialog-menu > .dialog-heading { margin-bottom: 16px; }
+  .dialog-menu .ui-menu-status { padding-inline: 14px; margin-bottom: 10px; }
+  .dialog-menu [role="menuitem"] { min-height: 52px; gap: 14px; padding-inline: 14px; border-radius: 14px; font-size: var(--text-body); }
+  .dialog-menu hr { margin: 6px 14px; }
   .ui-menu-chevron { opacity: 1; }
   .skeleton-split, .skeleton-sidebar, .skeleton-sidebar .skeleton-split, .skeleton-book { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .skeleton-book .skeleton-cover { width: 120px; }

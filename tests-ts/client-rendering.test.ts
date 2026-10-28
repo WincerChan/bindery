@@ -434,7 +434,7 @@ it("updates tracker/wishlist filter rows and their empty state", () => {
   mounted.update(tracker(["乙"]));
   const rows = () => allByRole(byRole(mounted.root, "list", "追踪列表"), "listitem");
   expect(rows()).toHaveLength(1);
-  expect(byRole(rows()[0]!, "button", /乙.*作者/).getAttribute("aria-haspopup")).toBe("menu");
+  expect(byRole(rows()[0]!, "button", /《乙》的操作/).getAttribute("aria-haspopup")).toBe("menu");
   expect(byRole(mounted.root, "navigation", "分页").textContent).toContain("1–1 本 · 共 1 本");
   mounted.update(tracker([])); expect(rows()).toHaveLength(0);
   expect(mounted.root.textContent).toContain("还没有追踪的书籍");
@@ -445,7 +445,7 @@ it("opens tracker menus, edits ratings/statuses, cancels deletion and starts a f
   vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) });
   const rpc = vi.fn(); vi.stubGlobal("__binderyTestMutation", rpc);
   const mounted = mount("tracker", tracker(["甲"])); await settle(); mounted.flush();
-  const trigger = byRole(byRole(mounted.root, "list", "追踪列表"), "button", /甲.*作者/);
+  const trigger = byRole(byRole(mounted.root, "list", "追踪列表"), "button", /《甲》的操作/);
   fire(trigger, "click"); mounted.flush();
   expect(trigger.getAttribute("aria-expanded")).toBe("true");
   const menu = byRole(mounted.root, "menu", "甲");
@@ -475,6 +475,31 @@ it("opens tracker menus, edits ratings/statuses, cancels deletion and starts a f
   expect((byLabel(add, "书名") as HTMLInputElement).value).toBe("");
   expect(byName(add, "read_status").getAttribute("value")).toBe("unread");
   expect(byName(add, "book_status").getAttribute("value")).toBe("completed");
+});
+
+it("deletes a tracker entry from the editor footer", async () => {
+  vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) });
+  const mounted = mount("tracker", tracker(["甲"])); await settle(); mounted.flush();
+  fire(byRole(mounted.root, "button", /《甲》的操作/), "click"); mounted.flush();
+  fire(byRole(byRole(mounted.root, "menu", "甲"), "menuitem", "编辑追踪"), "click"); mounted.flush();
+  const editor = byRole(mounted.root, "dialog", "编辑追踪") as HTMLDialogElement;
+  expect(editor.open).toBe(true);
+  fire(byRole(editor, "button", "删除这条追踪"), "click"); mounted.flush();
+  expect(editor.open).toBe(false);
+  const confirmation = byRole(mounted.root, "dialog", "删除追踪") as HTMLDialogElement;
+  expect(confirmation.open).toBe(true); expect(confirmation.textContent).toContain("确定删除《甲》");
+  fire(byRole(confirmation, "button", "取消"), "click"); mounted.flush(); expect(confirmation.open).toBe(false);
+});
+
+it("edits tracker tags as chips through the hidden comma-separated field", async () => {
+  const mounted = mount("trackerForm", { next: "/tracker", onClose() {} }); await settle(); mounted.flush();
+  const input = byLabel(mounted.root, "添加标签") as HTMLInputElement;
+  input.value = "古典"; fire(input, "keydown", { key: "Enter" }); mounted.flush();
+  expect(byName(mounted.root, "tags").getAttribute("value")).toBe("古典");
+  input.value = "志怪，短篇"; fire(input, "keydown", { key: "Enter" }); mounted.flush();
+  expect(byName(mounted.root, "tags").getAttribute("value")).toBe("古典,志怪,短篇");
+  fire(byRole(mounted.root, "button", "移除标签 古典"), "click"); mounted.flush();
+  expect(byName(mounted.root, "tags").getAttribute("value")).toBe("志怪,短篇");
 });
 
 it("blocks tracker duplicates and exposes the existing entry without submitting", async () => {

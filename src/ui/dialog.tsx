@@ -76,7 +76,7 @@ export type MenuItem = MenuItemBase & (
   | { href: string; native?: boolean; onSelect?: never; action?: never }
   | { action: string; fields?: Readonly<Record<string, string>>; onSubmit?: JSX.EventHandler<HTMLFormElement, SubmitEvent>; href?: never; onSelect?: never }
 );
-export function Menu(props: { title: string; trigger: JSX.Element; triggerLabel?: string; triggerTitle?: string; items: readonly MenuItem[]; subtitle?: string; status?: JSX.Element; statusTone?: "ok" | "accent" | "danger"; class?: string; dialogClass?: string; align?: "start" | "end"; chevron?: boolean }) {
+export function Menu(props: { title: string; trigger: JSX.Element; triggerLabel?: string; triggerTitle?: string; items: readonly MenuItem[]; subtitle?: string; status?: JSX.Element; statusTone?: "ok" | "accent" | "danger" | "neutral"; class?: string; dialogClass?: string; align?: "start" | "end"; chevron?: boolean }) {
   const [open, setOpen] = createSignal(false), [enhanced, setEnhanced] = createSignal(false);
   const id = createUniqueId();
   onSettled(() => { setEnhanced(true); });
@@ -106,12 +106,12 @@ export function Menu(props: { title: string; trigger: JSX.Element; triggerLabel?
     </Show>}</For>;
   }
   const status = () => <Show when={props.status}><div class={`ui-menu-status ui-menu-status-${props.statusTone || "accent"}`} role="status">{props.status}</div></Show>;
-  const label = (item: MenuItem) => <><Show when={item.icon}>{icon => <span class="ui-menu-item-icon ui-menu-item-icon-desktop" aria-hidden="true"><Icon name={icon()} size={16} /></span>}</Show><Show when={item.phoneIcon}>{icon => <span class="ui-menu-item-icon ui-menu-item-icon-phone" aria-hidden="true"><Icon name={icon()} size={16} /></span>}</Show>{item.label}</>;
-  return <div class={`ui-menu ${props.class || ""}`}><button ref={trigger} type="button" hidden={!enhanced()} class="ui-menu-trigger" aria-label={props.triggerLabel} title={props.triggerTitle} aria-haspopup="menu" aria-expanded={open() ? "true" : "false"} aria-controls={id} onClick={() => setOpen(!open())} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}>{props.trigger}<Show when={props.chevron !== false}><span class="ui-menu-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span></Show></button>
+  const label = (item: MenuItem) => <><Show when={item.icon}>{icon => <span class="ui-menu-item-icon ui-menu-item-icon-desktop" aria-hidden="true"><Icon name={icon()} size={16} /></span>}</Show><Show when={item.phoneIcon ?? item.icon}>{icon => <span class="ui-menu-item-icon ui-menu-item-icon-phone" aria-hidden="true"><Icon name={icon()} size={18} /></span>}</Show>{item.label}</>;
+  return <div class={`ui-menu ${props.class || ""}`}><button ref={trigger} type="button" hidden={!enhanced()} class="ui-menu-trigger" aria-label={props.triggerLabel} title={props.triggerTitle ?? (props.triggerLabel ? "更多操作" : undefined)} aria-haspopup="menu" aria-expanded={open() ? "true" : "false"} aria-controls={id} onClick={() => setOpen(!open())} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}>{props.trigger}<Show when={props.chevron !== false}><span class="ui-menu-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span></Show></button>
     <Dialog id={id} open={open()} title={props.title} subtitle={props.subtitle} variant="menu" anchor={() => trigger} align={props.align} onClose={close} class={props.dialogClass}>
       {status()}<div role="menu" aria-label={props.title}><Items /></div>
     </Dialog>
-    <Show when={!enhanced()}><details class="ui-menu-native"><summary aria-label={`《${props.title}》的操作`}>{props.trigger}</summary><Show when={props.subtitle}><p>{props.subtitle}</p></Show>{status()}<Items native /></details></Show>
+    <Show when={!enhanced()}><details class="ui-menu-native"><summary aria-label={props.triggerLabel || `《${props.title}》的操作`}>{props.trigger}</summary><Show when={props.subtitle}><p>{props.subtitle}</p></Show>{status()}<Items native /></details></Show>
   </div>;
 }
 export function ConfirmDialog(props: { open: boolean; title: string; children: JSX.Element; onClose: () => void; onConfirm: () => unknown | Promise<unknown>; confirmLabel?: string; danger?: boolean }) {
