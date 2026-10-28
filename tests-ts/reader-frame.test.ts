@@ -183,10 +183,11 @@ function resolvedDeclarations(css: string, selector: string, vars: CSSStyleDecla
 
 describe("iframe style and pagination parity", () => {
   it("lays out two desktop columns per saved viewport and seeks by fraction", () => {
-    const f = frameFixture(1120, 0, 0, 8, true);
+    const f = frameFixture(1120, 0, 0, 7, true);
     f.frames.configure({ ...defaultSettings, styleMode: "custom", pagePaddingX: 40 });
-    expect(f.vars.getPropertyValue("--bindery-column-width")).toBe("480px");
-    expect(f.vars.getPropertyValue("--bindery-column-gap")).toBe("80px");
+    // Prototype spread: 40 outer margin, 72 spine gutter → 448px text per page.
+    expect(f.vars.getPropertyValue("--bindery-column-width")).toBe("448px");
+    expect(f.vars.getPropertyValue("--bindery-column-gap")).toBe("144px");
     expect(f.vars.getPropertyValue("--bindery-page-step")).toBe("1120px");
     expect(f.changes.at(-1)).toMatchObject({ page: 1, pageCount: 4 });
     f.frames.turn(1); expect(f.scroller.scrollLeft).toBe(1120);
@@ -261,6 +262,8 @@ describe("iframe style and pagination parity", () => {
         delete actual.width; delete actual["min-width"]; delete expected.width; delete expected["min-width"];
       }
       if (selector === "#bindery-reader-scroller") { expect(actual["max-width"]).toBe("none!important"); delete actual["max-width"]; delete expected["max-width"]; }
+      // v2 text blocks get the design's 2em first-line indent in custom mode (reference kept the book's own).
+      if (selector === "#bindery-reader-pages p" && styleMode === "custom") { expect(actual["text-indent"]).toBe("2em!important"); delete actual["text-indent"]; }
       expect(actual, selector).toEqual(expected);
     }
     f.frames.destroy();

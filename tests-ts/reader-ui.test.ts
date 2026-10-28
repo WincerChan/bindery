@@ -46,9 +46,9 @@ describe("reader SSR and controls (adapted from test_reader_ui.py)", () => {
   it("reports chapter viewport pages and estimated global percentage, including the SSR resume seed", () => {
     const plain = (query = "") => parseHtml(ui.renderReader(query)).textContent;
     expect(plain()).toContain("1 / 1 跨页 · 50%");
-    expect(plain()).toContain("共 2 节 · 当前 1");
+    expect(plain()).toContain("第 1 页，共 1 页");
     expect(plain("resume=1")).toContain("3 / 8 跨页 · 64%");
-    expect(plain("resume=1")).toContain("共 2 节 · 当前 2");
+    expect(plain("resume=1")).toContain("第 3 页，共 8 页");
   });
   it("restores the saved section only for resume=1; direct chapter links keep the requested chapter", () => {
     expect(byAttribute(parseHtml(ui.renderReader("resume=1")), "title", "阅读正文").getAttribute("src")).toContain("Text/ch2.xhtml");

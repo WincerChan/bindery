@@ -14,6 +14,8 @@ export interface DialogProps {
   side?: "left" | "right"; subtitle?: string; actions?: JSX.Element;
   anchor?: () => HTMLElement | undefined;
   align?: "start" | "end";
+  /** Sheet-style surfaces that draw their own header keep the name for assistive tech only. */
+  heading?: boolean;
 }
 export function Dialog(props: DialogProps) {
   let element!: HTMLDialogElement, previousFocus: Element | null = null;
@@ -27,8 +29,9 @@ export function Dialog(props: DialogProps) {
     if (!anchor) return;
     const box = anchor.getBoundingClientRect(), width = element.offsetWidth, height = element.offsetHeight;
     const left = props.align === "end" ? box.right - width : box.left;
+    const top = box.bottom + (variant() === "popover" ? 12 : 8);
     element.style.left = `${Math.max(8, Math.min(left, window.innerWidth - width - 8))}px`;
-    element.style.top = `${Math.max(8, Math.min(box.bottom + 8, window.innerHeight - height - 8))}px`;
+    element.style.top = `${Math.max(8, Math.min(top, window.innerHeight - height - 8))}px`;
   }); }
   onSettled(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -57,13 +60,15 @@ export function Dialog(props: DialogProps) {
     position();
   });
   onCleanup(() => { if (element?.open) { element.close(); restoreOverlayFocus(previousFocus); } });
-  return <dialog ref={element} id={props.id} class={`dialog dialog-${variant()} ${props.side === "left" ? "dialog-left" : ""} ${props.class || ""}`} aria-modal={modal() ? "true" : undefined} aria-labelledby={titleId} aria-describedby={props.subtitle ? subtitleId : undefined} data-state={props.open ? "open" : "closed"} data-presentation={overlayPresentation(variant(), phone())}
+  return <dialog ref={element} id={props.id} class={`dialog dialog-${variant()} ${props.side === "left" ? "dialog-left" : ""} ${props.class || ""}`} aria-modal={modal() ? "true" : undefined} aria-labelledby={titleId} aria-describedby={props.subtitle && props.heading !== false ? subtitleId : undefined} data-state={props.open ? "open" : "closed"} data-presentation={overlayPresentation(variant(), phone())}
     onKeyDown={event => overlayKeydown(event, element, props.onClose, variant() === "menu", modal())}
     onCancel={event => { event.preventDefault(); props.onClose(); }}
     onClose={() => { if (!element.open && props.open) props.onClose(); }}
     onClick={event => { if (event.target === element) { const box = element.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) props.onClose(); } }}>
     <div class="dialog-handle" aria-hidden="true" />
-    <div class="dialog-heading"><div><h2 id={titleId}>{props.title}</h2><Show when={props.subtitle}><p id={subtitleId}>{props.subtitle}</p></Show></div><CloseButton onClick={props.onClose} aria-label={props.closeLabel || "关闭对话框"} /></div>
+    <Show when={props.heading !== false} fallback={<h2 id={titleId} class="sr-only">{props.title}</h2>}>
+      <div class="dialog-heading"><div><h2 id={titleId}>{props.title}</h2><Show when={props.subtitle}><p id={subtitleId}>{props.subtitle}</p></Show></div><CloseButton onClick={props.onClose} aria-label={props.closeLabel || "关闭对话框"} /></div>
+    </Show>
     <div class="dialog-body">{props.children}</div><Show when={props.actions}><div class="dialog-actions">{props.actions}</div></Show>
   </dialog>;
 }

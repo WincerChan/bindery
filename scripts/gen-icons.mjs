@@ -47,6 +47,7 @@ export const ICON_NAMES = [
   "plug",
   "plus",
   "refresh",
+  "search",
   "send",
   "settings",
   "shield-check",

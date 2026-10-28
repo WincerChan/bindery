@@ -932,11 +932,11 @@ it("updates reader TOC and search result fragments, highlighting and load-more s
   const form = formFor(byLabel(mounted.root, "在全书中检索"));
   input.value = "词"; fire(input, "input"); mounted.flush(); fire(form, "submit"); await settle(); mounted.flush();
   const results = () => byRole(mounted.root, "region", "全文检索");
-  expect(elements(results(), "li")).toHaveLength(1); expect(elements(results(), "mark").map(el => el.textContent)).toEqual(["词", "词"]);
+  expect(elements(results(), "li")).toHaveLength(1); expect(elements(results(), "a")).toHaveLength(1); expect(elements(results(), "mark").map(el => el.textContent)).toEqual(["词"]);
   fetch.mockResolvedValue({ ok: true, json: async () => ({ query: "词", indexed_sections: 1, hits: [{ index: 0, title: "词二", snippet: "第二词", offset: 1 }], has_more: false }) });
-  fire(elements(mounted.root, "button").find(el => el.textContent === "加载更多")!, "click"); await settle(); mounted.flush();
-  expect(elements(results(), "li")).toHaveLength(2);
-  expect(elements(mounted.root, "button").some(el => el.textContent === "加载更多")).toBe(false);
+  fire(elements(mounted.root, "button").find(el => el.textContent === "再显示 20 处")!, "click"); await settle(); mounted.flush();
+  expect(elements(results(), "a")).toHaveLength(2);
+  expect(elements(mounted.root, "button").some(el => el.textContent === "再显示 20 处")).toBe(false);
   fetch.mockResolvedValue({ ok: true, json: async () => ({ query: "空", indexed_sections: 1, hits: [], has_more: false }) });
   input.value = "空"; fire(input, "input"); mounted.flush(); fire(form, "submit"); await settle(); mounted.flush();
   expect(elements(results(), "li")).toHaveLength(0); expect(mounted.root.textContent).toContain("未命中");
