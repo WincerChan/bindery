@@ -112,9 +112,9 @@ describe("v2 render contracts", () => {
   it("renders exactly one heading in each board-backed variant, including the compact device masthead", () => {
     const html = server.markup("intros").replace(/<!--.*?-->/g, "");
     const headers = [...html.matchAll(/<header\b[^>]*class="([^"]*)"[^>]*>([\s\S]*?)<\/header>/g)];
-    expect(headers).toHaveLength(15);
+    expect(headers).toHaveLength(14);
     for (const [, name, content] of headers) expect(content!.match(/<h1\b/g), name).toHaveLength(1);
-    for (const variant of ["empty", "guide", "split", "editor", "compact"]) expect(headers.some(h => h[1]!.includes(`ui-page-intro-${variant}`))).toBe(true);
+    for (const variant of ["guide", "split", "editor", "compact"]) expect(headers.some(h => h[1]!.includes(`ui-page-intro-${variant}`))).toBe(true);
     const book = headers.find(h => h[1]!.includes("ui-page-intro-book"))!;
     expect(book[1]).not.toContain("ui-page-intro-visual-cover");
     const compact = headers.find(h => h[1]!.includes("ui-page-intro-compact"))![2]!;

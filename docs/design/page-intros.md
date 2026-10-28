@@ -42,7 +42,7 @@ not additional spacing scales.
 | --- | --- | --- |
 | `pad-top`, `stack-gap`, `actions-offset` | 40/22/6 → 0/16/0 | Main, Ingest, Tracker; MobileIngest/Tracker/Vocabulary. Shell already supplies top 40/28. |
 | `title-size/weight/line` | `text-hero` = 46/600/1.25 → 30/600/1.3 | Main h1 and phone h1; README §2.2. |
-| `title-tracking`, `cover-title-tracking` | normal; .01em → normal | Main explicitly tracks its title; other main boards do not. Do not spread the cover exception to all titles. |
+| `title-tracking`, `cover-title-tracking` | .01em → normal | Main explicitly tracks its title; that is the shared desktop intro value. Phone boards inherit normal. |
 | `eyebrow-size/tracking/line` | 14/.08em/normal → 13/.08em/normal | Main/phone small statistics. Their boards inherit normal, not the app body's1.5; measured20/19px line boxes with Noto Sans. |
 | `lead-size/line/max` | 15/1.85/520 → 15/1.8/520 | Main and MobileLibrary paragraphs. |
 | `action-gap`, `status-gap/offset` | 12 → 10; 8px 14px / 0 | Main/MobileLibrary controls; Vocabulary status paragraph. |
@@ -54,7 +54,7 @@ not additional spacing scales.
 | `visual-vocabulary`, `vocabulary-basis/inset/visual-offset` | 561; 360/24/0 → 360/0/12 | Vocabulary: 520 content + 40 left padding + 1 rule = 561 border-box; right margin24. MobileVocabulary quote inset12. Phone visual spans full width. |
 | `wide-lead` | 560 | Vocabulary and SettingsRules/Themes max-width. |
 | `visual-device`, `device-inset` | 300 / 40 → 300 / 0 | Devices and DevicesConnect figure width300 plus right margin40. Margin belongs to the shared slot, not a feature override. |
-| `empty-pad/lead` | 52/600 → 0/600 | IngestEmpty hero and paragraph; no empty-phone board, mobile uses §3.5. |
+| `empty-pad/lead` | no separate variant; `/ingest` uses main 40/520 → 0/520 | The board's IngestEmpty hero uses 52/600, but both ingest states now use the main variant so they align with Main/library at both widths. |
 | `subpage-pad/stack/next`, `back-gap` | 24/16/36; 16 → 0/16/32; 16 | SettingsRules and SettingsThemes sections and main gap. Their stack is **16**, not22. |
 | `title-only-next` | 40 → 32 | SettingsHub main gap; MobileSettings. |
 | `split` | subpage-pad; shared stack/back-gap22 →16; next0 | SettingsSecurity's back/title/paragraph stack22. Its keys panel is beside the intro; the parent owns the 48px column gap and phone32px row gap. |
@@ -79,7 +79,9 @@ These were removed/migrated, not merely renamed as intro overrides.
 
 Fixed rules/themes16, guide28, book20/14, library phone nested12, security back22,
 preview30px type and wrapping, vocabulary's desktop shared status/control row,
-and cover-only letter spacing. Board normal line-height was restored for eyebrow/preview rather than assuming1.5. Added compact-fonts semantics and fixed preview's h1→h3 skip. AX-tree checks also exposed a hidden desktop transfer modal making the phone intro inert; the transfer sheet now closes below768px, including on resize. Artwork selectors
+and shared desktop title tracking. `/ingest` empty now uses the main intro instead
+of the board-specific empty padding/lead, so its text starts and flows with `/`
+at both widths. Board normal line-height was restored for eyebrow/preview rather than assuming1.5. Added compact-fonts semantics and fixed preview's h1→h3 skip. AX-tree checks also exposed a hidden desktop transfer modal making the phone intro inert; the transfer sheet now closes below768px, including on resize. Artwork selectors
 now target their own content (e.g. `.library-hero-cover`), not `.ui-page-visual`.
 
 Populated quote/reading fixtures also exposed desktop visual flex bases becoming

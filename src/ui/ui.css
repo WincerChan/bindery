@@ -121,7 +121,6 @@ details[open] > summary .ui-summary-chevron { transform: rotate(180deg); }
 .ui-page-intro-visual-device .ui-page-visual { margin-inline-end: var(--intro-device-inset); }
 .ui-page-intro-visual-cover .ui-page-visual { padding: var(--intro-cover-pad); }
 .ui-page-intro-visual-reading .ui-page-visual { padding: var(--intro-reading-pad); }
-.ui-page-intro-empty { --intro-pad-top: var(--intro-empty-pad); --intro-lead-max: var(--intro-empty-lead); }
 .ui-page-intro-subpage { --intro-pad-top: var(--intro-subpage-pad); --intro-stack-gap: var(--intro-subpage-stack); --intro-gap-next: var(--intro-subpage-next); --intro-lead-max: var(--intro-wide-lead); }
 .ui-page-intro-split { --intro-pad-top: var(--intro-subpage-pad); --intro-back-gap: var(--intro-stack-gap); --intro-gap-next: 0px; }
 .ui-page-intro-guide { --intro-stack-gap: var(--intro-guide-stack); --intro-gap-next: var(--intro-guide-next); --intro-actions-offset: 0px; --intro-action-gap: var(--intro-guide-actions); --intro-text-basis: var(--intro-guide-basis); }

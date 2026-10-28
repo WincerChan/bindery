@@ -80,7 +80,7 @@ export function SearchPill(props: JSX.InputHTMLAttributes<HTMLInputElement> & { 
   return <TextField {...omit(props, "class")} type="search" labelHidden class={`search-field ui-search-pill ${props.class || ""}`} />;
 }
 /** Board-backed structures; values and exceptions are catalogued in docs/design/page-intros.md. */
-export type PageIntroVariant = "main" | "empty" | "guide" | "subpage" | "split" | "title-only" | "topbar" | "editor" | "compact" | "book";
+export type PageIntroVariant = "main" | "guide" | "subpage" | "split" | "title-only" | "topbar" | "editor" | "compact" | "book";
 export type PageIntroVisualSize = "cover" | "page" | "reading" | "vocabulary" | "device";
 export function PageIntro(props: {
   eyebrow?: JSX.Element | null;
