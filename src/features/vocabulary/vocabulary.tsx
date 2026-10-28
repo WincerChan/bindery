@@ -1,3 +1,5 @@
+import TablerCheck from "~icons/tabler/check";
+import TablerSettings from "~icons/tabler/settings";
 import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import { Button, EmptyState, Icon, PageIntro, SearchPill, SegmentedControl, SelectPill, SideSheet, StatusDot, TextField, ToggleSwitch, Toolbar } from "../../ui";
 import type { PushState, VocabularyChoice, VocabularyItem, VocabularyPage } from "../../server/vocabulary/query";
@@ -107,7 +109,7 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
         <Show when={settings().baseUrl && settings().hasToken && !settings().enabled}><p class="vocab-hint">LexiTrace 推送已暂停，生词仍会同步。</p></Show>
         <div class="vocab-action-row"><Show when={page().summary.push.failed}><Button variant="secondary" disabled={busy()} onClick={() => retry()}>{busy() ? "处理中…" : "全部重试"}</Button></Show>
           <Button variant="icon" class="vocab-settings-button" aria-label="LexiTrace 设置" title="LexiTrace 设置" aria-haspopup="dialog" aria-expanded={settingsOpen() ? "true" : "false"} aria-controls="lexitrace-settings" onClick={() => setSettingsOpen(true)}>
-            <Icon name="settings" size={20} class="vocab-settings-glyph" /><span class="vocab-settings-text">设置</span>
+            <Icon icon={TablerSettings} size={20} class="vocab-settings-glyph" /><span class="vocab-settings-text">设置</span>
           </Button>
         </div>
       </div>}
@@ -146,7 +148,7 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
         <TextField label="地址" name="baseUrl" type="url" placeholder="https://lexitrace.example" value={baseUrl()} disabled={saving() || testing()} onInput={event => setBaseUrl(event.currentTarget.value)} hint="HTTPS，或本机的 HTTP 回环地址" />
         <div class="vocab-token-field">
           <TextField label="访问令牌" name="token" type="password" autocomplete="new-password" placeholder={settings().hasToken ? "已保存，留空则保持不变" : "输入 LexiTrace 令牌"} value={token()} disabled={saving() || testing()} onInput={event => setToken(event.currentTarget.value)} hint={settings().hasToken ? undefined : "令牌只保存在服务器，不会返回浏览器。"} />
-          <Show when={settings().hasToken}><span class="vocab-token-saved"><Icon name="check" size={14} />已保存</span></Show>
+          <Show when={settings().hasToken}><span class="vocab-token-saved"><Icon icon={TablerCheck} size={14} />已保存</span></Show>
         </div>
         <Show when={clearToken()}><p class="vocab-failure" role="status">保存后将清除已保存的令牌；取消不会更改设置。</p></Show>
         <div class="vocab-test-row"><Button variant="secondary" disabled={testing() || saving()} onClick={test}>{testing() ? "测试中…" : "测试连接"}</Button><Show when={testResult()}>{result => <p role="status" class={result().ok ? "vocab-test-result is-ok" : "vocab-test-result is-failure"}><StatusDot tone={result().ok ? "ok" : "danger"} label={result().ok ? "连接成功" : "连接失败"} />{result().text}</p>}</Show></div>

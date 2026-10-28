@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { resolve } from "node:path";
 import { navigation, navActive, phoneNavigation, settingsLink } from "../src/shell/navigation";
@@ -10,7 +11,7 @@ import { installToastBridge } from "../src/client/toast";
 let ui: typeof import("./support/ui-probe");
 beforeAll(async () => {
   const result = await build({
-    configFile: false, logLevel: "silent", plugins: [solid({ ssr: true })],
+    configFile: false, logLevel: "silent", plugins: [...binderyIcons(), solid({ ssr: true })],
     ssr: { noExternal: true },
     build: { write: false, minify: false, ssr: resolve("tests-ts/support/ui-probe.tsx") },
   });

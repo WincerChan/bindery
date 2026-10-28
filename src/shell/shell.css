@@ -10,7 +10,9 @@
 .nav-link:hover { background: var(--color-hover); }
 .nav-link.active { background: var(--color-accent); color: var(--color-surface); }
 .rail-settings { margin-top: auto; }
-.app-main { min-width: 0; padding: 40px var(--space-page) 72px; }
+.app-main { min-width: 0; padding: 40px 0 72px; }
+/* Cap the reading column on wide windows; the padding stays inside the cap. */
+.app-content { width: 100%; max-width: var(--content-max); margin-inline: auto; padding-inline: var(--space-page); }
 .reader-main { width: 100%; height: 100dvh; min-height: 0; padding: 0; }
 .reader-layout { background: var(--color-bg); }
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 100; min-height: var(--size-control); padding: 10px; background: var(--color-bg); }
@@ -20,7 +22,8 @@
 @media (max-width: 767px) {
   .page-shell { display: block; min-height: 100dvh; }
   .nav-rail { display: none; }
-  .app-main { padding: 28px 16px calc(100px + env(safe-area-inset-bottom)); }
+  .app-main { padding: 28px 0 calc(100px + env(safe-area-inset-bottom)); }
+  .app-content { padding-inline: 16px; }
   .tab-bar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); position: fixed; bottom: 0; inset-inline: 0; z-index: 30; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: var(--color-bg); border-top: 1px solid var(--color-line-faint); }
   .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 56px; min-width: 0; color: var(--color-ink-3); font-size: var(--text-min); text-decoration: none; }
   .tab-icon { display: flex; align-items: center; justify-content: center; width: 56px; height: 30px; border-radius: 999px; }

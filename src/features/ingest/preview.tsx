@@ -1,3 +1,4 @@
+import TablerChevronDown from "~icons/tabler/chevron-down";
 import { createSignal, createUniqueId, For, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { AddCoverTile, Button, CenterDialog, GeneratedCover, Icon, SegmentedControl } from "../../ui";
@@ -30,7 +31,7 @@ function UploadBook(props: { item: Preview; disabled?: boolean; onRemove?: () =>
         <Show when={!props.item.error && props.item.duplicates.length}><div class="ingest-duplicate"><p>书库里已经有<Show when={props.item.duplicates.length === 1} fallback="：">一本 </Show><For each={props.item.duplicates}>{(duplicate, index) => <>{index() ? "、" : ""}<Link href={`/book/${duplicate.book_id}`}>《{duplicate.title}》{duplicate.author ? `（${duplicate.author}）` : ""}</Link></>}</For>。</p><SegmentedControl label="重复书籍的处理方式" value={keep()} options={[{ value: "normalize", label: "归入已有" }, { value: "keep", label: "新建一本" }]} disabled={props.disabled} onChange={setKeep} /></div></Show>
         {props.override}
         <Show when={props.item.toc.length}><section class="ingest-toc-section"><h3 class="ingest-field-title">目录</h3><ol class="ingest-toc"><For each={props.item.toc.slice(0, 10)}>{title => <li>{title}</li>}</For><Show when={props.item.toc.length > 10}><li class="ingest-toc-more">…… 共 {props.item.chapters} 章</li></Show></ol></section></Show>
-        <details class="ingest-file-details"><summary>文件信息<Icon name="chevron-down" size={16} class="ui-summary-chevron" /></summary><dl><dt>格式</dt><dd>{props.item.format}</dd><dt>文件名</dt><dd>{props.item.filename}</dd><Show when={props.item.output}><dt>输出文件</dt><dd>{props.item.output}</dd></Show></dl></details>
+        <details class="ingest-file-details"><summary>文件信息<Icon icon={TablerChevronDown} size={16} class="ui-summary-chevron" /></summary><dl><dt>格式</dt><dd>{props.item.format}</dd><dt>文件名</dt><dd>{props.item.filename}</dd><Show when={props.item.output}><dt>输出文件</dt><dd>{props.item.output}</dd></Show></dl></details>
       </div></div>
     </CenterDialog>
   </article>;

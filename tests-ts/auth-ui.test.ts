@@ -1,12 +1,13 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { resolve } from "node:path";
 import { allByRole, byAttribute, byName, byRole, formFor, parseHtml } from "./support/queries";
 let ui: typeof import("./fixtures/auth/ui-probe");
 beforeAll(async () => {
   const result = await build({
-    configFile: false, logLevel: "silent", plugins: [solid({ ssr: true })],
+    configFile: false, logLevel: "silent", plugins: [...binderyIcons(), solid({ ssr: true })],
     ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/auth/ui-probe.tsx") },
   });
   const entry = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);

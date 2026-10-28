@@ -29,10 +29,16 @@ describe("full-bleed desktop shell", () => {
     expect(railContent).toContain("height: 100dvh");
 
     const main = declarations(shell, ".app-main");
-    expect(main).toContain("padding: 40px var(--space-page) 72px");
+    expect(main).toContain("padding: 40px 0 72px");
     expect(main).not.toContain("max-width");
     expect(main).not.toMatch(/(?:^|;)\s*width:/);
 
+    const content = declarations(shell, ".app-content");
+    expect(content).toContain("width: 100%");
+    expect(content).toContain("max-width: var(--content-max)");
+    expect(content).toContain("margin-inline: auto");
+    expect(content).toContain("padding-inline: var(--space-page)");
+    expect(styles).toMatch(/:root\s*\{[^}]*--content-max: 96rem/s);
     expect(styles).not.toContain("--color-app-bg");
     expect(styles).toMatch(/html, body \{ background: var\(--color-bg\); \}/);
   });

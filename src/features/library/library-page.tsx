@@ -1,3 +1,19 @@
+import TablerArchive from "~icons/tabler/archive";
+import TablerBook from "~icons/tabler/book";
+import TablerCheck from "~icons/tabler/check";
+import TablerLayoutGrid from "~icons/tabler/layout-grid";
+import TablerListDetails from "~icons/tabler/list-details";
+import TablerMenu2 from "~icons/tabler/menu-2";
+import TablerPlus from "~icons/tabler/plus";
+import TablerRefresh from "~icons/tabler/refresh";
+import TablerSortAscending from "~icons/tabler/sort-ascending";
+import TablerTrash from "~icons/tabler/trash";
+import TablerArrowUpRight from "~icons/tabler/arrow-up-right";
+import TablerCircleCheck from "~icons/tabler/circle-check";
+import TablerDeviceTablet from "~icons/tabler/device-tablet";
+import TablerDotsVertical from "~icons/tabler/dots-vertical";
+import TablerDownload from "~icons/tabler/download";
+import TablerSend from "~icons/tabler/send";
 import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { BookCover, Button, CloseButton, ConfirmDialog, EmptyState, GeneratedCover, Icon, Menu, LinkTabs, PageIntro, PageTabs, Pagination, SearchPill, SegmentedControl, SelectPill, ToggleChip, Toolbar, coverStateLabel, type CoverState } from "../../ui";
 import type { LibrarySummary } from "./summary";
@@ -32,25 +48,25 @@ export function LibraryBook(props: { book: BookView; returnTo: string; view: Vie
     <div class="library-cover">
       <Show when={book().archived} fallback={<BookCover {...book()} state={state()} compact={props.view === "list"} />}><GeneratedCover {...book()} state={state()} compact={props.view === "list"} /></Show>
       <Show when={props.selecting} fallback={<Show when={!book().archived}><Link class="library-cover-link" data-book-detail-link href={bookHref(book().book_id, props.returnTo)} aria-label={label()} /></Show>}>
-        <button type="button" data-book-select class="library-cover-link" aria-label={`选择《${book().title}》`} aria-pressed={props.selected ? "true" : "false"} onClick={props.toggle}><span class="library-selection-mark" aria-hidden="true"><Icon name={props.selected ? "check" : "plus"} size={20} /></span></button>
+        <button type="button" data-book-select class="library-cover-link" aria-label={`选择《${book().title}》`} aria-pressed={props.selected ? "true" : "false"} onClick={props.toggle}><span class="library-selection-mark" aria-hidden="true"><Icon icon={props.selected ? TablerCheck : TablerPlus} size={20} /></span></button>
       </Show>
     </div>
     <Show when={props.selecting} fallback={<div class="library-book-row">
       <span class="library-book-info"><span class="library-title">{book().title}</span><Show when={book().author}><span class="library-author">{book().author}</span></Show></span>
       <Menu title={book().title} subtitle={book().author || undefined} class="library-menu" dialogClass="library-book-menu" align="end" triggerLabel={menuLabel()} triggerTitle="更多操作" chevron={false}
         statusTone={state() === "failed" ? "danger" : "ok"} status={state() === "failed" ? "生成失败 · 点封面查看并重试" : book().read ? "已读" : undefined}
-        trigger={<Icon name="dots-vertical" size={18} />}
+        trigger={<Icon icon={TablerDotsVertical} size={18} />}
         items={book().archived ? [
-          { label: "恢复", icon: "refresh", phoneIcon: "refresh", action: `/book/${book().book_id}/restore`, fields: { next: props.returnTo }, onSubmit: event => { if (props.restoreBook) { event.preventDefault(); props.restoreBook(book().book_id); } } },
-          { label: "彻底删除", icon: "trash", phoneIcon: "trash", destructive: true, action: `/book/${book().book_id}/delete`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmDelete) { event.preventDefault(); props.confirmDelete(event.currentTarget); } } },
+          { label: "恢复", icon: TablerRefresh, phoneIcon: TablerRefresh, action: `/book/${book().book_id}/restore`, fields: { next: props.returnTo }, onSubmit: event => { if (props.restoreBook) { event.preventDefault(); props.restoreBook(book().book_id); } } },
+          { label: "彻底删除", icon: TablerTrash, phoneIcon: TablerTrash, destructive: true, action: `/book/${book().book_id}/delete`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmDelete) { event.preventDefault(); props.confirmDelete(event.currentTarget); } } },
         ] : [
-          { label: "详情", icon: "list-details", phoneIcon: "book", class: "library-phone-action", href: bookHref(book().book_id, props.returnTo) },
-          { label: "阅读", icon: "book", phoneIcon: "arrow-up-right", href: bookHref(book().book_id, props.returnTo, true) },
-          { label: "设备预览", icon: "device-tablet", class: "library-desktop-action", href: devicePreviewHref(book().book_id) },
-          { label: "下载", icon: "download", class: "library-desktop-action", href: `/book/${book().book_id}/download`, native: true },
-          { label: "下载 EPUB", icon: "download", phoneIcon: "download", class: "library-phone-action", href: `/book/${book().book_id}/download`, native: true },
-          ...(state() === "generating" ? [{ label: "查看生成进度", icon: "refresh" as const, phoneIcon: "refresh" as const, href: "/ingest?jobs_tab=running#jobs" }] : []),
-          { label: "归档", icon: "archive", phoneIcon: "archive", separatorBefore: true, action: `/book/${book().book_id}/archive`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmArchive) { event.preventDefault(); props.confirmArchive(event.currentTarget); } } },
+          { label: "详情", icon: TablerListDetails, phoneIcon: TablerBook, class: "library-phone-action", href: bookHref(book().book_id, props.returnTo) },
+          { label: "阅读", icon: TablerBook, phoneIcon: TablerArrowUpRight, href: bookHref(book().book_id, props.returnTo, true) },
+          { label: "设备预览", icon: TablerDeviceTablet, class: "library-desktop-action", href: devicePreviewHref(book().book_id) },
+          { label: "下载", icon: TablerDownload, class: "library-desktop-action", href: `/book/${book().book_id}/download`, native: true },
+          { label: "下载 EPUB", icon: TablerDownload, phoneIcon: TablerDownload, class: "library-phone-action", href: `/book/${book().book_id}/download`, native: true },
+          ...(state() === "generating" ? [{ label: "查看生成进度", icon: TablerRefresh, phoneIcon: TablerRefresh, href: "/ingest?jobs_tab=running#jobs" }] : []),
+          { label: "归档", icon: TablerArchive, phoneIcon: TablerArchive, separatorBefore: true, action: `/book/${book().book_id}/archive`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmArchive) { event.preventDefault(); props.confirmArchive(event.currentTarget); } } },
         ]} />
     </div>}>
       <ToggleChip class="library-select-title" selected={props.selected} onClick={props.toggle}>{book().title}</ToggleChip>
@@ -171,10 +187,10 @@ export function LibraryPage(props: {
     <PageIntro eyebrow={`书库 · 在库 ${props.data.summary?.active_count ?? (archived() ? 0 : props.data.total_books)} 册`} title={(() => { const intro = libraryIntro(props.data.summary), comma = intro.indexOf("，"); return comma < 0 ? intro : <>{intro.slice(0, comma + 1)}<br />{intro.slice(comma + 1)}</>; })()}
       description={props.data.summary?.hero?.description || "把喜欢的书放在一起，随时接着读。"}
       actions={<Show when={props.data.summary?.hero} fallback={<Link href="/ingest" class="btn btn-primary btn-lg">开始入库</Link>}>{hero => <>
-        <Link class="btn btn-primary btn-lg" href={bookHref(hero().book_id, props.data.return_to, true)}>{props.data.summary?.latest ? "继续阅读" : "开始阅读"}<Icon name="arrow-up-right" size={16} /></Link>
-        <Link class="btn btn-icon btn-lg library-desktop-action" href={devicePreviewHref(hero().book_id)} aria-label={`在设备排版中预览《${hero().title}》`} title="设备预览"><Icon name="device-tablet" size={20} /></Link>
-        <Link class="btn btn-icon btn-lg library-desktop-action" href={deviceTransferHref([hero().book_id])} aria-label={`发送《${hero().title}》到设备`} title="发送到设备"><Icon name="send" size={20} /></Link>
-        <a class="btn btn-icon btn-lg" href={`/book/${hero().book_id}/download`} aria-label={`下载《${hero().title}》`} title="下载"><Icon name="download" size={20} /></a>
+        <Link class="btn btn-primary btn-lg" href={bookHref(hero().book_id, props.data.return_to, true)}>{props.data.summary?.latest ? "继续阅读" : "开始阅读"}<Icon icon={TablerArrowUpRight} size={16} /></Link>
+        <Link class="btn btn-icon btn-lg library-desktop-action" href={devicePreviewHref(hero().book_id)} aria-label={`在设备排版中预览《${hero().title}》`} title="设备预览"><Icon icon={TablerDeviceTablet} size={20} /></Link>
+        <Link class="btn btn-icon btn-lg library-desktop-action" href={deviceTransferHref([hero().book_id])} aria-label={`发送《${hero().title}》到设备`} title="发送到设备"><Icon icon={TablerSend} size={20} /></Link>
+        <a class="btn btn-icon btn-lg" href={`/book/${hero().book_id}/download`} aria-label={`下载《${hero().title}》`} title="下载"><Icon icon={TablerDownload} size={20} /></a>
       </>}</Show>}
       visual={<Show when={props.data.summary?.hero}>{hero => <Link href={bookHref(hero().book_id, props.data.return_to)} aria-label={`打开《${hero().title}》详情`}><BookCover {...hero()} large eager /></Link>}</Show>} />
     <Show when={showPasskeyHint()}><div class="passkey-hint" role="status"><Link href="/security">添加通行密钥，下次免密码登录</Link><CloseButton aria-label="关闭添加通行密钥提示" onClick={dismissPasskeyHint} /></div></Show>
@@ -185,12 +201,12 @@ export function LibraryPage(props: {
       ]} />
       <form id="library-controls" class="library-controls" action="/" method="get" hidden={selecting()} onSubmit={event => { event.preventDefault(); void search({}); }}>
         <input type="hidden" name="scope" value={props.data.scope} /><input type="hidden" name="read_filter" value={props.data.read_filter} /><input type="hidden" name="page" value="1" data-page-input /><input type="hidden" name="per_page" value={props.data.per_page} data-per-page-input />
-        <Toolbar search={<div class="library-search-row"><SearchPill label="搜索书名、作者" name="q" placeholder="搜索书名、作者" value={query()} onInput={event => { setQuery(event.currentTarget.value); clearTimeout(timer); timer = setTimeout(() => void search({}), 400); }} /><Button class="library-search-batch library-phone-action" variant="secondary" aria-label="批量选择" title="批量选择" aria-pressed={selecting() ? "true" : "false"} onClick={() => setSelecting(true)}><Icon name="circle-check" size={18} /></Button></div>}>
+        <Toolbar search={<div class="library-search-row"><SearchPill label="搜索书名、作者" name="q" placeholder="搜索书名、作者" value={query()} onInput={event => { setQuery(event.currentTarget.value); clearTimeout(timer); timer = setTimeout(() => void search({}), 400); }} /><Button class="library-search-batch library-phone-action" variant="secondary" aria-label="批量选择" title="批量选择" aria-pressed={selecting() ? "true" : "false"} onClick={() => setSelecting(true)}><Icon icon={TablerCircleCheck} size={18} /></Button></div>}>
           <Show when={!archived()}><LinkTabs label="阅读状态" value={props.data.read_filter} tabs={(["all", "unread"] as const).map(value => ({ value, label: value === "all" ? "全部" : "未读", href: libraryReturnTo({ ...props.data, q: query(), read_filter: value, page: 1 }) }))} onNavigate={value => void search({ read_filter: value === "unread" ? "unread" : "all" })} /></Show>
-          <SelectPill label="排序" icon="sort-ascending" class="library-sort" name="sort" value={props.data.sort} options={[{ value: "updated", label: "最近修改" }, { value: "created", label: "最近导入" }]} onChange={value => void search({ sort: value === "created" ? "created" : "updated" })} />
+          <SelectPill label="排序" icon={TablerSortAscending} class="library-sort" name="sort" value={props.data.sort} options={[{ value: "updated", label: "最近修改" }, { value: "created", label: "最近导入" }]} onChange={value => void search({ sort: value === "created" ? "created" : "updated" })} />
           <span class="library-toolbar-divider" aria-hidden="true" />
-          <SegmentedControl label="显示方式" class="library-view-toggle" value={view()} options={[{ value: "grid", label: "封面墙", icon: "layout-grid" }, { value: "list", label: "列表", icon: "menu-2" }]} onChange={value => changeView(value as View)} />
-          <Button data-bulk-mode-toggle class="library-desktop-action" variant="secondary" aria-pressed={selecting() ? "true" : "false"} onClick={() => setSelecting(true)}><Icon name="circle-check" size={16} />批量选择</Button>
+          <SegmentedControl label="显示方式" class="library-view-toggle" value={view()} options={[{ value: "grid", label: "封面墙", icon: TablerLayoutGrid }, { value: "list", label: "列表", icon: TablerMenu2 }]} onChange={value => changeView(value as View)} />
+          <Button data-bulk-mode-toggle class="library-desktop-action" variant="secondary" aria-pressed={selecting() ? "true" : "false"} onClick={() => setSelecting(true)}><Icon icon={TablerCircleCheck} size={16} />批量选择</Button>
         </Toolbar>
       </form>
     </div>

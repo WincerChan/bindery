@@ -1,3 +1,13 @@
+import TablerCheck from "~icons/tabler/check";
+import TablerStar from "~icons/tabler/star";
+import TablerStarFilled from "~icons/tabler/star-filled";
+import TablerX from "~icons/tabler/x";
+import TablerArrowUpRight from "~icons/tabler/arrow-up-right";
+import TablerChevronDown from "~icons/tabler/chevron-down";
+import TablerDeviceTablet from "~icons/tabler/device-tablet";
+import TablerDownload from "~icons/tabler/download";
+import TablerPencil from "~icons/tabler/pencil";
+import TablerTrash from "~icons/tabler/trash";
 import { createSignal, For, Show } from "solid-js";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
@@ -62,7 +72,7 @@ export function BookDetail(props: { page: BookPage }) {
               <Show when={book().author}><span class="books-author">{book().author}</span></Show>
               <Show when={book().author && book().language}><span class="books-separator" aria-hidden="true">·</span></Show>
               <Show when={book().language}><span>{languageLabel(book().language!)}</span></Show>
-              <Show when={book().rating !== null}><Show when={book().author || book().language}><span class="books-separator" aria-hidden="true">·</span></Show><span class="books-stars" aria-label={`评分 ${book().rating} 星`}><For each={[1, 2, 3, 4, 5]}>{n => <Icon name={n <= book().rating! ? "star-filled" : "star"} size={15} />}</For></span></Show>
+              <Show when={book().rating !== null}><Show when={book().author || book().language}><span class="books-separator" aria-hidden="true">·</span></Show><span class="books-stars" aria-label={`评分 ${book().rating} 星`}><For each={[1, 2, 3, 4, 5]}>{n => <Icon icon={n <= book().rating! ? TablerStarFilled : TablerStar} size={15} />}</For></span></Show>
             </div>
           </header>
           <Show when={book().description}><p class="books-description">{book().description}</p></Show>
@@ -72,20 +82,20 @@ export function BookDetail(props: { page: BookPage }) {
             <Show when={item().percent !== null}><ProgressBar label="全书阅读进度" value={item().percent!} /></Show>
           </section>}</Show>
           <div class="books-actions">
-            <Link class="btn btn-primary btn-lg books-continue" href={readingHref()}>{readingLabel()}<Icon name="arrow-up-right" size={16} /></Link>
-            <Link class="btn btn-icon btn-lg books-desktop-action" href={devicePreviewHref(book().book_id)} aria-label="设备预览" title="设备预览"><Icon name="device-tablet" size={20} /></Link>
-            <a class="btn btn-icon btn-lg" href={`/book/${book().book_id}/download`} aria-label="下载 EPUB" title="下载 EPUB"><Icon name="download" size={20} /></a>
-            <Link class="btn btn-icon btn-lg" href={nav().edit_url} aria-label="编辑书目信息" title="编辑" onClick={event => { if (!event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setEditing(true); } }}><Icon name="pencil" size={20} /></Link>
+            <Link class="btn btn-primary btn-lg books-continue" href={readingHref()}>{readingLabel()}<Icon icon={TablerArrowUpRight} size={16} /></Link>
+            <Link class="btn btn-icon btn-lg books-desktop-action" href={devicePreviewHref(book().book_id)} aria-label="设备预览" title="设备预览"><Icon icon={TablerDeviceTablet} size={20} /></Link>
+            <a class="btn btn-icon btn-lg" href={`/book/${book().book_id}/download`} aria-label="下载 EPUB" title="下载 EPUB"><Icon icon={TablerDownload} size={20} /></a>
+            <Link class="btn btn-icon btn-lg" href={nav().edit_url} aria-label="编辑书目信息" title="编辑" onClick={event => { if (!event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setEditing(true); } }}><Icon icon={TablerPencil} size={20} /></Link>
             <form action={`/book/${book().book_id}/read`} method="post" onSubmit={event => { event.preventDefault(); void perform("read", event.currentTarget); }}>
               <input type="hidden" name="read" value={book().read ? "0" : "1"} /><input type="hidden" name="next" value={nav().detail_url} />
-              <Button type="submit" variant="secondary" size="lg" disabled={mutation.busy()}><Icon name={book().read ? "x" : "check"} size={16} />{book().read ? "标记未读" : "标记已读"}</Button>
+              <Button type="submit" variant="secondary" size="lg" disabled={mutation.busy()}><Icon icon={book().read ? TablerX : TablerCheck} size={16} />{book().read ? "标记未读" : "标记已读"}</Button>
             </form>
           </div>
         </div>
       </div>
       <section class="books-about" aria-labelledby="books-about-title"><SectionTitle id="books-about-title">关于这本书</SectionTitle><dl class="books-spec"><For each={specs()}>{item => <div><dt>{item[0]}</dt><dd>{item[1]}</dd></div>}</For></dl></section>
       <details class="books-management" ref={management}>
-        <summary>管理这本书 <span>重新生成、归档或删除</span><Icon name="chevron-down" size={16} class="ui-summary-chevron is-end" /></summary>
+        <summary>管理这本书 <span>重新生成、归档或删除</span><Icon icon={TablerChevronDown} size={16} class="ui-summary-chevron is-end" /></summary>
         <Show when={book().can_regenerate}><section class="books-management-row books-management-regenerate">
           <div><h2>重新生成</h2><p>换一条切章规则，重新切章并生成 EPUB。</p></div>
           <form ref={regenerateForm} action={`/book/${book().book_id}/regenerate`} method="post" onSubmit={event => { event.preventDefault(); void perform("regenerate", event.currentTarget); }}>
@@ -98,7 +108,7 @@ export function BookDetail(props: { page: BookPage }) {
           <form ref={archiveForm} action={`/book/${book().book_id}/archive`} method="post" onSubmit={event => { event.preventDefault(); setArchiving(true); }}><input type="hidden" name="next" value={nav().return_to} /><Button type="submit" variant="secondary" disabled={mutation.busy()}>归档</Button></form>
         </section>
         <section class="books-management-row"><div><h2 class="books-danger">永久删除</h2><p>源文件、EPUB 和全部记录一起删掉，无法恢复。</p></div>
-          <form ref={deleteForm} action={`/book/${book().book_id}/delete`} method="post" onSubmit={event => { event.preventDefault(); setDeleting(true); }}><input type="hidden" name="next" value={nav().return_to} /><Button type="submit" variant="quiet-danger" class="books-delete" aria-label={`永久删除《${book().title}》`} disabled={mutation.busy()}><Icon name="trash" size={16} /><span class="books-delete-label">永久删除</span></Button></form>
+          <form ref={deleteForm} action={`/book/${book().book_id}/delete`} method="post" onSubmit={event => { event.preventDefault(); setDeleting(true); }}><input type="hidden" name="next" value={nav().return_to} /><Button type="submit" variant="quiet-danger" class="books-delete" aria-label={`永久删除《${book().title}》`} disabled={mutation.busy()}><Icon icon={TablerTrash} size={16} /><span class="books-delete-label">永久删除</span></Button></form>
         </section>
         <dl class="books-spec books-technical"><div><dt>来源</dt><dd>{book().source_type === "epub" ? "EPUB 直接入库" : "TXT"}</dd></div><div><dt>状态</dt><dd>{book().status_label}</dd></div><Show when={book().updated_at}><div><dt>更新时间</dt><dd><LocalTime value={book().updated_at} /></dd></div></Show></dl>
       </details>

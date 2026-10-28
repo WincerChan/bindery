@@ -1,3 +1,4 @@
+import TablerChevronDown from "~icons/tabler/chevron-down";
 import { createEffect, createMemo, createSignal, createUniqueId, For, Show } from "solid-js";
 import { Icon } from "../../../ui";
 import type { PreviewBook } from "./model";
@@ -55,7 +56,7 @@ export function PreviewBookPicker(props: { books: PreviewBook[]; value: string; 
           else if (event.key === "Enter") { if (!open()) return; event.preventDefault(); choose(shown()[active()] ?? shown()[0]); }
           else if (event.key === "Escape" && open()) { event.preventDefault(); close(); }
         }} />
-      <Show when={props.pill}><span class="kt-combobox-label" aria-hidden="true">书</span><span class="kt-combobox-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span></Show>
+      <Show when={props.pill}><span class="kt-combobox-label" aria-hidden="true">书</span><span class="kt-combobox-chevron" aria-hidden="true"><Icon icon={TablerChevronDown} size={14} /></span></Show>
       <Show when={open()}>
         {/* mousedown would blur the input and close the list before the click lands. */}
         <ul ref={list} id={listId} role="listbox" aria-label="预览书籍" class="kt-combobox-list" onMouseDown={event => event.preventDefault()}>

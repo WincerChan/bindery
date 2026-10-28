@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { resolve } from "node:path";
 import { mutationPlugin } from "./support/mutation-plugin";
@@ -7,7 +8,7 @@ import { mutationPlugin } from "./support/mutation-plugin";
 import { allByAttribute, allByRole, byAttribute, byName, byRole, parseHtml } from "./support/queries";
 let ui: typeof import("./fixtures/library/ui-probe");
 beforeAll(async () => {
-  const result = await build({ configFile: false, logLevel: "silent", plugins: [mutationPlugin(), solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/library/ui-probe.tsx") } });
+  const result = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(), mutationPlugin(), solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/library/ui-probe.tsx") } });
   const entry = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);
   if (!entry || entry.type !== "chunk") throw new Error("Missing library SSR bundle");
   ui = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(entry.code).toString("base64"));

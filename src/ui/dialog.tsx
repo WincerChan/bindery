@@ -1,10 +1,11 @@
+import TablerChevronDown from "~icons/tabler/chevron-down";
 import { createEffect, createSignal, createUniqueId, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Button } from "./controls";
 import { Link } from "../shared/spa-link";
 import { showToast } from "../client/toast";
 import { CloseButton } from "./primitives";
-import { Icon, type IconName } from "./icon";
+import { Icon, type IconComponent } from "./icon";
 import { focusableElements, overlayKeydown, overlayPresentation, restoreOverlayFocus } from "./overlay-behavior";
 import type { OverlayVariant } from "./overlay-behavior";
 
@@ -75,7 +76,7 @@ export function Dialog(props: DialogProps) {
 export function SideSheet(props: Omit<DialogProps, "variant">) { return <Dialog {...props} variant="sheet" />; }
 export function CenterDialog(props: Omit<DialogProps, "variant">) { return <Dialog {...props} variant="dialog" />; }
 export function Popover(props: Omit<DialogProps, "variant"> & { anchor: () => HTMLElement | undefined }) { return <Dialog {...props} variant="popover" />; }
-type MenuItemBase = { label: string; icon?: IconName; phoneIcon?: IconName; destructive?: boolean; disabled?: boolean; separatorBefore?: boolean; class?: string };
+type MenuItemBase = { label: string; icon?: IconComponent; phoneIcon?: IconComponent; destructive?: boolean; disabled?: boolean; separatorBefore?: boolean; class?: string };
 export type MenuItem = MenuItemBase & (
   | { onSelect: () => unknown; href?: never; action?: never }
   | { href: string; native?: boolean; onSelect?: never; action?: never }
@@ -111,8 +112,8 @@ export function Menu(props: { title: string; trigger: JSX.Element; triggerLabel?
     </Show>}</For>;
   }
   const status = () => <Show when={props.status}><div class={`ui-menu-status ui-menu-status-${props.statusTone || "accent"}`} role="status">{props.status}</div></Show>;
-  const label = (item: MenuItem) => <><Show when={item.icon}>{icon => <span class="ui-menu-item-icon ui-menu-item-icon-desktop" aria-hidden="true"><Icon name={icon()} size={16} /></span>}</Show><Show when={item.phoneIcon ?? item.icon}>{icon => <span class="ui-menu-item-icon ui-menu-item-icon-phone" aria-hidden="true"><Icon name={icon()} size={18} /></span>}</Show>{item.label}</>;
-  return <div class={`ui-menu ${props.class || ""}`}><button ref={trigger} type="button" hidden={!enhanced()} class="ui-menu-trigger" aria-label={props.triggerLabel} title={props.triggerTitle ?? (props.triggerLabel ? "更多操作" : undefined)} aria-haspopup="menu" aria-expanded={open() ? "true" : "false"} aria-controls={id} onClick={() => setOpen(!open())} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}>{props.trigger}<Show when={props.chevron !== false}><span class="ui-menu-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span></Show></button>
+  const label = (item: MenuItem) => <><Show when={item.icon}>{icon => <span class="ui-menu-item-icon ui-menu-item-icon-desktop" aria-hidden="true"><Icon icon={icon()} size={16} /></span>}</Show><Show when={item.phoneIcon ?? item.icon}>{icon => <span class="ui-menu-item-icon ui-menu-item-icon-phone" aria-hidden="true"><Icon icon={icon()} size={18} /></span>}</Show>{item.label}</>;
+  return <div class={`ui-menu ${props.class || ""}`}><button ref={trigger} type="button" hidden={!enhanced()} class="ui-menu-trigger" aria-label={props.triggerLabel} title={props.triggerTitle ?? (props.triggerLabel ? "更多操作" : undefined)} aria-haspopup="menu" aria-expanded={open() ? "true" : "false"} aria-controls={id} onClick={() => setOpen(!open())} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}>{props.trigger}<Show when={props.chevron !== false}><span class="ui-menu-chevron" aria-hidden="true"><Icon icon={TablerChevronDown} size={14} /></span></Show></button>
     <Dialog id={id} open={open()} title={props.title} subtitle={props.subtitle} variant="menu" anchor={() => trigger} align={props.align} onClose={close} class={props.dialogClass}>
       {status()}<div role="menu" aria-label={props.title}><Items /></div>
     </Dialog>

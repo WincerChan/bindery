@@ -1,3 +1,7 @@
+import TablerDeviceTablet from "~icons/tabler/device-tablet";
+import TablerLetterCase from "~icons/tabler/letter-case";
+import TablerRefresh from "~icons/tabler/refresh";
+import TablerSend from "~icons/tabler/send";
 import { DeviceSkeleton } from "../ui/skeleton";
 import { createServerFn } from "@tanstack/solid-start";
 import { authenticated } from "../server/functions";
@@ -44,7 +48,7 @@ function DeviceLayout() {
           <p class="device-mobile-lead">手机浏览器读不到 Kindle 和 Kobo 的存储。在电脑上用 Chrome 或 Edge 打开 Bindery，插上阅读器就能用。</p>
         </div>
         <section class="device-mobile-features" aria-labelledby="desktop-device-features"><h2 id="desktop-device-features">在电脑上可以</h2>
-          <ul><For each={[{ icon: "send", text: "把书库里的书发到阅读器" }, { icon: "letter-case", text: "给阅读器装字体" }, { icon: "device-tablet", text: "看书在阅读器上的排版" }, { icon: "refresh", text: "同步阅读进度和生词" }] as const}>{item => <li><span aria-hidden="true"><Icon name={item.icon} size={20} /></span>{item.text}</li>}</For></ul>
+          <ul><For each={[{ icon: TablerSend, text: "把书库里的书发到阅读器" }, { icon: TablerLetterCase, text: "给阅读器装字体" }, { icon: TablerDeviceTablet, text: "看书在阅读器上的排版" }, { icon: TablerRefresh, text: "同步阅读进度和生词" }] as const}>{item => <li><span aria-hidden="true"><Icon icon={item.icon} size={20} /></span>{item.text}</li>}</For></ul>
           <p class="device-mobile-note">同步过来的进度和生词，在手机上的书库和<Link href="/vocabulary">生词本</Link>里都能看到。</p>
         </section>
         <Link class="btn btn-primary" href="/">回书库</Link>

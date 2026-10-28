@@ -1,5 +1,6 @@
 import { beforeAll, describe, it, expect } from "vitest";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { mutationPlugin } from "./support/mutation-plugin";
 import { resolve } from "node:path";
@@ -13,7 +14,7 @@ beforeAll(async () => {
   const result = await build({
     configFile: false,
     logLevel: "silent",
-    plugins: [mutationPlugin(), solid({ ssr: true })],
+    plugins: [...binderyIcons(), mutationPlugin(), solid({ ssr: true })],
     ssr: { noExternal: true },
     build: {
       write: false,

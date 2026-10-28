@@ -1,3 +1,7 @@
+import TablerCopy from "~icons/tabler/copy";
+import TablerExclamationMark from "~icons/tabler/exclamation-mark";
+import TablerPlus from "~icons/tabler/plus";
+import TablerRefresh from "~icons/tabler/refresh";
 import { createSignal, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { IconButton, ProgressBar } from "./primitives";
@@ -26,10 +30,10 @@ function CoverFrame(props: CoverProps & { children: JSX.Element; generated?: boo
   return <div class={`cover ${props.generated ? `cover-gen cover-tone-${coverTone(props.book_id)}` : ""} ${props.compact ? "cover-compact" : ""} ${props.large ? "cover-large" : ""} ${props.state ? `cover-${props.state}` : ""} ${props.class || ""}`}>
     <div class="cover-art" role={props.generated ? "img" : undefined} aria-label={props.generated ? coverLabel(props) : undefined}>{props.children}</div>
     <Show when={props.state === "read" || props.state === "reading"}><span class="cover-ribbon" aria-hidden="true" /></Show>
-    <Show when={props.state === "failed"}><Show when={props.onRetry} fallback={<span class="cover-retry" aria-hidden="true"><Icon name="refresh" size={24} /></span>}>
-      {retry => <IconButton class="cover-retry" aria-label={`重试生成《${props.title}》`} title={`重试生成《${props.title}》`} onClick={() => retry()()}><Icon name="refresh" size={22} /></IconButton>}
+    <Show when={props.state === "failed"}><Show when={props.onRetry} fallback={<span class="cover-retry" aria-hidden="true"><Icon icon={TablerRefresh} size={24} /></span>}>
+      {retry => <IconButton class="cover-retry" aria-label={`重试生成《${props.title}》`} title={`重试生成《${props.title}》`} onClick={() => retry()()}><Icon icon={TablerRefresh} size={22} /></IconButton>}
     </Show></Show>
-    <Show when={props.state === "duplicate" || props.state === "unparseable"}><span class="cover-marker" aria-hidden="true"><Icon name={props.state === "duplicate" ? "copy" : "exclamation-mark"} size={props.state === "duplicate" ? 16 : 22} /></span></Show>
+    <Show when={props.state === "duplicate" || props.state === "unparseable"}><span class="cover-marker" aria-hidden="true"><Icon icon={props.state === "duplicate" ? TablerCopy : TablerExclamationMark} size={props.state === "duplicate" ? 16 : 22} /></span></Show>
     <Show when={props.state === "generating" || props.progress !== undefined}><ProgressBar label={`${props.title} ${props.state === "generating" ? "生成" : "阅读"}进度`} value={props.progress} class="cover-progress" /></Show>
   </div>;
 }
@@ -43,5 +47,5 @@ export function BookCover(props: CoverProps & { cover_url?: string | null; eager
   </Show>;
 }
 export function AddCoverTile(props: { label?: string; onClick: () => void; class?: string }) {
-  return <div class={`cover-add-tile ${props.class || ""}`}><button type="button" class="cover-add" aria-label={props.label || "添加书籍"} title={props.label || "添加书籍"} onClick={props.onClick}><span aria-hidden="true"><Icon name="plus" size={28} /></span></button><Show when={props.label}><span class="cover-add-label">{props.label}</span></Show></div>;
+  return <div class={`cover-add-tile ${props.class || ""}`}><button type="button" class="cover-add" aria-label={props.label || "添加书籍"} title={props.label || "添加书籍"} onClick={props.onClick}><span aria-hidden="true"><Icon icon={TablerPlus} size={28} /></span></button><Show when={props.label}><span class="cover-add-label">{props.label}</span></Show></div>;
 }

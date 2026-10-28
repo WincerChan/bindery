@@ -1,3 +1,5 @@
+import TablerArrowLeft from "~icons/tabler/arrow-left";
+import TablerArrowRight from "~icons/tabler/arrow-right";
 import { createEffect, createMemo, createSignal, onCleanup, onSettled, Show } from "solid-js";
 import { errorMessage } from "../../../client/kindle/fs";
 import type { FontFamily, PairedDevice } from "../../../client/kindle";
@@ -88,10 +90,10 @@ export function ChapterFrame(props: { src: string; geometry: PageGeometry; kind?
         width={dimensions().width} height={dimensions().height} style={{ transform: `scale(${scale()})`, visibility: ready() ? "visible" : "hidden" }} onLoad={onLoad} />
     </div></div></div>
     <div class="kt-actions kt-page-controls" role="group" aria-label="预览翻页">
-      <Button class="kt-page-turn" variant="secondary" disabled={!ready() || position().page === 1 && !props.hasPrevious} onClick={() => turn(-1)}><Icon name="arrow-left" size={18} />上一页</Button>
+      <Button class="kt-page-turn" variant="secondary" disabled={!ready() || position().page === 1 && !props.hasPrevious} onClick={() => turn(-1)}><Icon icon={TablerArrowLeft} size={18} />上一页</Button>
       <span class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-kindle-page-status>{ready() ? `第 ${position().page} / ${position().count} 页` : "正在分页…"}</span>
       <Show when={ready()}><span class="kt-page-number" aria-hidden="true"><b>{String(position().page).padStart(2, "0")}</b><span>/ {position().count} 页</span></span></Show>
-      <Button class="kt-page-turn" variant="secondary" disabled={!ready() || position().page === position().count && !props.hasNext} onClick={() => turn(1)}><Icon name="arrow-right" size={18} />下一页</Button>
+      <Button class="kt-page-turn" variant="secondary" disabled={!ready() || position().page === position().count && !props.hasNext} onClick={() => turn(1)}><Icon icon={TablerArrowRight} size={18} />下一页</Button>
     </div>
     <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
   </div>;

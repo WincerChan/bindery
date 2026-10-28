@@ -1,6 +1,6 @@
 export { Button, TextField, Select, Textarea } from "./controls";
 export { Icon } from "./icon";
-export type { IconName } from "./icon";
+export type { IconComponent, IconProps } from "./icon";
 export type { ButtonProps } from "./controls";
 export { GeneratedCover, BookCover, AddCoverTile, coverTone, coverStateLabel } from "./cover";
 export type { CoverProps, CoverState } from "./cover";

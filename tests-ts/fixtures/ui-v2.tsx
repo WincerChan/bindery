@@ -1,3 +1,4 @@
+import TablerArrowUpRight from "~icons/tabler/arrow-up-right";
 import { render, renderToString } from "@solidjs/web";
 import { createSignal, flush } from "solid-js";
 import { AddCoverTile, BackgroundActivityPill, BackLink, BookCover, Button, CenterDialog, CloseButton, CountBadge, GeneratedCover, Icon, IconButton, Menu, LinkTabs, RatingInput, StarRating, RelativeTime, PageIntro, PageTabs, Pagination, Popover, ProgressBar, SearchPill, SectionTitle, SegmentedControl, SelectPill, SideSheet, Slider, StatusDot, Stepper, ToggleChip, ToggleSwitch, Toolbar } from "../../src/ui";
@@ -27,7 +28,7 @@ function Covers() {
     <GeneratedCover book_id="e" title="小封面" compact /><AddCoverTile label="添加书籍" onClick={() => {}} /></>;
 }
 function Pages() {
-  return <><PageIntro eyebrow="书库 · 在库 48 册" title="最近阅读的是这本。" description="接着上次的地方读。" actions={<Button size="lg">继续阅读<Icon name="arrow-up-right" size={16} /></Button>} visual={<GeneratedCover book_id="ab" title="浮生六记" large />} />
+  return <><PageIntro eyebrow="书库 · 在库 48 册" title="最近阅读的是这本。" description="接着上次的地方读。" actions={<Button size="lg">继续阅读<Icon icon={TablerArrowUpRight} size={16} /></Button>} visual={<GeneratedCover book_id="ab" title="浮生六记" large />} />
     <PageTabs label="书库范围" value="active" tabs={[{ value: "active", label: "在库", count: 48 }, { value: "archived", label: "已归档", count: 3 }]} />
     <Toolbar search={<SearchPill label="书库搜索" placeholder="书名或作者" />}><Button variant="secondary">批量选择</Button></Toolbar>
     <Pagination page={1} total={48} perPage={12} unit="册" href="/?q=书#books" />

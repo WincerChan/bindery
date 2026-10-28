@@ -3,6 +3,7 @@ import { solidOptions } from "../scripts/solid-options";
 import { clientDocument, fire } from "./support/client-dom";
 import type { VocabularyApi } from "../src/features/vocabulary/vocabulary";
 import { build } from "vite";
+import { binderyIcons } from "../scripts/vite-icons";
 import solid from "vite-plugin-solid";
 import { resolve } from "node:path";
 import type { VocabularyItem } from "../src/server/vocabulary/query";
@@ -36,12 +37,12 @@ function browserGlobals(phone = false) {
 }
 afterEach(() => { disposers.splice(0).reverse().forEach(dispose => dispose()); vi.unstubAllGlobals(); });
 beforeAll(async () => {
-  const result = await build({ configFile: false, logLevel: "silent", plugins: [solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/vocabulary/ui-probe.tsx") } });
+  const result = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(), solid({ ssr: true })], ssr: { noExternal: true }, build: { write: false, minify: false, ssr: resolve("tests-ts/fixtures/vocabulary/ui-probe.tsx") } });
   const entry = (Array.isArray(result) ? result : [result]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);
   if (!entry || entry.type !== "chunk") throw new Error("Missing vocabulary UI SSR bundle");
   ui = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(entry.code).toString("base64"));
   browserGlobals();
-  const browser = await build({ configFile: false, logLevel: "silent", plugins: [solid({ ...solidOptions, dev: false, hot: false })], resolve: { conditions: ["browser", "production"] }, define: { "process.env.NODE_ENV": '"production"' }, build: { write: false, minify: true, lib: { entry: resolve("tests-ts/fixtures/vocabulary/ui-probe.tsx"), formats: ["es"] } } });
+  const browser = await build({ configFile: false, logLevel: "silent", plugins: [...binderyIcons(), solid({ ...solidOptions, dev: false, hot: false })], resolve: { conditions: ["browser", "production"] }, define: { "process.env.NODE_ENV": '"production"' }, build: { write: false, minify: true, lib: { entry: resolve("tests-ts/fixtures/vocabulary/ui-probe.tsx"), formats: ["es"] } } });
   const chunk = (Array.isArray(browser) ? browser : [browser]).flatMap(output => "output" in output ? output.output : []).find(output => output.type === "chunk" && output.isEntry);
   if (!chunk || chunk.type !== "chunk") throw new Error("Missing vocabulary client probe");
   client = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(chunk.code).toString("base64"));

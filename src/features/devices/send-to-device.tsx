@@ -1,3 +1,4 @@
+import TablerArrowRight from "~icons/tabler/arrow-right";
 import { createSignal, Show } from "solid-js";
 import type { TransferRequestOptions } from "../../client/devices";
 import { Button, Icon } from "../../ui";
@@ -19,7 +20,7 @@ export function SendToDevice(props: { bookId: string; bookTitle?: string; profil
     void k.run(async () => { setQueued(k.enqueue(props.bookId, props.profileId, { ...props.options, overwrite: true })); props.onSent?.(); });
   }
   return <Show when={k}><div class="kt-send" data-send-to-device>
-    <Button class="kt-send-button" variant="quiet" aria-label={device() ? `发送到 ${device()!.identity.name}` : "发送到设备"} disabled={Boolean(reason()) || k!.busy()} onClick={send}>用这个方案发送{props.bookTitle ? `《${props.bookTitle}》` : ""}<Icon name="arrow-right" size={13} class="ui-icon-inline" /></Button>
+    <Button class="kt-send-button" variant="quiet" aria-label={device() ? `发送到 ${device()!.identity.name}` : "发送到设备"} disabled={Boolean(reason()) || k!.busy()} onClick={send}>用这个方案发送{props.bookTitle ? `《${props.bookTitle}》` : ""}<Icon icon={TablerArrowRight} size={13} class="ui-icon-inline" /></Button>
     <Show when={reason()}><p class="kindle-small">{reason()}</p></Show>
     <Show when={item()}>{entry => <p class="kindle-small" role="status">{entry().state === "完成" || entry().state === "失败" ? `${entry().state}：${entry().message}` : `${entry().state}中…`} · <Link href="/devices/transfer">查看队列</Link></p>}</Show>
   </div></Show>;
