@@ -41,8 +41,7 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
         if (page.includes("preview")) {
           assert.ok(html.includes("/book/" + bookId + "/epub/" + encodePath(book.paths[0])), "iframe member path must round-trip");
           assert.match(html, /实测：Kindle Paperwhite 3 窄边距、Kobo Libra 2 最小边距/);
-          // The built-in profile is editable and can be sent without being saved as a profile.
-          assert.match(html, /调整后可直接发送，不必保存为方案/);
+          assert.match(html, /所有设备共用；发送时写进设备上的副本，书库里的书不变。/);
           assert.doesNotMatch(html, /默认方案只使用书籍自带样式|要调整边距、行高等，请新建方案/);
           assert.doesNotMatch(html, /收窄到约 1 字边距|负值收窄 Kindle 自身页边距|设备默认字体（保留书籍字体样式）/);
         }
@@ -111,7 +110,10 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
     const preview = parseHtml(result.pages.preview);
     expect(byRole(preview, "region", "设备预览")).toBeDefined();
     expect(byRole(preview, "button", "校准说明")).toBeDefined();
+    // Assert editable built-in controls, not the removed explanatory copy.
+    // devices-preview.test.ts exercises sending the edited default without saving it.
     expect(byLabel(preview, /^左右边距/).hasAttribute("disabled")).toBe(false);
+    expect(byLabel(preview, "额外自定义 CSS").hasAttribute("disabled")).toBe(false);
     expect(byRole(preview, "group", "去掉书里自带的")).toBeDefined();
     expect(byRole(preview, "button", "去掉所有图片").getAttribute("aria-pressed")).toBe("false");
     expect(byRole(preview, "button", "自定义 CSS")).toBeDefined();

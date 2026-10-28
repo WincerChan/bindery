@@ -907,7 +907,15 @@ it.each([true, false])("ingest selection, drop, dedupe, removal and multipart su
   // Invalid entries do not become the first staged book, even if the server
   // attaches an unusable token to them. The real hero follows the next valid one.
   await choose([new File([""], "bad.txt"), one]);
-  await vi.waitFor(() => { mounted.flush(); expect(byAttribute(node, "title", "《书名》第一页")).toBeDefined(); });
+  await vi.waitFor(() => {
+    mounted.flush();
+    const frame = byAttribute(node, "title", "《书名》章节预览");
+    expect(frame.tagName.toLowerCase()).toBe("iframe");
+    expect(frame.getAttribute("srcdoc")).toBe("<p>正文</p>");
+    expect(frame.getAttribute("sandbox")).toBe("allow-same-origin");
+  });
+  const paging = byRole(node, "navigation", "预览翻页");
+  for (const name of ["预览上一页", "预览下一页"]) expect(byRole(paging, "button", name)).toBeDefined();
   const firstPage = fetch.mock.calls.filter(([url]) => url === "/ingest/first-page").at(-1)![1];
   expect(JSON.parse(firstPage.body as string)).toMatchObject({ upload_token: `${version}-one.txt`, rule_id: "default", theme_id: "default" });
   fire(byRole(node, "button", "清空"), "click"); mounted.flush();
