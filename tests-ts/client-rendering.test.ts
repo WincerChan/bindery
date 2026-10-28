@@ -396,10 +396,10 @@ it("shows the settings install entry for prompt-capable and iOS states, not for 
   const mounted = mount("install", { mode: null });
   expect(elements(mounted.root, "button")).toHaveLength(0);
   mounted.update({ mode: "prompt" });
-  expect(elements(mounted.root, "button").map(element => element.textContent)).toEqual(["安装应用"]);
+  expect(elements(mounted.root, "button").map(element => element.textContent)).toEqual(["安装"]);
   mounted.update({ mode: "ios" });
   expect(elements(mounted.root, "button").map(element => element.getAttribute("type"))).toEqual(["button"]);
-  expect(mounted.root.textContent).toBe("安装应用");
+  expect(mounted.root.textContent).toBe("安装");
   mounted.update({ mode: null });
   expect(elements(mounted.root, "button")).toHaveLength(0);
 });
@@ -671,16 +671,18 @@ it("refreshes the real security page after passkey reauth, add, rename and manua
   const node = root(), mounted = await ui.securityNavigation(node); disposers.push(mounted.dispose);
   const submit = (form: Element) => { const preventDefault = vi.fn(); fire(form, "submit", { preventDefault }); mounted.flush(); expect(preventDefault).toHaveBeenCalledOnce(); };
   const clickButton = (label: string) => { const control = elements(node, "button").find(item => item.textContent === label)!; fire(control, "click"); mounted.flush(); };
-  const renameForm = () => formFor(allByRole(node, "button", "重命名")[0]!);
+  const renameInput = () => elements(node, "input").find(input => input.getAttribute("name") === "name" && !input.getAttribute("placeholder")) as HTMLInputElement;
+  clickButton("添加通行密钥");
   const name = elements(node, "input").find(input => input.getAttribute("placeholder") === "例如：我的电脑") as HTMLInputElement;
   name.value = "新密钥"; fire(name, "input"); mounted.flush();
   const add = formFor(byRole(node, "button", /验证.*添加$/));
   submit(add);
-  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(2); expect(elements(node, "input").map(input => (input as HTMLInputElement).value)).toContain("新密钥"); });
+  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(2); expect(node.textContent).toContain("新密钥"); });
   expect(name.value).toBe(""); expect(authentication).toHaveBeenCalledWith({ optionsJSON: { challenge: "reauth-challenge" } });
   expect(registration).toHaveBeenCalledWith({ optionsJSON: { challenge: "original-challenge" } });
-  const renamed = byLabel(renameForm(), "名称") as HTMLInputElement; renamed.value = "已重命名"; submit(renameForm());
-  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(3); expect((byLabel(renameForm(), "名称") as HTMLInputElement).value).toBe("已重命名"); });
+  clickButton("重命名");
+  const renamed = renameInput(); renamed.value = "已重命名"; submit(formFor(renamed));
+  await vi.waitFor(() => { mounted.flush(); expect(load).toHaveBeenCalledTimes(3); expect(node.textContent).toContain("已重命名"); });
   const deletion = elements(node, "form").find(form => form.getAttribute("action")?.endsWith("old-key/delete"))!;
   expect(deletion.getAttribute("method")).toBe("post");
   submit(deletion); clickButton("取消"); expect(fetch).toHaveBeenCalledTimes(5);
@@ -694,7 +696,8 @@ it("refreshes the real security page after passkey reauth, add, rename and manua
   expect(location.assign).not.toHaveBeenCalled(); expect(mounted.router.state.location.href).toBe("/security");
   expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/security/reauth/passkey/options", "/security/reauth/passkey/verify", "/security/passkeys/register/options", "/security/passkeys/register/verify", "/security/passkeys/old-key/rename", "/security/passkeys/old-key/delete", "/security/passkeys/old-key/delete"]);
   fetch.mockResolvedValueOnce(new Response(null, { status: 401, headers: { "HX-Redirect": "/login" } }));
-  submit(renameForm());
+  clickButton("重命名");
+  const retry = renameInput(); submit(formFor(retry));
   await vi.waitFor(() => { mounted.flush(); expect(mounted.router.state.location.href).toBe("/login?next=%2Fsecurity"); });
   expect(location.assign).not.toHaveBeenCalled();
 });
@@ -705,6 +708,7 @@ it("switches security enrollment between first password setup, passkey reauth an
   vi.stubGlobal("__binderyTestSecurityData", load);
   vi.stubGlobal("window", { confirm: vi.fn(() => true), addEventListener() {}, removeEventListener() {} });
   const node = root(), mounted = await ui.securityNavigation(node); disposers.push(mounted.dispose); mounted.flush();
+  fire(elements(node, "button").find(button => button.textContent === "添加通行密钥")!, "click"); mounted.flush();
   const addForm = () => formFor(byRole(node, "button", /验证.*添加$/)),
     password = () => elements(addForm(), "input").find(input => input.getAttribute("type") === "password"),
     buttons = () => elements(addForm(), "button").map(button => button.textContent);

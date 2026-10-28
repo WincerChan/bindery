@@ -74,13 +74,23 @@
   ::selection { background: var(--color-accent-soft); color: var(--color-ink); }
 }
 
-.auth-page { max-width: 27rem; margin: 10vh auto; padding: 1.5rem; }
-.auth-page .page-header { margin-bottom: 28px; }
-.auth-page .page-title { font-family: var(--font-display); font-size: 44px; }
-.login-passkey { width: 100%; margin-top: 8px; }
-.login-password { margin-top: 20px; padding-top: 8px; border-top: 1px solid var(--color-line); }
-.login-password > summary { display: flex; align-items: center; min-height: 40px; color: var(--color-accent); font-size: 14px; cursor: pointer; list-style: none; }
+.auth-page { box-sizing: border-box; max-width: 420px; margin: 0 auto; padding: 14vh var(--space-page) 48px; }
+.auth-page .page-header { margin-bottom: 32px; }
+.auth-page .page-title { font-family: var(--font-display); font-size: var(--text-hero); font-weight: 600; line-height: 1.25; }
+.auth-page .page-description { margin-top: 16px; color: var(--color-ink-2); font-size: var(--text-body); line-height: 1.85; }
+.auth-page .login-passkey, .auth-page .login-submit { width: 100%; min-height: var(--size-control-lg); font-size: var(--text-body); }
+.auth-page label { color: var(--color-ink-3); font-size: var(--text-control); }
+.auth-page .form-stack input[type="password"] { min-height: 48px; padding: 0 20px; border: 0; border-radius: 999px; background: var(--color-control); }
+.auth-page .form-stack { gap: 16px; margin-top: 8px; }
+.login-passkey { margin-top: 8px; }
+.login-password { margin-top: 24px; padding-top: 8px; border-top: 1px solid var(--color-line-faint); }
+.login-password > summary { display: flex; align-items: center; min-height: var(--size-control); color: var(--color-accent); font-size: var(--text-control); cursor: pointer; list-style: none; }
+.login-password > summary:hover { color: var(--color-ink); }
 .login-password > summary::-webkit-details-marker { display: none; }
+@media (max-width: 767px) {
+  .auth-page { padding-top: 48px; }
+  .auth-page .page-title { font-size: var(--text-hero); }
+}
 .form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
 .passkey-hint { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 20px; padding: 10px 12px 10px 14px; border: 0; border-left: 2px solid var(--color-accent); border-radius: 0; background: var(--color-accent-soft); }
 .passkey-hint a { color: var(--color-ink-2); font-size: 14px; text-decoration: none; }

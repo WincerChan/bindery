@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url);
 /** Every Tabler icon the app uses. Add names here, then run this script. */
 export const ICON_NAMES = [
   "alert-triangle",
+  "align-left",
   "arrow-left",
   "arrow-right",
   "arrow-up-right",
@@ -23,7 +24,9 @@ export const ICON_NAMES = [
   "device-mobile-down",
   "device-tablet",
   "download",
+  "key",
   "list-details",
+  "lock",
   "logout",
   "menu-2",
   "minus",
@@ -35,6 +38,7 @@ export const ICON_NAMES = [
   "shield-check",
   "star",
   "star-filled",
+  "trash",
   "upload",
   "vocabulary",
   "x",

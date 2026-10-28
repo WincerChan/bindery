@@ -51,7 +51,7 @@ export function LoginScreen(props: { data: LoginScreenData }) {
   const passwordForm = () => <form action="/login" method="post" class="form-stack">
     <input type="hidden" name="next" value={props.data.next} />
     <label>密码<input type="password" name="password" autocomplete={passkeyPrimary() ? "current-password webauthn" : "current-password"} required disabled={busy()} /></label>
-    <button type="submit" disabled={busy() || !props.data.hash_configured}>登录</button>
+    <Button type="submit" size="lg" class="login-submit" disabled={busy() || !props.data.hash_configured}>登录</Button>
   </form>;
   return <main class="auth-page">
     <PageHeader title="Bindery" description="登录你的私人书库" />
