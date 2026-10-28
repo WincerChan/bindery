@@ -8,7 +8,8 @@ import "./shell.css";
 
 export function AppShell() {
   const location = useLocation(), matches = useMatches();
-  // Match objects change on search navigation too. Only rebuild the outlet when its layout changes.
+  // Search navigation and loader refreshes replace matches; preserve staged files and
+  // editor drafts by rebuilding the Outlet only when the layout actually changes.
   const readerLayout = createMemo(() => matches().some(match => match.staticData.readerLayout));
   const active = (href: string) => navActive(location().pathname, href);
   return <PwaInstallProvider>

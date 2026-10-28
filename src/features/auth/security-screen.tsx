@@ -2,7 +2,7 @@ import TablerKey from "~icons/tabler/key";
 import TablerPlus from "~icons/tabler/plus";
 import TablerTrash from "~icons/tabler/trash";
 import { isRedirect, useRouter } from "@tanstack/solid-router";
-import { createSignal, For, onSettled, Show } from "solid-js";
+import { createSignal, flush, For, onSettled, Show } from "solid-js";
 import { browserSupportsWebAuthn, deletePasskey, passkeyMessage, PasskeyRequestError, postJson, reauthenticateWithPasskey, registerPasskey } from "../../client/passkeys";
 import { showToast } from "../../client/toast";
 import { BackLink, Button, CenterDialog, ConfirmDialog, Icon, PageIntro, RelativeTime, SectionTitle, TextField } from "../../ui";
@@ -48,6 +48,7 @@ export function SecurityScreen(props: { data: SecurityScreenData }) {
   function openEnrollment() {
     if (!canEnroll() || busy()) return;
     setEnrolling(true);
+    flush(); // Mount the conditional input before moving keyboard focus.
     enrollmentName?.focus();
   }
   async function add(event: SubmitEvent) {

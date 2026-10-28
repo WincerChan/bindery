@@ -34,6 +34,9 @@ export function RulesPage(props: { data: ReturnType<typeof catalogPage> }) {
     return parts.join(" · ");
   };
   const total = () => (usage()?.book_count ?? 0) + (usage()?.archived_count ?? 0);
+  // Server-function responses can refresh loader objects without changing the selected template.
+  // Key by identity so automatic tests/revalidation do not discard the sample or unsaved draft.
+  const editorKey = () => props.data.editor ? `${kind()}:${props.data.editor.id}` : null;
   return <div class="settings-templates">
     <BackLink href="/settings">设置</BackLink>
     <PageIntro eyebrow={null} title={themes() ? "主题" : "切章规则"} description={themes() ? "决定生成的 EPUB 长什么样。主题 CSS 作为最后一层追加，书自带的样式优先。" : "决定 TXT 怎么切成卷和章。入库时选一条，改了以后可以把用它的书一起重建。"} />
@@ -43,8 +46,8 @@ export function RulesPage(props: { data: ReturnType<typeof catalogPage> }) {
         <span>{item.name}</span><small>{templateMeta(item)}</small>
       </Link></li>}</For></ul>
       <form action={`/${kind()}/new`} method="post" onSubmit={event => { void submit(event); }}><Button type="submit" variant="secondary" class="settings-template-new" disabled={mutation.busy()}><Icon icon={TablerPlus} size={16} />{themes() ? "新建主题" : "新建规则"}</Button></form>
-    </nav><Show when={props.data.editor} keyed fallback={<p class="muted">{themes() ? "暂无主题模板。" : "暂无规则模板。"}</p>}>{editor => <Editor kind={kind()} data={editor} usage={usage()} rebuild={<form action="/books/regenerate" method="post" onSubmit={event => { void submit(event, true); }}>
-      <input type="hidden" name="scope" value={props.data.tab} /><input type="hidden" name="template_id" value={editor.id} /><Button type="submit" variant="quiet" title={themes() ? `把使用这个主题的 ${total()} 本书重新生成` : `把使用这条规则的 ${total()} 本书重新切章、重新生成`} disabled={mutation.busy()}><Icon icon={TablerRefresh} size={16} />重建 {total()} 本</Button>
+    </nav><Show when={editorKey()} keyed fallback={<p class="muted">{themes() ? "暂无主题模板。" : "暂无规则模板。"}</p>}>{_key => <Editor kind={kind()} data={props.data.editor!} usage={usage()} rebuild={<form action="/books/regenerate" method="post" onSubmit={event => { void submit(event, true); }}>
+      <input type="hidden" name="scope" value={props.data.tab} /><input type="hidden" name="template_id" value={props.data.editor!.id} /><Button type="submit" variant="quiet" title={themes() ? `把使用这个主题的 ${total()} 本书重新生成` : `把使用这条规则的 ${total()} 本书重新切章、重新生成`} disabled={mutation.busy()}><Icon icon={TablerRefresh} size={16} />重建 {total()} 本</Button>
     </form>} />}</Show></div>
   </div>;
 }

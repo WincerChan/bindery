@@ -199,6 +199,7 @@ export async function routedLibrary(root: HTMLElement, initial: LibraryPageData,
       await router.navigate({ to: "/", search: { q: value.q, read_filter: value.read_filter, page: value.page } });
       flush();
     },
+    invalidate: () => router.invalidate(),
     flush, dispose,
   };
 }

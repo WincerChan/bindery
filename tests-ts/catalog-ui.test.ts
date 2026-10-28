@@ -31,6 +31,8 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(allByAttribute(root, "action", "/rules/default/delete")).toHaveLength(0);
     expect(byName(root, "config_json").textContent).toContain("<script>"); expect(root.getElementsByTagName("script").length).toBe(0);
     expect(byLabel(root, "规则 JSON")).toBe(byName(root, "config_json"));
+    expect(byName(root, "config_json").getAttribute("wrap")).toBe("soft");
+    expect(byName(root, "config_json").getAttribute("rows")).toBe("8");
     expect(byLabel(root, "试切")).toBe(byName(root, "sample"));
     expect(byRole(root, "button", "保存").getAttribute("type")).toBe("submit");
     // A server-rendered form must remain submittable before hydration / without JavaScript.
