@@ -36,7 +36,12 @@ describe("library SSR behavior", () => {
     const root = parseHtml(html);
     expect(allByAttribute(root, "data-book-card")).toHaveLength(1);
     const menu = byRole(root, "menu"), links = allByRole(root, "link"), hrefs = allByRole(menu, "menuitem").map(link => link.getAttribute("href") || "");
-    const trigger = byRole(root, "button", "《长安<&>的荔枝》的操作（已读）");
+    // SSR includes the hidden enhanced trigger and the named native summary.
+    const triggers = allByRole(root, "button", "《长安<&>的荔枝》的操作（已读）");
+    expect(triggers).toHaveLength(2);
+    expect(triggers.filter(control => control.localName === "summary")).toHaveLength(1);
+    const trigger = byAttribute(root, "aria-haspopup", "menu");
+    expect(triggers).toContain(trigger);
     expect(trigger.getAttribute("aria-haspopup")).toBe("menu"); expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(trigger.textContent?.trim()).toBe("");
     expect(allByRole(menu, "menuitem", "发送到设备")).toHaveLength(0);
