@@ -185,7 +185,7 @@ export function BookEditor(props: {
               class={changed("tags")}
             />
             <TextField
-              label="发表时间"
+              label="出版日期"
               name="published"
               value={book().published?.slice(0, 10) || ""}
               class={changed("published")}
