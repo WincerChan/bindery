@@ -2,10 +2,7 @@
 .kindle-mobile-note { display: none; }
 @media (max-width: 767px) {
   .kindle-device-content { display: none; }
-  .kindle-mobile-note { display: grid; gap: 24px; }
-  .kindle-mobile-note h1, .kindle-mobile-note p { margin: 0; }
-  .kindle-mobile-note h1 { font-size: 30px; }
-  .kindle-mobile-note p { max-width: 38em; line-height: 1.75; }
+  .kindle-mobile-note { display: grid; gap: 0; }
   .kindle-mobile-note h2 { color: var(--color-ink-3); font-size: var(--text-control); font-weight: 400; letter-spacing: .08em; }
   .kindle-mobile-note ul { margin: 0 0 16px; padding: 0; list-style: none; }
   .kindle-mobile-note li { display: flex; align-items: center; min-height: 72px; border-top: 1px solid var(--color-line-hair); }

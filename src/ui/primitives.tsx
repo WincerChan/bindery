@@ -3,7 +3,7 @@ import TablerChevronDown from "~icons/tabler/chevron-down";
 import TablerMinus from "~icons/tabler/minus";
 import TablerPlus from "~icons/tabler/plus";
 import TablerX from "~icons/tabler/x";
-import { createUniqueId, For, omit, Show } from "solid-js";
+import { createUniqueId, For, Match, omit, Show, Switch } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Link } from "../shared/spa-link";
 import { Icon, type IconComponent } from "./icon";
@@ -79,8 +79,72 @@ export function SelectPill(props: { label: string; value: string; options: reado
 export function SearchPill(props: JSX.InputHTMLAttributes<HTMLInputElement> & { label: string; placeholder: string; class?: string }) {
   return <TextField {...omit(props, "class")} type="search" labelHidden class={`search-field ui-search-pill ${props.class || ""}`} />;
 }
-export function PageIntro(props: { eyebrow: JSX.Element; title: JSX.Element; description?: JSX.Element; meta?: JSX.Element; actions?: JSX.Element; visual?: JSX.Element; class?: string }) {
-  return <header class={`ui-page-intro ${props.class || ""}`}><div class="ui-page-intro-text"><p class="ui-page-eyebrow">{props.eyebrow}</p><div class="ui-page-intro-lead"><h1>{props.title}</h1><Show when={props.meta}><div class="ui-page-meta">{props.meta}</div></Show><Show when={props.description}><p class="ui-page-description">{props.description}</p></Show></div><Show when={props.actions}><div class="ui-page-actions">{props.actions}</div></Show></div><Show when={props.visual}><div class="ui-page-visual">{props.visual}</div></Show></header>;
+export type PageIntroVariant = "main" | "subpage" | "title-only" | "topbar" | "book";
+export type PageIntroVisualSize = "cover" | "page" | "reading" | "vocabulary" | "device";
+export function PageIntro(props: {
+  eyebrow?: JSX.Element | null;
+  title: JSX.Element;
+  description?: JSX.Element;
+  meta?: JSX.Element;
+  content?: JSX.Element;
+  status?: JSX.Element;
+  note?: JSX.Element;
+  actions?: JSX.Element;
+  visual?: JSX.Element;
+  variant?: PageIntroVariant;
+  visualSize?: PageIntroVisualSize;
+  back?: JSX.Element;
+  titleId?: string;
+  id?: string;
+  class?: string;
+  actionsClass?: string;
+}) {
+  const classes = () => ["ui-page-intro", props.variant && `ui-page-intro-${props.variant}`, props.visualSize && `ui-page-intro-visual-${props.visualSize}`, props.class].filter(Boolean).join(" ");
+  const actions = () => <Show when={props.actions}><div class={`ui-page-actions ${props.actionsClass || ""}`}>{props.actions}</div></Show>;
+  return <Switch fallback={<header id={props.id} class={classes()}>
+    <Show when={props.back}><div class="ui-page-intro-back">{props.back}</div></Show>
+    <div class="ui-page-intro-row">
+      <div class="ui-page-intro-text">
+        <Show when={props.eyebrow != null && props.eyebrow !== ""}><p class="ui-page-eyebrow">{props.eyebrow}</p></Show>
+        <div class="ui-page-intro-lead">
+          <h1 id={props.titleId}>{props.title}</h1>
+          <Show when={props.meta}><div class="ui-page-meta">{props.meta}</div></Show>
+          <Show when={props.description}><p class="ui-page-description">{props.description}</p></Show>
+          <Show when={props.content}>{props.content}</Show>
+        </div>
+        <Show when={props.status}><div class="ui-page-status">{props.status}</div></Show>
+        {actions()}
+        <Show when={props.note}><div class="ui-page-note">{props.note}</div></Show>
+      </div>
+      <Show when={props.visual}><div class="ui-page-visual">{props.visual}</div></Show>
+    </div>
+  </header>}>
+    <Match when={props.variant === "topbar"}><header id={props.id} class={classes()}>
+      <Show when={props.back}><div class="ui-page-intro-back">{props.back}</div></Show>
+      <h1 id={props.titleId} class="ui-page-intro-title">{props.title}</h1>
+      {actions()}
+    </header></Match>
+    <Match when={props.visualSize === "cover" && props.variant !== "book"}><header id={props.id} class={classes()}>
+      <Show when={props.back}><div class="ui-page-intro-back">{props.back}</div></Show>
+      <div class="ui-page-intro-cover-grid">
+        <div class="ui-page-intro-cover-text">
+          <Show when={props.eyebrow != null && props.eyebrow !== ""}><p class="ui-page-eyebrow">{props.eyebrow}</p></Show>
+          <div class="ui-page-intro-text"><div class="ui-page-intro-lead">
+            <h1 id={props.titleId}>{props.title}</h1>
+            <Show when={props.meta}><div class="ui-page-meta">{props.meta}</div></Show>
+            <Show when={props.description}><p class="ui-page-description">{props.description}</p></Show>
+            <Show when={props.content}>{props.content}</Show>
+          </div></div>
+          <div class="ui-page-intro-tail">
+            <Show when={props.status}><div class="ui-page-status">{props.status}</div></Show>
+            {actions()}
+            <Show when={props.note}><div class="ui-page-note">{props.note}</div></Show>
+          </div>
+        </div>
+        <Show when={props.visual}><div class="ui-page-visual">{props.visual}</div></Show>
+      </div>
+    </header></Match>
+  </Switch>;
 }
 export function PageTabs(props: { label: string; value: string; tabs: readonly { value: string; label: string; count?: number; href?: string }[]; onChange?: (value: string) => void }) {
   return <nav class="ui-page-tabs" aria-label={props.label}><For each={props.tabs}>{tab => {

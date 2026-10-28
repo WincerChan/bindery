@@ -98,26 +98,26 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
     finally { setTesting(false); }
   }
   return <section aria-label="生词本" class="vocab-page">
-    <PageIntro eyebrow={<><span class="vocab-eyebrow-wide">生词本 · 从 Kindle 和 Kobo 同步 · 共 {page().summary.total} 个</span><span class="vocab-eyebrow-phone">生词本 · 共 {page().summary.total} 个</span></>}
+    <PageIntro class="vocab-intro" visualSize="vocabulary" eyebrow={<><span class="vocab-eyebrow-wide">生词本 · 从 Kindle 和 Kobo 同步 · 共 {page().summary.total} 个</span><span class="vocab-eyebrow-phone">生词本 · 共 {page().summary.total} 个</span></>}
       title={page().summary.month.count ? `这个月查了 ${page().summary.month.count} 个词。` : `已经记下 ${page().summary.total} 个词。`}
       description={<Show when={page().summary.month.top_source} fallback="把读到的生词，连同当时的句子留下来。">{source => <>
         多半来自<BookTitle title={source().title} />。<Show when={page().summary.latest}><span class="vocab-description-wide">右边是最近查的一个，连同查词时读到的那句话。</span><span class="vocab-description-phone">下面是最近查的一个，连同当时读到的那句话。</span></Show>
       </>}</Show>}
-      actions={<div class="vocab-intro-actions">
+      status={<>
         <p class="vocab-push-line"><span><StatusDot tone="ok" label="已推送" />LexiTrace 已推送 {page().summary.push.pushed} 个</span><Show when={page().summary.push.failed}><span class="vocab-failure"><StatusDot tone="danger" label="推送失败" />{page().summary.push.failed} 个失败</span></Show></p>
         <Show when={!settings().baseUrl || !settings().hasToken}><p class="vocab-hint">尚未配置 LexiTrace，生词会照常保存在这里。</p></Show>
         <Show when={settings().baseUrl && settings().hasToken && !settings().enabled}><p class="vocab-hint">LexiTrace 推送已暂停，生词仍会同步。</p></Show>
-        <div class="vocab-action-row"><Show when={page().summary.push.failed}><Button variant="secondary" disabled={busy()} onClick={() => retry()}>{busy() ? "处理中…" : "全部重试"}</Button></Show>
-          <Button variant="icon" class="vocab-settings-button" aria-label="LexiTrace 设置" title="LexiTrace 设置" aria-haspopup="dialog" aria-expanded={settingsOpen() ? "true" : "false"} aria-controls="lexitrace-settings" onClick={() => setSettingsOpen(true)}>
-            <Icon icon={TablerSettings} size={20} class="vocab-settings-glyph" /><span class="vocab-settings-text">设置</span>
-          </Button>
-        </div>
+      </>}
+      actions={<div class="vocab-action-row"><Show when={page().summary.push.failed}><Button variant="secondary" disabled={busy()} onClick={() => retry()}>{busy() ? "处理中…" : "全部重试"}</Button></Show>
+        <Button variant="icon" class="vocab-settings-button" aria-label="LexiTrace 设置" title="LexiTrace 设置" aria-haspopup="dialog" aria-expanded={settingsOpen() ? "true" : "false"} aria-controls="lexitrace-settings" onClick={() => setSettingsOpen(true)}>
+          <Icon icon={TablerSettings} size={20} class="vocab-settings-glyph" /><span class="vocab-settings-text">设置</span>
+        </Button>
       </div>}
-      visual={page().summary.latest && <Show when={page().summary.latest}>{latest => <figure class="vocab-latest" aria-label="最近查的">
+      visual={page().summary.latest ? <Show when={page().summary.latest}>{latest => <figure class="vocab-latest" aria-label="最近查的">
         <p class="vocab-section-label">最近查的</p><p class="vocab-latest-word">{latest().word}</p>
         <Show when={latest().context.sentence} fallback={<p class="vocab-hint">未找到例句</p>}><blockquote><HighlightedSentence sentence={latest().context.sentence} raw={latest().raw_word} word={latest().word} /></blockquote></Show>
         <figcaption><WordSource item={latest()} /></figcaption>
-      </figure>}</Show>} />
+      </figure>}</Show> : undefined} />
     <Show when={notice()}><p class="vocab-message" role="status">{notice()}</p></Show>
     <Show when={error()}><div class="vocab-failure" role="alert">{error()} <Button variant="secondary" disabled={busy()} onClick={refresh}>重新加载</Button></div></Show>
     <Toolbar label="筛选生词" search={<SearchPill label="搜索生词、例句、书籍或设备" placeholder="搜索生词、例句" value={query()} onInput={event => setQuery(event.currentTarget.value)} />}>

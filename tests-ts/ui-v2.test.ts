@@ -79,6 +79,36 @@ describe("v2 render contracts", () => {
     expect(css).toMatch(/\.ui-select-pill \{[^}]*width: max-content/);
     expect(css).toMatch(/\.ui-select-pill select \{[^}]*position: absolute; inset: 0;[^}]*opacity: 0/);
   });
+  it("renders one token-driven intro shell for main, subpage, title-only, topbar, book and visual-size variants", () => {
+    const html = server.markup("intros").replace(/<!--.*?-->/g, ""), css = readFileSync("src/ui/ui.css", "utf8"), tokens = readFileSync("src/styles.css", "utf8");
+    expect(html).toContain('class="ui-page-intro ui-page-intro-subpage');
+    expect(html).toContain('class="ui-page-intro-back"');
+    expect(html).toContain('class="ui-page-intro-row"');
+    expect(html).toContain('class="ui-page-intro-text"');
+    expect(html).toContain('class="ui-page-intro-lead"');
+    expect(html).toContain('class="ui-page-intro-cover-grid"');
+    expect(html).toContain('class="ui-page-intro-cover-text"');
+    expect(html).toContain('class="ui-page-intro-tail"');
+    expect(html).toContain('class="ui-page-intro ui-page-intro-title-only"');
+    expect(html).toContain('id="settings-intro-title"');
+    const titleOnly = html.slice(html.indexOf("ui-page-intro-title-only"), html.indexOf("ui-page-intro-topbar"));
+    expect(titleOnly).toContain("设置");
+    expect(titleOnly).not.toContain("ui-page-eyebrow"); expect(titleOnly).not.toContain("ui-page-description"); expect(titleOnly).not.toContain("ui-page-actions"); expect(titleOnly).not.toContain("ui-page-visual");
+    const topbar = html.slice(html.indexOf("ui-page-intro-topbar"), html.indexOf("ui-page-intro-book"));
+    expect(topbar).toContain("排版预览"); expect(topbar).toContain("ui-page-intro-back"); expect(topbar).toContain("ui-page-actions");
+    expect(topbar).not.toContain("ui-page-intro-row");
+    expect(html).toContain("ui-page-intro-book");
+    const book = html.slice(html.indexOf('id="book-intro"'), html.indexOf("ui-page-intro-visual-page"));
+    expect(book).toContain('id="book-intro"'); expect(book).toContain("ui-page-intro-row"); expect(book).toContain("ui-page-visual"); expect(book).toContain("书库");
+    for (const size of ["page", "reading", "vocabulary", "device"]) expect(html).toContain(`ui-page-intro-visual-${size}`);
+    for (const value of ["--intro-pad-top: 40px", "--intro-stack-gap: 22px", "--intro-actions-offset: 6px", "--intro-title-line: 1.25", "--intro-eyebrow-size: var(--text-control)", "--intro-eyebrow-tracking: .08em", "--intro-lead-size: var(--text-body)", "--intro-lead-line: 1.85", "--intro-lead-max: 520px", "--intro-gap-next: var(--space-section)"]) expect(tokens).toContain(value);
+    for (const value of ["--intro-pad-top: 0px", "--intro-stack-gap: 16px", "--intro-title-line: 1.3", "--intro-eyebrow-size: var(--text-meta)", "--intro-lead-line: 1.8"]) expect(tokens).toContain(value);
+    expect(css).toMatch(/\.ui-page-intro \{[^}]*flex-direction: column;[^}]*padding-top: var\(--intro-pad-top\)/);
+    expect(css).toMatch(/\.ui-page-intro-row \{[^}]*align-items: flex-start/);
+    expect(css).toMatch(/\.ui-page-intro-lead \{(?![^}]*display: contents)[^}]*flex-direction: column;[^}]*gap: var\(--intro-stack-gap\)/);
+    expect(css).toMatch(/\.ui-page-actions \{[^}]*margin-top: var\(--intro-actions-offset\)/);
+    expect(css).toMatch(/\.ui-page-visual \{[^}]*align-self: center/);
+  });
   it("composes introductory text, serif counted tabs, toolbar and labelled pagination", () => {
     const html = server.markup("pages").replace(/<!--.*?-->/g, "");
     expect(html).toContain('class="ui-page-visual"'); expect(html).toContain('aria-label="书库范围"');

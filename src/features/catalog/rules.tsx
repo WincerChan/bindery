@@ -38,8 +38,7 @@ export function RulesPage(props: { data: ReturnType<typeof catalogPage> }) {
   // Key by identity so automatic tests/revalidation do not discard the sample or unsaved draft.
   const editorKey = () => props.data.editor ? `${kind()}:${props.data.editor.id}` : null;
   return <div class="settings-templates">
-    <BackLink href="/settings">设置</BackLink>
-    <PageIntro eyebrow={null} title={themes() ? "主题" : "切章规则"} description={themes() ? "决定生成的 EPUB 长什么样。主题 CSS 作为最后一层追加，书自带的样式优先。" : "决定 TXT 怎么切成卷和章。入库时选一条，改了以后可以把用它的书一起重建。"} />
+    <PageIntro variant="subpage" back={<BackLink href="/settings">设置</BackLink>} title={themes() ? "主题" : "切章规则"} description={themes() ? "决定生成的 EPUB 长什么样。主题 CSS 作为最后一层追加，书自带的样式优先。" : "决定 TXT 怎么切成卷和章。入库时选一条，改了以后可以把用它的书一起重建。"} />
     <Show when={props.data.error}><p role="alert" class="notice">{props.data.error}</p></Show>
     <div class="settings-template-layout"><nav aria-label={themes() ? "主题列表" : "规则列表"}>
       <ul class="settings-template-list"><For each={items()}>{item => <li><Link aria-current={item.id === props.data.editor?.id ? "page" : undefined} href={href(item.id)}>

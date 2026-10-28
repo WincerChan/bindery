@@ -10,7 +10,7 @@ import { createSignal, For, Show } from "solid-js";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
 import { mutateBook } from "./mutations";
-import { BackLink, BookCover, Button, ConfirmDialog, Icon, LocalTime, ProgressBar, RelativeTime, SectionTitle, SelectPill, StarRating } from "../../ui";
+import { BackLink, BookCover, Button, ConfirmDialog, Icon, LocalTime, PageIntro, ProgressBar, RelativeTime, SectionTitle, SelectPill, StarRating } from "../../ui";
 import type { BookPage } from "../../server/books/service";
 import { BookEditor } from "./book-editor";
 import { sectionUrl } from "../reader/model";
@@ -60,37 +60,34 @@ export function BookDetail(props: { page: BookPage }) {
     regenerateForm?.querySelector<HTMLSelectElement>("select")?.focus();
   }
   return <article class="books-page">
-    <BackLink href={nav().return_to}>书库</BackLink>
     <Show when={editing()} fallback={<>
-      <div id="meta-panel" class="books-detail">
-        <div class="books-cover"><BookCover {...book()} large eager state={book().status_class === "failed" ? "failed" : book().read ? "read" : undefined} onRetry={book().status_class === "failed" && book().can_regenerate ? retry : undefined} /></div>
-        <div class="books-identity">
-          <header class="books-heading"><h1>{book().title}</h1>
-            <div class="books-byline">
-              <Show when={book().author}><span class="books-author">{book().author}</span></Show>
-              <Show when={book().author && book().language}><span class="books-separator" aria-hidden="true">·</span></Show>
-              <Show when={book().language}><span>{languageLabel(book().language!)}</span></Show>
-              <Show when={book().rating !== null}><Show when={book().author || book().language}><span class="books-separator" aria-hidden="true">·</span></Show><StarRating rating={book().rating!} /></Show>
-            </div>
-          </header>
-          <Show when={book().description}><p class="books-description">{book().description}</p></Show>
+      <PageIntro id="meta-panel" class="books-detail" variant="book" visualSize="cover" back={<BackLink href={nav().return_to}>书库</BackLink>}
+        visual={<div class="books-cover"><BookCover {...book()} large eager state={book().status_class === "failed" ? "failed" : book().read ? "read" : undefined} onRetry={book().status_class === "failed" && book().can_regenerate ? retry : undefined} /></div>}
+        title={book().title}
+        meta={<div class="books-byline">
+          <Show when={book().author}><span class="books-author">{book().author}</span></Show>
+          <Show when={book().author && book().language}><span class="books-separator" aria-hidden="true">·</span></Show>
+          <Show when={book().language}><span>{languageLabel(book().language!)}</span></Show>
+          <Show when={book().rating !== null}><Show when={book().author || book().language}><span class="books-separator" aria-hidden="true">·</span></Show><StarRating rating={book().rating!} /></Show>
+        </div>}
+        description={book().description || undefined}
+        status={book().status_class === "failed" || latest() ? <>
           <Show when={book().status_class === "failed"}><p role="status" class="books-failure">生成失败。<Show when={book().can_regenerate} fallback={<>请在编辑中检查书籍，重新保存并写回。</>}><Button variant="quiet-danger" onClick={retry}>检查规则并重试</Button></Show></p></Show>
           <Show when={latest()}>{item => <section class="books-progress" aria-label="阅读进度" data-reading-progress>
             <p class="books-progress-line"><span>在{item().source_label}上读到</span><strong>{item().section_title}</strong><span class="books-progress-when">{item().percent === null ? "" : `${item().percent}% · `}<RelativeTime value={item().read_at} /></span></p>
             <Show when={item().percent !== null}><ProgressBar label="全书阅读进度" value={item().percent!} /></Show>
           </section>}</Show>
-          <div class="books-actions">
-            <Link class="btn btn-primary btn-lg books-continue" href={readingHref()}>{readingLabel()}<Icon icon={TablerArrowUpRight} size={16} /></Link>
-            <Link class="btn btn-icon btn-lg books-desktop-action" href={devicePreviewHref(book().book_id)} aria-label="设备预览" title="设备预览"><Icon icon={TablerDeviceTablet} size={20} /></Link>
-            <a class="btn btn-icon btn-lg" href={`/book/${book().book_id}/download`} aria-label="下载 EPUB" title="下载 EPUB"><Icon icon={TablerDownload} size={20} /></a>
-            <Link class="btn btn-icon btn-lg" href={nav().edit_url} aria-label="编辑书目信息" title="编辑" onClick={event => { if (!event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setEditing(true); } }}><Icon icon={TablerPencil} size={20} /></Link>
-            <form action={`/book/${book().book_id}/read`} method="post" onSubmit={event => { event.preventDefault(); void perform("read", event.currentTarget); }}>
-              <input type="hidden" name="read" value={book().read ? "0" : "1"} /><input type="hidden" name="next" value={nav().detail_url} />
-              <Button type="submit" variant="secondary" size="lg" disabled={mutation.busy()}><Icon icon={book().read ? TablerX : TablerCheck} size={16} />{book().read ? "标记未读" : "标记已读"}</Button>
-            </form>
-          </div>
-        </div>
-      </div>
+        </> : undefined}
+        actions={<div class="books-actions">
+          <Link class="btn btn-primary btn-lg books-continue" href={readingHref()}>{readingLabel()}<Icon icon={TablerArrowUpRight} size={16} /></Link>
+          <Link class="btn btn-icon btn-lg books-desktop-action" href={devicePreviewHref(book().book_id)} aria-label="设备预览" title="设备预览"><Icon icon={TablerDeviceTablet} size={20} /></Link>
+          <a class="btn btn-icon btn-lg" href={`/book/${book().book_id}/download`} aria-label="下载 EPUB" title="下载 EPUB"><Icon icon={TablerDownload} size={20} /></a>
+          <Link class="btn btn-icon btn-lg" href={nav().edit_url} aria-label="编辑书目信息" title="编辑" onClick={event => { if (!event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setEditing(true); } }}><Icon icon={TablerPencil} size={20} /></Link>
+          <form action={`/book/${book().book_id}/read`} method="post" onSubmit={event => { event.preventDefault(); void perform("read", event.currentTarget); }}>
+            <input type="hidden" name="read" value={book().read ? "0" : "1"} /><input type="hidden" name="next" value={nav().detail_url} />
+            <Button type="submit" variant="secondary" size="lg" disabled={mutation.busy()}><Icon icon={book().read ? TablerX : TablerCheck} size={16} />{book().read ? "标记未读" : "标记已读"}</Button>
+          </form>
+        </div>} />
       <section class="books-about" aria-labelledby="books-about-title"><SectionTitle id="books-about-title">关于这本书</SectionTitle><dl class="books-spec"><For each={specs()}>{item => <div><dt>{item[0]}</dt><dd>{item[1]}</dd></div>}</For></dl></section>
       <details class="books-management" ref={management}>
         <summary>管理这本书 <span>重新生成、归档或删除</span><Icon icon={TablerChevronDown} size={16} class="ui-summary-chevron is-end" /></summary>
@@ -113,6 +110,7 @@ export function BookDetail(props: { page: BookPage }) {
       <ConfirmDialog open={archiving()} title="归档这本书？" confirmLabel="归档" onClose={() => setArchiving(false)} onConfirm={() => perform("archive", archiveForm)}>归档后可在书库「已归档」中恢复。</ConfirmDialog>
       <ConfirmDialog open={deleting()} title="确定要永久删除这本书吗？" danger confirmLabel="永久删除" onClose={() => { if (!mutation.busy()) setDeleting(false); }} onConfirm={() => perform("delete", deleteForm)}><p>移除源文件、EPUB 与全部记录，无法恢复。</p></ConfirmDialog>
     </>}>
+      <BackLink href={nav().return_to}>书库</BackLink>
       <BookEditor page={page()} onCancel={() => setEditing(false)} onSaved={updated => { setSaved({ source: props.page, value: updated }); setEditing(false); }} />
     </Show>
   </article>;

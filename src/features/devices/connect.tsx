@@ -2,7 +2,7 @@ import TablerFolder from "~icons/tabler/folder";
 import TablerPlug from "~icons/tabler/plug";
 import { createSignal, For, Show } from "solid-js";
 import { KINDLE_MODELS, type KindleModel } from "../../client/devices/models";
-import { BackLink, Button, Icon, SegmentedControl, StatusDot, TextField } from "../../ui";
+import { BackLink, Button, Icon, PageIntro, SegmentedControl, StatusDot, TextField } from "../../ui";
 import { DeviceShell } from "./device-shell";
 import { Link } from "../../shared/spa-link";
 import { useDevice } from "./context";
@@ -20,11 +20,10 @@ export function DeviceConnectPage(props: { backLink?: boolean }) {
   const defaultName = () => detection() ? modelLabel(kind(), detection()!.model).split(" · ")[0]! : "我的设备";
   return <div class="device-connect">
     <section class="device-connect-hero" aria-label="连接设备">
-      <div class="device-connect-text">
-        <Show when={props.backLink}><BackLink href="/devices">设备</BackLink></Show>
-        <p class="device-connect-eyebrow"><StatusDot label="未连接设备" tone="empty" /><span role="status">设备 · 未连接</span></p>
-        <h1 class="device-connect-title">把 Kindle 或 Kobo <br />用 USB 接上。</h1>
-        <ol class="device-steps">
+      <PageIntro class="device-connect-intro" variant={props.backLink ? "subpage" : "main"} back={props.backLink ? <BackLink href="/devices">设备</BackLink> : undefined} visualSize="device"
+        eyebrow={<span class="device-intro-eyebrow"><StatusDot label="未连接设备" tone="empty" /><span role="status">设备 · 未连接</span></span>}
+        title={<>把 Kindle 或 Kobo <br />用 USB 接上。</>}
+        content={<ol class="device-steps">
           <li><strong>用 USB 线连接设备</strong><p>两种设备都会作为 USB 磁盘出现，传书时保持连接。</p></li>
           <li><strong>选择设备磁盘的根目录</strong>
             <Show when={detection()} fallback={<p>Kindle 能看到 documents 和 system；Kobo 能看到 .kobo。</p>}>
@@ -45,15 +44,16 @@ export function DeviceConnectPage(props: { backLink?: boolean }) {
               </form>
             </Show>
           </li></Show>
-        </ol>
-        <div class="device-connect-actions">
+        </ol>}
+        actions={<div class="device-connect-actions">
           <Button size="lg" disabled={!k.ready() || !k.supported() || k.busy()} onClick={k.pick}><Icon icon={TablerFolder} size={16} />选择设备目录</Button>
           <span class="device-connect-hint">需要 Chrome 或 Edge 桌面版</span>
-        </div>
-        <p class="device-connect-preview"><Link href="/devices/preview">排版与预览</Link>不需要连接，可以先看看书库里的书。</p>
-        <Show when={k.ready() && k.state().status === "granted"}><p class="notice">已连接 {k.state().device?.identity.name}。<Link href="/devices">查看设备书籍</Link>，或<Link href="/devices/transfer">从书库传书</Link>。</p></Show>
-      </div>
-      <figure class="connect-device" aria-hidden="true"><DeviceShell kind={k.kind()} model={k.state().device?.identity.model ?? "KPW3"} idle><Icon icon={TablerPlug} size={44} /></DeviceShell></figure>
+        </div>}
+        note={<>
+          <p class="device-connect-preview"><Link href="/devices/preview">排版与预览</Link>不需要连接，可以先看看书库里的书。</p>
+          <Show when={k.ready() && k.state().status === "granted"}><p class="notice">已连接 {k.state().device?.identity.name}。<Link href="/devices">查看设备书籍</Link>，或<Link href="/devices/transfer">从书库传书</Link>。</p></Show>
+        </>}
+        visual={<figure class="connect-device" aria-hidden="true"><DeviceShell kind={k.kind()} model={k.state().device?.identity.model ?? "KPW3"} idle><Icon icon={TablerPlug} size={44} /></DeviceShell></figure>} />
     </section>
     <aside class="device-remembered" aria-labelledby="remembered-title">
       <h2 id="remembered-title">记住的设备</h2>
