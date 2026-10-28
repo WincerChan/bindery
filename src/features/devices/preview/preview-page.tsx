@@ -240,7 +240,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
         <span class="kt-topbar-spacer" />
         <SelectPill class="kt-device-pill" label="预览设备" value={target()?.id ?? ""} disabled={busy()} options={[{ value: "", label: "仅预览型号" }, ...available().map(identity => ({ value: identity.id, label: identity.name }))]} onChange={chooseTarget} />
         <Show when={!target()}><SelectPill label="设备种类" value={modelKind()} disabled={busy()} options={[{ value: "kindle", label: "Kindle" }, { value: "kobo", label: "Kobo" }]} onChange={value => chooseModelKind(value as DeviceKind)} /><SelectPill label="预览型号" value={model()} disabled={busy()} options={modelOptions(modelKind()).map(([value, label]) => ({ value, label }))} onChange={setModel} /></Show>
-        <h3 class="sr-only">设备阅读设置（只用于预览）</h3>
+        <h2 class="sr-only">设备阅读设置（只用于预览）</h2>
         <Show when={presets().length > 1} fallback={<><p class="sr-only" data-reading-margin>页边距：{presets()[0]!.label}（{geometry().measured ? "实测" : "估算"}）</p><span class="kt-margin-pill-static"><span>设备边距</span><strong>{presets()[0]!.label}</strong><Icon icon={TablerChevronDown} size={14} /></span></>}>
           <div role="group" aria-label="设备页边距" class="segmented kt-margin-pill"><span class="kt-margin-label">设备边距</span><For each={presets()}>{preset => <button type="button" aria-pressed={reading().margin === preset.id ? "true" : "false"} disabled={busy()} onClick={() => editReading({ margin: preset.id })}>{preset.label}</button>}</For></div>
         </Show>

@@ -46,6 +46,11 @@ function Intros() {
     <PageIntro visualSize="reading" title="正在读" visual={<span>封面</span>} />
     <PageIntro visualSize="vocabulary" title="生词" status={<span>已推送</span>} visual={<span>最近查的</span>} />
     <PageIntro visualSize="device" title="设备" visual={<span>机身</span>} />
+    <PageIntro variant="empty" title="把书放进来。" />
+    <PageIntro variant="guide" title="连接设备" content={<ol><li>连接</li></ol>} />
+    <PageIntro variant="split" title="安全" back={<BackLink href="/settings">设置</BackLink>} />
+    <PageIntro variant="editor" title="编辑书籍" actions={<Button>保存</Button>} />
+    <PageIntro variant="compact" title="设备字体" content={<p>我的 Paperwhite · 已连接</p>} />
   </>;
 }
 function Overlays() {

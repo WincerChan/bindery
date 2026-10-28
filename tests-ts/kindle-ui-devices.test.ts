@@ -218,6 +218,18 @@ it("offers device identity, source filters, search and deletion in neutral SSR",
   expect(root.textContent).toContain("连接并授权设备后，可查看和管理设备上的书籍。");
 });
 
+it("closes the desktop transfer modal on phones so the mobile intro is not inert", async () => {
+  const listeners = new Set<() => void>();
+  const media = { matches: true, addEventListener: (_: string, fn: () => void) => listeners.add(fn), removeEventListener: (_: string, fn: () => void) => listeners.delete(fn) };
+  Object.assign(window, { matchMedia: () => media });
+  const m = mount("transfer", input()); await settle(m);
+  const dialog = elements(m.root, "dialog")[0];
+  expect(dialog.getAttribute("data-state")).toBe("closed");
+  media.matches = false; listeners.forEach(fn => fn()); m.flush();
+  expect(dialog.getAttribute("data-state")).toBe("open");
+  media.matches = true; listeners.forEach(fn => fn()); m.flush();
+  expect(dialog.getAttribute("data-state")).toBe("closed");
+});
 it("renders the transfer filters, compact search, setting fields and ordered queue without a redundant heading in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = server.markup("transfer", input());
   expect(byRole(root, "heading", "设置")).toBeDefined(); expect(byRole(root, "heading", "队列")).toBeDefined();

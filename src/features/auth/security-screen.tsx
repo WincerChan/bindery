@@ -110,7 +110,7 @@ export function SecurityScreen(props: { data: SecurityScreenData }) {
   return <div class="settings-security">
     <div class="settings-security-layout">
       <div class="settings-security-hero">
-        <PageIntro class="security-intro" variant="subpage" back={<BackLink href="/settings">设置</BackLink>} title="安全" description="用通行密钥登录就不必再输密码：Windows Hello、面容或指纹都行。密码一直可以作为备用。" actions={<Button class="security-intro-action" size="lg" disabled={busy() || !props.data.passkey_configured || !supported()} onClick={openEnrollment}><Icon icon={TablerPlus} size={16} />添加通行密钥</Button>} />
+        <PageIntro class="security-intro" variant="split" back={<BackLink href="/settings">设置</BackLink>} title="安全" description="用通行密钥登录就不必再输密码：Windows Hello、面容或指纹都行。密码一直可以作为备用。" actions={<Button class="security-intro-action" size="lg" disabled={busy() || !props.data.passkey_configured || !supported()} onClick={openEnrollment}><Icon icon={TablerPlus} size={16} />添加通行密钥</Button>} />
         <Show when={enrolling() && canEnroll()}><section class="settings-security-enroll" aria-labelledby="security-enroll-title"><SectionTitle id="security-enroll-title">添加通行密钥</SectionTitle>
           <p class="muted">{hasPasskeys() ? "添加前请先重新验证身份。" : "首次添加需要先验证密码。"}</p>
           <form class="form-stack" onSubmit={add}>

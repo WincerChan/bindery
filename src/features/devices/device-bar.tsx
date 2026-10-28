@@ -35,7 +35,7 @@ export function DeviceBar(props: { compact?: boolean; loadPage?: LoadDevicePageS
     return `正在读${title ? `《${title}》` : ""} · 读到 ${percent}%${time ? ` · ${time}同步` : ""}`;
   };
   if (props.compact) return <section aria-label="当前设备" class="device-compact-header" data-kindle-device-bar>
-    <p class="device-compact-status"><StatusDot label={status()} tone={k.state().status === "granted" ? "ok" : "empty"} /><strong>{device()?.identity.name ?? "设备"}</strong><span role="status">{[status(), model()].filter(Boolean).join(" · ")}</span></p>
+    <PageIntro variant="compact" title="设备字体" content={<p class="device-compact-status"><StatusDot label={status()} tone={k.state().status === "granted" ? "ok" : "empty"} /><strong>{device()?.identity.name ?? "设备"}</strong><span role="status">{[status(), model()].filter(Boolean).join(" · ")}</span></p>} />
     <Show when={k.error() || k.inventoryError() || k.syncError()}><p class="field-error" role="alert">{k.error() || k.inventoryError() || k.syncError()}</p></Show>
   </section>;
   return <section aria-label="当前设备" class="device-intro" data-kindle-device-bar>

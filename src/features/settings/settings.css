@@ -1,5 +1,4 @@
 .settings-hub { display: grid; gap: 40px; }
-.settings-hub > h1 { font-size: 46px; }
 .settings-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 36px 56px; align-items: start; }
 .settings-groups h2 { margin: 0 0 12px; color: var(--color-ink-3); font-size: var(--text-control); font-weight: 400; letter-spacing: .08em; }
 .settings-row { display: flex; align-items: center; gap: 20px; min-height: 88px; padding: 16px; border-radius: 18px; color: var(--color-ink); text-decoration: none; }
@@ -18,7 +17,6 @@ a.settings-row:hover { background: var(--color-hover); }
 .settings-hub :is(a, button):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 @media (max-width: 767px) {
   .settings-hub, .settings-groups { gap: 32px; }
-  .settings-hub > h1 { font-size: 30px; }
   .settings-row { min-height: 72px; gap: 14px; padding: 12px 0; border-radius: 0; border-top: 1px solid var(--color-line-hair); }
   .settings-row-title { font-family: var(--font-sans); font-size: 16px; font-weight: 500; }
   .settings-device-link { display: none; }

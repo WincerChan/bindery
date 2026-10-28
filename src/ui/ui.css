@@ -100,34 +100,49 @@ details[open] > summary .ui-summary-chevron { transform: rotate(180deg); }
 .ui-page-intro { display: flex; flex-direction: column; gap: var(--intro-back-gap); padding-top: var(--intro-pad-top); margin-bottom: var(--intro-gap-next); }
 .ui-page-intro-back { display: flex; justify-content: flex-start; min-width: 0; }
 .ui-page-intro-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--intro-row-gap); min-width: 0; }
-.ui-page-intro-text { display: flex; flex: 1 1 380px; flex-direction: column; align-items: flex-start; gap: var(--intro-stack-gap); min-width: 0; }
+.ui-page-intro-text { display: flex; flex: 1 1 var(--intro-text-basis); flex-direction: column; align-items: flex-start; gap: var(--intro-stack-gap); min-width: 0; }
 .ui-page-intro-lead { display: flex; flex-direction: column; align-items: flex-start; gap: var(--intro-stack-gap); width: 100%; min-width: 0; }
-.ui-page-eyebrow { margin: 0; color: var(--color-ink-3); font-size: var(--intro-eyebrow-size); line-height: 1.5; letter-spacing: var(--intro-eyebrow-tracking); }
+.ui-page-eyebrow { margin: 0; color: var(--color-ink-3); font-size: var(--intro-eyebrow-size); line-height: var(--intro-eyebrow-line); letter-spacing: var(--intro-eyebrow-tracking); }
 .ui-page-intro h1 { margin: 0; font: var(--intro-title-weight) var(--intro-title-size)/var(--intro-title-line) var(--font-display); letter-spacing: var(--intro-title-tracking); overflow-wrap: anywhere; }
 .ui-page-meta { min-width: 0; width: 100%; }
 .ui-page-description { max-width: var(--intro-lead-max); margin: 0; color: var(--color-ink-2); font-size: var(--intro-lead-size); line-height: var(--intro-lead-line); }
-.ui-page-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.ui-page-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--intro-status-gap); margin-top: var(--intro-status-offset); min-width: 0; }
 .ui-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--intro-action-gap); margin-top: var(--intro-actions-offset); min-width: 0; }
 .ui-page-note { min-width: 0; }
 .ui-page-visual { display: flex; flex: 0 1 var(--intro-visual-width); align-items: center; justify-content: center; align-self: center; min-width: 0; max-width: var(--intro-visual-width); }
-.ui-page-intro-visual-cover { --intro-visual-width: var(--intro-visual-cover); }
+.ui-page-intro-visual-cover { --intro-visual-width: var(--intro-visual-cover); --intro-title-tracking: var(--intro-cover-title-tracking); }
 .ui-page-intro-visual-page { --intro-visual-width: var(--intro-visual-page); }
 .ui-page-intro-visual-reading { --intro-visual-width: var(--intro-visual-reading); }
-.ui-page-intro-visual-vocabulary { --intro-visual-width: var(--intro-visual-vocabulary); }
+.ui-page-intro-visual-vocabulary { --intro-visual-width: var(--intro-visual-vocabulary); --intro-lead-max: var(--intro-wide-lead); --intro-text-basis: var(--intro-vocabulary-basis); --intro-actions-offset: 0px; }
+.ui-page-intro-visual-vocabulary .ui-page-visual { margin: var(--intro-vocabulary-visual-offset) var(--intro-vocabulary-inset) 0 0; }
+/* Vocabulary's desktop status and controls share a centered, wrapping row. */
+.ui-page-intro-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--intro-status-gap); min-width: 0; }
 .ui-page-intro-visual-device { --intro-visual-width: var(--intro-visual-device); }
-.ui-page-intro-subpage { --intro-pad-top: 24px; --intro-back-gap: 16px; --intro-gap-next: 36px; --intro-lead-max: 560px; }
-.ui-page-intro-title-only { --intro-pad-top: 40px; --intro-gap-next: 40px; }
-.ui-page-intro-book { --intro-pad-top: 24px; --intro-back-gap: 28px; --intro-gap-next: 56px; --intro-lead-max: 620px; --intro-lead-line: 1.9; --intro-visual-width: 268px; }
-.ui-page-intro-book .ui-page-intro-row { display: grid; grid-template-columns: 268px minmax(0, 1fr); gap: 64px; }
-.ui-page-intro-book .ui-page-intro-text { grid-column: 2; grid-row: 1; padding-top: 8px; }
+.ui-page-intro-visual-device .ui-page-visual { margin-inline-end: var(--intro-device-inset); }
+.ui-page-intro-visual-cover .ui-page-visual { padding: var(--intro-cover-pad); }
+.ui-page-intro-visual-reading .ui-page-visual { padding: var(--intro-reading-pad); }
+.ui-page-intro-empty { --intro-pad-top: var(--intro-empty-pad); --intro-lead-max: var(--intro-empty-lead); }
+.ui-page-intro-subpage { --intro-pad-top: var(--intro-subpage-pad); --intro-stack-gap: var(--intro-subpage-stack); --intro-gap-next: var(--intro-subpage-next); --intro-lead-max: var(--intro-wide-lead); }
+.ui-page-intro-split { --intro-pad-top: var(--intro-subpage-pad); --intro-back-gap: var(--intro-stack-gap); --intro-gap-next: 0px; }
+.ui-page-intro-guide { --intro-stack-gap: var(--intro-guide-stack); --intro-gap-next: var(--intro-guide-next); --intro-actions-offset: 0px; --intro-action-gap: var(--intro-guide-actions); --intro-text-basis: var(--intro-guide-basis); }
+.ui-page-intro-title-only { --intro-gap-next: var(--intro-title-only-next); }
+.ui-page-intro-book { --intro-pad-top: var(--intro-subpage-pad); --intro-back-gap: var(--intro-book-back); --intro-stack-gap: var(--intro-book-stack); --intro-gap-next: var(--intro-book-next); --intro-lead-max: var(--intro-book-lead); --intro-lead-line: var(--intro-book-line); --intro-visual-width: var(--intro-book-column); --intro-title-tracking: normal; --intro-actions-offset: var(--intro-book-actions); --intro-status-offset: var(--intro-book-status); }
+.ui-page-intro-book .ui-page-intro-row { display: grid; grid-template-columns: var(--intro-book-column) minmax(0, 1fr); gap: var(--intro-book-row); }
+.ui-page-intro-book .ui-page-intro-text { grid-column: 2; grid-row: 1; padding-top: var(--intro-book-text-pad); }
 .ui-page-intro-book .ui-page-visual { grid-column: 1; grid-row: 1; align-self: start; }
-.ui-page-intro-topbar { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 24px; margin-bottom: 0; }
+.ui-page-intro-topbar { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--intro-topbar-gap); padding-top: var(--intro-subpage-pad); margin-bottom: var(--intro-topbar-next); }
 .ui-page-intro-topbar .ui-page-intro-back { flex: none; }
-.ui-page-intro-topbar h1 { margin: 0 12px 0 14px; font: 600 var(--text-tab)/1.5 var(--font-display); }
-.ui-page-intro-topbar .ui-page-actions { flex: 1; flex-wrap: wrap; gap: 10px; margin: 0; }
+.ui-page-intro-topbar .ui-back-link { padding-right: var(--intro-topbar-back-pad); color: var(--color-ink-2); }
+.ui-page-intro-topbar h1 { margin: var(--intro-topbar-title-margin); font: var(--intro-title-weight) var(--intro-topbar-title)/var(--intro-topbar-line) var(--font-display); }
+/* Controls must wrap with the title, not inside a second flex row. */
+.ui-page-intro-topbar .ui-page-actions { display: contents; }
+.ui-page-intro-compact { padding-top: var(--intro-subpage-pad); margin-bottom: var(--intro-title-only-next); gap: 0; }
+.ui-page-intro-editor { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; padding-top: 0; margin-bottom: var(--intro-topbar-next); }
+.ui-page-intro-editor h1 { font-size: var(--intro-editor-title); line-height: var(--intro-editor-line); }
+.ui-page-intro-editor .ui-page-actions { margin: 0; }
 /* The cover variant places the small phone cover beside the title, as on MobileLibrary. */
 .ui-page-intro-cover-grid { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--intro-row-gap); min-width: 0; }
-.ui-page-intro-cover-text { display: flex; flex: 1 1 380px; flex-direction: column; gap: var(--intro-stack-gap); min-width: 0; }
+.ui-page-intro-cover-text { display: flex; flex: 1 1 var(--intro-text-basis); flex-direction: column; gap: var(--intro-stack-gap); min-width: 0; }
 .ui-page-intro-cover-text > .ui-page-intro-text { display: block; flex: none; width: 100%; }
 .ui-page-intro-cover-text > .ui-page-intro-tail { display: flex; flex-direction: column; align-items: flex-start; gap: var(--intro-stack-gap); min-width: 0; }
 .ui-page-tabs { display: flex; align-items: baseline; gap: 28px; margin-bottom: 24px; overflow-x: auto; }
@@ -277,28 +292,31 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
   .page-header { margin-bottom: 24px; }
   .ui-page-intro-row { flex-direction: column; align-items: stretch; gap: var(--intro-visual-gap); }
   .ui-page-intro-text { flex: none; width: 100%; }
-  .ui-page-visual { display: none; }
+  /* Desktop flex-basis is a width, never a fixed phone column height. */
+  .ui-page-visual { display: none; flex: none; flex-direction: column; align-items: stretch; }
+  .ui-page-actions-docked { position: fixed; inset-inline: 0; bottom: calc(var(--intro-action-dock-inset) + env(safe-area-inset-bottom)); z-index: var(--intro-action-dock-layer); margin: 0; padding: var(--intro-action-dock-pad); background: var(--color-bg); border-top: 1px solid var(--color-line-faint); justify-content: flex-end; gap: var(--intro-action-gap); }
   .ui-page-intro-visual-cover .ui-page-visual,
   .ui-page-intro-visual-page .ui-page-visual,
   .ui-page-intro-visual-reading .ui-page-visual,
   .ui-page-intro-visual-vocabulary .ui-page-visual,
   .ui-page-intro-book .ui-page-visual { display: flex; width: 100%; max-width: var(--intro-visual-width); }
-  .ui-page-intro-visual-cover { display: grid; grid-template-columns: minmax(0, 1fr) 92px; column-gap: 16px; row-gap: var(--intro-stack-gap); align-items: start; }
+  .ui-page-intro-visual-cover { display: grid; grid-template-columns: minmax(0, 1fr) var(--intro-cover-column); column-gap: var(--intro-stack-gap); row-gap: var(--intro-stack-gap); align-items: start; }
   .ui-page-intro-visual-cover > .ui-page-intro-back { grid-column: 1 / -1; }
-  .ui-page-intro-visual-cover .ui-page-intro-cover-grid { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 92px; column-gap: 16px; row-gap: var(--intro-stack-gap); align-items: start; }
+  .ui-page-intro-visual-cover .ui-page-intro-cover-grid { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) var(--intro-cover-column); column-gap: var(--intro-stack-gap); row-gap: var(--intro-stack-gap); align-items: start; }
   .ui-page-intro-visual-cover .ui-page-intro-cover-text { grid-column: 1 / -1; grid-row: 1 / span 3; display: grid; grid-template-columns: subgrid; grid-template-rows: auto auto auto; gap: var(--intro-stack-gap); }
   .ui-page-intro-visual-cover .ui-page-intro-cover-text > .ui-page-eyebrow { grid-column: 1 / -1; grid-row: 1; }
   .ui-page-intro-visual-cover .ui-page-intro-cover-text > .ui-page-intro-text { grid-column: 1; grid-row: 2; }
   .ui-page-intro-visual-cover .ui-page-intro-cover-text > .ui-page-intro-tail { grid-column: 1 / -1; grid-row: 3; }
-  .ui-page-intro-visual-cover .ui-page-visual { grid-column: 2; grid-row: 2; width: auto; max-width: 92px; align-self: start; }
-  .ui-page-intro-subpage { --intro-pad-top: 0px; --intro-back-gap: 16px; --intro-gap-next: var(--space-section); --intro-lead-max: 560px; }
-  .ui-page-intro-title-only { --intro-pad-top: 0px; --intro-gap-next: var(--space-section); }
-  .ui-page-intro-book { display: flex; flex-direction: column; --intro-pad-top: 0px; --intro-back-gap: 20px; --intro-gap-next: var(--space-section); --intro-lead-max: 620px; --intro-lead-line: 1.8; }
-  .ui-page-intro-book .ui-page-intro-row { display: flex; flex-direction: column; gap: 20px; }
-  .ui-page-intro-book .ui-page-intro-text { padding-top: 0; }
+  .ui-page-intro-visual-cover .ui-page-visual { grid-column: 2; grid-row: 2; width: auto; max-width: var(--intro-cover-column); align-self: start; }
+  .ui-page-intro-visual-cover .ui-page-intro-lead { gap: var(--intro-cover-lead-gap); }
+  .ui-page-intro-visual-reading { --intro-visual-gap: var(--space-section); }
+  .ui-page-intro-visual-reading .ui-page-visual { max-width: none; }
+  .ui-page-intro-visual-vocabulary .ui-page-visual { max-width: none; }
+  .ui-page-intro-controls { display: contents; }
+  .ui-page-intro-book { display: flex; flex-direction: column; }
+  .ui-page-intro-book .ui-page-intro-row { display: flex; flex-direction: column; gap: var(--intro-book-row); }
   .ui-page-intro-book .ui-page-visual { order: -1; align-self: center; width: 100%; max-width: var(--intro-visual-width); }
-  .ui-page-intro-topbar { padding-top: 0; }
-  .ui-page-intro-topbar h1 { margin: 0; font-size: 26px; }
+  .ui-page-intro-topbar h1 { margin: 0; }
   .ui-page-actions > .btn:not(.btn-icon) { flex: 1; }
   .ui-toolbar { flex-direction: column; align-items: stretch; gap: 12px; }
   .ui-toolbar-controls { margin: -4px; }

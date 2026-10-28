@@ -107,9 +107,7 @@
 .kt-font-help p { margin: 0; }
 
 /* DevicesPreview board: top bar, device figure, profile column. */
-.device-preview-page { gap: 32px; }
-.kt-topbar .ui-back-link { padding-right: 8px; color: var(--color-ink-2); }
-.kt-topbar h1 { margin: 0 12px 0 14px; font: 600 var(--text-tab)/1.5 var(--font-display); }
+.device-preview-page { gap: 0; }
 .kt-topbar-spacer { flex: 1; }
 .kt-topbar .kt-book-picker.is-pill { display: block; width: auto; }
 .kt-book-picker.is-pill .kt-combobox { display: flex; align-items: center; gap: 8px; height: var(--size-control); padding: 0 16px 0 18px; border-radius: 999px; background: var(--color-control); }
@@ -177,7 +175,6 @@
 .kt-send .kindle-small { text-align: left; font-size: var(--text-meta); }
 .kt-chapter-status { margin: 0; font-size: var(--text-meta); color: var(--color-ink-3); }
 @media (max-width: 767px) {
-  .kt-topbar h1 { margin: 0; font-size: 26px; }
   .kt-topbar-spacer { display: none; }
   .kt-preview-layout { gap: 32px; }
   .kt-editor { flex-basis: 100%; padding-left: 0; border-left: 0; }

@@ -1,8 +1,5 @@
 .vocab-page { min-width: 0; }
-.vocab-intro { --intro-lead-max: 560px; }
 .vocab-page p, .vocab-page figure, .vocab-page blockquote { margin: 0; }
-/* The prototype's 520px quote column excludes its 40px inset and 1px rule. */
-.vocab-page .ui-page-visual { margin-right: 24px; }
 .vocab-eyebrow-phone, .vocab-description-phone { display: none; }
 .vocab-push-line, .vocab-push-line > span, .vocab-test-row { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
 .vocab-push-line { color: var(--color-ink-2); font-size: var(--text-control); }
@@ -80,7 +77,6 @@
   .vocab-settings .dialog-actions > .btn-primary { padding-inline: 30px; }
 }
 @media (max-width: 767px) {
-  .vocab-page .ui-page-visual { width: 100%; max-width: none; margin: 12px 0 0; }
   .vocab-eyebrow-wide, .vocab-description-wide { display: none; }
   .vocab-eyebrow-phone, .vocab-description-phone { display: inline; }
   .vocab-push-line { gap: 6px 16px; }

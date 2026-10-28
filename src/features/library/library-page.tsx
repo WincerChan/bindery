@@ -193,7 +193,7 @@ export function LibraryPage(props: {
         <Link class="btn btn-icon btn-lg library-desktop-action" href={deviceTransferHref([hero().book_id])} aria-label={`发送《${hero().title}》到设备`} title="发送到设备"><Icon icon={TablerSend} size={20} /></Link>
         <a class="btn btn-icon btn-lg" href={`/book/${hero().book_id}/download`} aria-label={`下载《${hero().title}》`} title="下载"><Icon icon={TablerDownload} size={20} /></a>
       </>}</Show></div>}
-      visual={heroBook() ? <Link href={bookHref(heroBook()!.book_id, props.data.return_to)} aria-label={`打开《${heroBook()!.title}》详情`}><BookCover {...heroBook()!} large eager /></Link> : undefined} />
+      visual={heroBook() ? <Link class="library-hero-cover" href={bookHref(heroBook()!.book_id, props.data.return_to)} aria-label={`打开《${heroBook()!.title}》详情`}><BookCover {...heroBook()!} large eager /></Link> : undefined} />
     <Show when={showPasskeyHint()}><div class="passkey-hint" role="status"><Link href="/security">添加通行密钥，下次免密码登录</Link><CloseButton aria-label="关闭添加通行密钥提示" onClick={dismissPasskeyHint} /></div></Show>
     <div class="library-head">
       <PageTabs label="书架" value={props.data.scope} tabs={[

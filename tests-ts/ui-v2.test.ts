@@ -109,6 +109,18 @@ describe("v2 render contracts", () => {
     expect(css).toMatch(/\.ui-page-actions \{[^}]*margin-top: var\(--intro-actions-offset\)/);
     expect(css).toMatch(/\.ui-page-visual \{[^}]*align-self: center/);
   });
+  it("renders exactly one heading in each board-backed variant, including the compact device masthead", () => {
+    const html = server.markup("intros").replace(/<!--.*?-->/g, "");
+    const headers = [...html.matchAll(/<header\b[^>]*class="([^"]*)"[^>]*>([\s\S]*?)<\/header>/g)];
+    expect(headers).toHaveLength(15);
+    for (const [, name, content] of headers) expect(content!.match(/<h1\b/g), name).toHaveLength(1);
+    for (const variant of ["empty", "guide", "split", "editor", "compact"]) expect(headers.some(h => h[1]!.includes(`ui-page-intro-${variant}`))).toBe(true);
+    const book = headers.find(h => h[1]!.includes("ui-page-intro-book"))!;
+    expect(book[1]).not.toContain("ui-page-intro-visual-cover");
+    const compact = headers.find(h => h[1]!.includes("ui-page-intro-compact"))![2]!;
+    expect(compact).toContain('class="sr-only">设备字体</h1>');
+    expect(compact).toContain("我的 Paperwhite · 已连接");
+  });
   it("composes introductory text, serif counted tabs, toolbar and labelled pagination", () => {
     const html = server.markup("pages").replace(/<!--.*?-->/g, "");
     expect(html).toContain('class="ui-page-visual"'); expect(html).toContain('aria-label="书库范围"');

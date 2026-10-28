@@ -1,5 +1,5 @@
 import TablerCheck from "~icons/tabler/check";
-import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onSettled, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { defaultProfile, DEFAULT_PROFILE_ID, type TypesettingProfile } from "../../client/devices/profiles";
 import { defaultReadingSettings, readingSettings, type DeviceReadingSettings } from "../../client/devices/typeset";
@@ -77,6 +77,15 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
   const handed = untrack(() => (props.preselected ?? []).filter(id => props.books.some(book => book.book_id === id)));
   const navigate = useDeviceNavigation();
   const k = useDevice(), [filter, setFilter] = createSignal(handed.length ? "全部" : "不在设备"), [query, setQuery] = createSignal("");
+  const [desktop, setDesktop] = createSignal(true);
+  onSettled(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const query = window.matchMedia("(max-width: 767px)");
+    const update = () => setDesktop(!query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  });
   const [selected, setSelected] = createSignal<string[]>(handed), [page, setPage] = createSignal(1);
   const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profile, setProfile] = createSignal(DEFAULT_PROFILE_ID), [profileError, setProfileError] = createSignal("");
   const [deviceReading, setDeviceReading] = createSignal<DeviceReadingSettings>(defaultReadingSettings("kindle"));
@@ -159,7 +168,8 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
   function toggleBook(id: string, checked = !selected().includes(id)) {
     setSelected(current => checked ? [...current.filter(value => value !== id), id] : current.filter(value => value !== id));
   }
-  return <SideSheet open title={target() ? `发送到${target()}` : "发送到设备"} onClose={() => navigate("/devices")} class="device-send-sheet" actions={<TransferFooter />}>
+  // A hidden desktop modal would make the phone's explanatory intro inert.
+  return <SideSheet open={desktop()} title={target() ? `发送到${target()}` : "发送到设备"} onClose={() => navigate("/devices")} class="device-send-sheet" actions={<TransferFooter />}>
     <aside aria-label="传输" class="device-send-body">
         <section class="device-send-queue" aria-label="传输队列">
           <div class="device-send-queue-head">
