@@ -31,6 +31,7 @@ export const ICON_NAMES = [
   "pencil",
   "plus",
   "refresh",
+  "search",
   "settings",
   "shield-check",
   "star",

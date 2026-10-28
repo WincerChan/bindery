@@ -110,7 +110,6 @@ it("hydrates isolated frames, chapter/global position and boundary controls", ()
   expect(button("上一页").disabled).toBe(true); expect(button("下一页").disabled).toBe(false);
   ui.frames.publish({ section: 1, page: 2, pageCount: 4, frame: 1 }); mounted!.flush();
   expect(status()).toContain("2 / 4 跨页 · 67%");
-  expect(named("nav", "章节目录").textContent).toContain("共 2 节 · 当前 2");
   expect(all(named("nav", "章节目录"), "a").map(el => el.getAttribute("aria-current"))).toEqual([null, "page"]);
   expect(all(root, "iframe").map(el => el.getAttribute("aria-hidden"))).toEqual(["true", "false", "true"]);
   expect(ui.writer.positions.at(-1)).toEqual({ section: 1, page: 2, count: 4 });
@@ -122,10 +121,12 @@ it("opens one modal TOC/search sheet, focuses current chapter, traps focus and r
   mount(); click("目录与检索");
   const drawer = dialog("目录与检索"), links = all(named("nav", "章节目录"), "a");
   expect(drawer.open).toBe(true); expect(drawer.getAttribute("aria-modal")).toBe("true");
+  expect(drawer.textContent).toContain("书名<&>"); expect(drawer.textContent).toContain("作者 · 读到 0%");
   expect(button("目录与检索").getAttribute("aria-expanded")).toBe("true");
   expect(button("上一页").hidden).toBe(true);
   expect(scrolled).toEqual([links[0]]); expect(document.activeElement).toBe(links[0]);
-  button("关闭目录与检索").focus();
+  expect(button("关闭目录与检索")).toBeTruthy();
+  button("目录").focus();
   const preventDefault = vi.fn(); fire(drawer, "keydown", { key: "Tab", shiftKey: true, preventDefault });
   expect(preventDefault).toHaveBeenCalled(); expect(document.activeElement).toBe(links.at(-1));
   click("检索"); expect(dialog("目录与检索")).toBe(drawer); expect(button("检索").getAttribute("aria-pressed")).toBe("true");
@@ -187,12 +188,12 @@ it("searches, highlights and appends results, navigates with find, and cancels c
   vi.stubGlobal("fetch", fetch);
   input.value = "词"; fire(input, "input"); mounted!.flush(); fire(form, "submit");
   await new Promise(resolve => setTimeout(resolve, 0)); mounted!.flush();
-  expect(status()).toContain("已加载：1 · 已索引章节：2 · 可继续加载");
-  expect(all(search, "mark").map(el => el.textContent)).toEqual(["词", "词"]);
+  expect(status()).toContain("找到1处，已索引 2 节");
+  expect(all(search, "mark").map(el => el.textContent)).toEqual(["词"]);
   expect(all(search, "a")[0].getAttribute("href")).toContain("find=%E8%AF%8D");
   fetch.mockResolvedValue(Response.json({ query: "词", indexed_sections: 2, hits: [{ index: 1, title: "词二", snippet: "第二词", offset: 1 }], has_more: false }));
-  click("加载更多"); await new Promise(resolve => setTimeout(resolve, 0)); mounted!.flush();
-  expect(fetch.mock.calls[1][0]).toContain("offset=1"); expect(all(search, "li")).toHaveLength(2);
+  click("再显示 20 处"); await new Promise(resolve => setTimeout(resolve, 0)); mounted!.flush();
+  expect(fetch.mock.calls[1][0]).toContain("offset=1"); expect(all(search, "a")).toHaveLength(2);
   fire(all(search, "a")[0], "click"); mounted!.flush(); animate();
   expect(ui.frames.opens.at(-1)).toMatchObject({ section: 1, page: 1, find: "词" }); expect(dialog("目录与检索").open).toBe(false);
   expect(history.replaceState).toHaveBeenCalledWith(null, "", expect.stringContaining("/preview/1?return_to=")); expect(history.pushState).not.toHaveBeenCalled();

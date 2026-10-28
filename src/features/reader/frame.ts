@@ -195,7 +195,8 @@ export class ReaderFrames {
       mark[data-reader-search]{background:var(--color-accent-soft)!important;color:var(--color-ink)!important;}
       @media(max-width:767px){#bindery-reader-scroller{overflow-x:hidden!important;touch-action:pan-y!important;overscroll-behavior-x:none!important;}}
       ${value.styleMode === "custom" ? `html[data-bindery-style="custom"] body,html[data-bindery-style="custom"] #bindery-reader-pages,html[data-bindery-style="custom"] #bindery-reader-pages :is(p,li,div,span,b,strong,blockquote,td,th,h1,h2,h3,h4,h5,h6){font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;color:var(--bindery-reader-text)!important;}
-      html[data-bindery-style="custom"] #bindery-reader-pages :is(h1,h2,h3,h4,h5,h6,span,b,strong){background-color:transparent!important;background-image:none!important;}` : ""}`;
+      html[data-bindery-style="custom"] #bindery-reader-pages :is(h1,h2,h3,h4,h5,h6,span,b,strong){background-color:transparent!important;background-image:none!important;}
+      html[data-bindery-style="custom"] #bindery-reader-pages p{text-indent:2em!important;}` : ""}`;
     vars.setProperty("--bindery-page-max-width", "1120px");
     // Like legacy, retain -1 in the variables: negative CSS padding computes to
     // its initial zero, while column sizing below uses nonnegative padding.
@@ -228,9 +229,12 @@ export class ReaderFrames {
     const width = Math.max(1, state.scroller!.clientWidth || state.frame.clientWidth);
     vars.setProperty("--bindery-page-step", `${width}px`);
     // One viewport is still one saved page/turn, now containing two columns on desktop.
+    // The prototype spread keeps a wider gutter than the outer margin (40 outer / 72 inner at
+    // the default). Keep that rhythm while the margin setting scales: gap = 2x + 64.
     const columns = window.matchMedia?.("(min-width: 768px)").matches ? 2 : 1;
-    vars.setProperty("--bindery-column-width", `${Math.max(1, width / columns - Math.max(0, x) * 2)}px`);
-    vars.setProperty("--bindery-column-gap", `${Math.max(0, x) * 2}px`);
+    const gap = Math.max(0, x) * 2 + (columns === 2 ? 64 : 0);
+    vars.setProperty("--bindery-column-width", `${Math.max(1, width / columns - Math.max(0, x) * 2 - (columns === 2 ? 32 : 0))}px`);
+    vars.setProperty("--bindery-column-gap", `${gap}px`);
   }
   private refresh(state: FrameState, desiredPage: number, anchor?: Anchor) {
     const scroller = state.scroller!, vars = state.frame.contentDocument!.documentElement.style;
