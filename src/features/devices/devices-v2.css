@@ -31,7 +31,7 @@
 .device-intro .ui-page-intro h1 { max-width: 760px; text-wrap: balance; }
 .device-intro-compact .ui-page-intro h1 { font-size: var(--text-tab); }
 .device-intro .ui-page-eyebrow { display: flex; align-items: center; gap: 8px; letter-spacing: normal; }
-.device-intro-visual { margin: 0; transform: rotate(3deg); }
+.device-intro-visual { margin: 0; }
 .device-intro-visual > a { display: block; border-radius: 20px; transition: transform 180ms ease; text-decoration: none; }
 .device-intro-visual > a:hover { transform: translateY(-4px); }
 .device-intro-visual figcaption { margin-top: 16px; font-size: var(--text-meta); text-align: center; }
@@ -106,7 +106,8 @@
 .device-connect-details summary { display: flex; align-items: center; min-height: var(--size-control); cursor: pointer; }
 .device-connect-details p { margin: 0 0 12px; font-size: var(--text-meta); line-height: 1.7; }
 .connect-device { flex: 0 1 300px; margin: 0 40px 0 0; display: flex; justify-content: center; }
-.connect-device .device-shell { width: 240px; padding: 20px 16px 40px; border-radius: 22px; transform: rotate(-2deg); }
+.connect-device .device-shell { width: 240px; aspect-ratio: .72; padding: 20px 16px 40px; border-radius: 22px; transform: rotate(-2deg); }
+.connect-device .device-shell-paper, .device-intro-visual .device-shell-paper { height: 100%; aspect-ratio: auto; }
 .connect-device .device-shell-paper { display: grid; place-items: center; padding: 0; color: var(--color-ink-4); }
 .device-remembered { display: grid; gap: 20px; }
 .device-remembered > h2 { margin: 0; font: 600 var(--text-tab)/1.3 var(--font-display); }
@@ -140,7 +141,7 @@
 .device-usage-legend .other { background: var(--color-line); }
 .device-intro-visual { margin: 0 40px 0 0; }
 .device-intro-visual > a { display: block; border-radius: 22px; text-decoration: none; }
-.device-intro-visual .device-shell { width: 260px; padding: 22px 18px 44px; border-radius: 22px; transform: rotate(-2deg); transition: transform 180ms ease, box-shadow 180ms ease; }
+.device-intro-visual .device-shell { width: 260px; aspect-ratio: .72; padding: 22px 18px 44px; border-radius: 22px; transform: rotate(-2deg); transition: transform 180ms ease, box-shadow 180ms ease; }
 .device-intro-visual > a:hover .device-shell, .device-intro-visual > a:focus-visible .device-shell { transform: rotate(0deg) translateY(-6px); box-shadow: 0 2px 4px rgba(32,41,35,.2), 0 52px 70px -26px rgba(32,41,35,.65); }
 .device-intro-visual .device-shell-paper { padding: 22px 20px 14px; }
 .device-intro-visual figcaption { margin-top: 16px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: var(--text-meta); color: var(--color-ink-3); text-align: center; }
@@ -180,7 +181,8 @@
 .dialog-sheet.device-send-sheet { width: min(600px, 100%); padding: 40px 40px 28px; }
 .device-send-sheet .dialog-heading { margin-bottom: 8px; }
 .device-send-sheet .dialog-heading h2 { font-weight: 600; }
-.device-send-sheet .dialog-body { padding: 16px 0 0; }
+.device-send-sheet .dialog-body { flex: 1; padding: 16px 0 24px; }
+.device-send-sheet > .dialog-actions { display: block; flex-shrink: 0; margin: 0; padding: 0; }
 .device-send-body { display: flex; flex-direction: column; gap: 28px; }
 .device-send-queue { display: flex; flex-direction: column; gap: 14px; }
 .device-send-queue-head { display: flex; align-items: baseline; gap: 12px; }
@@ -214,7 +216,7 @@
 .device-send-check { position: absolute; left: 8px; bottom: 8px; display: flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 999px; background: var(--color-accent); color: var(--color-surface); }
 .device-send-book strong { font: 600 var(--text-control)/1.35 var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .device-send-picker .pagination, .device-send-picker .ui-pagination { margin-top: 4px; }
-.device-send-footer { position: sticky; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: 10px; padding: 20px 0 0; border-top: 1px solid var(--color-line-faint); background: var(--color-bg); }
+.device-send-footer { display: flex; flex-direction: column; gap: 10px; padding: 20px 0 0; border-top: 1px solid var(--color-line-faint); background: var(--color-bg); }
 .device-send-footer .kindle-target { display: none; }
 .device-send-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .device-send-actions .kindle-start { margin-left: auto; }
@@ -228,15 +230,15 @@
 @media (max-width: 767px) {
   .kindle-mobile-note { gap: 32px; }
   .device-mobile-hero { display: grid; gap: 16px; }
-  .device-mobile-eyebrow { margin: 0; font-size: var(--text-meta); letter-spacing: .08em; color: var(--color-ink-3); }
+  .kindle-mobile-note .device-mobile-eyebrow { margin: 0; font-size: var(--text-meta); line-height: 1.5; letter-spacing: .08em; color: var(--color-ink-3); }
   .kindle-mobile-note .device-mobile-hero h1 { font-size: 30px; line-height: 1.3; }
-  .device-mobile-lead { font-size: var(--text-body); line-height: 1.8; color: var(--color-ink-2); }
+  .kindle-mobile-note .device-mobile-lead { font-size: var(--text-body); line-height: 1.8; color: var(--color-ink-2); }
   .device-mobile-features h2 { margin: 0 0 6px; font-size: var(--text-control); font-weight: 400; letter-spacing: .08em; color: var(--color-ink-3); }
-  .device-mobile-features ul { margin: 0; padding: 0; }
+  .kindle-mobile-note .device-mobile-features ul { margin: 0; padding: 0; }
   .device-mobile-features li { display: flex; align-items: center; gap: 14px; min-height: 72px; border-top: 1px solid var(--color-line-hair); font-size: 16px; font-weight: 500; }
   .device-mobile-features li:last-child { border-bottom: 1px solid var(--color-line-hair); }
   .device-mobile-features li > span { display: flex; flex: 0 0 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; background: var(--color-control); color: var(--color-ink-2); }
-  .device-mobile-note { margin: 16px 0 0; font-size: var(--text-meta); line-height: 1.7; color: var(--color-ink-3); }
+  .kindle-mobile-note .device-mobile-note { margin: 16px 0 0; font-size: var(--text-meta); line-height: 1.7; color: var(--color-ink-3); }
   .kindle-mobile-note > .btn { width: 100%; min-height: var(--size-control-lg); }
   .device-connect { gap: 32px; }
   .device-connect-hero { gap: 32px; padding-top: 0; }

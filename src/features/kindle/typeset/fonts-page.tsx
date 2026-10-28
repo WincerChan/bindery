@@ -136,7 +136,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
       }
     } finally { if (!disposed && key === connectionKey()) setUpdating(false); }
   }
-  return <section class={`kt-page ${dragging() ? "kt-dragging" : ""}`} aria-label="字体管理"
+  return <section class={`kt-page device-fonts-page ${dragging() ? "kt-dragging" : ""}`} aria-label="字体管理"
     onDragOver={event => { event.preventDefault(); if (device() && !busy()) setDragging(true); }}
     onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
     onDrop={event => { event.preventDefault(); setDragging(false); if (event.dataTransfer) void choose(Array.from(event.dataTransfer.files)); }}>

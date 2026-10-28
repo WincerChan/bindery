@@ -191,7 +191,8 @@
   .kt-preview-caption { font-size: var(--text-meta); }
 }
 .kt-page-controls .kt-page-turn { font-size: 0; overflow: hidden; gap: 0; }
-.kt-preview-layout { margin-top: 32px; }
+.device-fonts-page { gap: 32px; }
+.device-fonts-page > .device-shelf-head { margin-bottom: 0; }
 .device-shelf-head .device-font-toolbar { margin-left: auto; }
 .kt-margin-pill-static { display: inline-flex; align-items: center; gap: 8px; min-height: var(--size-control); padding: 0 16px; border-radius: 999px; background: var(--color-control); font-size: var(--text-control); color: var(--color-ink-3); }
 .kt-margin-pill-static strong { font-weight: 500; color: var(--color-ink); }

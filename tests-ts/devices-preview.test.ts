@@ -473,7 +473,7 @@ it("shows compact profile range rows, all strip toggles and advanced settings fo
   expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["还原", "删除", "另存为", "保存"]);
 });
 
-it("fits the frame to the smaller width/height constraint after mount, resize and panel changes, and releases layout listeners", async () => {
+it("fits the content-height frame by width without shrinking after model changes, and releases its observer", async () => {
   const observers: LayoutObserver[] = [];
   class LayoutObserver {
     targets = new Set<Element>();
@@ -483,9 +483,7 @@ it("fits the frame to the smaller width/height constraint after mount, resize an
   }
   const notify = (target: Element) => { for (const observer of observers) if (observer.targets.has(target)) observer.callback(); ui.flush(); };
   vi.stubGlobal("ResizeObserver", LayoutObserver);
-  const media = Object.assign(new EventTarget(), { matches: true });
-  vi.mocked(window.matchMedia).mockReturnValue(media as unknown as MediaQueryList);
-  let width = 720, height = 500;
+  let width = 400, height = 500;
   Object.assign(window, { innerHeight: 900 });
   const mounted = mount(null, {}, root => {
     const viewport = withClass(root, "kt-device-space"), preview = withClass(root, "kt-preview");
@@ -496,16 +494,17 @@ it("fits the frame to the smaller width/height constraint after mount, resize an
   await settle();
   const viewport = withClass(mounted.root, "kt-device-space"), preview = withClass(mounted.root, "kt-preview"), screen = frame(mounted.root) as HTMLIFrameElement;
   const scale = () => Number(/scale\(([^)]+)\)/.exec(screen.style.getPropertyValue("transform"))![1]);
-  expect(window.matchMedia).toHaveBeenCalledWith("(min-width: 768px)");
-  expect(scale()).toBeCloseTo((height - 80) / 1448);
+  expect(scale()).toBeCloseTo((width - 44) / 1072);
   expect((preview as HTMLElement).getAttribute("style")).toBeNull();
   width = 260; height = 900; notify(viewport); expect(scale()).toBeCloseTo((width - 44) / 1072);
-  width = 720; height = 300; notify(viewport); expect(scale()).toBeCloseTo((height - 80) / 1448);
+  width = 400; height = 300; notify(viewport); expect(scale()).toBeCloseTo((width - 44) / 1072);
   setValue(labels(mounted.root, "select", "预览型号"), "KO3", "change"); await settle();
-  expect(scale()).toBeCloseTo((height - 80) / 1680);
-  expect(screen.getAttribute("height")).toBe("1680");
-  width = 400; height = 120; media.matches = false; media.dispatchEvent(new Event("change")); ui.flush();
   expect(scale()).toBeCloseTo((width - 44) / 1264);
+  expect(screen.getAttribute("height")).toBe("1680");
+  height = 120; notify(viewport); expect(scale()).toBeCloseTo((width - 44) / 1264);
+  setValue(labels(mounted.root, "select", "预览型号"), "KPW3", "change"); await settle();
+  expect(scale()).toBeCloseTo((width - 44) / 1072);
+  setValue(labels(mounted.root, "select", "预览型号"), "KO3", "change"); await settle();
   width = 1200; notify(viewport); expect(scale()).toBeCloseTo(640 / 1680);
   mounted.dispose();
   expect(observers).toHaveLength(1); expect(observers.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true);

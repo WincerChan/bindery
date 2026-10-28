@@ -63,23 +63,22 @@ export function ChapterFrame(props: { src: string; geometry: PageGeometry; kind?
   });
   createEffect(() => props.start, start => { controller?.open(start.page); });
   onSettled(() => {
-    const wide = window.matchMedia("(min-width: 768px)");
     resizeFrame = () => {
       if (!viewport.clientWidth) return;
       const padding = window.getComputedStyle(bezel), { width, height } = dimensions();
       const horizontal = Number.parseFloat(padding.paddingLeft) + Number.parseFloat(padding.paddingRight);
-      const vertical = Number.parseFloat(padding.paddingTop) + Number.parseFloat(padding.paddingBottom);
+      // The figure now has content-driven height. Fitting to clientHeight feeds the
+      // previous model's size back into the next one and progressively shrinks it.
       const widthFit = Math.min((viewport.clientWidth - horizontal) / width, 640 / height);
-      const heightFit = wide.matches ? (viewport.clientHeight - vertical) / height : Infinity;
-      setScale(Math.max(0, Math.min(widthFit, heightFit)));
+      setScale(Math.max(0, widthFit));
     };
     const resize = () => { resizeFrame(); };
     const observer = new ResizeObserver(resize); observer.observe(viewport);
-    wide.addEventListener("change", resize); resize();
+    resize();
     // A chapter served in the SSR markup can finish loading before hydration installs onLoad.
     if (frame.contentDocument?.readyState === "complete" && frame.contentDocument.URL !== "about:blank") onLoad();
     else watchParsing();
-    return () => { resizeFrame = () => {}; observer.disconnect(); wide.removeEventListener("change", resize); };
+    return () => { resizeFrame = () => {}; observer.disconnect(); };
   });
   // Model changes may leave both available dimensions unchanged.
   createEffect(dimensions, () => { resizeFrame(); });
