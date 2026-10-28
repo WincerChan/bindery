@@ -45,7 +45,7 @@
   --intro-title-size: var(--text-hero);
   --intro-title-weight: 600;
   --intro-title-line: 1.25;
-  --intro-title-tracking: normal;
+  --intro-title-tracking: 0.01em;
   --intro-cover-title-tracking: 0.01em;
   --intro-cover-pad: 12px 0;
   --intro-reading-pad: 12px 0;
@@ -72,8 +72,6 @@
   --intro-subpage-next: 36px;
   --intro-wide-lead: 560px;
   --intro-title-only-next: 40px;
-  --intro-empty-pad: 52px;
-  --intro-empty-lead: 600px;
   --intro-guide-stack: 28px;
   --intro-guide-next: 56px;
   --intro-guide-actions: 16px;
@@ -148,7 +146,6 @@
     --intro-subpage-pad: 0px;
     --intro-subpage-next: var(--space-section);
     --intro-title-only-next: var(--space-section);
-    --intro-empty-pad: 0px;
     --intro-guide-stack: 16px;
     --intro-guide-next: var(--space-section);
     --intro-vocabulary-inset: 0px;

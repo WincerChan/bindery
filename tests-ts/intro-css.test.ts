@@ -24,6 +24,11 @@ describe("shared page intro CSS ownership", () => {
       }
     }
   });
+  it("keeps empty and staged ingest on the shared main intro", () => {
+    const page = readFileSync("src/features/ingest/page.tsx", "utf8");
+    expect(page).toContain('<PageIntro class="ingest-intro" variant="main"');
+    expect(page).not.toContain('variant={files().length ? "main" : "empty"}');
+  });
   it("keeps numeric rhythm values in tokens, including variants", () => {
     for (const rule of rules(readFileSync("src/ui/ui.css", "utf8"))) {
       if (!/\.ui-page-(?:intro|eyebrow|description|actions|meta|status|note|visual)/.test(rule.selector)) continue;

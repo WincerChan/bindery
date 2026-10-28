@@ -18,6 +18,7 @@ describe("intro token provenance (actual inline board styles)", () => {
     const title = styles("Main", "h1")[0]!;
     expect(token("title-line")).toBe(title["line-height"]);
     expect(token("title-weight")).toBe(title["font-weight"]);
+    expect(token("title-tracking")).toBe(title["letter-spacing"]);
     expect(token("cover-title-tracking")).toBe(title["letter-spacing"]);
     const text = styles("Main", "div").find(s => s.flex === "1 1 380px")!;
     expect(token("stack-gap")).toBe(text.gap);
@@ -31,7 +32,7 @@ describe("intro token provenance (actual inline board styles)", () => {
       expect(styles(board!, tag!).some(s => s.flex === `0 1 ${token(`visual-${name}`)}`), board).toBe(true);
     }
   });
-  it("does not flatten the documented subpage, guide, book and empty structures to 22px", () => {
+  it("does not flatten the documented subpage, guide and book structures to 22px", () => {
     for (const board of ["SettingsRules", "SettingsThemes"]) {
       const intro = styles(board, "section")[0]!;
       expect(token("subpage-pad")).toBe(intro["padding-top"]);
@@ -43,8 +44,6 @@ describe("intro token provenance (actual inline board styles)", () => {
     expect(token("book-stack")).toBe(styles("BookDetail", "div").find(s => s.flex === "1 1 420px")!.gap);
     expect(token("book-back")).toBe(styles("BookDetail", "section")[0]!.gap);
     expect(token("book-next")).toBe(styles("BookDetail", "main")[0]!.gap);
-    expect(token("empty-pad")).toBe(styles("IngestEmpty", "section")[0]!["padding-top"]);
-    expect(token("empty-lead")).toBe(styles("IngestEmpty", "p").find(s => s["max-width"])!["max-width"]);
   });
   it("preserves the preview toolbar's explicit sizes and inherited normal line boxes", () => {
     const title = styles("DevicesPreview", "h1")[0]!;
