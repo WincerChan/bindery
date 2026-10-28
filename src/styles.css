@@ -180,6 +180,7 @@ h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
 .muted { color: var(--color-ink-3); font-size: .9rem; line-height: 1.7; }
 .notice { margin: 1rem 0; padding: .8rem 1rem; border-left: 2px solid var(--color-line); background: rgb(251 250 246 / 45%); overflow-wrap: anywhere; }
 .form-stack { display: grid; gap: 1rem; margin-top: 1rem; }
+.dialog-body > .form-stack:first-child { margin-top: 0; }
 label { display: grid; gap: .4rem; font-size: .9rem; }
 input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   width: 100%; min-height: var(--size-control); border: 1px solid var(--color-line); padding: .55rem .8rem;

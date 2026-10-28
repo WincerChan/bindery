@@ -11,7 +11,7 @@ import {
 import type { PairedDevice } from "../../../client/devices/identity";
 import type { FontFamily } from "../../../client/devices/fonts";
 import { validateCss } from "../../../core/css";
-import { BackLink, Button, ConfirmDialog, Dialog, Icon, PageIntro, SegmentedControl, Select, SelectPill, Slider, Stepper, Textarea, TextField, ToggleChip } from "../../../ui";
+import { BackLink, Button, CenterDialog, ConfirmDialog, Icon, PageIntro, SegmentedControl, Select, SelectPill, Slider, Stepper, Textarea, TextField, ToggleChip } from "../../../ui";
 import { Link } from "../../../shared/spa-link";
 import { DeviceProvider, useOptionalDevice } from "../context";
 import type { DeviceManager } from "../../../client/devices/device";
@@ -305,10 +305,10 @@ function DevicePreviewPageInner(props: PreviewProps) {
         <Show when={!draft().builtIn && draft().id !== "draft"}><Button aria-label="保存方案" disabled={!canStore()} onClick={() => save()}>保存</Button></Show></div>
       <SendToDevice bookId={bookId()} bookTitle={props.data.books.find(book => book.id === bookId())?.title} profileId={draft().id} options={{ settings: settingsError() ? EMPTY_SETTINGS : settings(), ...(draft().id === DEFAULT_PROFILE_ID ? {} : { profileName: draft().name }) }} onSent={() => setSent(JSON.stringify(draft()))} blocked={sendBlocked()} />
     </section></div>
-    <Dialog open={saveAs()} title={draft().builtIn ? "新建排版方案" : "另存为排版方案"} onClose={() => { if (!busy()) setSaveAs(false); }}><form onSubmit={event => { event.preventDefault(); void save(true); }}>
+    <CenterDialog open={saveAs()} title={draft().builtIn ? "新建排版方案" : "另存为排版方案"} onClose={() => { if (!busy()) setSaveAs(false); }}><form class="form-stack" onSubmit={event => { event.preventDefault(); void save(true); }}>
       <TextField label="新方案名称" value={saveName()} maxlength={100} required disabled={busy()} onInput={event => setSaveName(event.currentTarget.value)} /><p class="muted">排版方案由所有设备共用。默认方案始终保留。</p>
-      <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show><div class="kt-actions"><Button variant="secondary" disabled={busy()} onClick={() => setSaveAs(false)}>取消</Button><Button type="submit" disabled={!canStore() || !saveName().trim()}>保存新方案</Button></div>
-    </form></Dialog>
+      <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show><div class="form-actions"><Button variant="quiet" disabled={busy()} onClick={() => setSaveAs(false)}>取消</Button><Button type="submit" disabled={!canStore() || !saveName().trim()}>保存新方案</Button></div>
+    </form></CenterDialog>
     <ConfirmDialog open={deleting()} title="删除排版方案？" danger onClose={() => { if (!busy()) setDeleting(false); }} onConfirm={remove}><p>删除「{draft().name}」{dirty() ? "及其未保存的修改" : ""}？已经发送到设备的书籍不会改变。</p></ConfirmDialog>
   </section>;
 

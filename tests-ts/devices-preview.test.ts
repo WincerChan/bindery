@@ -257,6 +257,10 @@ it("edits the built-in default as an unsaved draft and saves it as a new global 
   expect(elements(labels(mounted.root, "select", "方案"), "option").map(option => option.textContent)).toContain("默认 · 已调整（未保存）");
   expect(profiles.create).not.toHaveBeenCalled(); expect(profiles.update).not.toHaveBeenCalled();
   fire(button(mounted.root, "另存为方案"), "click"); ui.flush();
+  const saveDialog = elements(mounted.root, "dialog")[0]!, saveForm = elements(saveDialog, "form")[0]!;
+  expect(saveForm.className.split(/\s+/)).toContain("form-stack");
+  expect(button(saveDialog, "取消").className).toContain("btn-quiet");
+  expect(button(saveDialog, "保存新方案").className).toContain("btn-primary");
   setValue(labels(mounted.root, "input", "新方案名称"), "大字正文");
   fire(elements(mounted.root, "form")[0]!, "submit"); await settle();
   expect(profiles.create).toHaveBeenCalledWith({ name: "大字正文", settings: expect.objectContaining({ marginX: 2.5, marginXUnit: "percent" }) });
