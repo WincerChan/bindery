@@ -159,9 +159,11 @@ it.each([true, false])("opens a book menu with keyboard, navigates items, closes
 
 it("shows the dismissible passkey enrollment hint above the library shelves", () => {
   const mounted = mount("library", { ...library([]), passkey_prompt: true }, false);
-  expect(byText(mounted.root, "添加通行密钥，下次免密码登录")).toBeDefined();
-  expect(byRole(mounted.root, "link", "添加通行密钥，下次免密码登录").getAttribute("href")).toBe("/security");
-  fire(byRole(mounted.root, "button", "关闭添加通行密钥提示"), "click"); mounted.flush();
+  const hint = byAttribute(mounted.root, "data-passkey-hint");
+  expect(hint.getAttribute("role")).toBe("status");
+  expect(byText(hint, "添加通行密钥，下次免密码登录")).toBeDefined();
+  expect(byRole(hint, "link", "添加通行密钥，下次免密码登录").getAttribute("href")).toBe("/security");
+  fire(byRole(hint, "button", "关闭添加通行密钥提示"), "click"); mounted.flush();
   expect(allByText(mounted.root, "添加通行密钥，下次免密码登录")).toHaveLength(0);
 });
 

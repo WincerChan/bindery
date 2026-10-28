@@ -13,8 +13,9 @@ import TablerCircleCheck from "~icons/tabler/circle-check";
 import TablerDeviceTablet from "~icons/tabler/device-tablet";
 import TablerDotsVertical from "~icons/tabler/dots-vertical";
 import TablerDownload from "~icons/tabler/download";
+import TablerKey from "~icons/tabler/key";
 import TablerSend from "~icons/tabler/send";
-import { createEffect, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
+import { createEffect, createSignal, For, isHydrating, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { BookCover, Button, CloseButton, ConfirmDialog, EmptyState, GeneratedCover, Icon, Menu, LinkTabs, PageIntro, PageTabs, Pagination, SearchPill, SegmentedControl, SelectPill, ToggleChip, Toolbar, coverStateLabel, type CoverState } from "../../ui";
 import type { LibrarySummary } from "./summary";
 import { showToast } from "../../client/toast";
@@ -101,7 +102,8 @@ export function LibraryPage(props: {
   const refresh = () => props.refresh ? props.refresh() : mutation.router.invalidate();
   const [view, setView] = createSignal<View>(untrack(() => props.initialView || "grid")), [selecting, setSelecting] = createSignal(false), [selected, setSelected] = createSignal<string[]>([]);
   const [query, setQuery] = createSignal(untrack(() => props.data.q)), [downloading, setBusy] = createSignal(false), [archiveForm, setArchiveForm] = createSignal<HTMLFormElement | null>(null), [deleteForm, setDeleteForm] = createSignal<HTMLFormElement | null>(null);
-  const [passkeyHintDismissed, setPasskeyHintDismissed] = createSignal(false), [webauthnSupported, setWebauthnSupported] = createSignal(typeof window === "undefined");
+  const [passkeyHintDismissed, setPasskeyHintDismissed] = createSignal(false), [webauthnSupported, setWebauthnSupported] = createSignal(isHydrating() || typeof window === "undefined");
+  // Match the server's branch while claiming its markup; onSettled applies the browser-only checks.
   const showPasskeyHint = () => Boolean(props.passkeyPrompt) && webauthnSupported() && !passkeyHintDismissed();
   function dismissPasskeyHint() {
     setPasskeyHintDismissed(true);
@@ -194,7 +196,11 @@ export function LibraryPage(props: {
         <a class="btn btn-icon btn-lg" href={`/book/${hero().book_id}/download`} aria-label={`下载《${hero().title}》`} title="下载"><Icon icon={TablerDownload} size={20} /></a>
       </>}</Show></div>}
       visual={heroBook() ? <Link class="library-hero-cover" href={bookHref(heroBook()!.book_id, props.data.return_to)} aria-label={`打开《${heroBook()!.title}》详情`}><BookCover {...heroBook()!} large eager /></Link> : undefined} />
-    <Show when={showPasskeyHint()}><div class="passkey-hint" role="status"><Link href="/security">添加通行密钥，下次免密码登录</Link><CloseButton aria-label="关闭添加通行密钥提示" onClick={dismissPasskeyHint} /></div></Show>
+    <Show when={showPasskeyHint()}><div class="passkey-hint" role="status" data-passkey-hint>
+      <span class="passkey-hint-mark" aria-hidden="true"><Icon icon={TablerKey} size={20} /></span>
+      <Link class="passkey-hint-link" href="/security">添加通行密钥，下次免密码登录</Link>
+      <CloseButton aria-label="关闭添加通行密钥提示" onClick={dismissPasskeyHint} />
+    </div></Show>
     <div class="library-head">
       <PageTabs label="书架" value={props.data.scope} tabs={[
         { value: "active", label: "在库", count: props.data.summary?.active_count, href: libraryReturnTo({ ...props.data, scope: "active", read_filter: "all", page: 1 }) },
