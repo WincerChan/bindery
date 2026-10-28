@@ -10,7 +10,14 @@
 .library-page .library-intro-actions .btn-icon svg { width: 20px; height: 20px; }
 .library-page .library-intro-actions .btn-primary { gap: 10px; }
 .library-page .library-intro-actions .btn-primary svg { width: 14px; height: 14px; }
-.library-page .passkey-hint button { width: var(--size-control); height: var(--size-control); min-height: var(--size-control); border-radius: 50%; }
+/* A quiet control-coloured notice row, not a card: the intro keeps its own 48/32px gap above,
+   and the row follows the shelf head's rhythm below. */
+.passkey-hint { display: flex; align-items: center; gap: 12px; width: fit-content; max-width: 100%; min-height: 64px; margin: 0 0 28px; padding: 10px; border-radius: var(--radius-menu); background: var(--color-control); }
+.passkey-hint-mark { display: grid; flex: none; place-items: center; width: var(--size-control); height: var(--size-control); color: var(--color-ink-2); }
+.passkey-hint-link { display: inline-flex; flex: 1 1 auto; align-items: center; min-width: 0; min-height: var(--size-control); color: var(--color-accent); font-size: var(--text-control); line-height: 1.5; text-decoration: none; overflow-wrap: anywhere; }
+.passkey-hint-link:hover { color: var(--color-ink); text-decoration: underline; text-underline-offset: 3px; }
+.passkey-hint .btn-icon { flex: none; color: var(--color-ink-3); }
+.passkey-hint .btn-icon:not(:disabled):hover { color: var(--color-ink); }
 .library-head { display: flex; align-items: center; gap: 28px; min-width: 0; margin-bottom: 28px; }
 .library-head .ui-page-tabs { flex: 0 0 auto; align-items: baseline; gap: 32px; margin: 0; }
 .library-head .ui-page-tabs > a { gap: 6px; font-weight: 500; line-height: 1.3; }
@@ -93,6 +100,7 @@
   .library-hero-cover :is(.cover-gen-era, .cover-gen-author) { opacity: .55; border-color: currentColor; }
   .library-page .library-intro-actions { flex-wrap: nowrap; }
   .library-page .library-intro-actions > .btn-primary { flex: 1; }
+  .passkey-hint { width: 100%; margin-bottom: var(--space-section); }
   .library-head { flex-direction: column; align-items: stretch; gap: 20px; margin-bottom: 28px; }
   .library-head .ui-page-tabs { gap: 24px; }
   .library-head .ui-page-tabs > a { gap: 5px; font-size: var(--text-tab); line-height: 1.4; }
