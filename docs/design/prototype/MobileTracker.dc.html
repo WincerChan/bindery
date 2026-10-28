@@ -98,7 +98,12 @@ a{color:#A24832}a:hover{color:#202923}
               </span>
               <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
                 <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{r.title}}</span>
-                <span style="font-size: 13px; color: #4B554E; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{r.author}}<span style="color: #656D66">{{r.meta}}</span></span>
+                <span style="display: flex; align-items: center; min-width: 0; font-size: 13px; line-height: 1.5; color: #4B554E">
+                  <span style="display: inline-flex; flex: none; align-items: center; gap: 6px"><span aria-hidden="true" style="box-sizing: border-box; width: 8px; height: 8px; border-radius: 999px; background: {{r.stateColor}}; border: {{r.stateBorder}}"></span>{{r.read}}<sc-if value="{{r.notInLib}}"><span style="color: #656D66"> · 未入库</span></sc-if></span>
+                  <sc-if value="{{r.hasTail}}">
+                    <span style="flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><span style="color: #656D66"> · </span><sc-if value="{{r.author}}" hint-placeholder-val="{{false}}">{{r.author}}</sc-if><sc-if value="{{r.metaText}}" hint-placeholder-val="{{false}}"><span style="color: #656D66">{{r.authorSep}}{{r.metaText}}</span></sc-if></span>
+                  </sc-if>
+                </span>
               </span>
               <span style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
                 <span style="display: inline-flex; gap: 1px">
@@ -167,15 +172,21 @@ class Component extends DCLogic {
       { title: '北渡', author: '林鹿', serial: 'ongoing', tags: '历史', read: 'unread', lib: false, rating: null, updated: '09-03' }
     ];
     var serialText = { ongoing: '更新中', hiatus: '已断更', completed: '' };
-    var readText = { reading: '在读', read: '已读', unread: '' };
+    var readText = { reading: '在读', read: '已读', unread: '未读' };
     return {
       accent: accent,
       rows: data.map(function (d) {
         var parts = [serialText[d.serial], d.tags].filter(Boolean);
-        var hint = [readText[d.read], d.lib ? '' : '未入库'].filter(Boolean).join('，');
+        var metaText = parts.join(' · ');
         return {
           title: d.title, author: d.author, updated: d.updated,
-          meta: parts.length ? ' · ' + parts.join(' · ') : '',
+          read: readText[d.read],
+          notInLib: !d.lib,
+          stateColor: d.read === 'read' ? '#35674C' : d.read === 'reading' ? accent : 'transparent',
+          stateBorder: d.read === 'unread' ? '1.5px solid #92998F' : '0',
+          metaText: metaText,
+          authorSep: d.author && metaText ? ' · ' : '',
+          hasTail: !!(d.author || metaText),
           fg: d.lib ? { '#6E3B2E': '#F3E6DA', '#2F4A3E': '#E8E4CF', '#7A2E2A': '#F4E4D6', '#3D3A35': '#E9DFC8', '#B8C2B3': '#273229' }[d.bg] : '#656D66',
           bg: d.lib ? 'linear-gradient(90deg, rgba(0,0,0,0.18) 0, rgba(255,255,255,0.08) 3px, rgba(0,0,0,0) 8px), ' + d.bg : '#ECEAE2',
           border: d.lib ? '0' : '1.5px solid #C8C8BB',
@@ -183,7 +194,7 @@ class Component extends DCLogic {
           ribbon: d.read !== 'unread',
           ribbonColor: d.read === 'read' ? accent : '#C8C8BB',
           stars: [1, 2, 3, 4, 5].map(function (n) { return { fill: d.rating == null ? 'transparent' : (n <= d.rating ? accent : '#DEDDD2') }; }),
-          label: '《' + d.title + '》的操作' + (hint ? '（' + hint + '）' : '')
+          label: '《' + d.title + '》的操作'
         };
       })
     };

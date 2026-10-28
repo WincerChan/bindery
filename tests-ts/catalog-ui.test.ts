@@ -105,9 +105,9 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(byRole(root, "combobox", "书库")).toBeDefined();
     expect(byRole(root, "combobox", "连载")).toBeDefined();
     const list = byRole(root, "list", "追踪列表");
-    const trigger = allByRole(list, "button", /《书名<script>》的操作（在读）/).find(button => button.hasAttribute("aria-haspopup"))!;
+    const trigger = allByRole(list, "button", /《书名<script>》的操作/).find(button => button.hasAttribute("aria-haspopup"))!;
     expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
-    expect(trigger.getAttribute("aria-label")).toBe("《书名<script>》的操作（在读）");
+    expect(trigger.getAttribute("aria-label")).toBe("《书名<script>》的操作");
     expect((trigger.textContent || "").trim()).toBe("");
     expect(byRole(list, "img", "4 星")).toBeDefined();
     expect(byRole(byRole(root, "navigation", "分页"), "link", "上一页")).toBeDefined();
@@ -115,7 +115,7 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(root.textContent).toContain("书名<script>"); expect(root.getElementsByTagName("script").length).toBe(0);
     expect(ui.tracker({ ...tracker, wishes: [] })).toContain("没有符合筛选条件的书籍。");
   });
-  it("keeps library navigation conditional, exposes menu states, and handles the no-reading intro", () => {
+  it("keeps library navigation conditional, keeps menu actions, and handles the no-reading intro", () => {
     const manual = { ...wish, id: "c".repeat(32), title: "未入库的书", library_book_id: null, exists_in_library: false, rating: null };
     const root = parseHtml(ui.tracker({ ...tracker, wishes: [wish, manual] }));
     const rows = allByRole(byRole(root, "list", "追踪列表"), "listitem");
@@ -125,7 +125,8 @@ describe("catalog UI SSR and accessible controls", () => {
       expect(byRole(row, "menuitem", "编辑追踪")).toBeDefined();
       expect(byRole(row, "menuitem", "删除追踪")).toBeDefined();
     }
-    expect(byRole(byRole(rows[1]!, "dialog"), "status").textContent).toBe("在读 · 未入库");
+    expect(byAttribute(rows[1]!, "class", "tracker-row-state").textContent).toBe("在读 · 未入库");
+    expect(allByRole(rows[1]!, "status")).toHaveLength(0);
     expect(allByRole(rows[1]!, "img", /星/)).toHaveLength(0);
     const empty = parseHtml(ui.tracker({ ...tracker, reading_now: [], wishes: [], duplicate_notice: null, filters: { ...tracker.filters, q: "" }, stats: { ...tracker.stats, reading: 0, unread: 0, total: 0, filtered: 0, in_library: 0 } }));
     expect(byRole(empty, "heading", "还有 0 本在等你。")).toBeDefined();
@@ -136,10 +137,36 @@ describe("catalog UI SSR and accessible controls", () => {
     const wishes = [wish, { ...wish, id: "manual", author: "", tags: ["奇幻"], book_status: "ongoing", book_status_label: "更新中" }, { ...wish, id: "empty", author: "", tags: [] }];
     const root = parseHtml(ui.tracker({ ...tracker, wishes }));
     const rows = allByRole(byRole(root, "list", "追踪列表"), "listitem");
-    expect(byAttribute(rows[0]!, "class", "tracker-meta").textContent).toBe("作者 · 科幻");
+    expect(byAttribute(rows[0]!, "class", "tracker-meta").textContent).toBe("在读 · 作者 · 科幻");
     expect(byAttribute(rows[0]!, "class", "tracker-meta-secondary").textContent).toBe(" · 科幻");
+    expect(byAttribute(rows[1]!, "class", "tracker-meta").textContent).toBe("在读 · 更新中 · 奇幻");
     expect(byAttribute(rows[1]!, "class", "tracker-meta-secondary").textContent).toBe("更新中 · 奇幻");
-    expect(allByAttribute(rows[2]!, "class", "tracker-meta")).toHaveLength(0);
+    expect(byAttribute(rows[2]!, "class", "tracker-meta").textContent).toBe("在读");
+    expect(allByAttribute(rows[2]!, "class", "tracker-meta-secondary")).toHaveLength(0);
+  });
+  it("shows each tracker state inline in the row and keeps the menu to its actions", () => {
+    const wishes = [
+      { ...wish, id: "read", read_status: "read", read_status_label: "已读" },
+      { ...wish, id: "reading", read_status: "reading", read_status_label: "在读" },
+      { ...wish, id: "unread", read_status: "unread", read_status_label: "未读" },
+      { ...wish, id: "manual", read_status: "reading", read_status_label: "在读", library_book_id: null, exists_in_library: false, author: "", tags: [], book_status: "completed" },
+    ];
+    const root = parseHtml(ui.tracker({ ...tracker, wishes }));
+    const rows = allByRole(byRole(root, "list", "追踪列表"), "listitem");
+    const labels = ["已读", "在读", "未读", "在读 · 未入库"], tones = ["ui-status-ok", "ui-status-accent", "ui-status-empty", "ui-status-accent"];
+    rows.forEach((row, index) => {
+      expect(byAttribute(row, "class", "tracker-row-state").textContent).toBe(labels[index]);
+      const dot = byAttribute(row, "class", /ui-status-dot/);
+      expect(dot.getAttribute("class")).toContain(tones[index]!);
+      expect(dot.getAttribute("aria-hidden")).toBe("true");
+      expect(dot.hasAttribute("aria-label")).toBe(false);
+      expect(dot.hasAttribute("role")).toBe(false);
+      expect(allByRole(row, "status")).toHaveLength(0);
+      expect((row.textContent?.match(new RegExp(labels[index]!.split(" · ")[0]!, "g")) || []).length).toBe(1);
+      expect(byRole(row, "menuitem", "编辑追踪")).toBeDefined();
+      expect(byRole(row, "menuitem", "删除追踪")).toBeDefined();
+    });
+    expect(rows[3]!.textContent?.match(/未入库/g)).toHaveLength(1);
   });
   it("renders all tracker form fields, completed/unread defaults and immutable linked identity", () => {
     const html = ui.form();

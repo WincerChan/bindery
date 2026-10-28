@@ -7,14 +7,14 @@ import TablerPlus from "~icons/tabler/plus";
 import TablerTrash from "~icons/tabler/trash";
 import TablerX from "~icons/tabler/x";
 import { createSignal, createUniqueId, For, onCleanup, Show, untrack } from "solid-js";
-import { Button, CenterDialog, ConfirmDialog, EmptyState, Icon, Menu, LinkTabs, RatingInput, StarRating, RelativeTime, Pagination, PageIntro, SearchPill, SectionTitle, SegmentedControl, SelectPill, Textarea, TextField, Toolbar } from "../../ui";
+import { Button, CenterDialog, ConfirmDialog, EmptyState, Icon, Menu, LinkTabs, RatingInput, StarRating, StatusDot, RelativeTime, Pagination, PageIntro, SearchPill, SectionTitle, SegmentedControl, SelectPill, Textarea, TextField, Toolbar } from "../../ui";
 import type { DuplicateData, TrackerItem, TrackerPageData } from "../../server/catalog/tracker";
 import { isRedirect } from "@tanstack/solid-router";
 import { Link } from "../../shared/spa-link";
 import { formFields, useMutation } from "../../shared/client-mutation";
 import { showToast } from "../../client/toast";
 import { checkTracker, deleteTracker, saveTracker } from "./mutations";
-import { TrackerCover, trackerBookHref, trackerReadOptions, trackerState, trackerStatusOptions } from "./tracker-parts";
+import { TrackerCover, trackerBookHref, trackerReadOptions, trackerRowMeta, trackerState, trackerStateTone, trackerStatusOptions } from "./tracker-parts";
 
 const parseTags = (value?: string) => {
   const seen = new Set<string>();
@@ -136,7 +136,6 @@ export function TrackerPage(props: { data: TrackerPageData }) {
       setDeleting(null); await mutation.router.navigate({ href: result.target }); await mutation.router.invalidate();
     }, "已删除追踪", true);
   }
-  const menuTone = (wish: TrackerItem) => wish.read_status === "read" ? "ok" as const : wish.read_status === "reading" ? "accent" as const : "neutral" as const;
   return <div class="tracker-page">
     <PageIntro class="tracker-intro" visualSize="reading" eyebrow={`追踪 · 共 ${props.data.stats.total} 本 · ${props.data.stats.in_library} 本已入库`}
       title={<><Show when={props.data.stats.reading > 0}>正在读的有 {props.data.stats.reading} 本，<br /></Show>还有 {props.data.stats.unread} 本在等你。</>}
@@ -157,14 +156,13 @@ export function TrackerPage(props: { data: TrackerPageData }) {
     </form>
     <ul class="tracker-list" aria-label="追踪列表">
       <For each={props.data.wishes}>{wish => {
-        const state = trackerState(wish), meta = () => [wish.book_status === "completed" ? "" : wish.book_status_label, wish.tags.join("、")].filter(Boolean).join(" · ");
+        const state = trackerState(wish), meta = () => trackerRowMeta(wish);
         return <li class="tracker-row" id={`wish-row-${wish.id}`}>
           <Show when={wish.library_book_id} fallback={<span class="tracker-row-cover" aria-label={`${wish.title}（${state}）`}><TrackerCover wish={wish} compact /></span>}><Link class="tracker-row-cover tracker-cover-link" href={trackerBookHref(wish, props.data.current_url)} aria-label={`打开《${wish.title}》详情（${state}）`}><TrackerCover wish={wish} compact /></Link></Show>
           <div class="tracker-row-body">
             <div class="tracker-row-heading">
-              <span class="tracker-title-block"><span class="tracker-title">{wish.title}</span><Show when={wish.author || meta()}><span class="tracker-meta">{wish.author}<Show when={meta()}><span class="tracker-meta-secondary">{wish.author ? " · " : ""}{meta()}</span></Show></span></Show></span>
-              <Menu title={wish.title} subtitle={[wish.author, wish.book_status === "completed" ? "" : wish.book_status_label].filter(Boolean).join(" · ")} class="tracker-row-menu" align="end" chevron={false} triggerLabel={`《${wish.title}》的操作${state ? `（${state}）` : ""}`}
-                status={state || undefined} statusTone={state ? menuTone(wish) : undefined}
+              <span class="tracker-title-block"><span class="tracker-title">{wish.title}</span><span class="tracker-meta"><span class="tracker-row-state"><StatusDot decorative label={state} tone={trackerStateTone(wish)} /><span>{wish.read_status_label}</span><Show when={!wish.exists_in_library}><span class="tracker-row-state-note"> · 未入库</span></Show></span><Show when={wish.author || meta()}><span class="tracker-meta-tail"><span class="tracker-meta-separator"> · </span><Show when={wish.author}>{wish.author}</Show><Show when={meta()}><span class="tracker-meta-secondary">{wish.author ? " · " : ""}{meta()}</span></Show></span></Show></span></span>
+              <Menu title={wish.title} subtitle={[wish.author, wish.book_status === "completed" ? "" : wish.book_status_label].filter(Boolean).join(" · ")} class="tracker-row-menu" align="end" chevron={false} triggerLabel={`《${wish.title}》的操作`}
                 trigger={<Icon icon={TablerDotsVertical} size={18} />}
                 items={[...(wish.library_book_id ? [{ label: "在书库中打开", icon: TablerBook2, href: trackerBookHref(wish, props.data.current_url) }] : []), { label: "编辑追踪", icon: TablerPencil, onSelect: () => setActive({ wish }) }, { label: "删除追踪", icon: TablerTrash, destructive: true, onSelect: () => setDeleting(wish) }]} />
             </div>
