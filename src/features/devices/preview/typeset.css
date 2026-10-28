@@ -146,10 +146,6 @@
 .kt-dirty-note { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--color-accent); font-size: var(--text-meta); white-space: nowrap; }
 .kt-dirty-note > span:first-child { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .kt-profile-description { margin: 0; font-size: var(--text-meta); line-height: 1.7; color: var(--color-ink-3); }
-.kt-pill-select { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; align-self: flex-start; min-height: var(--size-control); padding: 0 16px 0 18px; border-radius: 999px; background: var(--color-control); }
-.kt-pill-select > span:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.kt-pill-select::before { content: "字体"; color: var(--color-ink-3); font-size: var(--text-control); }
-.kt-pill-select select { width: auto; min-width: 0; max-width: 240px; min-height: 0; height: auto; padding: 0 18px 0 0; border: 0; background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23656D66' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right center / 14px; appearance: none; font: 600 var(--text-control)/1.5 var(--font-display); color: var(--color-ink); }
 .kt-range { display: flex; flex-direction: column; gap: 10px; }
 .kt-range-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .kt-range-head .kt-stepper-label { font-size: var(--text-control); color: var(--color-ink); }
@@ -187,5 +183,3 @@
 .kt-profile-controls { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .kt-profile-select select { background-image: none; padding-right: 0; }
 .kt-profile-chevron { flex: none; color: var(--color-ink-3); }
-.kt-pill-select select { background-image: none; padding-right: 0; }
-.kt-pill-select::after { content: "⌄"; color: var(--color-ink-3); font-size: 16px; line-height: 1; }

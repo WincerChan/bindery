@@ -279,8 +279,8 @@ it("edits the built-in default as an unsaved draft and saves it as a new global 
 it("rejects an invalid font query without breaking the page", async () => {
   const { manager } = await paired(), mounted = mount(manager, { initialFont: "bad\nfont" }); await settle();
   expect(mounted.root.textContent).toContain("无效的字体名称");
-  expect((button(mounted.root, "另存为方案") as HTMLButtonElement).disabled).toBe(true);
-  setValue(labels(mounted.root, "select", "字体（预览设备上已安装）"), "", "change");
+  expect((button(mounted.root, "另存为方案") as HTMLButtonElement).disabled).toBe(false);
+  setValue(labels(mounted.root, "select", "字体"), "", "change");
   expect(mounted.root.textContent).not.toContain("无效的字体名称");
 });
 
@@ -411,10 +411,40 @@ it("validates custom CSS, retains a failed draft and protects the save button", 
   expect(mounted.root.textContent).toContain("数据库暂不可用"); expect(mounted.root.textContent).toContain("有未保存的修改");
 });
 
-it("keeps a font-linked preview as an unsaved draft", async () => {
+it("keeps a font-linked preview outside the saved profile and dirty state", async () => {
   const { manager } = await paired(), profiles = api(), mounted = mount(manager, { profiles, initialFont: "Book" }); await settle();
-  expect(mounted.root.textContent).toContain("字体预览"); expect(mounted.root.textContent).toContain("有未保存的修改");
+  expect((labels(mounted.root, "select", "字体") as HTMLSelectElement).value).toBe("Book");
+  expect(mounted.root.textContent).not.toContain("有未保存的修改");
+  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toBe("");
   expect(profiles.update).not.toHaveBeenCalled(); expect(profiles.create).not.toHaveBeenCalled();
+});
+
+it("previews the selected font without adding it to generated CSS, saved profiles or transfer snapshots", async () => {
+  const { manager } = await paired("kindle", ["Book-Regular.ttf"]), { document: doc, head, fonts } = previewDocumentFixture();
+  vi.stubGlobal("FontFace", class { load() { return Promise.resolve(this); } });
+  const profiles = api(), onDirty = vi.fn(), queue = { snapshot: () => [], subscribe: () => () => {}, enqueue: vi.fn(() => "queued"), cancel: () => {}, retry: () => {}, clearFinished: () => {} };
+  const mounted = mount(manager, { profiles, onDirty, queue }, root => { Object.defineProperty(frame(root), "contentDocument", { value: doc }); }); await settle();
+  const picker = labels(mounted.root, "select", "字体");
+  expect(picker.parentElement!.className.split(/\s+/)).toContain("ui-select-pill");
+  setValue(picker, "Book", "change"); await settle();
+  expect(elements(head, "style", "data-bindery-profile")[0]!.textContent).toContain('font-family: "Book"');
+  expect(fonts.size).toBe(1);
+  expect(onDirty).toHaveBeenLastCalledWith(false);
+  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toBe("");
+  fire(button(mounted.root, "发送到 我的 Paperwhite"), "click"); await settle();
+  expect(queue.enqueue).toHaveBeenLastCalledWith(expect.any(Object), "a", "default", { settings: EMPTY_SETTINGS, overwrite: true });
+  setValue(labels(mounted.root, "select", "方案"), "custom", "change");
+  setValue(labels(mounted.root, "textarea", "额外自定义 CSS"), 'h1 { font-family: serif; }');
+  fire(button(mounted.root, "保存方案"), "click"); await settle();
+  expect(profiles.update).toHaveBeenLastCalledWith(expect.objectContaining({ settings: expect.objectContaining({ fontFamily: null, customCss: 'h1 { font-family: serif; }' }) }));
+  fire(button(mounted.root, "另存为方案"), "click"); ui.flush();
+  setValue(labels(mounted.root, "input", "新方案名称"), "预览排版");
+  fire(elements(mounted.root, "form")[0]!, "submit"); await settle();
+  expect(profiles.create).toHaveBeenLastCalledWith({ name: "预览排版", settings: expect.objectContaining({ fontFamily: null, customCss: 'h1 { font-family: serif; }' }) });
+  setValue(picker, "", "change"); await settle();
+  expect(elements(head, "style", "data-bindery-profile")[0]!.textContent).not.toContain('font-family: "Book"');
+  expect(fonts.size).toBe(0);
+  expect(onDirty).toHaveBeenLastCalledWith(false);
 });
 
 it("picks the preview book from one searchable dropdown: open, type, Enter", async () => {
@@ -476,7 +506,7 @@ it("shows compact profile range rows, all strip toggles and advanced settings fo
   expect(elements(checkboxes, "legend")[0]!.textContent).toBe("去掉书里自带的");
   expect(elements(checkboxes, "button").map(node => node.getAttribute("aria-label"))).toEqual(["去掉书籍自带字体", "去掉所有图片", "去掉书籍自带页边距", "去掉书籍自带行高", "去掉书籍自带段间距"]);
   expect(elements(checkboxes, "button").every(node => node.getAttribute("aria-pressed") === "false")).toBe(true);
-  expect(elements(labels(editor, "select", "字体（预览设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
+  expect(elements(labels(editor, "select", "字体"), "option")[0]!.textContent).toBe("设备默认字体");
   expect(elements(editor, "*").filter(node => /kt-font-(filter|field)/.test(node.getAttribute("class") || ""))).toEqual([]);
   expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["还原", "删除", "另存为", "保存"]);
 });
@@ -637,7 +667,7 @@ it("takes over a chapter already loaded before hydration and applies CSS and dev
   setValue(labels(mounted.root, "select", "设备边距"), "medium", "change");
   expect(head.firstChild!.textContent).toContain("margin: 52px 137px 70px !important");
   setValue(labels(mounted.root, "select", "方案"), "custom", "change");
-  setValue(labels(mounted.root, "select", "字体（预览设备上已安装）"), "Book", "change"); await settle();
+  setValue(labels(mounted.root, "select", "字体"), "Book", "change"); await settle();
   expect(elements(head, "style", "data-bindery-profile")[0]!.textContent).toContain('font-family: "Book"');
   expect(bookStyle.textContent).toBe("p { color: black; }"); expect(fonts.size).toBe(1); expect(appFonts.size).toBe(0);
   setValue(labels(mounted.root, "textarea", "额外自定义 CSS"), "p {"); fs.unplug(); await manager.probe(); await settle(); expect(fonts.size).toBe(0);
@@ -690,13 +720,15 @@ it("guards profile switching and reset while keeping a dirty draft", async () =>
   expect((input(mounted.root, "kt-marginX") as HTMLInputElement).value).toBe("1");
 });
 
-it("supports a remembered Oasis without FSA permission and applies a font link to an unsaved preview copy", async () => {
+it("supports a remembered Oasis without FSA permission and keeps its font link preview-only", async () => {
   const { manager, fs } = await paired(), saved = (await manager.remembered())[0]!;
   saved.identity.model = "KO3"; fs.permission = "prompt"; await manager.restore(saved);
   const profiles = api(), mounted = mount(manager, { profiles, initialFont: "Book" }); await settle();
   expect((labels(mounted.root, "select", "预览型号") as HTMLSelectElement).value).toBe(manager.snapshot().device!.identity.id);
   expect(frame(mounted.root).getAttribute("width")).toBe("1264");
-  expect(mounted.root.textContent).toContain("字体预览"); expect(mounted.root.textContent).toContain("有未保存的修改");
+  expect((labels(mounted.root, "select", "字体") as HTMLSelectElement).value).toBe("Book");
+  expect(mounted.root.textContent).not.toContain("有未保存的修改");
+  expect((labels(mounted.root, "textarea", "生成的 CSS（只读）") as HTMLTextAreaElement).value).toBe("");
   expect(profiles.update).not.toHaveBeenCalled(); expect(profiles.create).not.toHaveBeenCalled();
 });
 

@@ -63,12 +63,13 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const [profiles, setProfiles] = createSignal<TypesettingProfile[]>([]), [profilesReady, setProfilesReady] = createSignal(false), [draft, setDraft] = createSignal<TypesettingProfile>(defaultProfile());
   const [baseline, setBaseline] = createSignal(JSON.stringify(defaultProfile())), [sent, setSent] = createSignal<string | null>(null);
   const [fonts, setFonts] = createSignal<FontFamily[]>([]);
+  const [previewFont, setPreviewFont] = createSignal(props.initialFont ?? "");
   const [busy, setBusy] = createSignal(false), [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal(""), [notice, setNotice] = createSignal(""), [switchNotice, setSwitchNotice] = createSignal<Target | null>(null);
   const [saveAs, setSaveAs] = createSignal(false), [saveName, setSaveName] = createSignal(""), [deleting, setDeleting] = createSignal(false);
   const [bookId, setBookId] = createSignal(props.data.bookId), [sections, setSections] = createSignal(props.data.sections), [chapter, setChapter] = createSignal(firstTextChapter(props.data.sections)), [chapterStart, setChapterStart] = createSignal({ page: 1 });
   const [chapterLoading, setChapterLoading] = createSignal(false), [chapterError, setChapterError] = createSignal(props.data.error);
-  let disposed = false, profileRequest = 0, chapterRequest = 0, initialFontApplied = false, readingRequest = 0, saveTimer: ReturnType<typeof setTimeout> | undefined, followedId: string | undefined, modelOnlyByUser = false, lastGrant: { id: string; root: unknown } | null = null;
+  let disposed = false, profileRequest = 0, chapterRequest = 0, readingRequest = 0, saveTimer: ReturnType<typeof setTimeout> | undefined, followedId: string | undefined, modelOnlyByUser = false, lastGrant: { id: string; root: unknown } | null = null;
 
   const previewName = () => target()?.name ?? modelShortName(modelKind(), model());
   const kind = () => target()?.kind ?? modelKind();
@@ -78,13 +79,22 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const connectedId = createMemo(() => connected()?.identity.id);
   const readingKey = createMemo(() => target()?.id ? `${target()!.id}:${kind()}` : `model:${kind()}`);
   const fontDevice = createMemo<PairedDevice | null>(() => { const current = connected(), selected = target(); return current && selected?.id === current.identity.id ? current : null; });
-  const family = createMemo(() => fonts().find(value => value.name === draft().settings.fontFamily));
+  const family = createMemo(() => fonts().find(value => value.name === previewFont()));
+  const previewFontError = () => { try { profileSettings({ ...EMPTY_SETTINGS, fontFamily: previewFont() || null }); return ""; } catch (error) { return errorMessage(error); } };
+  const fontOptions = () => [
+    { value: "", label: "设备默认字体" },
+    ...(previewFont() && !family() ? [{ value: previewFont(), label: `${previewFont()}（尚未在当前设备读取到）` }] : []),
+    ...fonts().map(font => ({ value: font.name, label: font.name })),
+  ];
   const dirty = () => JSON.stringify(draft()) !== baseline();
   const blockerDirty = () => dirty() && sent() !== JSON.stringify(draft());
   const settings = () => profileSettings(draft().settings);
   const settingsError = () => { try { settings(); return ""; } catch (error) { return errorMessage(error); } };
   const cssError = () => validateCss(draft().settings.customCss);
   const css = () => settingsError() ? null : generateProfileCss({ ...draft(), settings: settings() });
+  // The font picker affects only the iframe; saved profiles and transfer snapshots use settings().
+  const previewCss = () => family() && !previewFontError() && !settingsError()
+    ? generateProfileCss({ ...draft(), settings: { ...settings(), fontFamily: family()!.name } }) : css();
   const locked = () => busy() || loading();
   const canStore = () => !busy() && !loading() && !settingsError();
   const estimate = () => previewEstimate(geometry(), draft().settings);
@@ -186,7 +196,6 @@ function DevicePreviewPageInner(props: PreviewProps) {
       const items = await props.profiles.list();
       if (disposed || request !== profileRequest) return;
       setProfiles(items); setProfilesReady(true); selectProfile(items.find(item => item.builtIn) ?? defaultProfile());
-      if (props.initialFont && !initialFontApplied) { initialFontApplied = true; setDraft({ id: "draft", name: "字体预览", builtIn: false, settings: { ...EMPTY_SETTINGS, fontFamily: props.initialFont } }); }
       applyRememberedProfile(reading());
     } catch (error) { if (!disposed && request === profileRequest) { setProfilesReady(false); selectProfile(defaultProfile()); setError(errorMessage(error)); } }
     finally { if (!disposed && request === profileRequest) setLoading(false); }
@@ -249,7 +258,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
     <Show when={!props.data.books.length}><p class="notice">书库中还没有可预览的 EPUB。</p></Show>
     <Show when={bookId() && !sections().length && !chapterLoading() && !chapterError()}><p class="notice">这本书没有可预览的章节。</p></Show>
     <div class="kt-preview-layout"><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
-      <ChapterFrame src={src()} geometry={geometry()} kind={kind()} model={target()?.model ?? model()} label={deviceKindLabel(kind())} css={css()} device={family() ? fontDevice() : null} family={family()} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
+      <ChapterFrame src={src()} geometry={geometry()} kind={kind()} model={target()?.model ?? model()} label={deviceKindLabel(kind())} css={previewCss()} device={family() ? fontDevice() : null} family={family()} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
       <p class="kt-preview-caption">只模拟正文分页，不含页眉页脚，和真机会有少量差异。</p>
       <Show when={overflow()}><p class="kt-warning-note" role="alert" data-overflow-note>⚠ 左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。</p></Show>
       <details class="kt-calibration"><summary>校准说明</summary>
@@ -277,12 +286,10 @@ function DevicePreviewPageInner(props: PreviewProps) {
       <Show when={notice()}><p role="status" class="kt-success-note"><Icon icon={TablerCheck} size={16} /> {notice()}</p></Show>
       <Show when={switchNotice()}>{pending => <p role="status" class="notice">已连接「{pending().name}」，当前排版有未保存的修改。<Button variant="quiet" disabled={busy()} onClick={switchToPendingGrant}>切换到 {pending().name}</Button></p>}</Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
-      <Show when={draft().settings.fontFamily && !family()}><p class="muted">所选字体当前预览设备不可用，预览暂用替代字体；发送前请确认目标设备已安装。</p></Show>
-      <Select class="kt-pill-select" label="字体（预览设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={locked()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
-        <option value="">设备默认字体</option>
-        <Show when={draft().settings.fontFamily && !family()}><option value={draft().settings.fontFamily!}>{draft().settings.fontFamily}（尚未在当前设备读取到）</option></Show>
-        <For each={fonts()}>{font => <option value={font.name}>{font.name}</option>}</For>
-      </Select>
+      <Show when={previewFont() && !family() && !previewFontError()}><p class="muted">所选字体当前预览设备不可用，预览暂用替代字体。</p></Show>
+      <SelectPill label="字体" value={previewFont()} disabled={locked()} options={fontOptions()} onChange={value => { if (!locked()) setPreviewFont(value); }} />
+      <Show when={previewFontError()}><p class="field-error" role="alert">{previewFontError()}</p></Show>
+      <p class="muted">字体仅用于预览，不写入排版方案或传书副本。</p>
       <For each={ranges}>{range => <div class="kt-range">
         <div class="kt-range-head"><span class="kt-stepper-label">{range.label}</span><span class="kt-range-value"><output aria-label={`${range.label}当前值`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output><button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={locked() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button></span></div>
         <Show when={range.key === "paragraphSpacing" || range.key === "textIndent"} fallback={<Slider label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? marginMax() : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} formatValue={value => range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${value}${range.unit}`} onChange={value => { if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />}>
