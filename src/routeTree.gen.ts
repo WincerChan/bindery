@@ -28,6 +28,7 @@ import { Route as ArchiveDeleteBulkRouteImport } from './routes/archive.delete-b
 import { Route as BooksArchiveRouteImport } from './routes/books.archive'
 import { Route as BooksDownloadRouteImport } from './routes/books.download'
 import { Route as BooksRegenerateRouteImport } from './routes/books.regenerate'
+import { Route as IngestCoverRouteImport } from './routes/ingest.cover'
 import { Route as IngestFirstPageRouteImport } from './routes/ingest.first-page'
 import { Route as IngestPreviewRouteImport } from './routes/ingest.preview'
 import { Route as JobsCleanupInvalidRouteImport } from './routes/jobs.cleanup-invalid'
@@ -173,6 +174,11 @@ const BooksDownloadRoute = BooksDownloadRouteImport.update({
 const BooksRegenerateRoute = BooksRegenerateRouteImport.update({
   id: '/books/regenerate',
   path: '/books/regenerate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IngestCoverRoute = IngestCoverRouteImport.update({
+  id: '/ingest/cover',
+  path: '/ingest/cover',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IngestFirstPageRoute = IngestFirstPageRouteImport.update({
@@ -459,6 +465,7 @@ export interface FileRoutesByFullPath {
   '/books/archive': typeof BooksArchiveRoute
   '/books/download': typeof BooksDownloadRoute
   '/books/regenerate': typeof BooksRegenerateRoute
+  '/ingest/cover': typeof IngestCoverRoute
   '/ingest/first-page': typeof IngestFirstPageRoute
   '/ingest/preview': typeof IngestPreviewRoute
   '/jobs/cleanup-invalid': typeof JobsCleanupInvalidRoute
@@ -528,6 +535,7 @@ export interface FileRoutesByTo {
   '/books/archive': typeof BooksArchiveRoute
   '/books/download': typeof BooksDownloadRoute
   '/books/regenerate': typeof BooksRegenerateRoute
+  '/ingest/cover': typeof IngestCoverRoute
   '/ingest/first-page': typeof IngestFirstPageRoute
   '/ingest/preview': typeof IngestPreviewRoute
   '/jobs/cleanup-invalid': typeof JobsCleanupInvalidRoute
@@ -602,6 +610,7 @@ export interface FileRoutesById {
   '/books/archive': typeof BooksArchiveRoute
   '/books/download': typeof BooksDownloadRoute
   '/books/regenerate': typeof BooksRegenerateRoute
+  '/ingest/cover': typeof IngestCoverRoute
   '/ingest/first-page': typeof IngestFirstPageRoute
   '/ingest/preview': typeof IngestPreviewRoute
   '/jobs/cleanup-invalid': typeof JobsCleanupInvalidRoute
@@ -677,6 +686,7 @@ export interface FileRouteTypes {
     | '/books/archive'
     | '/books/download'
     | '/books/regenerate'
+    | '/ingest/cover'
     | '/ingest/first-page'
     | '/ingest/preview'
     | '/jobs/cleanup-invalid'
@@ -746,6 +756,7 @@ export interface FileRouteTypes {
     | '/books/archive'
     | '/books/download'
     | '/books/regenerate'
+    | '/ingest/cover'
     | '/ingest/first-page'
     | '/ingest/preview'
     | '/jobs/cleanup-invalid'
@@ -819,6 +830,7 @@ export interface FileRouteTypes {
     | '/books/archive'
     | '/books/download'
     | '/books/regenerate'
+    | '/ingest/cover'
     | '/ingest/first-page'
     | '/ingest/preview'
     | '/jobs/cleanup-invalid'
@@ -882,6 +894,7 @@ export interface RootRouteChildren {
   BooksArchiveRoute: typeof BooksArchiveRoute
   BooksDownloadRoute: typeof BooksDownloadRoute
   BooksRegenerateRoute: typeof BooksRegenerateRoute
+  IngestCoverRoute: typeof IngestCoverRoute
   IngestFirstPageRoute: typeof IngestFirstPageRoute
   IngestPreviewRoute: typeof IngestPreviewRoute
   JobsCleanupInvalidRoute: typeof JobsCleanupInvalidRoute
@@ -1048,6 +1061,13 @@ declare module '@tanstack/solid-router' {
       path: '/books/regenerate'
       fullPath: '/books/regenerate'
       preLoaderRoute: typeof BooksRegenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ingest/cover': {
+      id: '/ingest/cover'
+      path: '/ingest/cover'
+      fullPath: '/ingest/cover'
+      preLoaderRoute: typeof IngestCoverRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ingest/first-page': {
@@ -1528,6 +1548,7 @@ const rootRouteChildren: RootRouteChildren = {
   BooksArchiveRoute: BooksArchiveRoute,
   BooksDownloadRoute: BooksDownloadRoute,
   BooksRegenerateRoute: BooksRegenerateRoute,
+  IngestCoverRoute: IngestCoverRoute,
   IngestFirstPageRoute: IngestFirstPageRoute,
   IngestPreviewRoute: IngestPreviewRoute,
   JobsCleanupInvalidRoute: JobsCleanupInvalidRoute,

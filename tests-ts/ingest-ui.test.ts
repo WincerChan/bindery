@@ -69,6 +69,15 @@ describe("ingest and jobs SSR", () => {
     expect(byRole(failed, "alert").textContent).toBe("错误");
     for (const name of ["upload_tokens", "dedupe_keep_tokens"]) expect(allByAttribute(failed, "name", name)).toHaveLength(0);
   });
+  it("uses the EPUB cover in both the upload shelf and details, retaining generated TXT covers", () => {
+    const item: Preview = { filename: "cover.epub", format: "EPUB", title: "封面书", author: null, volumes: 0, chapters: 1, toc: ["正文"], output: "cover.epub", duplicates: [], upload_token: "a".repeat(32), cover_url: "/ingest/cover?upload_token=" + "a".repeat(32) };
+    const root = parseHtml(ui.previews([item]));
+    expect(allByAttribute(root, "src", item.cover_url!)).toHaveLength(2);
+    expect(allByRole(root, "img", "封面书")).toHaveLength(2);
+    const fallback = parseHtml(ui.previews([{ ...item, format: "TXT", cover_url: undefined }]));
+    expect(fallback.getElementsByTagName("img")).toHaveLength(0);
+    expect(allByRole(fallback, "img", "封面书")).toHaveLength(2);
+  });
   it("keeps the chapter excerpt compact and omits nonexistent TXT volumes", () => {
     const item: Preview = { filename: "sample.txt", format: "TXT", title: "书名", author: "作者", volumes: 0, chapters: 12, toc: Array.from({ length: 12 }, (_, index) => `第${index + 1}章`), duplicates: [], output: "sample.epub", upload_token: null };
     const dialog = byRole(parseHtml(ui.previews([item])), "dialog", "书名");
@@ -122,8 +131,8 @@ describe("staged first-page preview", () => {
     expect(fetch.mock.calls[0]![0]).toBe("/ingest/first-page");
     expect(fetch.mock.calls[0]![1]).toMatchObject({ method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" } });
     expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual({ upload_token: "first-token", rule_id: "default", theme_id: "paper" });
-    const frame = byAttribute(mounted.node, "title", "《真实书名》第一页");
-    expect(frame.getAttribute("sandbox")).toBe("");
+    const frame = byAttribute(mounted.node, "title", "《真实书名》章节预览");
+    expect(frame.getAttribute("sandbox")).toBe("allow-same-origin");
     expect(frame.getAttribute("srcdoc")).toBe(result("第一章").html);
     expect(byText(mounted.node, "第一卷")).toBeDefined(); expect(byText(mounted.node, "第一章")).toBeDefined();
     expect(mounted.node.getElementsByTagName("h1")).toHaveLength(0); // Book HTML is not injected into the app.
@@ -143,7 +152,7 @@ describe("staged first-page preview", () => {
     await vi.advanceTimersByTimeAsync(250);
     pending[1]!.resolve({ ok: true, json: async () => result("新排版") }); await vi.advanceTimersByTimeAsync(0); mounted.flush();
     pending[0]!.resolve({ ok: true, json: async () => result("过期排版") }); await vi.advanceTimersByTimeAsync(0); mounted.flush();
-    expect(byAttribute(mounted.node, "title", "《真实书名》第一页").getAttribute("srcdoc")).toContain("新排版");
+    expect(byAttribute(mounted.node, "title", "《真实书名》章节预览").getAttribute("srcdoc")).toContain("新排版");
     expect(mounted.node.textContent).not.toContain("过期排版");
     mounted.update({ ...mounted.initial, token: "next-token" }); await vi.advanceTimersByTimeAsync(250);
     mounted.update({ ...mounted.initial, token: "" }); expect(pending[2]!.signal.aborted).toBe(true);
@@ -165,7 +174,7 @@ describe("staged first-page preview", () => {
     expect(mounted.node.getElementsByTagName("iframe")).toHaveLength(0);
     fetch.mockResolvedValue({ ok: true, json: async () => result("恢复后的正文") });
     mounted.update({ ...mounted.initial, theme: "retry-theme" }); await vi.advanceTimersByTimeAsync(250); mounted.flush();
-    expect(byAttribute(mounted.node, "title", "《真实书名》第一页").getAttribute("sandbox")).toBe("");
+    expect(byAttribute(mounted.node, "title", "《真实书名》章节预览").getAttribute("sandbox")).toBe("allow-same-origin");
     expect(byText(mounted.node, "恢复后的正文")).toBeDefined();
   });
 });

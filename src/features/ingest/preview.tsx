@@ -1,7 +1,7 @@
 import TablerChevronDown from "~icons/tabler/chevron-down";
 import { createSignal, createUniqueId, For, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
-import { AddCoverTile, Button, CenterDialog, GeneratedCover, Icon, SegmentedControl } from "../../ui";
+import { AddCoverTile, Button, CenterDialog, BookCover, Icon, SegmentedControl } from "../../ui";
 import { Link } from "../../shared/spa-link";
 import type { Preview } from "../../server/ingest/preview";
 
@@ -17,7 +17,7 @@ function UploadBook(props: { item: Preview; disabled?: boolean; onRemove?: () =>
   const title = () => props.item.error ? props.item.filename : props.item.title || props.item.filename;
   const state = () => props.item.error ? "unparseable" as const : props.item.duplicates.length ? "duplicate" as const : undefined;
   const label = () => `查看《${title()}》解析结果${props.item.error ? "（无法解析，不会入库）" : props.item.duplicates.length ? keep() === "keep" ? "（疑似重复，将新建一本）" : "（疑似重复，默认归入已有书籍）" : ""}`;
-  const cover = (large = false) => <GeneratedCover book_id={props.item.filename} title={title()} author={props.item.author} state={state()} large={large} />;
+  const cover = (large = false) => <BookCover cover_url={props.item.cover_url} book_id={props.item.filename} title={title()} author={props.item.author} state={state()} large={large} />;
   return <article class={`ingest-book ${props.item.error ? "is-error" : ""}`} data-preview-format={props.item.format} data-preview-title={props.item.title || ""} data-preview-author={props.item.author || ""} data-preview-filename={props.item.filename} data-preview-error={props.item.error ? "1" : undefined} data-upload-token={!props.item.error ? props.item.upload_token || undefined : undefined} data-duplicate-hit={props.item.duplicates.length ? "1" : undefined}>
     <button type="button" class="ingest-cover-trigger" aria-label={label()} aria-haspopup="dialog" aria-controls={id} aria-expanded={open() ? "true" : "false"} onClick={() => setOpen(true)}>{cover()}</button>
     <button type="button" class="ingest-book-caption" aria-label={label()} aria-haspopup="dialog" aria-controls={id} aria-expanded={open() ? "true" : "false"} onClick={() => setOpen(true)}><strong>{title()}</strong><Show when={!props.item.error} fallback={<span class="ingest-book-error">无法解析</span>}><span class="ingest-book-meta" data-duplicate={props.item.duplicates.length ? "true" : undefined}>{props.item.author}{props.item.author ? " · " : ""}{props.item.chapters} 章</span><Show when={props.item.duplicates.length}><span class="ingest-book-dupe">{keep() === "keep" ? "新建一本" : "归入已有"}</span></Show></Show></button>

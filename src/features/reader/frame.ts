@@ -1,5 +1,6 @@
 import { contentUrl, defaultSettings, fractionPage, pageEpsilon, pageMetrics, readerFonts, textMatches, type ReaderData, type ReaderSettings } from "./model";
 import { readerPaper } from "./reader-presentation";
+type ReaderFrameData = { sections: ReaderData["sections"] } & ({ book: Pick<ReaderData["book"], "book_id"> } | { html: string });
 interface Anchor { node: Text; offset: number }
 const typographyProperties = ["font-family", "font-size", "line-height", "text-align", "text-justify"] as const;
 interface FrameState { frame: HTMLIFrameElement; section: number; ready: boolean; step?: number; scroller?: HTMLDivElement; pages?: HTMLDivElement; tail?: HTMLDivElement; style?: HTMLStyleElement; bookTypography?: { value: string; priority: string }[]; observer?: ResizeObserver; cleanup?: () => void; anchor?: Anchor; page: number }
@@ -15,7 +16,7 @@ export class ReaderFrames {
   private animation = 0;
   private searchText = "";
   private removeListeners: (() => void)[] = [];
-  constructor(private data: ReaderData, elements: HTMLIFrameElement[], position: { section: number; page: number; fraction?: number }, private change: (value: ReaderLocation) => void, private busy: (value: boolean) => void, private error: (value: string) => void, private interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean) {
+  constructor(private data: ReaderFrameData, elements: HTMLIFrameElement[], position: { section: number; page: number; fraction?: number }, private change: (value: ReaderLocation) => void, private busy: (value: boolean) => void, private error: (value: string) => void, private interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean, private options: { columns?: 1 | 2 } = {}) {
     this.desired = { ...position, fraction: position.fraction ?? null, find: "", hash: "" };
     this.frames = elements.map((frame, index) => ({ frame, section: index === 0 ? position.section : -1, ready: false, page: 1 }));
     this.frames.forEach((state, index) => {
@@ -42,7 +43,7 @@ export class ReaderFrames {
     const cached = this.frames.findIndex(state => state.section === section);
     if (cached >= 0) { if (this.frames[cached].ready) this.activate(cached); return; }
     const index = this.frames.findIndex((state, index) => index !== this.active && state.section !== this.currentSection() - 1);
-    this.load(index >= 0 ? index : (this.active + 1) % 3, section);
+    this.load(index >= 0 ? index : (this.active + 1) % this.frames.length, section);
   }
   turn(direction: -1 | 1) {
     if (this.active < 0 || this.busySection()) return;
@@ -52,7 +53,7 @@ export class ReaderFrames {
     if (Math.abs(left - scroller.scrollLeft) > pageEpsilon) { scroller.scrollTo({ left, top: 0, behavior: "auto" }); this.emit(state); }
     else this.open(state.section + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1);
   }
-  retry() { this.load(this.active < 0 ? 0 : (this.active + 1) % 3, this.desired.section); }
+  retry() { this.load(this.active < 0 ? 0 : (this.active + 1) % this.frames.length, this.desired.section); }
   key(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null;
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || target?.closest("input, textarea, select, button, a, [contenteditable]")) return;
@@ -67,12 +68,16 @@ export class ReaderFrames {
   }
   private currentSection() { return this.active >= 0 ? this.frames[this.active].section : this.desired.section; }
   private busySection() { return this.currentSection() !== this.desired.section; }
+  private contentUrl(section: number) {
+    return "html" in this.data ? "about:srcdoc" : contentUrl(this.data.book.book_id, this.data.sections[section].item_path);
+  }
   private load(index: number, section: number) {
     const state = this.frames[index];
     state.observer?.disconnect(); state.cleanup?.(); state.cleanup = undefined;
     Object.assign(state, { section, ready: false, scroller: undefined, pages: undefined, anchor: undefined });
     // Setting src adds a joint-history entry per chapter, so Back would first step the hidden frame.
-    const url = contentUrl(this.data.book.book_id, this.data.sections[section].item_path), window = state.frame.contentWindow;
+    if ("html" in this.data) { state.frame.srcdoc = this.data.html; return; }
+    const url = this.contentUrl(section), window = state.frame.contentWindow;
     if (window && state.frame.getAttribute("src")) window.location.replace(new URL(url, document.baseURI).href);
     else state.frame.src = url;
   }
@@ -82,8 +87,8 @@ export class ReaderFrames {
     if (state.section < 0 || state.ready) return;
     try {
       const doc = state.frame.contentDocument;
-      const expected = new URL(contentUrl(this.data.book.book_id, this.data.sections[state.section].item_path), window.location.href);
-      if (!doc?.body || new URL(doc.URL).pathname !== expected.pathname || doc.contentType !== "text/html") throw new Error("章节加载失败，请重新登录或重试");
+      const expected = new URL(this.contentUrl(state.section), window.location.href);
+      if (!doc?.body || ("html" in this.data ? doc.URL !== "about:srcdoc" : new URL(doc.URL).pathname !== expected.pathname) || doc.contentType !== "text/html") throw new Error("章节加载失败，请重新登录或重试");
       const scroller = doc.createElement("div"), pages = doc.createElement("div"), tail = doc.createElement("div");
       scroller.id = "bindery-reader-scroller"; pages.id = "bindery-reader-pages"; tail.id = "bindery-reader-tail";
       tail.setAttribute("aria-hidden", "true");
@@ -102,7 +107,7 @@ export class ReaderFrames {
         const href = anchor.getAttribute("href");
         if (!href) return;
         const url = new URL(href, doc.baseURI);
-        const section = this.data.sections.findIndex(item => new URL(contentUrl(this.data.book.book_id, item.item_path), window.location.href).pathname === url.pathname);
+        const section = this.data.sections.findIndex((_item, section) => new URL(this.contentUrl(section), window.location.href).pathname === url.pathname);
         if (url.origin === window.location.origin && section >= 0) this.open(section, 1, "", url.hash.slice(1));
       };
       let pointer: { x: number; y: number } | undefined;
@@ -234,7 +239,7 @@ export class ReaderFrames {
     // One viewport is still one saved page/turn, now containing two columns on desktop.
     // The prototype spread keeps a wider gutter than the outer margin (40 outer / 72 inner at
     // the default). Keep that rhythm while the margin setting scales: gap = 2x + 64.
-    const columns = window.matchMedia?.("(min-width: 768px)").matches ? 2 : 1;
+    const columns = this.options.columns ?? (window.matchMedia?.("(min-width: 768px)").matches ? 2 : 1);
     const gap = Math.max(0, x) * 2 + (columns === 2 ? 64 : 0);
     vars.setProperty("--bindery-column-width", `${Math.max(1, width / columns - Math.max(0, x) * 2 - (columns === 2 ? 32 : 0))}px`);
     vars.setProperty("--bindery-column-gap", `${gap}px`);

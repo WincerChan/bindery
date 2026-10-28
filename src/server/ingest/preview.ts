@@ -7,6 +7,7 @@ import { parseBookFileEvents, textFileHasContent } from "../parsing";
 import { cleanupStagedExcept, cleanupStaged, stageUpload, type UploadFile } from "./staging";
 import { duplicateBooks, resolveTxtIdentity, safeFilename } from "./identity";
 export interface Preview {
+  cover_url?: string | null;
   filename: string; format: string; title: string | null; author: string | null; volumes: number; chapters: number; toc: string[]; output: string; error?: string; duplicates: ReturnType<typeof duplicateBooks>; upload_token: string | null;
 }
 export async function previewUploads(library: LibraryStorage, files: UploadFile[], ruleId = "default"): Promise<Preview[]> {
@@ -21,6 +22,7 @@ export async function previewUploads(library: LibraryStorage, files: UploadFile[
       item.output = entry.filename;
       try {
         const data = readFileSync(entry.payload_path), meta = extractEpubMetadata(data, name), sections = listEpubSections(data);
+        item.cover_url = `/ingest/cover?upload_token=${entry.token}`;
         item.title = meta.title; item.author = meta.author; item.chapters = sections.length; item.toc = sections.slice(0, 10).map(s => s.title); item.duplicates = duplicateBooks(library, meta.title, meta.author, meta.isbn);
       } catch { item.error = "解析 EPUB 失败"; }
     } else if (entry.kind === "txt") {

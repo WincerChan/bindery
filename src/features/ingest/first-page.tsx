@@ -1,4 +1,5 @@
 import { createEffect, createSignal, Show } from "solid-js";
+import { ReaderPreview } from "../reader/preview";
 
 type FirstPage = { section_title: string; volume_title: string | null; html: string };
 
@@ -27,9 +28,9 @@ export function IngestFirstPage(props: { token?: string | null; title: string; r
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
   });
-  return <figure class="ingest-first-page" aria-label={`${props.title ? `《${props.title}》` : ""}按当前主题排出的第一页`} aria-busy={loading() ? "true" : "false"}>
+  return <figure class="ingest-first-page" aria-label={`${props.title ? `《${props.title}》` : ""}按当前主题排出的章节预览`} aria-busy={loading() ? "true" : "false"}>
     <Show when={page()} fallback={<p role="status">{loading() ? "正在排出第一页…" : error() || (props.unavailable ? "没有可预览的书籍，请移除无法解析的文件后重试。" : "解析完成后，这里会显示第一页。")}<Show when={error()}><span>不影响已解析书籍入库。</span></Show></p>}>
-      {value => <><figcaption><Show when={value().volume_title}><span>{value().volume_title}</span></Show><strong>{value().section_title}</strong><span class="ingest-first-page-rule" aria-hidden="true" /></figcaption><iframe title={`《${props.title}》第一页`} sandbox="" srcdoc={value().html} /></>}
+      {value => <><figcaption><Show when={value().volume_title}><span>{value().volume_title}</span></Show><strong>{value().section_title}</strong><span class="ingest-first-page-rule" aria-hidden="true" /></figcaption><ReaderPreview title={`《${props.title}》章节预览`} html={value().html} /></>}
     </Show>
   </figure>;
 }

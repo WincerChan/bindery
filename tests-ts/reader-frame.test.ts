@@ -101,7 +101,7 @@ function inlineStyle() {
 }
 
 /** Geometry inputs stand in for layout; this DOM does not claim to render CSS. */
-function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, columns = 3, desktop = false, interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean) {
+function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, columns = 3, desktop = false, interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean, staged = false) {
   const doc = clientDocument(), create = doc.createElement.bind(doc);
   const viewportBox = { width: viewport, marginX, paddingX, columns, rawRight: undefined as number | undefined };
   const width = () => Math.round(viewportBox.width - 2 * viewportBox.marginX - 2 * viewportBox.paddingX);
@@ -135,7 +135,7 @@ function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, co
   doc.documentElement.appendChild(head); doc.documentElement.appendChild(body);
   Object.defineProperties(doc, {
     head: { value: head }, body: { value: body }, fonts: { value: { ready: Promise.resolve() } },
-    URL: { value: "https://reader.test/book/id/epub/one.xhtml" }, readyState: { value: "complete" }, contentType: { value: "text/html" },
+    URL: { value: staged ? "about:srcdoc" : "https://reader.test/book/id/epub/one.xhtml" }, readyState: { value: "complete" }, contentType: { value: "text/html" },
   });
   doc.createTreeWalker = (() => ({ nextNode: () => null })) as unknown as typeof doc.createTreeWalker;
   const listeners = new Map<string, EventListener>();
@@ -147,7 +147,7 @@ function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, co
   vi.stubGlobal("requestAnimationFrame", () => 1); vi.stubGlobal("cancelAnimationFrame", () => {});
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
   const changes: ReaderLocation[] = [], errors: string[] = [];
-  const frames = new ReaderFrames(data, [frame, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement], { section: 0, page: 1 }, value => changes.push(value), () => {}, error => { if (error) errors.push(error); }, interaction);
+  const frames = new ReaderFrames(staged ? { html: "<p>staged chapter</p>", sections: [data.sections[0]!] } : data, [frame, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement], { section: 0, page: 1 }, value => changes.push(value), () => {}, error => { if (error) errors.push(error); }, interaction, staged ? { columns: 1 } : undefined);
   expect(errors).toEqual([]);
   const vars = doc.documentElement.style;
   return { frames, doc, body, vars, changes, viewportBox, width, listeners,
@@ -352,5 +352,24 @@ describe("iframe style and pagination parity", () => {
     f.frames.configure(defaultSettings);
     expect(parseFloat(f.vars.getPropertyValue("--bindery-page-tail-pad"))).toBeCloseTo(py.reader._computeTailPad(f.width() + remainder, f.width()), 9);
     f.frames.destroy();
+  });
+});
+
+
+describe("staged reader documents", () => {
+  it("paginates srcdoc in one column on desktop, preserves book typography and stops at the chapter end", () => {
+    const f = frameFixture(300, 0, 0, 4, true, undefined, true);
+    expect(f.vars.getPropertyValue("--bindery-column-width")).toBe("300px");
+    expect(f.vars.getPropertyValue("--bindery-column-gap")).toBe("0px");
+    expect(f.changes.at(-1)).toMatchObject({ page: 1, pageCount: 4 });
+    expect(f.body.style.getPropertyValue("font-family")).toBe("Book Font");
+    for (const page of [2, 3, 4]) {
+      f.frames.key({ key: "ArrowRight", preventDefault() {} } as KeyboardEvent);
+      expect(f.changes.at(-1)).toMatchObject({ page, pageCount: 4 });
+    }
+    f.frames.turn(1); expect(f.changes.at(-1)?.page).toBe(4);
+    f.frames.turn(-1); expect(f.changes.at(-1)?.page).toBe(3);
+    expect(declarations(f.css(), "body").overflow).toBe("hidden!important");
+    f.frames.destroy(); expect(f.listeners.size).toBe(0);
   });
 });

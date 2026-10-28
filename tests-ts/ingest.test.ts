@@ -8,6 +8,7 @@ import { metadataFromDict, type Job } from "../src/core/models";
 import { buildEpub, extractEpubMetadata } from "../src/core/epub";
 import { parseBook } from "../src/core/parsing";
 import { submitUploads, regenerateBook, regenerateBulk, cleanupInvalid } from "../src/server/ingest/actions";
+import { stagedCoverResponse } from "../src/server/ingest/cover";
 import { previewUploads } from "../src/server/ingest/preview";
 import { stageUpload, stageRoot, cleanupStagedExcept, loadStaged, normalizeTokens, queueDirectory } from "../src/server/ingest/staging";
 import { claimJob, drainJobs, recoverJobs, acquireConsumer, trimMemory } from "../src/server/ingest/queue";
@@ -87,6 +88,32 @@ describe("upload persistence, redirect and worker", () => {
 });
 
 describe("preview, staging and dedupe", () => {
+  it("serves staged EPUB covers without importing books and rejects expired or invalid tokens", async () => {
+    const cover = Buffer.from("89504e470d0a1a0a", "hex");
+    const book = parseBook("第一章 开始\n正文", "test"), meta = metadataFromDict({ title: "有封面的书" });
+    const bytes = buildEpub(book, meta, { cover: { name: "cover.png", data: cover } });
+    const [preview, txt] = await previewUploads(library, [new File([bytes as BlobPart], "cover.epub"), upload()]);
+    expect(preview!.cover_url).toBe(`/ingest/cover?upload_token=${preview!.upload_token}`);
+    expect(txt!.cover_url).toBeUndefined();
+    const response = stagedCoverResponse(new Request(`https://example.test${preview!.cover_url}`), library);
+    expect(response.status).toBe(200); expect(response.headers.get("Content-Type")).toBe("image/png");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'none'");
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(cover);
+    expect(library.listBooks()).toHaveLength(0);
+    for (const token of ["../payload", "bad", txt!.upload_token!, "f".repeat(32)]) {
+      expect(stagedCoverResponse(new Request(`https://example.test/ingest/cover?upload_token=${encodeURIComponent(token)}`), library).status).toBe(404);
+    }
+    cleanupStagedExcept(library);
+    expect(stagedCoverResponse(new Request(`https://example.test${preview!.cover_url}`), library).status).toBe(404);
+  });
+  it("keeps coverless EPUBs available for ingest with a generated-cover fallback", async () => {
+    const bytes = buildEpub(parseBook("第一章 开始\n正文", "test"), metadataFromDict({ title: "无封面的书" }));
+    const [preview] = await previewUploads(library, [new File([bytes as BlobPart], "no-cover.epub")]);
+    expect(preview!.error).toBeUndefined();
+    expect(stagedCoverResponse(new Request(`https://example.test${preview!.cover_url}`), library).status).toBe(404);
+  });
+
   it("streams preview to disk without using File.arrayBuffer, summarizes events and filename identity", async () => {
     const file = upload("《七界第一仙》（校对版全本）作者：流牙.txt", "==========================================================\n\n第1章 起始\n正文内容\n");
     vi.spyOn(file, "arrayBuffer").mockRejectedValue(new Error("must stream"));

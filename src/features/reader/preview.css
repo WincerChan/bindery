@@ -1,0 +1,5 @@
+.reader-preview { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-width: 0; min-height: 0; overflow: hidden; }
+.reader-preview iframe { width: 100%; height: 100%; min-height: 0; border: 0; }
+.reader-preview-controls { display: flex; align-items: center; justify-content: space-between;  }
+.reader-preview-controls > span { color: var(--color-ink-3); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
+.reader-preview-error { margin: 0; color: var(--color-danger); font-size: var(--text-meta); }
