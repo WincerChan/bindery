@@ -69,6 +69,15 @@ describe("ingest and jobs SSR", () => {
     expect(byRole(failed, "alert").textContent).toBe("错误");
     for (const name of ["upload_tokens", "dedupe_keep_tokens"]) expect(allByAttribute(failed, "name", name)).toHaveLength(0);
   });
+  it("keeps the chapter excerpt compact and omits nonexistent TXT volumes", () => {
+    const item: Preview = { filename: "sample.txt", format: "TXT", title: "书名", author: "作者", volumes: 0, chapters: 12, toc: Array.from({ length: 12 }, (_, index) => `第${index + 1}章`), duplicates: [], output: "sample.epub", upload_token: null };
+    const dialog = byRole(parseHtml(ui.previews([item])), "dialog", "书名");
+    expect(allByRole(dialog, "listitem").map(item => item.textContent)).toEqual(["第1章", "第2章", "第3章", "第4章", "第5章", "第6章", "…… 共 12 章"]);
+    expect(dialog.textContent).toContain("作者 · 12 章"); expect(dialog.textContent).not.toContain("0 卷");
+    expect(byRole(parseHtml(ui.previews([{ ...item, volumes: 2 }])), "dialog", "书名").textContent).toContain("作者 · 2 卷 · 12 章");
+    const short = byRole(parseHtml(ui.previews([{ ...item, chapters: 2, toc: ["第一章", "第二章"] }])), "dialog", "书名");
+    expect(allByRole(short, "listitem")).toHaveLength(2); expect(short.textContent).not.toContain("……");
+  });
   it("shows tab counts, job identity, retry forms, logs, cleanup and pagination", () => {
     const data: JobsPayload = { jobs: [{ id: "job", book_id: "a".repeat(32), book_title: "书名 <&>", book_author: "作者", can_open_book: true, action_label: "重新生成", action: "regenerate", status: "failed", stage: "失败", rule_template: "default", message: "转换失败", log: "<script>bad</script>", created_at: "2026", updated_at: "2026" }], tabs: [{ key: "failed", label: "失败", count: 13 }], active_tab: "failed", page: 1, total_pages: 2, total_jobs: 13, invalid_job_count: 2 };
     const root = parseHtml(ui.jobs(data));

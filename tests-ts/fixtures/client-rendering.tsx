@@ -138,7 +138,8 @@ function routes(initial: LibraryPageData, entry: string) {
 function ingestRoutes(initial: Cases["ingest"], entry: string, deferred = false) {
   let started = 0, settled = 0;
   const releases: (() => void)[] = [];
-  const root = createRootRoute();
+  // Include the real shell: its layout branch must preserve staged state on search navigation.
+  const root = createRootRoute({ component: AppShell });
   const ingest = createRoute({
     getParentRoute: () => root, path: "/ingest", validateSearch: ingestOptions.validateSearch, loaderDeps: ingestOptions.loaderDeps, shouldReload: ingestOptions.shouldReload,
     pendingComponent: RoutePending, pendingMs: 0,
