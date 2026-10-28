@@ -2,7 +2,7 @@ import { contentUrl, defaultSettings, fractionPage, pageEpsilon, pageMetrics, re
 import { readerPaper } from "./reader-presentation";
 interface Anchor { node: Text; offset: number }
 const typographyProperties = ["font-family", "font-size", "line-height", "text-align", "text-justify"] as const;
-interface FrameState { frame: HTMLIFrameElement; section: number; ready: boolean; scroller?: HTMLDivElement; pages?: HTMLDivElement; tail?: HTMLDivElement; style?: HTMLStyleElement; bookTypography?: { value: string; priority: string }[]; observer?: ResizeObserver; cleanup?: () => void; anchor?: Anchor; page: number }
+interface FrameState { frame: HTMLIFrameElement; section: number; ready: boolean; step?: number; scroller?: HTMLDivElement; pages?: HTMLDivElement; tail?: HTMLDivElement; style?: HTMLStyleElement; bookTypography?: { value: string; priority: string }[]; observer?: ResizeObserver; cleanup?: () => void; anchor?: Anchor; page: number }
 export interface ReaderLocation { section: number; page: number; pageCount: number; frame: number }
 
 /** Parent-owned DOM control. No EPUB script is executed or copied into the app. */
@@ -47,7 +47,7 @@ export class ReaderFrames {
   turn(direction: -1 | 1) {
     if (this.active < 0 || this.busySection()) return;
     const state = this.frames[this.active], scroller = state.scroller!;
-    const metrics = pageMetrics(scroller.clientWidth, scroller.scrollWidth, scroller.scrollLeft);
+    const metrics = this.metrics(state);
     const left = Math.max(0, Math.min(metrics.maxLeft, scroller.scrollLeft + direction * metrics.step));
     if (Math.abs(left - scroller.scrollLeft) > pageEpsilon) { scroller.scrollTo({ left, top: 0, behavior: "auto" }); this.emit(state); }
     else this.open(state.section + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1);
@@ -182,8 +182,8 @@ export class ReaderFrames {
     const paper = readerPaper(value), bg = `var(--color-paper${paper === "paper" ? "" : `-${paper}`})`, color = `var(--color-${paper === "dark" ? "surface" : "ink"})`;
     const font = value.fontFamily === "kai" ? readerFonts.kai : `var(--font-${value.fontFamily === "serif" ? "display" : value.fontFamily}, ${readerFonts[value.fontFamily]})`;
     doc.documentElement.setAttribute("data-bindery-style", value.styleMode);
-    // Preserve the book's html/body box model, including auto body width. Forcing
-    // width:100% makes author margins/padding overflow the iframe's viewport.
+    // Book-original mode retains author boxes. Custom mode owns the page margins:
+    // root padding must not silently narrow the columns or offset the spine.
     state.style!.textContent = `html,body{height:99%!important;background:var(--bindery-reader-bg)!important;}
       body{overflow:hidden!important;}
       #bindery-reader-scroller{position:relative!important;display:block!important;height:99%!important;width:100%!important;max-width:none!important;margin:0 auto!important;background:var(--bindery-reader-bg)!important;overflow-x:auto!important;overflow-y:hidden!important;direction:ltr!important;writing-mode:horizontal-tb!important;scroll-behavior:auto!important;scrollbar-width:none;overscroll-behavior-x:contain;}
@@ -194,9 +194,12 @@ export class ReaderFrames {
       img,svg,video{max-width:99%!important;height:auto!important;}
       mark[data-reader-search]{background:var(--color-accent-soft)!important;color:var(--color-ink)!important;}
       @media(max-width:767px){#bindery-reader-scroller{overflow-x:hidden!important;touch-action:pan-y!important;overscroll-behavior-x:none!important;}}
-      ${value.styleMode === "custom" ? `html[data-bindery-style="custom"] body,html[data-bindery-style="custom"] #bindery-reader-pages,html[data-bindery-style="custom"] #bindery-reader-pages :is(p,li,div,span,b,strong,blockquote,td,th,h1,h2,h3,h4,h5,h6){font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;color:var(--bindery-reader-text)!important;}
+      ${value.styleMode === "custom" ? `html[data-bindery-style="custom"],html[data-bindery-style="custom"] body{margin:0!important;padding:0!important;border:0!important;width:auto!important;min-width:0!important;max-width:none!important;height:100%!important;box-sizing:border-box!important;}
+      html[data-bindery-style="custom"] #bindery-reader-scroller,html[data-bindery-style="custom"] #bindery-reader-pages{height:100%!important;}
+      html[data-bindery-style="custom"] body,html[data-bindery-style="custom"] #bindery-reader-pages,html[data-bindery-style="custom"] #bindery-reader-pages :is(p,li,div,span,b,strong,blockquote,td,th,h1,h2,h3,h4,h5,h6){font-family:var(--bindery-font-family)!important;font-size:var(--bindery-font-size)!important;line-height:var(--bindery-line-height,1.85)!important;text-align:var(--bindery-text-align,justify)!important;text-justify:var(--bindery-text-justify,inter-ideograph)!important;color:var(--bindery-reader-text)!important;}
       html[data-bindery-style="custom"] #bindery-reader-pages :is(h1,h2,h3,h4,h5,h6,span,b,strong){background-color:transparent!important;background-image:none!important;}
-      html[data-bindery-style="custom"] #bindery-reader-pages p{text-indent:2em!important;}` : ""}`;
+      html[data-bindery-style="custom"] #bindery-reader-pages p{margin:0!important;text-indent:2em!important;}
+      html[data-bindery-style="custom"] #bindery-reader-pages p + p{margin-top:4px!important;}` : ""}`;
     vars.setProperty("--bindery-page-max-width", "1120px");
     // Like legacy, retain -1 in the variables: negative CSS padding computes to
     // its initial zero, while column sizing below uses nonnegative padding.
@@ -235,16 +238,24 @@ export class ReaderFrames {
     const gap = Math.max(0, x) * 2 + (columns === 2 ? 64 : 0);
     vars.setProperty("--bindery-column-width", `${Math.max(1, width / columns - Math.max(0, x) * 2 - (columns === 2 ? 32 : 0))}px`);
     vars.setProperty("--bindery-column-gap", `${gap}px`);
+    // The wider spine adds 64px to the pitch of every pair of columns. Scrolling
+    // only clientWidth would shift the next spread's text 64px to the right.
+    state.step = width + (columns === 2 ? 64 : 0);
+  }
+  private metrics(state: FrameState) {
+    const scroller = state.scroller!, step = state.step || Math.max(1, scroller.clientWidth);
+    // Account for the offscreen inter-spread gap without adding a phantom last page.
+    return pageMetrics(step, scroller.scrollWidth + step - scroller.clientWidth, scroller.scrollLeft);
   }
   private refresh(state: FrameState, desiredPage: number, anchor?: Anchor) {
     const scroller = state.scroller!, vars = state.frame.contentDocument!.documentElement.style;
     // Add only the fractional last-page remainder; tail lives inside the columns.
     vars.setProperty("--bindery-page-tail-pad", "0px"); vars.setProperty("--bindery-page-tail-offset", "0px");
-    const rawMax = Math.max(0, scroller.scrollWidth - scroller.clientWidth), step = Math.max(1, scroller.clientWidth);
+    const rawMax = Math.max(0, scroller.scrollWidth - scroller.clientWidth), step = state.step || Math.max(1, scroller.clientWidth);
     const pad = (step - rawMax % step) % step;
     vars.setProperty("--bindery-page-tail-offset", `${rawMax}px`);
     vars.setProperty("--bindery-page-tail-pad", `${pad <= pageEpsilon || step - pad <= pageEpsilon ? 0 : pad}px`);
-    const metrics = pageMetrics(scroller.clientWidth, scroller.scrollWidth);
+    const metrics = this.metrics(state);
     let page = Math.max(1, Math.min(metrics.count, desiredPage));
     if (anchor?.node.isConnected) {
       const range = anchor.node.ownerDocument.createRange(); range.setStart(anchor.node, Math.min(anchor.offset, anchor.node.length)); range.setEnd(anchor.node, Math.min(anchor.node.length, anchor.offset + 1));
@@ -286,13 +297,13 @@ export class ReaderFrames {
   }
   private emit(state: FrameState) {
     if (this.disposed || this.active < 0) return;
-    const scroller = state.scroller!, metrics = pageMetrics(scroller.clientWidth, scroller.scrollWidth, scroller.scrollLeft);
+    const metrics = this.metrics(state);
     state.page = metrics.page; state.anchor = this.capture(state);
     this.change({ section: state.section, page: metrics.page, pageCount: metrics.count, frame: this.active });
   }
   private locate(state: FrameState, targetLeft: number) {
     const scroller = state.scroller!, left = scroller.scrollLeft + targetLeft - scroller.getBoundingClientRect().left;
-    this.refresh(state, Math.floor((left + pageEpsilon) / Math.max(1, scroller.clientWidth)) + 1);
+    this.refresh(state, Math.floor((left + pageEpsilon) / this.metrics(state).step) + 1);
   }
   private highlight(state: FrameState, query: string) {
     const doc = state.frame.contentDocument!, root = state.pages!;

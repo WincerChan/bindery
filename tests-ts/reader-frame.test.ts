@@ -117,7 +117,7 @@ function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, co
         const vars = doc.documentElement.style;
         const x = Math.max(0, parseFloat(vars.getPropertyValue("--bindery-page-padding-x")) || 0);
         const pitch = parseFloat(vars.getPropertyValue("--bindery-column-width")) + parseFloat(vars.getPropertyValue("--bindery-column-gap"));
-        const rawRight = viewportBox.rawRight ?? viewportBox.columns * pitch - x;
+        const rawRight = viewportBox.rawRight ?? viewportBox.columns * pitch - x - (desktop ? 64 : 0);
         const offset = parseFloat(vars.getPropertyValue("--bindery-page-tail-offset")) || 0;
         const pad = parseFloat(vars.getPropertyValue("--bindery-page-tail-pad")) || 0;
         return Math.max(width(), rawRight, width() + offset + pad);
@@ -171,7 +171,7 @@ function resolvedDeclarations(css: string, selector: string, vars: CSSStyleDecla
   const expanded = css.replace(/(html\[data-bindery-style="custom"\] )?#bindery-reader-pages :is\(([^)]+)\)/g, (_match, prefix: string | undefined, tags: string) => tags.split(",").map(tag => `${prefix || ""}#bindery-reader-pages ${tag}`).join(","));
   const result: Record<string, string> = {};
   for (const match of expanded.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const selectors = match[1].split(",").map(value => styleMode === "custom" ? value.trim().replace(/^html(?:\.bindery-mode-custom|\[data-bindery-style="custom"\])\s+/, "") : value.trim());
+    const selectors = match[1].split(",").map(value => styleMode === "custom" ? value.trim().replace(/^html(?:\.bindery-mode-custom|\[data-bindery-style="custom"\])\s+/, "").replace(/^html\[data-bindery-style="custom"\]$/, "html") : value.trim());
     if (!selectors.includes(selector)) continue;
     for (const part of match[2].split(";").filter(Boolean)) {
       const colon = part.indexOf(":");
@@ -190,8 +190,38 @@ describe("iframe style and pagination parity", () => {
     expect(f.vars.getPropertyValue("--bindery-column-gap")).toBe("144px");
     expect(f.vars.getPropertyValue("--bindery-page-step")).toBe("1120px");
     expect(f.changes.at(-1)).toMatchObject({ page: 1, pageCount: 4 });
-    f.frames.turn(1); expect(f.scroller.scrollLeft).toBe(1120);
+    f.frames.turn(1); expect(f.scroller.scrollLeft).toBe(1184);
     f.frames.open(0, 1, "", "", 1); expect(f.changes.at(-1)).toMatchObject({ page: 4, pageCount: 4 });
+    f.frames.destroy();
+  });
+  it.each([1, 2, 3, 7, 8, 100])("keeps every desktop spread aligned and the tail reachable with %i columns", columns => {
+    const f = frameFixture(1120, 0, 0, columns, true);
+    f.frames.configure({ ...defaultSettings, styleMode: "custom", pagePaddingX: 40 });
+    const pitch = 2 * (448 + 144), count = Math.ceil(columns / 2);
+    expect(f.changes.at(-1)).toMatchObject({ page: 1, pageCount: count });
+    for (let page = 2; page <= count; page++) {
+      f.frames.turn(1);
+      expect(f.scroller.scrollLeft).toBe((page - 1) * pitch);
+      expect(f.changes.at(-1)).toMatchObject({ page, pageCount: count });
+    }
+    expect(f.scroller.scrollLeft).toBe(f.scroller.scrollWidth - f.width());
+    f.frames.open(0, 1, "", "", 0); expect(f.scroller.scrollLeft).toBe(0);
+    f.frames.open(0, 1, "", "", 1); expect(f.changes.at(-1)?.page).toBe(count);
+    f.frames.destroy();
+  });
+  it("resets author root boxes only in custom mode and restores them in book mode", () => {
+    const f = frameFixture();
+    f.frames.configure({ ...defaultSettings, styleMode: "custom" });
+    for (const selector of ["html", "body"]) expect(resolvedDeclarations(f.css(), selector, f.vars, "custom")).toMatchObject({ margin: "0!important", padding: "0!important", width: "auto!important", "max-width": "none!important", height: "100%!important" });
+    expect(resolvedDeclarations(f.css(), "#bindery-reader-pages p", f.vars, "custom")).toMatchObject({ margin: "0!important", "text-indent": "2em!important" });
+    expect(f.css()).toContain("p + p{margin-top:4px!important;}");
+    f.frames.configure(defaultSettings);
+    for (const selector of ["html", "body"]) {
+      const book = resolvedDeclarations(f.css(), selector, f.vars, "book");
+      expect(book).not.toHaveProperty("margin"); expect(book).not.toHaveProperty("padding");
+    }
+    expect(f.body.style.getPropertyValue("margin")).toBe("0 5.98px");
+    expect(f.body.style.getPropertyValue("padding")).toBe("8px");
     f.frames.destroy();
   });
   it("handles phone thirds, swipes and middle toggle without hijacking links/selection", () => {
@@ -247,7 +277,7 @@ describe("iframe style and pagination parity", () => {
     }
     f.frames.destroy();
   });
-  it.each(["book", "custom"] as const)("matches reference CSS declarations in %s mode except integer width and removing the old single-page cap", styleMode => {
+  it.each(["book", "custom"] as const)("matches reference CSS in %s mode except v2 custom boxes/paragraphs and uncapped integer width", styleMode => {
     const f = frameFixture(), py = referenceReader();
     const settings: ReaderSettings = { ...defaultSettings, styleMode, brightnessMode: "dim", readerBg: "paper", textAlignMode: "left" };
     f.frames.configure(settings);
@@ -262,8 +292,12 @@ describe("iframe style and pagination parity", () => {
         delete actual.width; delete actual["min-width"]; delete expected.width; delete expected["min-width"];
       }
       if (selector === "#bindery-reader-scroller") { expect(actual["max-width"]).toBe("none!important"); delete actual["max-width"]; delete expected["max-width"]; }
-      // v2 text blocks get the design's 2em first-line indent in custom mode (reference kept the book's own).
-      if (selector === "#bindery-reader-pages p" && styleMode === "custom") { expect(actual["text-indent"]).toBe("2em!important"); delete actual["text-indent"]; }
+      // v2 custom layout owns root boxes and paragraph spacing; book mode remains unchanged.
+      if (styleMode === "custom") {
+        if (["html", "body", "#bindery-reader-scroller", "#bindery-reader-pages"].includes(selector)) { expect(actual.height).toBe("100%!important"); delete actual.height; delete expected.height; }
+        if (["html", "body"].includes(selector)) for (const key of ["margin", "padding", "border", "width", "min-width", "max-width", "box-sizing"]) delete actual[key];
+        if (selector === "#bindery-reader-pages p") { expect(actual["text-indent"]).toBe("2em!important"); expect(actual.margin).toBe("0!important"); delete actual["text-indent"]; delete actual.margin; }
+      }
       expect(actual, selector).toEqual(expected);
     }
     f.frames.destroy();
