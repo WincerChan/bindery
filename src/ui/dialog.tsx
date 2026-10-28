@@ -5,6 +5,7 @@ import { Link } from "../shared/spa-link";
 import { showToast } from "../client/toast";
 import { CloseButton } from "./primitives";
 import { Icon } from "./icon";
+import type { IconName } from "./icon";
 import { focusableElements, overlayKeydown, overlayPresentation, restoreOverlayFocus } from "./overlay-behavior";
 import type { OverlayVariant } from "./overlay-behavior";
 
@@ -25,7 +26,8 @@ export function Dialog(props: DialogProps) {
     const anchor = props.anchor?.();
     if (!anchor) return;
     const box = anchor.getBoundingClientRect(), width = element.offsetWidth, height = element.offsetHeight;
-    element.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - width - 8))}px`;
+    const left = variant() === "menu" ? box.right - width + 10 : box.left;
+    element.style.left = `${Math.max(8, Math.min(left, window.innerWidth - width - 8))}px`;
     element.style.top = `${Math.max(8, Math.min(box.bottom + 8, window.innerHeight - height - 8))}px`;
   }); }
   onSettled(() => {
@@ -68,13 +70,13 @@ export function Dialog(props: DialogProps) {
 export function SideSheet(props: Omit<DialogProps, "variant">) { return <Dialog {...props} variant="sheet" />; }
 export function CenterDialog(props: Omit<DialogProps, "variant">) { return <Dialog {...props} variant="dialog" />; }
 export function Popover(props: Omit<DialogProps, "variant"> & { anchor: () => HTMLElement | undefined }) { return <Dialog {...props} variant="popover" />; }
-type MenuItemBase = { label: string; destructive?: boolean; disabled?: boolean; separatorBefore?: boolean; class?: string };
+type MenuItemBase = { label: string; destructive?: boolean; disabled?: boolean; separatorBefore?: boolean; class?: string; icon?: IconName };
 export type MenuItem = MenuItemBase & (
   | { onSelect: () => unknown; href?: never; action?: never }
   | { href: string; native?: boolean; onSelect?: never; action?: never }
   | { action: string; fields?: Readonly<Record<string, string>>; onSubmit?: JSX.EventHandler<HTMLFormElement, SubmitEvent>; href?: never; onSelect?: never }
 );
-export function Menu(props: { title: string; trigger: JSX.Element; items: readonly MenuItem[]; subtitle?: string; status?: JSX.Element; statusTone?: "ok" | "accent" | "danger"; class?: string; dialogClass?: string }) {
+export function Menu(props: { title: string; trigger: JSX.Element; items: readonly MenuItem[]; subtitle?: string; status?: JSX.Element; statusTone?: "ok" | "accent" | "danger" | "neutral"; class?: string; dialogClass?: string; chevron?: boolean; triggerLabel?: string }) {
   const [open, setOpen] = createSignal(false), [enhanced, setEnhanced] = createSignal(false);
   const id = createUniqueId();
   onSettled(() => { setEnhanced(true); });
@@ -86,29 +88,30 @@ export function Menu(props: { title: string; trigger: JSX.Element; items: readon
       <For each={props.items.filter(item => Boolean(item.destructive) === destructive)}>{item => {
         const role = () => list.native ? undefined : "menuitem";
         const itemClass = () => `${item.destructive ? "is-destructive" : ""} ${item.class || ""}`.trim() || undefined;
+        const content = () => <><Show when={item.icon}><span class="ui-menu-icon" aria-hidden="true"><Icon name={item.icon!} size={18} /></span></Show>{item.label}</>;
         return <><Show when={item.separatorBefore && !destructive}><hr /></Show>{
           item.href !== undefined
-            ? <Show when={!item.disabled} fallback={<span role={role()} aria-disabled="true" class={itemClass()}>{item.label}</span>}>
-              <Show when={!item.native} fallback={<a role={role()} class={itemClass()} href={item.href} onClick={close}>{item.label}</a>}>
-                <Link role={role()} class={itemClass()} href={item.href} onClick={close}>{item.label}</Link>
+            ? <Show when={!item.disabled} fallback={<span role={role()} aria-disabled="true" class={itemClass()}>{content()}</span>}>
+              <Show when={!item.native} fallback={<a role={role()} class={itemClass()} href={item.href} onClick={close}>{content()}</a>}>
+                <Link role={role()} class={itemClass()} href={item.href} onClick={close}>{content()}</Link>
               </Show>
             </Show>
             : item.action !== undefined
               ? <form action={item.action} method="post" onSubmit={event => { close(); item.onSubmit?.(event); }}>
                 <For each={Object.entries(item.fields || {})}>{([name, value]) => <input type="hidden" name={name} value={value} />}</For>
-                <button type="submit" role={role()} class={itemClass()} disabled={item.disabled}>{item.label}</button>
+                <button type="submit" role={role()} class={itemClass()} disabled={item.disabled}>{content()}</button>
               </form>
-              : <button type="button" role={role()} class={itemClass()} disabled={item.disabled || list.native} onClick={() => { close(); item.onSelect(); }}>{item.label}</button>
+              : <button type="button" role={role()} class={itemClass()} disabled={item.disabled || list.native} onClick={() => { close(); item.onSelect(); }}>{content()}</button>
         }</>;
       }}</For>
     </Show>}</For>;
   }
   const status = () => <Show when={props.status}><div class={`ui-menu-status ui-menu-status-${props.statusTone || "accent"}`} role="status">{props.status}</div></Show>;
-  return <div class={`ui-menu ${props.class || ""}`}><button ref={trigger} type="button" hidden={!enhanced()} class="ui-menu-trigger" aria-haspopup="menu" aria-expanded={open() ? "true" : "false"} aria-controls={id} onClick={() => setOpen(!open())} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}>{props.trigger}<span class="ui-menu-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span></button>
+  return <div class={`ui-menu ${props.class || ""}`}><button ref={trigger} type="button" hidden={!enhanced()} class="ui-menu-trigger" aria-label={props.triggerLabel} title={props.triggerLabel ? "更多操作" : undefined} aria-haspopup="menu" aria-expanded={open() ? "true" : "false"} aria-controls={id} onClick={() => setOpen(!open())} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}>{props.trigger}<Show when={props.chevron !== false}><span class="ui-menu-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span></Show></button>
     <Dialog id={id} open={open()} title={props.title} subtitle={props.subtitle} variant="menu" anchor={() => trigger} onClose={close} class={props.dialogClass}>
       {status()}<div role="menu" aria-label={props.title}><Items /></div>
     </Dialog>
-    <Show when={!enhanced()}><details class="ui-menu-native"><summary aria-label={`《${props.title}》的操作`}>{props.trigger}</summary><Show when={props.subtitle}><p>{props.subtitle}</p></Show>{status()}<Items native /></details></Show>
+    <Show when={!enhanced()}><details class="ui-menu-native"><summary aria-label={props.triggerLabel || `《${props.title}》的操作`}>{props.trigger}</summary><Show when={props.subtitle}><p>{props.subtitle}</p></Show>{status()}<Items native /></details></Show>
   </div>;
 }
 export function ConfirmDialog(props: { open: boolean; title: string; children: JSX.Element; onClose: () => void; onConfirm: () => unknown | Promise<unknown>; confirmLabel?: string; danger?: boolean }) {

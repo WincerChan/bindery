@@ -101,7 +101,10 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(byRole(root, "combobox", "书库")).toBeDefined();
     expect(byRole(root, "combobox", "连载")).toBeDefined();
     const list = byRole(root, "list", "追踪列表");
-    expect(byRole(list, "button", /书名<script>.*作者/).getAttribute("aria-haspopup")).toBe("menu");
+    const trigger = allByRole(list, "button", /《书名<script>》的操作（在读）/).find(button => button.hasAttribute("aria-haspopup"))!;
+    expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
+    expect(trigger.getAttribute("aria-label")).toBe("《书名<script>》的操作（在读）");
+    expect((trigger.textContent || "").trim()).toBe("");
     expect(byRole(list, "img", "4 星")).toBeDefined();
     expect(byRole(byRole(root, "navigation", "分页"), "link", "上一页")).toBeDefined();
     expect(byRole(list, "link", /打开《书名<script>》详情/).getAttribute("href")).toBe(`/book/${wish.library_book_id}?return_to=${encodeURIComponent(tracker.current_url)}`);
@@ -135,7 +138,8 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(byRole(byRole(root, "group", "连载状态"), "button", "已完结").getAttribute("aria-pressed")).toBe("true");
     expect(byRole(root, "button", "保存").getAttribute("type")).toBe("submit");
     const linked = parseHtml(ui.form(wish)); expect(byAttribute(linked, "action", `/tracker/${wish.id}/update`)).toBeDefined();
-    for (const name of ["title", "author"]) expect(byName(linked, name).hasAttribute("readonly")).toBe(true);
+    expect(byRole(linked, "heading", wish.title)).toBeDefined();
+    for (const name of ["title", "author"]) { expect(byName(linked, name).getAttribute("type")).toBe("hidden"); expect(byName(linked, name).getAttribute("value")).toBeTruthy(); }
     expect(linked.textContent).toContain("书名和作者跟随书库");
     expect(byRole(linked, "button", "4 星").getAttribute("aria-pressed")).toBe("true");
     expect(byRole(linked, "button", "清除评分")).toBeDefined();

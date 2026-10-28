@@ -42,6 +42,7 @@
 .ui-stars { display: inline-flex; gap: 1px; color: var(--color-line-soft); font-size: var(--text-meta); }
 .ui-star-filled, .ui-rating .btn.ui-star-filled { color: var(--color-accent); }
 .ui-rating .btn.ui-star-empty { color: var(--color-ink-3); }
+.ui-rating .btn.ui-star-soft { color: var(--color-line-soft); }
 .ui-rating { min-width: 0; margin: 0; padding: 0; border: 0; }
 .ui-rating legend { padding: 0; margin-bottom: 10px; color: var(--color-ink-3); font-size: var(--text-meta); }
 .ui-rating > div { display: flex; align-items: center; flex-wrap: wrap; }
@@ -110,14 +111,15 @@ details[open] > summary .ui-summary-chevron { transform: rotate(180deg); }
 .ui-toolbar-controls > * { flex-shrink: 0; }
 .pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-top: var(--space-section); }
 .pagination-summary { color: var(--color-ink-3); font-size: var(--text-meta); }
-.pagination-summary strong { margin-right: 8px; color: var(--color-ink); font: 400 var(--text-heading) var(--font-display); }
+.pagination-summary strong { margin-right: 10px; color: var(--color-ink); font: 600 var(--text-heading) var(--font-display); }
 .pagination-controls { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-.pagination-page-number { color: var(--color-accent); font: 400 var(--text-heading) var(--font-display); }
+.pagination-page-number { color: var(--color-accent); font: 600 var(--text-heading) var(--font-display); }
 .pagination-page-total { color: var(--color-ink-3); font-size: var(--text-min); }
 .pagination-phone-total { display: none; }
-.pagination-control { display: inline-flex; align-items: center; justify-content: center; min-width: var(--size-control); width: var(--size-control); height: var(--size-control); min-height: var(--size-control); padding: 0; border: 0; border-radius: 999px; background: var(--color-control); color: var(--color-ink); font: 20px var(--font-sans); text-decoration: none; }
+.pagination-control { display: inline-flex; align-items: center; justify-content: center; min-width: var(--size-control); width: var(--size-control); height: var(--size-control); min-height: var(--size-control); padding: 0; border: 1px solid var(--color-line-soft); border-radius: 999px; background: transparent; color: var(--color-ink-4); font: 20px var(--font-sans); text-decoration: none; }
+a.pagination-control, button.pagination-control { border-color: var(--color-line); color: var(--color-ink); }
 a.pagination-control:hover, button.pagination-control:hover { background: var(--color-hover); }
-.pagination-control[aria-disabled] { opacity: .4; }
+.pagination-control[aria-disabled] { color: var(--color-ink-4); border-color: var(--color-line-soft); }
 .empty-state { padding: 64px 0; text-align: center; }
 .empty-state > .muted { margin-bottom: 16px; }
 
@@ -156,14 +158,19 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
 .ui-menu-chevron { opacity: 0; font-size: var(--text-meta); transition: transform .16s ease; }
 .ui-menu-trigger:hover .ui-menu-chevron, .ui-menu-trigger:focus-visible .ui-menu-chevron, .ui-menu-trigger[aria-expanded="true"] .ui-menu-chevron { opacity: 1; }
 .ui-menu-trigger[aria-expanded="true"] .ui-menu-chevron { transform: rotate(180deg); }
-.ui-menu-status { padding: 12px; margin-bottom: 6px; border-radius: 12px; font-size: var(--text-meta); }
+.ui-menu-status { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; margin-bottom: 6px; border-radius: 12px; font-size: var(--text-meta); }
 .ui-menu-status-ok { background: var(--color-ok-soft); color: var(--color-ok); }
 .ui-menu-status-accent { background: var(--color-accent-soft); color: var(--color-accent); }
 .ui-menu-status-danger { background: var(--color-danger-soft); color: var(--color-danger); }
-.dialog-menu [role="menuitem"] { display: flex; align-items: center; width: 100%; min-height: var(--size-control); padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--color-ink); font-size: var(--text-control); text-align: left; }
+.ui-menu-status-neutral { background: var(--color-control); color: var(--color-ink-3); }
+.dialog-menu [role="menu"] { display: flex; flex-direction: column; gap: 2px; }
+.dialog-menu [role="menuitem"] { display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--size-control); padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--color-ink); font-size: var(--text-control); text-align: left; }
+.ui-menu-icon { display: flex; flex: none; color: var(--color-ink-2); }
+.ui-menu-icon svg { width: 16px; height: 16px; }
 .dialog-menu [role="menuitem"]:not(:disabled):hover { background: var(--color-hover); }
 .dialog-menu [role="menuitem"].is-destructive { color: var(--color-danger); }
-.dialog-menu hr { margin: 6px 8px; border: 0; border-top: 1px solid var(--color-line-soft); }
+.dialog-menu [role="menuitem"].is-destructive .ui-menu-icon { color: var(--color-danger); }
+.dialog-menu hr { margin: 4px 12px; border: 0; border-top: 1px solid var(--color-line-soft); }
 @keyframes ui-overlay-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Fixed cover palette from design §5.1. */
@@ -264,7 +271,11 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
   .dialog-dialog > .dialog-body { flex: 1; }
   .dialog-dialog > .dialog-actions { margin-top: auto; padding-bottom: env(safe-area-inset-bottom); }
   .dialog-actions > .btn-primary { flex: 1; }
-  .dialog-menu [role="menuitem"] { min-height: 52px; font-size: var(--text-body); }
+  .dialog-menu > .dialog-heading { margin-bottom: 16px; }
+  .dialog-menu .ui-menu-status { padding-inline: 14px; margin-bottom: 10px; }
+  .dialog-menu [role="menuitem"] { min-height: 52px; gap: 14px; padding-inline: 14px; border-radius: 14px; font-size: var(--text-body); }
+  .dialog-menu .ui-menu-icon svg { width: 18px; height: 18px; }
+  .dialog-menu hr { margin: 6px 14px; }
   .ui-menu-chevron { opacity: 1; }
   .skeleton-split, .skeleton-sidebar, .skeleton-sidebar .skeleton-split, .skeleton-book { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .skeleton-book .skeleton-cover { width: 120px; }
