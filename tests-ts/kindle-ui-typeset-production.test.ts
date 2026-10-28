@@ -114,7 +114,7 @@ it.runIf(existsSync("dist/server/server.js"))("serves both Kindle pages and auth
     expect(byLabel(preview, /^左右边距/).hasAttribute("disabled")).toBe(false);
     expect(byRole(preview, "group", "去掉书里自带的")).toBeDefined();
     expect(byRole(preview, "button", "去掉所有图片").getAttribute("aria-pressed")).toBe("false");
-    expect(byRole(preview, "button", "更多设置")).toBeDefined();
+    expect(byRole(preview, "button", "自定义 CSS")).toBeDefined();
     expect(byRole(preview, "button", "另存为方案")).toBeDefined();
     for (const name of ["新建方案", "保存方案"]) expect(allByRole(preview, "button", name)).toHaveLength(0);
     const paging = byRole(preview, "group", "预览翻页");

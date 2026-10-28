@@ -9,14 +9,14 @@ import { EMPTY_SETTINGS } from "../../client/devices/profiles";
 export interface DevicePageSample { bookId: string; title: string; chapter: string; path: string }
 export type LoadDevicePageSample = (deviceId: string, bookId: string) => Promise<DevicePageSample | null>;
 /** Non-interactive chapter sample; the surrounding real link is the sole focus target. */
-export function ReadingPage(props: { deviceId: string; book: DeviceBook; kind: DeviceKind; model: string; revision?: string; load?: LoadDevicePageSample }) {
+export function ReadingPage(props: { deviceId: string; book: DeviceBook; kind: DeviceKind; model: string; revision?: string; load?: LoadDevicePageSample; onSample?: (sample: DevicePageSample | null) => void }) {
   const [sample, setSample] = createSignal<DevicePageSample | null>(null);
   let generation = 0, disposed = false, controller: PreviewDocument | undefined;
   const key = createMemo(() => `${props.deviceId}:${props.book.book_id ?? props.book.record?.book_id ?? ""}:${props.model}:${props.book.progress?.last_read_at ?? ""}:${props.revision ?? ""}`);
   createEffect(key, () => {
     const request = ++generation, bookId = props.book.book_id ?? props.book.record?.book_id;
-    setSample(null); controller?.destroy(); controller = undefined;
-    if (bookId && props.load) void props.load(props.deviceId, bookId).then(value => { if (!disposed && request === generation) setSample(value); }, () => {});
+    setSample(null); props.onSample?.(null); controller?.destroy(); controller = undefined;
+    if (bookId && props.load) void props.load(props.deviceId, bookId).then(value => { if (!disposed && request === generation) { setSample(value); props.onSample?.(value); } }, () => {});
   });
   onCleanup(() => { disposed = true; generation++; controller?.destroy(); });
   const geometry = () => {

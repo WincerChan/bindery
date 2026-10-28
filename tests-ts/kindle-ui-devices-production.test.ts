@@ -75,7 +75,7 @@ await writeFile(join(root, 'result.json'), JSON.stringify(pages));
     expect(byRole(books, "button", "选择设备目录").hasAttribute("disabled")).toBe(true);
     expect(allByAttribute(books, "data-device-book")).toHaveLength(0);
     expect(byRole(connection, "heading", "把 Kindle 或 Kobo 用 USB 接上。")).toBeDefined();
-    expect(byRole(parseHtml(pages["/devices/transfer"]!), "dialog", "发送")).toBeDefined();
+    expect(byRole(parseHtml(pages["/devices/transfer"]!), "dialog", /^发送/)).toBeDefined();
     expect(allByAttribute(connection, "data-kindle-device-bar")).toHaveLength(0);
     expect(allByAttribute(connection, "aria-label", "Kindle 管理")).toHaveLength(0);
   } finally { await rm(directory, { recursive: true, force: true }); }

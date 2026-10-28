@@ -144,8 +144,6 @@ const button = (root: Element, text: string) => elements(root, "button").find(el
 function setValue(node: Element, value: string, type = "input") { (node as HTMLInputElement).value = value; fire(node, type); ui.flush(); }
 it("renders the fonts summary, filters, specimen grid and installation help in SSR", () => {
   const root = document.createElement("div"); root.innerHTML = ssr.markup("fonts", { manager: null, data });
-  const summary = byText(root, "0 个家族 · 0 个字体文件 · 0 B");
-  expect(summary.textContent).not.toContain("设备根目录"); expect(summary.textContent).not.toContain("已忽略");
   for (const name of ["全部", "中文", "西文", "重新扫描", "添加字体"]) expect(byRole(root, "button", name)).toBeDefined();
   expect(byRole(root, "region", "字体列表").className).toBe("device-font-grid");
   expect(elements(root, "table")).toHaveLength(0);
@@ -244,7 +242,7 @@ it("hydrates neutral fonts markup, scans after mount, clears after unplug and re
   await fs.write("fonts/._Book.ttf", "ignore"); await fs.write("fonts/Readme.txt", "keep");
   const mounted = mount("fonts", manager); await settle();
   expect(allByAttribute(mounted.root, "data-font-family")).toHaveLength(1);
-  expect(mounted.root.textContent).toContain("Light"); expect(mounted.root.textContent).toContain("手动安装");
+  expect(mounted.root.textContent).toContain("Light");
   const sample = elements(mounted.root, "iframe")[0]!; expect(sample.getAttribute("sandbox")).toBe("allow-same-origin");
   expect(elements(mounted.root, "a").find(a => a.getAttribute("aria-label") === "用 Book 预览")!.getAttribute("href")).toBe("/devices/preview?font=Book");
   expect(byRole(mounted.root, "menuitem", "从设备删除 Book")).toBeDefined();

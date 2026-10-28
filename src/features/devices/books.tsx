@@ -3,7 +3,8 @@ import { deleteBook } from "../../client/devices";
 import type { DeviceBook } from "../../client/devices/inventory";
 import type { PairedDevice } from "../../client/devices/identity";
 import { EntryAccessError, entryOperation } from "../../client/devices/fs";
-import { BookCover, Button, ConfirmDialog, EmptyState, Menu, ProgressBar, SearchPill, SegmentedControl, ToggleChip, Toolbar } from "../../ui";
+import { BookCover, Button, ConfirmDialog, EmptyState, Icon, Menu, ProgressBar, SearchPill, SegmentedControl, ToggleChip, Toolbar } from "../../ui";
+import { DeviceTabs } from "./tabs";
 import { useDeviceNavigation } from "./navigation";
 import { useDevice } from "./context";
 import { readingTimeLabel } from "./format";
@@ -113,11 +114,11 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
     });
   }
   return <section aria-label="设备书籍" class="kindle-books">
-    <Toolbar search={<SearchPill label="搜索设备上的书" placeholder="搜索书名或作者" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />}>
+    <DeviceTabs value="books" toolbar={<Toolbar search={<SearchPill label="搜索设备上的书" placeholder="搜索设备上的书" value={query()} onInput={e => { setQuery(e.currentTarget.value); setSelected([]); }} />}>
       <SegmentedControl label="按来源筛选" value={source()} options={[{ value: "全部", label: "全部" }, { value: "Bindery", label: "来自 Bindery" }, { value: "其他", label: "其他" }]} onChange={value => { setSource(value); setSelected([]); }} />
-      <Button variant="secondary" onClick={() => { setBatch(!batch()); setSelected([]); }}>{batch() ? "取消选择" : "批量选择"}</Button>
+      <Button variant="secondary" onClick={() => { setBatch(!batch()); setSelected([]); }}><Icon name="circle-check" size={16} />{batch() ? "取消选择" : "批量选择"}</Button>
       <Show when={batch()}><ToggleChip aria-label="全选当前筛选书籍" selected={deletableVisible().length > 0 && deletableVisible().every(b => selected().includes(b.filename))} disabled={!connected() || !deletableVisible().length || k.busy()} onClick={() => setSelected(deletableVisible().every(b => selected().includes(b.filename)) ? [] : deletableVisible().map(b => b.filename))}>全选</ToggleChip><Button variant="quiet-danger" disabled={!connected() || !selectedBooks().length || k.busy()} onClick={() => confirm(selectedBooks())}>删除所选（{selectedBooks().length}）</Button></Show>
-    </Toolbar>
+    </Toolbar>} />
     <Show when={notice()}><p role="status" class="notice">{notice()} <Link href="/devices/transfer">查看传输队列</Link></p></Show>
     <Show when={notRemoved().length}>
       <details open class="kindle-small kindle-entry-notice" data-delete-report>
@@ -128,12 +129,12 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
     </Show>
     <div class="device-book-grid" role="region" aria-label="设备书籍列表"><Show when={connected() && k.inventory()}><For each={visible()}>{book => <article data-device-book={book.filename}>
       <Show when={resolvedId(book)} fallback={<DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} />}><Link href={`/book/${encodeURIComponent(resolvedId(book)!)}`} aria-label={`打开《${title(book)}》详情（${progressLabel(book, kind())}）`}><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} libraryId={resolvedId(book)} /></Link></Show>
-      <ProgressBar label={`${title(book)}：${progressLabel(book, kind())}`} value={book.progress?.percent ?? 0} />
-      <Menu title={title(book)} trigger={<span><strong>{title(book)}</strong><span class="device-book-author">{metadata(book)?.author}</span></span>} status={<span data-device-progress>{progressLabel(book, kind())}{chapterTitle(book) ? ` · ${chapterTitle(book)}` : ""} · {book.source === "Bindery" ? "来自 Bindery" : "其他来源"}</span>} items={[
+      <Show when={book.progress && (book.progress.percent ?? 0) > 0 && (book.progress.percent ?? 0) < 100}><ProgressBar label={`${title(book)}：${progressLabel(book, kind())}`} value={book.progress!.percent} /></Show>
+      <div class="device-book-head"><div><strong>{title(book)}</strong><span class="device-book-author">{metadata(book)?.author}</span></div><Menu class="device-book-menu" title={title(book)} trigger={<><span class="sr-only">《{title(book)}》的操作</span><Icon name="dots-vertical" size={18} /></>} status={<span data-device-progress>{progressLabel(book, kind())}{chapterTitle(book) ? ` · ${chapterTitle(book)}` : ""} · {book.source === "Bindery" ? "来自 Bindery" : "其他来源"}</span>} items={[
         ...(resolvedId(book) ? [{ label: `预览 ${title(book)}`, onSelect: () => navigate(`/devices/preview?book=${encodeURIComponent(resolvedId(book)!)}`) }] : []),
         ...(book.record ? [{ label: `重新传入 ${title(book)}`, disabled: k.busy() || !resolvedId(book) || !metadata(book), onSelect: () => resend(book) }] : []),
         { label: `从设备删除 ${title(book)}`, destructive: true, disabled: k.busy() || !deletable(book), onSelect: () => confirm([book]) },
-      ]} />
+      ]} /></div>
       <Show when={batch()}><ToggleChip aria-label={`选择 ${title(book)}`} disabled={!deletable(book)} selected={selected().includes(book.filename)} onClick={() => setSelected(current => current.includes(book.filename) ? current.filter(n => n !== book.filename) : [...current, book.filename])}>选择</ToggleChip></Show>
     </article>}</For></Show></div>
     <Show when={connected()} fallback={<EmptyState title={k.ready() ? "请先连接设备" : "检测中…"}><Link href="/devices/connect">连接并授权设备</Link>后，可查看和管理设备上的书籍。</EmptyState>}>
@@ -141,7 +142,6 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
         <Show when={!visible().length}><EmptyState title={all().length ? "没有符合条件的书籍" : "设备上还没有书籍"}>{all().length ? "试试其他来源或搜索词。" : <Link href="/devices/transfer">从书库选择书籍传入</Link>}</EmptyState></Show>
       </Show>
     </Show>
-    <p class="kindle-table-note">显示 <span class="kindle-mono">{connected() ? visible().length : 0} / {all().length}</span> 本 · {kind() === "kobo" ? "读取 Bindery/ 与设备上的 EPUB / KEPUB；Bindery 传的书标为「来自 Bindery」" : "读取 documents/，删除时一并清理对应的 .sdr 阅读记录"}</p>
     <ConfirmDialog open={pending() !== null} title={`删除 ${deviceNoun(kind())} 上的书籍？`} danger confirmLabel="确认删除" onClose={() => setPending(null)} onConfirm={remove}>
       <Show when={kindle()} fallback={<><p>将从 {deviceNoun(kind())} 的 Bindery/ 删除所选 {pending()?.books.length || 0} 本 KEPUB。设备下次连接或重启时会更新书架；书库中的原书保留。</p><p class="kindle-small">只会删除 Bindery 管理的文件，不会修改 KoboReader.sqlite。</p></>}>
         <p>将从 Kindle 删除所选 {pending()?.books.length || 0} 本书，以及匹配的 .sdr 文件夹（阅读位置、标注等阅读记录）和 Bindery 写入且不再被其他副本使用的封面缩略图。此操作无法撤销；书库中的原书保留。</p>

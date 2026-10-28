@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createSignal, createUniqueId, For, Show } from "solid-js";
+import { Icon } from "../../../ui";
 import type { PreviewBook } from "./model";
 
 const LIMIT = 100;
@@ -8,7 +9,7 @@ const label = (book: PreviewBook) => `${book.title}${book.author ? ` · ${book.a
  * Book choice for the Kindle and Kobo previews as one searchable dropdown: open it, type to narrow the
  * list, Enter (or a click) picks the highlighted book; arrow keys move the highlight, Escape cancels.
  */
-export function PreviewBookPicker(props: { books: PreviewBook[]; value: string; disabled?: boolean; onChange: (id: string) => void }) {
+export function PreviewBookPicker(props: { books: PreviewBook[]; value: string; disabled?: boolean; pill?: boolean; onChange: (id: string) => void }) {
   const id = createUniqueId(), listId = `${id}-list`, optionId = (index: number) => `${id}-option-${index}`;
   const [open, setOpen] = createSignal(false), [query, setQuery] = createSignal(""), [active, setActive] = createSignal(0);
   let list: HTMLUListElement | undefined;
@@ -38,15 +39,15 @@ export function PreviewBookPicker(props: { books: PreviewBook[]; value: string; 
     if (index === false || !list) return;
     (list.children[index] as HTMLElement | undefined)?.scrollIntoView?.({ block: "nearest" });
   });
-  return <div class="field kt-book-picker">
-    <label for={id}>预览书籍</label>
+  return <div class={`field kt-book-picker ${props.pill ? "is-pill" : ""}`}>
+    <label for={id} class={props.pill ? "sr-only" : undefined}>预览书籍</label>
     <div class="kt-combobox">
       <input id={id} type="text" role="combobox" autocomplete="off" spellcheck={false} disabled={props.disabled}
         aria-autocomplete="list" aria-expanded={open() ? "true" : "false"} aria-controls={listId}
         aria-activedescendant={open() && shown().length ? optionId(active()) : undefined}
         // While searching, the current book stays visible as the placeholder.
         placeholder={open() ? current() ? label(current()!) : "输入书名或作者筛选" : undefined}
-        value={open() ? query() : current() ? label(current()!) : ""}
+        value={open() ? query() : current() ? props.pill ? current()!.title : label(current()!) : ""}
         onFocus={show} onClick={show} onBlur={close}
         onInput={event => { setQuery(event.currentTarget.value); setActive(0); if (!open()) setOpen(true); }}
         onKeyDown={event => {
@@ -54,6 +55,7 @@ export function PreviewBookPicker(props: { books: PreviewBook[]; value: string; 
           else if (event.key === "Enter") { if (!open()) return; event.preventDefault(); choose(shown()[active()] ?? shown()[0]); }
           else if (event.key === "Escape" && open()) { event.preventDefault(); close(); }
         }} />
+      <Show when={props.pill}><span class="kt-combobox-label" aria-hidden="true">书</span><span class="kt-combobox-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span></Show>
       <Show when={open()}>
         {/* mousedown would blur the input and close the list before the click lands. */}
         <ul ref={list} id={listId} role="listbox" aria-label="预览书籍" class="kt-combobox-list" onMouseDown={event => event.preventDefault()}>
