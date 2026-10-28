@@ -20,7 +20,7 @@ export function DeviceConnectPage(props: { backLink?: boolean }) {
   const defaultName = () => detection() ? modelLabel(kind(), detection()!.model).split(" · ")[0]! : "我的设备";
   return <div class="device-connect">
     <section class="device-connect-hero" aria-label="连接设备">
-      <PageIntro class="device-connect-intro" variant={props.backLink ? "subpage" : "main"} back={props.backLink ? <BackLink href="/devices">设备</BackLink> : undefined} visualSize="device"
+      <PageIntro class="device-connect-intro" variant="guide" back={props.backLink ? <BackLink href="/devices">设备</BackLink> : undefined} visualSize="device"
         eyebrow={<span class="device-intro-eyebrow"><StatusDot label="未连接设备" tone="empty" /><span role="status">设备 · 未连接</span></span>}
         title={<>把 Kindle 或 Kobo <br />用 USB 接上。</>}
         content={<ol class="device-steps">

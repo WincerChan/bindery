@@ -1,8 +1,7 @@
 .settings-security { display: grid; gap: 48px; min-width: 0; }
 /* Match the prototype's 420/440px flex bases plus the right 40px pad and 1px divider. */
 .settings-security-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, calc((100% - 56px + 61px) / 2)); gap: 56px; align-items: center; }
-.settings-security-hero { display: grid; gap: 22px; align-content: start; min-width: 0; }
-.security-intro { --intro-gap-next: 0px; }
+.settings-security-hero { display: grid; gap: var(--intro-stack-gap); align-content: start; min-width: 0; }
 .settings-security-keys { min-width: 0; padding-left: 40px; border-left: 1px solid var(--color-line-soft); }
 .settings-security-keys > .notice:first-child { margin-top: 0; }
 .settings-security-keys .ui-section-title { margin: 0 0 12px; padding: 0; border: 0; }
@@ -25,7 +24,6 @@
 .settings-security label { color: var(--color-ink-3); font-size: var(--text-control); }
 @media (max-width: 767px) {
   .settings-security { gap: 32px; }
-  .settings-security-hero { gap: 16px; }
   .security-intro-action svg { display: none; }
   .settings-security-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .settings-security-keys { padding: 0; border: 0; }

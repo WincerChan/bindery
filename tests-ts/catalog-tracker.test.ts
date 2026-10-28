@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { once } from "node:events";
+import { Worker } from "node:worker_threads";
 import { LibraryStorage, saveBook } from "../src/server/storage";
 import { BinderyDatabase } from "../src/server/db";
 import { metadataFromDict } from "../src/core/models";
@@ -18,6 +20,30 @@ function book(id: string, title: string, author: string | null = null) {
 beforeEach(() => { root = mkdtempSync(join(tmpdir(), "bindery-catalog-tracker-")); library = new LibraryStorage(join(root, "library"), new BinderyDatabase(join(root, "data.db"))); library.ensure(); });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 describe("tracker CRUD and duplicate identities", () => {
+  it("waits for a concurrent writer before reading duplicate identities", async () => {
+    // Like the ingestion consumer, another connection can hold SQLite's writer
+    // reservation. A deferred SELECT -> INSERT upgrade fails immediately with
+    // SQLITE_BUSY here, even though the connection has a 5s busy timeout.
+    const writer = new Worker(`
+      const { parentPort, workerData } = require('node:worker_threads');
+      const { DatabaseSync } = require('node:sqlite');
+      const db = new DatabaseSync(workerData, { timeout: 5000 });
+      db.exec("BEGIN IMMEDIATE; INSERT INTO app_settings VALUES ('concurrent-writer', 'committed')");
+      parentPort.once('message', () => setTimeout(() => {
+        db.exec('COMMIT'); db.close(); parentPort.close();
+      }, 250));
+      parentPort.postMessage('locked');
+    `, { eval: true, workerData: library.db.path });
+    try {
+      await once(writer, "message");
+      writer.postMessage("commit shortly");
+      expect(create({ title: "并发追踪", author: "作者" })).toBe("/tracker");
+      expect(library.db.getSetting("concurrent-writer")).toBe("committed");
+      expect(all()).toHaveLength(1);
+      expect(create({ title: "并发追踪", author: "作者" })).toContain("duplicate=");
+      expect(all()).toHaveLength(1);
+    } finally { await writer.terminate(); }
+  });
   it("ports create, update and delete including tags, read state and default completion", () => {
     expect(create({ title: "诡秘之主", author: "爱潜水的乌贼", tags: " 克苏鲁, 蒸汽朋克，克苏鲁\nTag,tag", rating: "5", comment: " 前中期节奏很好 ", read_status: "read" })).toBe("/tracker");
     const wish = all()[0]; expect(wish).toMatchObject({ title: "诡秘之主", read: true, read_status: "read", book_status: "completed", rating: 5, comment: "前中期节奏很好", tags: ["克苏鲁", "蒸汽朋克", "Tag"] });

@@ -17,8 +17,8 @@ export function connect(path = writableDatabasePath()): DatabaseSync {
     defensive: false
   });
 }
-export function transaction<T>(conn: DatabaseSync, fn: () => T): T {
-  conn.exec("BEGIN");
+export function transaction<T>(conn: DatabaseSync, fn: () => T, mode: "deferred" | "immediate" = "deferred"): T {
+  conn.exec(mode === "immediate" ? "BEGIN IMMEDIATE" : "BEGIN");
   try {
     const result = fn();
     conn.exec("COMMIT");

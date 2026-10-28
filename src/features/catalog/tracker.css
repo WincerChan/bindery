@@ -1,6 +1,5 @@
 .tracker-page { min-width: 0; }
 .tracker-add { padding-inline: 26px; }
-.tracker-page .ui-page-visual { padding: 12px 0; }
 .tracker-reading .ui-section-title { display: none; }
 .tracker-reading-covers { display: flex; align-items: flex-end; gap: 22px; }
 .tracker-reading-covers > * { min-width: 0; text-decoration: none; }
@@ -96,10 +95,8 @@
   .tracker-filter .ui-toolbar-controls { padding: 0; }
 }
 @media (max-width: 767px) {
-  .tracker-page .tracker-intro { --intro-visual-gap: var(--space-section); }
   .tracker-add { padding-inline: 20px; }
   .tracker-add svg { display: none; }
-  .tracker-page .ui-page-visual { width: 100%; max-width: none; padding: 0; }
   .tracker-reading .ui-section-title { display: block; border: 0; padding: 0; margin-bottom: 14px; }
   .tracker-reading-covers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
   .tracker-reading-covers > :nth-child(n) { width: auto; transform: none; margin: 0; }

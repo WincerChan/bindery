@@ -142,6 +142,9 @@ export function writeTracker(library: LibraryStorage, fields: Record<string, str
   const ratingText = get("rating"), rating = /^[+-]?\d+$/.test(ratingText) ? Math.max(0, Math.min(5, Number(ratingText))) : null;
   const values = { title, author, library_book_id: linked, tags: firstTags, rating, comment: get("comment") || null, read_status: status, read: status === "read", book_status: normalized(get("book_status") || "completed", ["hiatus", "completed"], "ongoing"), updated_at: nowIso() };
   let duplicate: string | null = null, writtenId = id || randomBytes(16).toString("hex");
+  // Reserve the writer before reading duplicates. A deferred read -> write
+  // upgrade can fail immediately with SQLITE_BUSY while the job consumer writes,
+  // bypassing busy_timeout because waiting would deadlock the two connections.
   library.db.withConnection(connection => transaction(connection, () => {
     const db = new TrackerTransactionDatabase(library.db.path, connection);
     if (!existing) {
@@ -153,7 +156,7 @@ export function writeTracker(library: LibraryStorage, fields: Record<string, str
     if (merge) { db.updateWish(merge.id, values); db.deleteWish(id!); writtenId = merge.id; }
     else if (existing) db.updateWish(id!, values);
     else db.createWish({ ...values, id: writtenId, created_at: values.updated_at });
-  }));
+  }, "immediate"));
   if (duplicate) return duplicateUrl(get("next"), duplicate);
   const written = library.db.getWish(writtenId);
   if (written) syncTrackerMetadata(library, written);

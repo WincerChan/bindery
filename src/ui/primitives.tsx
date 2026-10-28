@@ -79,7 +79,8 @@ export function SelectPill(props: { label: string; value: string; options: reado
 export function SearchPill(props: JSX.InputHTMLAttributes<HTMLInputElement> & { label: string; placeholder: string; class?: string }) {
   return <TextField {...omit(props, "class")} type="search" labelHidden class={`search-field ui-search-pill ${props.class || ""}`} />;
 }
-export type PageIntroVariant = "main" | "subpage" | "title-only" | "topbar" | "book";
+/** Board-backed structures; values and exceptions are catalogued in docs/design/page-intros.md. */
+export type PageIntroVariant = "main" | "empty" | "guide" | "subpage" | "split" | "title-only" | "topbar" | "editor" | "compact" | "book";
 export type PageIntroVisualSize = "cover" | "page" | "reading" | "vocabulary" | "device";
 export function PageIntro(props: {
   eyebrow?: JSX.Element | null;
@@ -97,10 +98,14 @@ export function PageIntro(props: {
   titleId?: string;
   id?: string;
   class?: string;
-  actionsClass?: string;
+  mobileActions?: "dock";
 }) {
-  const classes = () => ["ui-page-intro", props.variant && `ui-page-intro-${props.variant}`, props.visualSize && `ui-page-intro-visual-${props.visualSize}`, props.class].filter(Boolean).join(" ");
-  const actions = () => <Show when={props.actions}><div class={`ui-page-actions ${props.actionsClass || ""}`}>{props.actions}</div></Show>;
+  const classes = () => ["ui-page-intro", props.variant && `ui-page-intro-${props.variant}`, props.visualSize && props.variant !== "book" && `ui-page-intro-visual-${props.visualSize}`, props.class].filter(Boolean).join(" ");
+  const actions = () => <Show when={props.actions}><div class={`ui-page-actions ${props.mobileActions === "dock" ? "ui-page-actions-docked" : ""}`}>{props.actions}</div></Show>;
+  const controls = () => <>
+    <Show when={props.status}><div class="ui-page-status">{props.status}</div></Show>
+    {actions()}
+  </>;
   return <Switch fallback={<header id={props.id} class={classes()}>
     <Show when={props.back}><div class="ui-page-intro-back">{props.back}</div></Show>
     <div class="ui-page-intro-row">
@@ -112,14 +117,19 @@ export function PageIntro(props: {
           <Show when={props.description}><p class="ui-page-description">{props.description}</p></Show>
           <Show when={props.content}>{props.content}</Show>
         </div>
-        <Show when={props.status}><div class="ui-page-status">{props.status}</div></Show>
-        {actions()}
+        <Show when={props.visualSize === "vocabulary"} fallback={controls()}>
+          <div class="ui-page-intro-controls">{controls()}</div>
+        </Show>
         <Show when={props.note}><div class="ui-page-note">{props.note}</div></Show>
       </div>
       <Show when={props.visual}><div class="ui-page-visual">{props.visual}</div></Show>
     </div>
   </header>}>
-    <Match when={props.variant === "topbar"}><header id={props.id} class={classes()}>
+    <Match when={props.variant === "compact"}><header id={props.id} class={classes()}>
+      <h1 id={props.titleId} class="sr-only">{props.title}</h1>
+      {props.content}
+    </header></Match>
+    <Match when={props.variant === "topbar" || props.variant === "editor"}><header id={props.id} class={classes()}>
       <Show when={props.back}><div class="ui-page-intro-back">{props.back}</div></Show>
       <h1 id={props.titleId} class="ui-page-intro-title">{props.title}</h1>
       {actions()}

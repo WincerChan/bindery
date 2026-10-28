@@ -161,7 +161,8 @@ function pickBook(root: Element, text: string) { const box = bookBox(root); fire
 it("renders one neutral page with both kinds available, no profile-owning device and the measured estimate", () => {
   const root = document.createElement("div"); root.innerHTML = ssr.markup(propsFor(null));
   expect(elements(root, "h2").map(node => node.textContent)).not.toContain("排版方案");
-  expect(elements(root, "h3").map(node => node.textContent)).toContain("设备阅读设置（只用于预览）");
+  expect(elements(root, "h2").map(node => node.textContent)).toContain("设备阅读设置（只用于预览）");
+  expect(elements(root, "h3").map(node => node.textContent)).not.toContain("设备阅读设置（只用于预览）");
   expect(root.textContent).not.toContain("方案所属设备");
   expect(labels(root, "select", "预览设备")).toBeDefined(); expect(labels(root, "select", "方案")).toBeDefined();
   expect(labels(root, "select", "设备种类")).toBeDefined(); expect(elements(labels(root, "select", "设备种类"), "option").map(option => option.textContent)).toEqual(["Kindle", "Kobo"]);

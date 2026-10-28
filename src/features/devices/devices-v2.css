@@ -28,7 +28,6 @@
 .kindle-device-content .field, .kindle-device-content .field input, .kindle-device-content .field select, .kindle-device-content .field textarea { font-size: var(--text-control); }
 .kindle-device-content .ui-select-pill select { font-size: var(--text-control); }
 .device-intro { position: relative; }
-.device-intro-page h1 { max-width: 760px; text-wrap: balance; }
 .device-intro-eyebrow { display: flex; align-items: center; gap: 8px; }
 .device-intro-visual { margin: 0; }
 .device-intro-visual > a { display: block; border-radius: 20px; transition: transform 180ms ease; text-decoration: none; }
@@ -79,7 +78,6 @@
 
 /* Connect guide (DevicesConnect board): device hero, numbered steps, remembered devices below. */
 .device-connect, .device-connect-hero { min-width: 0; }
-.device-connect-intro { --intro-visual-width: 300px; }
 .device-steps { counter-reset: device-step; margin: 0; padding: 0; list-style: none; display: grid; gap: 18px; max-width: 520px; }
 .device-steps li { counter-increment: device-step; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 0 18px; align-items: baseline; font-size: 16px; font-weight: 500; }
 .device-steps li::before { content: counter(device-step, decimal-leading-zero); grid-row: 1 / span 2; font: 600 22px/1.35 var(--font-display); color: var(--color-accent); }
@@ -88,13 +86,13 @@
 .device-steps .device-pairing-step { padding-top: 10px; grid-template-columns: 36px minmax(0, 1fr); }
 .device-steps .device-pairing-step > :not(p):not(strong) { grid-column: 2; }
 .device-steps .device-pairing-step .segmented, .device-steps .device-pairing-step .kindle-pair { margin-top: 10px; }
-.device-connect-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.device-connect-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--intro-action-gap); }
 .device-connect-actions .btn { min-height: var(--size-control-lg); padding: 0 26px; font-size: var(--text-body); }
 .device-connect-hint { font-size: var(--text-meta); color: var(--color-ink-3); }
 .device-connect-details { max-width: 720px; font-size: var(--text-control); color: var(--color-ink-2); }
 .device-connect-details summary { display: flex; align-items: center; min-height: var(--size-control); cursor: pointer; }
 .device-connect-details p { margin: 0 0 12px; font-size: var(--text-meta); line-height: 1.7; }
-.connect-device { margin: 0 40px 0 0; display: flex; justify-content: center; }
+.connect-device { margin: 0; display: flex; justify-content: center; }
 .connect-device .device-shell { width: 240px; aspect-ratio: .72; padding: 20px 16px 40px; border-radius: 22px; transform: rotate(-2deg); }
 .connect-device .device-shell-paper, .device-intro-visual .device-shell-paper { height: 100%; aspect-ratio: auto; }
 .connect-device .device-shell-paper { display: grid; place-items: center; padding: 0; color: var(--color-ink-4); }
@@ -121,14 +119,13 @@
 .device-usage-legend .books { background: var(--color-ink); }
 .device-usage-legend .fonts { background: var(--color-accent); }
 .device-usage-legend .other { background: var(--color-line); }
-.device-intro-visual { margin: 0 40px 0 0; }
+.device-intro-visual { margin: 0; }
 .device-intro-visual > a { display: block; border-radius: 22px; text-decoration: none; }
 .device-intro-visual .device-shell { width: 260px; aspect-ratio: .72; padding: 22px 18px 44px; border-radius: 22px; transform: rotate(-2deg); transition: transform 180ms ease, box-shadow 180ms ease; }
 .device-intro-visual > a:hover .device-shell, .device-intro-visual > a:focus-visible .device-shell { transform: rotate(0deg) translateY(-6px); box-shadow: 0 2px 4px rgba(32,41,35,.2), 0 52px 70px -26px rgba(32,41,35,.65); }
 .device-intro-visual .device-shell-paper { padding: 22px 20px 14px; }
 .device-intro-visual figcaption { margin-top: 16px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: var(--text-meta); color: var(--color-ink-3); text-align: center; }
 .device-intro-visual figcaption a { display: inline-flex; align-items: center; gap: 6px; min-height: var(--size-control); font-size: var(--text-meta); font-weight: 500; }
-.device-compact-header { padding-top: 24px; margin-bottom: 40px; }
 .device-compact-status { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: var(--text-control); color: var(--color-ink-3); }
 .device-compact-status strong { font: 600 20px/1.35 var(--font-display); color: var(--color-ink); }
 .device-shelf-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; margin-bottom: 28px; }
@@ -152,7 +149,6 @@
 .device-book-menu .ui-menu-chevron { display: none; }
 .device-book-grid .ui-progress { height: 3px; }
 @media (max-width: 767px) {
-  .device-compact-header { padding-top: 0; }
   .device-shelf-head { align-items: stretch; }
   .device-shelf-head .ui-toolbar { margin-left: 0; width: 100%; flex-direction: column; align-items: stretch; }
   .device-shelf-head .ui-toolbar-search { width: 100%; }

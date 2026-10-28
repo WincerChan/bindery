@@ -140,6 +140,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     onDragOver={event => { event.preventDefault(); if (device() && !busy()) setDragging(true); }}
     onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
     onDrop={event => { event.preventDefault(); setDragging(false); if (event.dataTransfer) void choose(Array.from(event.dataTransfer.files)); }}>
+    <h2 class="sr-only">字体管理</h2>
     <DeviceTabs value="fonts" toolbar={<div class="device-font-toolbar">
       <SegmentedControl label="语言" value={language()} options={[{ value: "all", label: "全部" }, { value: "cjk", label: "中文" }, { value: "latin", label: "西文" }]} onChange={value => setLanguage(value as FontLanguage)} />
       <Button variant="secondary" disabled={!device() || busy()} onClick={() => input.click()}><Icon icon={TablerPlus} size={16} />添加字体</Button>

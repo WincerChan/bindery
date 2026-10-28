@@ -101,7 +101,6 @@
 .kindle-connect > section { flex-basis: 480px; display: flex; flex-direction: column; gap: 28px; }
 .kindle-connect > aside { flex-basis: 320px; }
 .kindle-connect-heading { display: grid; gap: 10px; }
-.kindle-connect h1 { font-size: 32px; }
 .kindle-connect-heading .muted { margin: 0; font-size: 15px; line-height: 1.7; color: var(--color-ink-2); }
 .kindle-steps { counter-reset: kindle-step; list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--color-line); }
 .kindle-steps li { counter-increment: kindle-step; padding: 18px 0 18px 42px; border-bottom: 1px solid var(--color-line); position: relative; font-size: 14px; }

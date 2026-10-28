@@ -17,13 +17,16 @@ try {
     const response = await handler(new Request("http://localhost" + path, { method: fields ? "POST" : "GET", headers: { Cookie: cookie, Accept: accept }, ...(fields ? { body: new URLSearchParams(fields) } : {}) }));
     if (process.env.BINDERY_CATALOG_TRACE) console.error("STATUS", response.status);
     // Drain SSR streams, including 404s, so router cleanup timers do not outlive the probe.
-    return new Response(await response.arrayBuffer(), { status: response.status, headers: response.headers });
+    const body = await response.arrayBuffer();
+    if (response.status >= 500) console.error("CATALOG ERROR", fields ? "POST" : "GET", path, response.status, new TextDecoder().decode(body));
+    return new Response(body, { status: response.status, headers: response.headers });
   };
   const pages = ["/rules", "/themes", "/rules/default/editor", "/themes/default/editor", "/tracker", "/wishlist", "/tracker/export", "/wishlist/export", "/tracker/duplicate-check", "/wishlist/duplicate-check"];
   const posts = ["/rules/new", "/rules/default/editor", "/rules/default/delete", "/rules/test", "/themes/new", "/themes/default/editor", "/themes/default/delete", "/tracker", "/wishlist", ...["tracker", "wishlist"].flatMap(f => [`/${f}/${"a".repeat(32)}/update`, `/${f}/${"a".repeat(32)}/delete`])];
   for (const path of pages) assert.equal((await request(path)).status, 303, `Anonymous GET ${path}`);
   for (const path of posts) assert.equal((await request(path, {})).status, 303, `Anonymous POST ${path}`);
   const login = await request("/login", { password: "catalog-password" });
+  assert.equal(login.status, 303, "POST /login");
   cookie = login.headers.getSetCookie()[0].split(";", 1)[0];
   for (const path of pages) {
     const response = await request(path); assert.equal(response.status, 200, `GET ${path}`); assert.equal(response.headers.get("cache-control"), "no-store");
@@ -53,7 +56,7 @@ try {
   assert.equal((await renamed.json()).name, "新名称");
   assert.equal((await request(`/themes/${themeId}/delete`, {})).status, 303);
   assert.equal((await request("/tracker", {})).status, 400);
-  const added = await request("/wishlist", { title: "三体", author: "刘慈欣", tags: "科幻", read_status: "reading", rating: "5", next: "/tracker?q=三体" }); assert.equal(added.status, 303); assert.match(added.headers.get("location"), /q=/);
+  const added = await request("/wishlist", { title: "三体", author: "刘慈欣", tags: "科幻", read_status: "reading", rating: "5", next: "/tracker?q=三体" }); assert.equal(added.status, 303, "POST /wishlist"); assert.match(added.headers.get("location"), /q=/);
   const duplicate = await request("/wishlist/duplicate-check?title=三体&author=刘慈欣"); const payload = await duplicate.json(); assert.equal(payload.exists, true); const wishId = payload.matches[0].id;
   assert.equal((await request("/tracker/duplicate-check?limit=0")).status, 422); assert.equal((await request("/tracker/duplicate-check?limit=")).status, 422);
   const repeated = await request("/tracker", { title: "三体" }); assert.match(repeated.headers.get("location"), /duplicate=/);

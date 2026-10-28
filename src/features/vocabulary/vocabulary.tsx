@@ -105,6 +105,8 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
       </>}</Show>}
       status={<>
         <p class="vocab-push-line"><span><StatusDot tone="ok" label="已推送" />LexiTrace 已推送 {page().summary.push.pushed} 个</span><Show when={page().summary.push.failed}><span class="vocab-failure"><StatusDot tone="danger" label="推送失败" />{page().summary.push.failed} 个失败</span></Show></p>
+      </>}
+      note={<>
         <Show when={!settings().baseUrl || !settings().hasToken}><p class="vocab-hint">尚未配置 LexiTrace，生词会照常保存在这里。</p></Show>
         <Show when={settings().baseUrl && settings().hasToken && !settings().enabled}><p class="vocab-hint">LexiTrace 推送已暂停，生词仍会同步。</p></Show>
       </>}

@@ -3,6 +3,7 @@ import {
   BackLink,
   BookCover,
   Button,
+  PageIntro,
   RatingInput,
   SelectPill,
   Select,
@@ -94,9 +95,7 @@ export function BookEditor(props: {
           name="metadata_source"
           value={page().lookup_selected_source || ""}
         />
-        <header class="books-edit-heading">
-          <h1>{book().title}</h1>
-          <div class="books-actions">
+        <PageIntro variant="editor" class="books-edit-heading" title={book().title} actions={<div class="books-actions">
             <Link
               class="btn btn-secondary"
               href={page().navigation.detail_url}
@@ -112,8 +111,7 @@ export function BookEditor(props: {
             <Button type="submit" disabled={busy()}>
               保存并写回
             </Button>
-          </div>
-        </header>
+          </div>} />
         <Show when={error()}>
           <p role="alert" class="field-error books-notice">
             {error()}

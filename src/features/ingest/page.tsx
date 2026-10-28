@@ -101,9 +101,9 @@ export function IngestPage(props: { options: ReturnType<typeof ingestOptions>; e
     <input type="hidden" name="dedupe_mode" value={duplicates() ? "normalize" : "keep"} />
     <input ref={input} id={fileInputId} class="ingest-file-input" aria-label="选择 TXT 或 EPUB 文件" type="file" name="files" accept=".txt,.epub" multiple disabled={submitting()} onChange={() => { add(Array.from(input.files || [])); input.value = ""; }} />
     <Show when={!files().length}><Button type="submit" class="ingest-fallback-submit" disabled={enhanced() && disabled()}>开始入库</Button></Show>
-    <PageIntro class={files().length ? "ingest-intro" : "ingest-intro-empty"} visualSize="page" eyebrow={files().length ? `入库 · 已选 ${files().length} 个文件` : "入库"} title={files().length ? <>这次放进书库的，<br />是下面这几本。</> : "把书放进来。"}
+    <PageIntro class={files().length ? "ingest-intro" : "ingest-intro-empty"} variant={files().length ? "main" : "empty"} visualSize="page" eyebrow={files().length ? `入库 · 已选 ${files().length} 个文件` : "入库"} title={files().length ? <>这次放进书库的，<br />是下面这几本。</> : "把书放进来。"}
       description={files().length ? "这是按当前主题排出的第一页，换规则或主题会跟着变。" : "拖到这一页任何地方，或选择文件。支持 TXT 和 EPUB，可多选。"}
-      actionsClass="ingest-staged-actions"
+      mobileActions={files().length ? "dock" : undefined}
       actions={<div class="ingest-hero-actions" data-staged={files().length ? "true" : "false"}>
         <Show when={!files().length}>
           <label for={fileInputId} class="btn btn-primary btn-lg ingest-picker" aria-disabled={submitting() ? "true" : undefined}><Icon icon={TablerUpload} size={16} /><span>选择文件</span></label>
