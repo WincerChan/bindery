@@ -31,6 +31,10 @@ structural layouts but use the shared intro title type.
 Routes audited:
 
 - `/`, `/ingest` (empty/staged), `/tracker`, `/vocabulary`: main intro.
+- `/vocabulary` uses `controlsPlacement="aside"`: the eyebrow sits above the
+  title row; LexiTrace status, actions and configuration hints sit to its right,
+  with the latest quotation below them. The right column remains present when
+  there are no words. On phones it follows the title and description in one column.
 - `/devices`: main when connected; guide when disconnected. `/devices/transfer`
   shares that device intro. `/devices/connect`: guide with a functional back link.
 - `/devices/preview`: topbar; `/devices/fonts`: compact device masthead.

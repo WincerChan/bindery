@@ -119,6 +119,11 @@ details[open] > summary .ui-summary-chevron { transform: rotate(180deg); }
 .ui-page-intro-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--intro-status-gap); min-width: 0; }
 /* Vocabulary puts status and actions in one structural row; the action wrapper adds no second stack step. */
 .ui-page-intro-controls > .ui-page-actions { margin-top: 0; }
+.ui-page-intro-side-controls { gap: var(--intro-stack-gap); }
+.ui-page-intro-aside { display: flex; flex: 0 1 var(--intro-visual-width); flex-direction: column; gap: var(--intro-stack-gap); min-width: 0; max-width: var(--intro-visual-width); }
+.ui-page-intro-aside > .ui-page-intro-controls { justify-content: flex-end; }
+.ui-page-intro-aside > .ui-page-note { text-align: end; }
+.ui-page-intro-aside > .ui-page-visual { flex: none; width: 100%; margin: 0; }
 .ui-page-intro-visual-device { --intro-visual-width: var(--intro-visual-device); }
 .ui-page-intro-visual-device .ui-page-visual { margin-inline-end: var(--intro-device-inset); }
 .ui-page-intro-visual-cover .ui-page-visual { padding: var(--intro-cover-pad); }
@@ -292,6 +297,9 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
   .page-header { margin-bottom: 24px; }
   .ui-page-intro-row { flex-direction: column; align-items: stretch; gap: var(--intro-visual-gap); }
   .ui-page-intro-text { flex: none; width: 100%; }
+  .ui-page-intro-aside { flex: none; width: 100%; max-width: none; }
+  .ui-page-intro-aside > .ui-page-intro-controls { display: flex; justify-content: flex-start; }
+  .ui-page-intro-aside > .ui-page-note { text-align: start; }
   /* Desktop flex-basis is a width, never a fixed phone column height. */
   .ui-page-visual { display: none; flex: none; flex-direction: column; align-items: stretch; }
   .ui-page-actions-docked { position: fixed; inset-inline: 0; bottom: calc(var(--intro-action-dock-inset) + env(safe-area-inset-bottom)); z-index: var(--intro-action-dock-layer); margin: 0; padding: var(--intro-action-dock-pad); background: var(--color-bg); border-top: 1px solid var(--color-line-faint); justify-content: flex-end; gap: var(--intro-action-gap); }

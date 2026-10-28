@@ -211,6 +211,12 @@ describe("生词本 UI", () => {
     expect(parseHtml(ui.page([item()], settings, cjk)).textContent).toContain("多半来自《规训与惩罚》。");
     expect(root.textContent).toContain("LexiTrace 已推送 120 个");
     expect(root.textContent).toContain("2 个失败");
+    const aside = byAttribute(root, "class", "ui-page-intro-aside");
+    expect(aside.textContent).toContain("LexiTrace 已推送 120 个");
+    expect(byRole(aside, "button", "LexiTrace 设置")).toBeDefined();
+    expect(byRole(aside, "button", "全部重试")).toBeDefined();
+    expect(byAttribute(root, "class", "ui-page-intro-text").textContent).not.toContain("LexiTrace");
+    expect(byAttribute(aside, "aria-label", "最近查的")).toBeDefined();
     expect(byAttribute(root, "aria-label", "最近查的").localName).toBe("figure");
     expect(root.getElementsByTagName("mark")[0]?.textContent).toBe("brag");
     expect(root.textContent).toContain("显示 1 / 124 个");
@@ -221,6 +227,11 @@ describe("生词本 UI", () => {
     expect(byRole(root, "heading", "已经记下 0 个词。")).toBeDefined();
     expect(root.textContent).toContain("生词本还是空的");
     expect(root.textContent).toContain("尚未配置 LexiTrace");
+    const aside = byAttribute(root, "class", "ui-page-intro-aside");
+    expect(aside.textContent).toContain("尚未配置 LexiTrace");
+    expect(aside.textContent).toContain("LexiTrace 已推送 0 个");
+    expect(byRole(aside, "button", "LexiTrace 设置")).toBeDefined();
+    expect(allByRole(root, "button", "LexiTrace 设置")).toHaveLength(1);
     expect(root.textContent).not.toContain("全部重试");
     expect(root.textContent).not.toContain("最近查的");
     expect(html).not.toContain('class="ui-page-visual"');

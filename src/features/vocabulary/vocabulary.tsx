@@ -98,7 +98,7 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
     finally { setTesting(false); }
   }
   return <section aria-label="生词本" class="vocab-page">
-    <PageIntro class="vocab-intro" visualSize="vocabulary" eyebrow={<><span class="vocab-eyebrow-wide">生词本 · 从 Kindle 和 Kobo 同步 · 共 {page().summary.total} 个</span><span class="vocab-eyebrow-phone">生词本 · 共 {page().summary.total} 个</span></>}
+    <PageIntro class="vocab-intro" visualSize="vocabulary" controlsPlacement="aside" eyebrow={<><span class="vocab-eyebrow-wide">生词本 · 从 Kindle 和 Kobo 同步 · 共 {page().summary.total} 个</span><span class="vocab-eyebrow-phone">生词本 · 共 {page().summary.total} 个</span></>}
       title={page().summary.month.count ? `这个月查了 ${page().summary.month.count} 个词。` : `已经记下 ${page().summary.total} 个词。`}
       description={<Show when={page().summary.month.top_source} fallback="把读到的生词，连同当时的句子留下来。">{source => <>
         多半来自<BookTitle title={source().title} />。<Show when={page().summary.latest}><span class="vocab-description-wide">右边是最近查的一个，连同查词时读到的那句话。</span><span class="vocab-description-phone">下面是最近查的一个，连同当时读到的那句话。</span></Show>
