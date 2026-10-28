@@ -119,7 +119,6 @@ wrap ownership and exactly one h1 per rendered variant.
   checked independently in Chromium, including the accessibility tree. The desktop
   transfer modal intentionally exposes its named h2/dialog rather than the inert
   underlying main/h1. Human screenshot inspection remains required.
-- Per-route/per-width results and exact check counts: [intro-check-results.md](intro-check-results.md).
 - Device-connected measurements use an isolated OPFS-backed directory with a
   Kindle identity and empty inventory, not physical hardware. Disconnected and
   phone states are also measured. No production device/library is modified.
