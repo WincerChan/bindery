@@ -113,14 +113,14 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
           </Button>
         </div>
       </div>}
-      visual={<Show when={page().summary.latest}>{latest => <figure class="vocab-latest" aria-label="最近查的">
+      visual={page().summary.latest && <Show when={page().summary.latest}>{latest => <figure class="vocab-latest" aria-label="最近查的">
         <p class="vocab-section-label">最近查的</p><p class="vocab-latest-word">{latest().word}</p>
         <Show when={latest().context.sentence} fallback={<p class="vocab-hint">未找到例句</p>}><blockquote><HighlightedSentence sentence={latest().context.sentence} raw={latest().raw_word} word={latest().word} /></blockquote></Show>
         <figcaption><WordSource item={latest()} /></figcaption>
       </figure>}</Show>} />
     <Show when={notice()}><p class="vocab-message" role="status">{notice()}</p></Show>
     <Show when={error()}><div class="vocab-failure" role="alert">{error()} <Button variant="secondary" disabled={busy()} onClick={refresh}>重新加载</Button></div></Show>
-    <Toolbar label="筛选生词" search={<SearchPill label="搜索生词、例句、书籍或设备" placeholder="搜索生词、例句、书籍或设备" value={query()} onInput={event => setQuery(event.currentTarget.value)} />}>
+    <Toolbar label="筛选生词" search={<SearchPill label="搜索生词、例句、书籍或设备" placeholder="搜索生词、例句" value={query()} onInput={event => setQuery(event.currentTarget.value)} />}>
       <SelectPill label="书" value={book()} options={choices(page().books)} onChange={setBook} />
       <SelectPill label="设备" value={device()} options={choices(page().devices)} onChange={setDevice} />
       <SegmentedControl label="推送状态" value={status() === "error" || status() === "conflict" ? "failed" : status()} options={[{ value: "all", label: "全部" }, { value: "pending", label: "未推送" }, { value: "failed", label: "失败" }]} onChange={value => setStatus(value as VocabularyFilters["pushState"])} />
@@ -128,7 +128,7 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
     <ul class="vocab-directory" aria-label="生词列表" aria-busy={busy() ? "true" : "false"}><For each={visible()}>{item => <li>
       <div class="vocab-word-heading"><h2>{item.word}</h2><Show when={item.raw_word !== item.word}><span class="vocab-raw">{item.raw_word}</span></Show><Show when={item.push_state !== "pushed"}><StatusDot label={failed(item) ? `${pushStatusLabel(item)}，可在详情中重试` : "未推送到 LexiTrace"} tone={failed(item) ? "danger" : "empty"} /></Show></div>
       <p class="vocab-sentence"><Show when={item.context.sentence} fallback={<span class="vocab-hint">未找到例句</span>}><HighlightedSentence sentence={item.context.sentence} raw={item.raw_word} word={item.word} /></Show></p>
-      <p><WordSource item={item} /></p>
+      <p class="vocab-source-line"><WordSource item={item} /></p>
       <details class="vocab-word-details"><summary aria-label={`${item.word} 的详情`}>详情</summary>
         <Show when={item.context.sentence}><p class="vocab-full-sentence"><HighlightedSentence sentence={item.context.sentence} raw={item.raw_word} word={item.word} /></p></Show>
         <Show when={item.context.previous.length}><p>前文：{item.context.previous.join(" ")}</p></Show>
