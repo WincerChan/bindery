@@ -231,7 +231,7 @@ it("renders the transfer filters, compact search, setting fields and ordered que
   expect(byLabel(aside, "排版方案")).toBeDefined();
   const queue = byRole(aside, "region", "传输队列");
   expect(allByAttribute(queue, "data-queue-item")).toHaveLength(0);
-  expect(byRole(root, "dialog", "发送")).toBeDefined();
+  expect(byRole(root, "dialog", /^发送/)).toBeDefined();
   const startButton = button(aside, "发送");
   expect(startButton.hasAttribute("disabled")).toBe(true);
   expect(allByAttribute(aside, "data-start-hint")).toHaveLength(1);

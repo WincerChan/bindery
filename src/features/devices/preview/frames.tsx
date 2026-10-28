@@ -3,7 +3,7 @@ import { errorMessage } from "../../../client/kindle/fs";
 import type { FontFamily, PairedDevice } from "../../../client/kindle";
 import { DocumentFonts, PreviewDocument, previewTurnKey } from "./frame";
 import type { PageGeometry } from "../../../client/devices/typeset";
-import { Button } from "../../../ui";
+import { Button, Icon } from "../../../ui";
 import { hasSideGrip } from "../device-shell";
 
 /** A page whose column pitch is twice the screen width, so sideways overflow never leaks into the next page. */
@@ -88,9 +88,10 @@ export function ChapterFrame(props: { src: string; geometry: PageGeometry; kind?
         width={dimensions().width} height={dimensions().height} style={{ transform: `scale(${scale()})`, visibility: ready() ? "visible" : "hidden" }} onLoad={onLoad} />
     </div></div></div>
     <div class="kt-actions kt-page-controls" role="group" aria-label="预览翻页">
-      <Button variant="secondary" disabled={!ready() || position().page === 1 && !props.hasPrevious} onClick={() => turn(-1)}>上一页</Button>
-      <span role="status" aria-live="polite" aria-atomic="true" data-kindle-page-status>{ready() ? `第 ${position().page} / ${position().count} 页` : "正在分页…"}</span>
-      <Button variant="secondary" disabled={!ready() || position().page === position().count && !props.hasNext} onClick={() => turn(1)}>下一页</Button>
+      <Button class="kt-page-turn" variant="secondary" disabled={!ready() || position().page === 1 && !props.hasPrevious} onClick={() => turn(-1)}><Icon name="arrow-left" size={18} />上一页</Button>
+      <span class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-kindle-page-status>{ready() ? `第 ${position().page} / ${position().count} 页` : "正在分页…"}</span>
+      <Show when={ready()}><span class="kt-page-number" aria-hidden="true"><b>{String(position().page).padStart(2, "0")}</b><span>/ {position().count} 页</span></span></Show>
+      <Button class="kt-page-turn" variant="secondary" disabled={!ready() || position().page === position().count && !props.hasNext} onClick={() => turn(1)}><Icon name="arrow-right" size={18} />下一页</Button>
     </div>
     <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
   </div>;
@@ -105,13 +106,16 @@ export function FontSample(props: { device: PairedDevice; family: FontFamily }) 
     if (!doc?.body || disposed || sampleDocument === doc) return;
     registration?.clear();
     sampleDocument = doc;
-    const lines = ["永 书读百遍", "Aa Reading"].map(sample => {
-      const line = doc.createElement("p");
-      line.textContent = sample;
-      line.style.cssText = 'margin:0; font:28px/1.5 "Bindery Device Sample"; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--sample-ink);';
-      return line;
-    });
-    doc.body.replaceChildren(...lines); doc.body.style.margin = "0";
+    const cjk = props.family.fonts.some(font => font.cjk), line = doc.createElement("p");
+    line.style.cssText = 'margin:0; display:flex; align-items:baseline; gap:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--sample-ink); font-family:"Bindery Device Sample", serif;';
+    const specimen = doc.createElement("span");
+    specimen.textContent = cjk ? "永" : "Aa";
+    specimen.style.cssText = 'font-size:72px; line-height:1;';
+    const phrase = doc.createElement("span");
+    phrase.textContent = cjk ? "书读百遍" : "Reading";
+    phrase.style.cssText = cjk ? 'font-size:30px; line-height:1; font-weight:500;' : 'font-size:30px; line-height:1; font-style:italic;';
+    line.append(specimen, phrase);
+    doc.body.replaceChildren(line); doc.body.style.margin = "0";
     doc.documentElement.style.setProperty("--sample-ink", getComputedStyle(frame).color);
     const fonts = new DocumentFonts(doc); registration = fonts;
     try { await fonts.load(props.device, props.family, "Bindery Device Sample"); }

@@ -40,6 +40,8 @@ const modelOptions = (kind: DeviceKind) => kind === "kindle"
   ? Object.entries({ KPW3: kindleModelInfo("KPW3").name, KO3: kindleModelInfo("KO3").name, other: kindleModelInfo("other").name })
   : Object.entries({ libra2: koboModelInfo("libra2").name, libraH2O: koboModelInfo("libraH2O").name, sage: koboModelInfo("sage").name, elipsa: koboModelInfo("elipsa").name, claraHD: koboModelInfo("claraHD").name, clara2e: koboModelInfo("clara2e").name, claraBW: koboModelInfo("claraBW").name, claraColour: koboModelInfo("claraColour").name, libraColour: koboModelInfo("libraColour").name, nia: koboModelInfo("nia").name, forma: koboModelInfo("forma").name, auraOne: koboModelInfo("auraOne").name, auraH2O: koboModelInfo("auraH2O").name, auraEdition2: koboModelInfo("auraEdition2").name, aura: koboModelInfo("aura").name, glo: koboModelInfo("glo").name, touch: koboModelInfo("touch").name, mini: koboModelInfo("mini").name, unknown: koboModelInfo("unknown").name });
 const defaultModel = (kind: DeviceKind) => kind === "kindle" ? "KPW3" : "libra2";
+/** Cover/title pages are not typesetting samples; open the first text chapter instead. */
+const firstTextChapter = (sections: readonly PreviewChapter[]) => { const index = sections.findIndex(section => !/^(封面|cover|title ?page|制作说明|内容简介|简介|作者简介|书评|目录|版权|copyright|扉页|书名页|出版信息|序言|序|前言|后记|附录|插图|彩页)/i.test(section.title.trim())); return index < 0 ? 0 : index; };
 
 type PreviewProps = { data: PreviewData; initialFont?: string; profiles: ProfileApi; reading?: ReadingApi; chapters: (bookId: string) => Promise<PreviewChapter[]>; onDirty?: (dirty: boolean) => void; manager?: DeviceManager | null };
 /** Allows isolated component tests to supply a manager without a surrounding provider. */
@@ -62,7 +64,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const [busy, setBusy] = createSignal(false), [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal(""), [notice, setNotice] = createSignal(""), [switchNotice, setSwitchNotice] = createSignal<Target | null>(null);
   const [saveAs, setSaveAs] = createSignal(false), [saveName, setSaveName] = createSignal(""), [deleting, setDeleting] = createSignal(false);
-  const [bookId, setBookId] = createSignal(props.data.bookId), [sections, setSections] = createSignal(props.data.sections), [chapter, setChapter] = createSignal(0), [chapterStart, setChapterStart] = createSignal({ page: 1 });
+  const [bookId, setBookId] = createSignal(props.data.bookId), [sections, setSections] = createSignal(props.data.sections), [chapter, setChapter] = createSignal(firstTextChapter(props.data.sections)), [chapterStart, setChapterStart] = createSignal({ page: 1 });
   const [chapterLoading, setChapterLoading] = createSignal(false), [chapterError, setChapterError] = createSignal(props.data.error);
   let disposed = false, profileRequest = 0, chapterRequest = 0, initialFontApplied = false, readingRequest = 0, saveTimer: ReturnType<typeof setTimeout> | undefined, followedId: string | undefined, modelOnlyByUser = false, lastGrant: { id: string; root: unknown } | null = null;
 
@@ -188,11 +190,11 @@ function DevicePreviewPageInner(props: PreviewProps) {
   }
   async function chooseBook(id: string) {
     const request = ++chapterRequest; setBookId(id); setSections([]); openChapter(0); setChapterLoading(true); setChapterError("");
-    try { const result = await props.chapters(id); if (!disposed && request === chapterRequest) setSections(result); }
+    try { const result = await props.chapters(id); if (!disposed && request === chapterRequest) { setSections(result); openChapter(firstTextChapter(result)); } }
     catch (error) { if (!disposed && request === chapterRequest) setChapterError(errorMessage(error)); }
     finally { if (!disposed && request === chapterRequest) setChapterLoading(false); }
   }
-  createEffect(() => props.data, data => { chapterRequest++; setBookId(data.bookId); setSections(data.sections); openChapter(0); setChapterLoading(false); setChapterError(data.error); });
+  createEffect(() => props.data, data => { chapterRequest++; setBookId(data.bookId); setSections(data.sections); openChapter(firstTextChapter(data.sections)); setChapterLoading(false); setChapterError(data.error); });
   createEffect(state, () => {
     // `restore()` briefly keeps the previous status; checkedAt confirms a completed probe.
     const current = state(), grant = current?.status === "granted" && current.checkedAt !== null ? current.device : null;
@@ -229,75 +231,78 @@ function DevicePreviewPageInner(props: PreviewProps) {
   onCleanup(() => { disposed = true; profileRequest++; chapterRequest++; readingRequest++; if (saveTimer !== undefined) clearTimeout(saveTimer); });
   const src = () => { const section = sections()[chapter()]; return section ? previewContentUrl(bookId(), section.item_path, settingsError() ? EMPTY_SETTINGS : draft().settings) : ""; };
   return <section class="kt-page device-preview-page" aria-label="排版与预览">
-    <BackLink href={bookId() ? `/book/${encodeURIComponent(bookId())}` : "/devices"}>{bookId() ? "返回书籍" : "设备"}</BackLink>
-    <PageIntro eyebrow={previewName()} title="排版预览" description="所有设备共用排版方案，只改变发送的副本，书库里的原书不变。无需连接也能预览；调整后可直接发送，不必保存为方案。" actions={<>
-      <SelectPill label="预览设备" value={target()?.id ?? ""} disabled={busy()} options={[{ value: "", label: "仅预览型号" }, ...available().map(identity => ({ value: identity.id, label: identity.name }))]} onChange={chooseTarget} />
+    <div class="kt-topbar">
+      <BackLink href={bookId() ? `/book/${encodeURIComponent(bookId())}` : "/devices"}>{bookId() ? "返回书籍" : "设备"}</BackLink>
+      <h1 class="kt-topbar-title">排版预览</h1>
+      <PreviewBookPicker pill books={props.data.books} value={bookId()} disabled={!props.data.books.length} onChange={id => { void chooseBook(id); }} />
+      <SelectPill label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} options={sections().map((section, index) => ({ value: String(index), label: section.title }))} onChange={value => openChapter(Number(value))} />
+      <span class="kt-topbar-spacer" />
+      <SelectPill class="kt-device-pill" label="预览设备" value={target()?.id ?? ""} disabled={busy()} options={[{ value: "", label: "仅预览型号" }, ...available().map(identity => ({ value: identity.id, label: identity.name }))]} onChange={chooseTarget} />
       <Show when={!target()}><SelectPill label="设备种类" value={modelKind()} disabled={busy()} options={[{ value: "kindle", label: "Kindle" }, { value: "kobo", label: "Kobo" }]} onChange={value => chooseModelKind(value as DeviceKind)} /><SelectPill label="预览型号" value={model()} disabled={busy()} options={modelOptions(modelKind()).map(([value, label]) => ({ value, label }))} onChange={setModel} /></Show>
-    </>} />
-    <div class="kt-preview-layout"><section class="kt-editor" aria-label="排版方案编辑器">
-      <section class="kt-reading" aria-label="设备阅读设置">
-        <h3>设备阅读设置（只用于预览）</h3>
-        <Show when={presets().length > 1} fallback={<p class="muted" data-reading-margin>页边距：{presets()[0]!.label}（{geometry().measured ? "实测" : "估算"}）</p>}>
-          <SegmentedControl label="设备页边距" value={reading().margin} disabled={busy()} options={presets().map(preset => ({ value: preset.id, label: preset.label }))} onChange={margin => editReading({ margin })} />
-        </Show>
-      </section>
-      <div class="kt-profile-controls"><Select label="方案" value={draft().id} disabled={busy() || loading()} onChange={event => {
-        const selected = profiles().find(profile => profile.id === event.currentTarget.value);
-        if (selected && (!dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？"))) { selectProfile(selected); rememberProfile(selected.id); }
-        event.currentTarget.value = draft().id;
-      }}>
-        <Show when={!profiles().some(profile => profile.id === draft().id)}><option value={draft().id}>{draft().name}{dirty() ? " · 已调整（未保存）" : ""}</option></Show>
-        <For each={profiles()}>{profile => <option value={profile.id}>{(profile.builtIn ? defaultProfile().name : profile.name) + (profile.id === draft().id && dirty() ? " · 已调整（未保存）" : "")}</option>}</For>
-      </Select></div>
+      <h3 class="sr-only">设备阅读设置（只用于预览）</h3>
+      <Show when={presets().length > 1} fallback={<><p class="sr-only" data-reading-margin>页边距：{presets()[0]!.label}（{geometry().measured ? "实测" : "估算"}）</p><span class="kt-margin-pill-static"><span>设备边距</span><strong>{presets()[0]!.label}</strong><Icon name="chevron-down" size={14} /></span></>}>
+        <div role="group" aria-label="设备页边距" class="segmented kt-margin-pill"><span class="kt-margin-label">设备边距</span><For each={presets()}>{preset => <button type="button" aria-pressed={reading().margin === preset.id ? "true" : "false"} disabled={busy()} onClick={() => editReading({ margin: preset.id })}>{preset.label}</button>}</For></div>
+      </Show>
+    </div>
+    <Show when={chapterLoading()}><p role="status" class="kt-chapter-status">正在读取章节…</p></Show>
+    <Show when={chapterError()}><p role="alert" class="field-error">{chapterError()}</p></Show>
+    <Show when={bookId() && chapterError()}><Button variant="secondary" disabled={chapterLoading()} onClick={() => chooseBook(bookId())}>重新读取章节</Button></Show>
+    <Show when={!props.data.books.length}><p class="notice">书库中还没有可预览的 EPUB。</p></Show>
+    <Show when={bookId() && !sections().length && !chapterLoading() && !chapterError()}><p class="notice">这本书没有可预览的章节。</p></Show>
+    <div class="kt-preview-layout"><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
+      <ChapterFrame src={src()} geometry={geometry()} kind={kind()} model={target()?.model ?? model()} label={deviceKindLabel(kind())} css={css()} device={family() ? fontDevice() : null} family={family()} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
+      <p class="kt-preview-caption">只模拟正文分页，不含页眉页脚，和真机会有少量差异。</p>
+      <Show when={overflow()}><p class="kt-warning-note" role="alert" data-overflow-note>⚠ 左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。</p></Show>
+      <details class="kt-calibration"><summary>校准说明</summary>
+        <p class="muted" data-kindle-line-estimate>{settingsError() ? "排版参数无效，预览保留上次有效样式。" : `预计每行约 ${estimate().charsPerLine} 字、每页 ${estimate().linesPerPage} 行（${estimate().measured ? "实测" : "估算"} · ${targetInfo().panel.width}×${targetInfo().panel.height}${targetInfo().fallbackPanel ? ` · 其他型号按 ${targetInfo().panel.width}×${targetInfo().panel.height} 预览` : ""}）`}</p>
+        <p class="kt-spec">{modelShortName(kind(), target()?.model ?? model())} · {targetInfo().panel.width}×{targetInfo().panel.height} · {targetInfo().panel.ppi} ppi</p>
+        <p class="muted">设备阅读设置只影响预览，不会写入书籍；排版方案会写入 Kindle 和 Kobo 的传书副本。分页与真机会有少量差异，不模拟页眉页脚。</p>
+        <p class="muted">实测：Kindle Paperwhite 3 窄边距、Kobo Libra 2 最小边距。其他型号与档位按屏幕像素密度估算。</p>
+      </details>
+    </section><section class="kt-editor" aria-label="排版方案编辑器">
+      <div class="kt-profile-block">
+        <p class="kt-profile-label">排版方案</p>
+        <div class="kt-profile-row"><div class="kt-profile-controls"><Select class="kt-profile-select" label="方案" value={draft().id} disabled={busy() || loading()} onChange={event => {
+          const selected = profiles().find(profile => profile.id === event.currentTarget.value);
+          if (selected && (!dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？"))) { selectProfile(selected); rememberProfile(selected.id); }
+          event.currentTarget.value = draft().id;
+        }}>
+          <Show when={!profiles().some(profile => profile.id === draft().id)}><option value={draft().id}>{draft().name}{dirty() ? " · 已调整（未保存）" : ""}</option></Show>
+          <For each={profiles()}>{profile => <option value={profile.id}>{(profile.builtIn ? defaultProfile().name : profile.name) + (profile.id === draft().id && dirty() ? " · 已调整（未保存）" : "")}</option>}</For>
+        </Select><Icon name="chevron-down" size={16} class="kt-profile-chevron" /></div>
+        <Show when={dirty()}><p role="status" class="kt-dirty-note"><span aria-hidden="true" />有修改<span class="sr-only">有未保存的修改</span></p></Show></div>
+        <p class="kt-profile-description">所有设备共用；发送时写进设备上的副本，书库里的书不变。调整后可直接发送，不必保存为方案。</p>
+      </div>
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
       <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
       <Show when={notice()}><p role="status" class="kt-success-note"><Icon name="check" size={16} /> {notice()}</p></Show>
       <Show when={switchNotice()}>{pending => <p role="status" class="notice">已连接「{pending().name}」，当前排版有未保存的修改。<Button variant="quiet" disabled={busy()} onClick={switchToPendingGrant}>切换到 {pending().name}</Button></p>}</Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
-      <Show when={dirty()}><p role="status" class="kt-dirty-note"><span aria-hidden="true" />有未保存的修改</p></Show>
       <Show when={draft().settings.fontFamily && !family()}><p class="muted">所选字体当前预览设备不可用，预览暂用替代字体；发送前请确认目标设备已安装。</p></Show>
-      <For each={ranges}>{range => <div class="kt-range">
-        <Show when={range.key === "paragraphSpacing" || range.key === "textIndent"} fallback={<Slider label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? marginMax() : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} formatValue={value => range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${value}${range.unit}`} onChange={value => { if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />}>
-          <span class="kt-stepper-label">{range.label}</span><Stepper label={`${range.label}（${range.unit}）`} min={range.min} max={range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} onChange={value => edit(range.key, Number(value.toFixed(2)))} />
-        </Show>
-        <span class="kt-range-value"><output aria-label={`${range.label}当前值`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output>
-        <button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={locked() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button></span>
-      </div>}</For>
-      <Select label="字体（预览设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={locked()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
+      <Select class="kt-pill-select" label="字体（预览设备上已安装）" value={draft().settings.fontFamily ?? ""} disabled={locked()} onChange={event => edit("fontFamily", event.currentTarget.value || null)}>
         <option value="">设备默认字体</option>
         <Show when={draft().settings.fontFamily && !family()}><option value={draft().settings.fontFamily!}>{draft().settings.fontFamily}（尚未在当前设备读取到）</option></Show>
         <For each={fonts()}>{font => <option value={font.name}>{font.name}</option>}</For>
       </Select>
+      <For each={ranges}>{range => <div class="kt-range">
+        <div class="kt-range-head"><span class="kt-stepper-label">{range.label}</span><span class="kt-range-value"><output aria-label={`${range.label}当前值`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output><button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={locked() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button></span></div>
+        <Show when={range.key === "paragraphSpacing" || range.key === "textIndent"} fallback={<Slider label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? marginMax() : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} formatValue={value => range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${value}${range.unit}`} onChange={value => { if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />}>
+          <Stepper label={`${range.label}（${range.unit}）`} min={range.min} max={range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} onChange={value => edit(range.key, Number(value.toFixed(2)))} />
+        </Show>
+      </div>}</For>
       <fieldset class="kt-checkboxes"><legend>去掉书里自带的</legend><div class="kt-actions">
         <For each={[["stripFonts", "字体"], ["stripImages", "图片"], ["stripPageMargins", "页边距"], ["stripLineHeight", "行高"], ["stripParagraphSpacing", "段间距"]] as const}>{([key, label]) => <ToggleChip aria-label={key === "stripImages" ? "去掉所有图片" : `去掉书籍自带${label}`} selected={draft().settings[key]} disabled={locked()} onClick={() => edit(key, !draft().settings[key])}>{label}</ToggleChip>}</For>
       </div></fieldset>
-      <details class="kt-advanced"><summary>更多设置</summary><div>
-        <TextField label="方案名称" value={draft().name} disabled={locked()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
+      <details class="kt-advanced"><summary>自定义 CSS</summary><div>
+        <Show when={!draft().builtIn && draft().id !== "draft"}><TextField label="方案名称" value={draft().name} disabled={locked()} maxlength={100} onInput={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} /></Show>
         <Textarea label="额外自定义 CSS" rows={6} value={draft().settings.customCss} disabled={locked()} error={cssError() ?? undefined} onInput={event => edit("customCss", event.currentTarget.value)} />
         <Textarea label="生成的 CSS（只读）" rows={8} class="kt-generated" readonly value={css() ?? "排版参数校验未通过，预览保留上次有效样式。"} />
       </div></details>
-      <div class="kt-actions kt-profile-actions"><Button variant="quiet" disabled={locked() || !dirty()} onClick={reset}>重置</Button>
-        <Show when={!draft().builtIn && draft().id !== "draft"}><Button variant="quiet" disabled={locked()} onClick={() => setDeleting(true)}>删除</Button></Show>
-        <Button variant="secondary" disabled={!canStore()} onClick={openSaveAs}>另存为方案</Button>
-        <Show when={!draft().builtIn && draft().id !== "draft"}><Button disabled={!canStore() || !dirty()} onClick={() => save()}>保存方案</Button></Show></div>
-      <SendToDevice bookId={bookId()} profileId={draft().id} options={{ settings: settingsError() ? EMPTY_SETTINGS : settings(), ...(draft().id === DEFAULT_PROFILE_ID ? {} : { profileName: draft().name }) }} onSent={() => setSent(JSON.stringify(draft()))} blocked={sendBlocked()} />
-    </section><section class="kt-preview kt-preview-sticky" aria-label="设备预览">
-      <div class="kt-preview-header">
-      <div class="kt-preview-toolbar"><div class="kt-preview-selectors"><PreviewBookPicker books={props.data.books} value={bookId()} disabled={!props.data.books.length} onChange={id => { void chooseBook(id); }} />
-        <Select label="章节" value={String(chapter())} disabled={chapterLoading() || !sections().length} onChange={event => openChapter(Number(event.currentTarget.value))}><For each={sections()}>{(section, index) => <option value={String(index())}>{section.title}</option>}</For></Select>
-      </div></div>
-      <Show when={chapterLoading()}><p role="status">正在读取章节…</p></Show><Show when={chapterError()}><p role="alert" class="field-error">{chapterError()}</p></Show>
-      <Show when={bookId() && chapterError()}><Button variant="secondary" disabled={chapterLoading()} onClick={() => chooseBook(bookId())}>重新读取章节</Button></Show>
-      <Show when={!props.data.books.length}><p class="notice">书库中还没有可预览的 EPUB。</p></Show><Show when={bookId() && !sections().length && !chapterLoading() && !chapterError()}><p class="notice">这本书没有可预览的章节。</p></Show>
-      </div>
-      <ChapterFrame src={src()} geometry={geometry()} kind={kind()} model={target()?.model ?? model()} label={deviceKindLabel(kind())} css={css()} device={family() ? fontDevice() : null} family={family()} start={chapterStart()} hasPrevious={chapter() > 0} hasNext={chapter() + 1 < sections().length} onChapter={direction => openChapter(chapter() + direction, direction < 0 ? Number.MAX_SAFE_INTEGER : 1)} />
-      <p class="muted" data-kindle-line-estimate data-typeset-estimate>{settingsError() ? "排版参数无效，预览保留上次有效样式。" : `预计每行约 ${estimate().charsPerLine} 字、每页 ${estimate().linesPerPage} 行（${estimate().measured ? "实测" : "估算"} · ${targetInfo().panel.width}×${targetInfo().panel.height}${targetInfo().fallbackPanel ? ` · 其他型号按 ${targetInfo().panel.width}×${targetInfo().panel.height} 预览` : ""}）`}</p>
-      <Show when={overflow()}><p class="kt-warning-note" role="alert" data-overflow-note>⚠ 左右边距超出设备自带边距，部分文字会被屏幕边缘切掉。</p></Show>
-      <details class="kt-calibration"><summary>校准说明</summary>
-        <p class="kt-spec">{modelShortName(kind(), target()?.model ?? model())} · {targetInfo().panel.width}×{targetInfo().panel.height} · {targetInfo().panel.ppi} ppi</p>
-        <p class="muted">设备阅读设置只影响预览，不会写入书籍；排版方案会写入 Kindle 和 Kobo 的传书副本。分页与真机会有少量差异，不模拟页眉页脚。</p>
-        <p class="muted">实测：Kindle Paperwhite 3 窄边距、Kobo Libra 2 最小边距。其他型号与档位按屏幕像素密度估算。</p>
-      </details>
+      <div class="kt-actions kt-profile-actions"><Button variant="quiet" aria-label="重置" disabled={locked() || !dirty()} onClick={reset}>还原</Button>
+        <Show when={!draft().builtIn && draft().id !== "draft"}><Button variant="quiet" aria-label="删除" disabled={locked()} onClick={() => setDeleting(true)}>删除</Button></Show>
+        <Button variant="secondary" aria-label="另存为方案" disabled={!canStore()} onClick={openSaveAs}>另存为</Button>
+        <Show when={!draft().builtIn && draft().id !== "draft"}><Button aria-label="保存方案" disabled={!canStore()} onClick={() => save()}>保存</Button></Show></div>
+      <SendToDevice bookId={bookId()} bookTitle={props.data.books.find(book => book.id === bookId())?.title} profileId={draft().id} options={{ settings: settingsError() ? EMPTY_SETTINGS : settings(), ...(draft().id === DEFAULT_PROFILE_ID ? {} : { profileName: draft().name }) }} onSent={() => setSent(JSON.stringify(draft()))} blocked={sendBlocked()} />
     </section></div>
     <Dialog open={saveAs()} title={draft().builtIn ? "新建排版方案" : "另存为排版方案"} onClose={() => { if (!busy()) setSaveAs(false); }}><form onSubmit={event => { event.preventDefault(); void save(true); }}>
       <TextField label="新方案名称" value={saveName()} maxlength={100} required disabled={busy()} onInput={event => setSaveName(event.currentTarget.value)} /><p class="muted">排版方案由所有设备共用。默认方案始终保留。</p>
@@ -305,4 +310,5 @@ function DevicePreviewPageInner(props: PreviewProps) {
     </form></Dialog>
     <ConfirmDialog open={deleting()} title="删除排版方案？" danger onClose={() => { if (!busy()) setDeleting(false); }} onConfirm={remove}><p>删除「{draft().name}」{dirty() ? "及其未保存的修改" : ""}？已经发送到设备的书籍不会改变。</p></ConfirmDialog>
   </section>;
+
 }

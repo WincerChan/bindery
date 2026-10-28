@@ -170,7 +170,7 @@ it("renders one neutral page with both kinds available, no profile-owning device
   expect(elements(root, "p", "data-kindle-line-estimate")[0]!.textContent).toContain("实测");
   expect(input(root, "kt-marginX").hasAttribute("disabled")).toBe(false);
   expect(elements(root, "button").filter(node => node.textContent === "保存方案" || node.textContent === "删除")).toHaveLength(0);
-  expect(elements(withClass(root, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "另存为方案"]);
+  expect(elements(withClass(root, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["还原", "另存为"]);
   expect(root.textContent).toContain("调整后可直接发送，不必保存为方案");
   expect(root.textContent).not.toContain("要调整边距、行高等，请新建方案");
   expect(withClass(root, "kt-preview-sticky")).toBeDefined();
@@ -412,7 +412,7 @@ it("picks the preview book from one searchable dropdown: open, type, Enter", asy
   const chapters = vi.fn(async () => [{ title: "第一章", item_path: "Text/第一 章.xhtml" }]);
   const mounted = mount(null, { chapters }); await settle();
   const box = bookBox(mounted.root), options = () => elements(mounted.root, "li").filter(node => node.getAttribute("role") === "option");
-  expect(box.value).toBe("甲 · 作者"); expect(box.getAttribute("aria-expanded")).toBe("false"); expect(options()).toHaveLength(0);
+  expect(box.value).toBe("甲"); expect(box.getAttribute("aria-expanded")).toBe("false"); expect(options()).toHaveLength(0);
   fire(box, "focus"); ui.flush();
   expect(box.getAttribute("aria-expanded")).toBe("true"); expect(box.value).toBe(""); expect(box.getAttribute("placeholder")).toBe("甲 · 作者");
   expect(options().map(node => node.textContent)).toEqual(["甲 · 作者", "乙"]);
@@ -427,7 +427,7 @@ it("picks the preview book from one searchable dropdown: open, type, Enter", asy
   fire(box, "keydown", { key: "Enter" }); ui.flush(); expect(chapters).toHaveBeenCalledTimes(1);
   // A click on an option picks it.
   fire(box, "blur"); ui.flush(); fire(box, "focus"); ui.flush(); fire(options()[0]!, "click"); ui.flush(); await settle();
-  expect(chapters).toHaveBeenLastCalledWith("a"); expect(box.value).toBe("甲 · 作者");
+  expect(chapters).toHaveBeenLastCalledWith("a"); expect(box.value).toBe("甲");
 });
 
 it("ignores a stale chapter response after the book changed", async () => {
@@ -469,7 +469,7 @@ it("shows compact profile range rows, all strip toggles and advanced settings fo
   expect(elements(checkboxes, "button").every(node => node.getAttribute("aria-pressed") === "false")).toBe(true);
   expect(elements(labels(editor, "select", "字体（预览设备上已安装）"), "option")[0]!.textContent).toBe("设备默认字体");
   expect(elements(editor, "*").filter(node => /kt-font-(filter|field)/.test(node.getAttribute("class") || ""))).toEqual([]);
-  expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["重置", "删除", "另存为方案", "保存方案"]);
+  expect(elements(withClass(editor, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["还原", "删除", "另存为", "保存"]);
 });
 
 it("fits the frame to the smaller width/height constraint after mount, resize and panel changes, and releases layout listeners", async () => {

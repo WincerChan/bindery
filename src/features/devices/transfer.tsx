@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { defaultProfile, DEFAULT_PROFILE_ID, type TypesettingProfile } from "../../client/devices/profiles";
 import { defaultReadingSettings, readingSettings, type DeviceReadingSettings } from "../../client/devices/typeset";
 import type { DeviceKind } from "../../client/devices/models";
@@ -21,19 +22,22 @@ function stageAnnouncement(item: TransferItem) {
   if (item.state === "等待" || item.state === "完成" || item.state === "失败") return `${item.state}：${item.message}`;
   return ({ download: "正在下载 EPUB", convert: item.kind === "kobo" ? "正在转换 KEPUB，耗时为估计" : "正在转换 KFX，耗时为估计", write: "正在写入设备", thumbnail: "正在生成封面缩略图", finalize: "正在完成写入" })[item.phase];
 }
-function TransferQueueRow(props: { item: () => TransferItem; title: string; deviceName?: string; cancel: () => void; retry?: () => void }) {
+function TransferQueueRow(props: { item: () => TransferItem; title: string; deviceName?: string; cancel: () => void; retry?: () => void; cover?: JSX.Element }) {
   const item = props.item;
   const running = () => item().state !== "完成" && item().state !== "失败" && item().state !== "等待";
   const determinate = () => (item().phase === "download" || item().phase === "write") && item().total !== undefined && item().total! > 0;
   return <li class="kindle-queue-item" data-queue-item={item().id}>
-    <div class="kindle-section-heading"><strong>{props.title}</strong><span class={`kindle-queue-state ${item().state === "失败" ? "is-failed" : item().state === "完成" ? "is-complete" : ""}`}>{item().state}</span></div>
-    <Show when={running()}><progress aria-label={`${props.title} 传输进度`} aria-valuetext={progressDetail(item())} max={determinate() ? item().total : 1} value={determinate() ? item().loaded ?? 0 : undefined} /></Show>
-    <div class="kindle-queue-meta">
-      <p class={`kindle-small kindle-progress-detail ${item().state === "失败" ? "is-failed" : ""}`}>{props.deviceName ? `${props.deviceName} · ` : ""}{progressDetail(item())}</p>
-      <Show when={item().state !== "完成" && item().state !== "失败"}><Button class="kindle-text-button" variant="quiet" aria-label={`取消 ${props.title}`} onClick={props.cancel}>取消</Button></Show>
-      <Show when={item().state === "失败" && props.retry}><Button class="kindle-text-button kindle-retry" variant="quiet" aria-label={`重试 ${props.title}`} onClick={() => props.retry!()}>重试</Button></Show>
+    <Show when={props.cover}><span class="device-send-queue-cover" aria-hidden="true">{props.cover}</span></Show>
+    <div class="device-send-queue-main">
+      <div class="kindle-section-heading"><strong>{props.title}</strong><span class={`kindle-queue-state ${item().state === "失败" ? "is-failed" : item().state === "完成" ? "is-complete" : ""}`}>{item().state}</span></div>
+      <Show when={running()}><progress aria-label={`${props.title} 传输进度`} aria-valuetext={progressDetail(item())} max={determinate() ? item().total : 1} value={determinate() ? item().loaded ?? 0 : undefined} /></Show>
+      <div class="kindle-queue-meta">
+        <p class={`kindle-small kindle-progress-detail ${item().state === "失败" ? "is-failed" : ""}`}>{props.deviceName ? `${props.deviceName} · ` : ""}{progressDetail(item())}</p>
+        <Show when={item().state !== "完成" && item().state !== "失败"}><Button class="kindle-text-button" variant="quiet" aria-label={`取消 ${props.title}`} onClick={props.cancel}>取消</Button></Show>
+        <Show when={item().state === "失败" && props.retry}><Button class="kindle-text-button kindle-retry" variant="quiet" aria-label={`重试 ${props.title}`} onClick={() => props.retry!()}>重试</Button></Show>
+      </div>
+      <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{props.title}：{stageAnnouncement(item())}</span>
     </div>
-    <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{props.title}：{stageAnnouncement(item())}</span>
   </li>;
 }
 export function queueSummary(items: readonly TransferItem[]) {
@@ -50,7 +54,7 @@ export function queueSummary(items: readonly TransferItem[]) {
   const unknown = items.length - known.length;
   return `${prefix}${download} · 已写入 ${megabytes(written)} / ${megabytes(total)} MB${unknown ? `（另 ${unknown} 本待转换）` : ""}`;
 }
-export function DeviceTransferQueueProgress(props: { items: readonly TransferItem[]; title: (id: string) => string; deviceName: (id: string) => string; currentDeviceId?: string; cancel: (id: string) => void; retry?: (id: string) => void }) {
+export function DeviceTransferQueueProgress(props: { items: readonly TransferItem[]; title: (id: string) => string; deviceName: (id: string) => string; currentDeviceId?: string; cancel: (id: string) => void; retry?: (id: string) => void; cover?: (id: string) => JSX.Element }) {
   const byId = createMemo(() => new Map(props.items.map(item => [item.id, item])));
   const ids = createMemo(() => props.items.map(item => item.id));
   return <ol class="kindle-queue-list"><For each={ids()} fallback={<li class="kindle-small kindle-queue-empty">选择书籍后开始传输。</li>}>{id => {
@@ -59,7 +63,7 @@ export function DeviceTransferQueueProgress(props: { items: readonly TransferIte
     const item = createMemo(() => byId().get(id) ?? initial);
     // The target is only worth naming when it is not the device this page shows.
     const deviceName = () => initial.deviceId === props.currentDeviceId ? undefined : props.deviceName(initial.deviceId);
-    return <TransferQueueRow item={item} title={props.title(initial.bookId)} deviceName={deviceName()} cancel={() => props.cancel(id)} retry={props.retry && (() => props.retry!(id))} />;
+    return <TransferQueueRow item={item} title={props.title(initial.bookId)} deviceName={deviceName()} cover={props.cover?.(initial.bookId)} cancel={() => props.cancel(id)} retry={props.retry && (() => props.retry!(id))} />;
   }}</For></ol>;
 }
 
@@ -154,31 +158,39 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
   function toggleBook(id: string, checked = !selected().includes(id)) {
     setSelected(current => checked ? [...current.filter(value => value !== id), id] : current.filter(value => value !== id));
   }
-  return <SideSheet open title="发送" subtitle={target() ? `发送到${target()}` : "选择书籍并连接设备"} onClose={() => navigate("/devices")} class="device-send-sheet">
-    <div class="kindle-transfer">
-      <section aria-label="从书库选择">
-        <Show when={chosen().length}><div class="kindle-section-heading"><span class="kindle-selection" data-transfer-selection>估计大小：<span class="kindle-mono">{knownSize() ? `约 ${bytes(knownSize())}（按设备已有副本）` : "待转换后确定"}</span>{unknown() && knownSize() ? `，另 ${unknown()} 本待确定` : ""}</span></div></Show>
-        <SectionTitle>从书库选择</SectionTitle>
-        <div class="kindle-toolbar"><SearchPill label="搜索书库" placeholder="搜索书库" value={query()} onInput={e => { setQuery(e.currentTarget.value); setPage(1); }} /><SegmentedControl label="筛选" value={filter()} options={["不在设备", "未读", "全部"].map(value => ({ value, label: value }))} onChange={value => { setFilter(value); setPage(1); }} /></div>
-
+  return <SideSheet open title={target() ? `发送到${target()}` : "发送到设备"} onClose={() => navigate("/devices")} class="device-send-sheet">
+    <aside aria-label="传输" class="device-send-body">
+        <section class="device-send-queue" aria-label="传输队列">
+          <div class="device-send-queue-head">
+            <h2>{active().length ? `正在传输 · ${active().length}` : "队列"}</h2>
+            <div class="kindle-queue-actions">
+              <Show when={active().length}><Button class="kindle-text-button" variant="quiet" onClick={() => active().forEach(i => k.cancel(i.id))}>全部取消</Button></Show>
+              <Show when={finished()}><Button class="kindle-text-button" variant="quiet" onClick={k.clearFinished}>清除已结束</Button></Show>
+            </div>
+          </div>
+          <Show when={k.items().length}><p class="kindle-small kindle-queue-summary" data-queue-summary>{queueSummary(k.items())}</p></Show>
+          <DeviceTransferQueueProgress items={k.items()} title={title} deviceName={id => k.remembered().find(d => d.id === id)?.identity.name || id} currentDeviceId={k.state().device?.identity.id} cancel={k.cancel} retry={k.retry} cover={id => { const book = props.books.find(item => item.book_id === id); return book ? <BookCover compact book_id={book.book_id} title={book.title} author={book.author} cover_url={book.cover_url} /> : undefined; }} />
+        </section>
+      <section class="device-send-picker" aria-label="从书库选择">
+        <div class="device-send-picker-head"><h2>从书库选择</h2><Show when={chosen().length}><span class="kindle-selection" data-transfer-selection>估计大小：<span class="kindle-mono">{knownSize() ? `约 ${bytes(knownSize())}（按设备已有副本）` : "待转换后确定"}</span>{unknown() && knownSize() ? `，另 ${unknown()} 本待确定` : ""}</span></Show></div>
+        <div class="kindle-toolbar device-send-filters"><SearchPill label="搜索书库" placeholder="搜索书库" value={query()} onInput={e => { setQuery(e.currentTarget.value); setPage(1); }} /><SegmentedControl label="筛选" value={filter()} options={["不在设备", "未读", "全部"].map(value => ({ value, label: value }))} onChange={value => { setFilter(value); setPage(1); }} /></div>
         <Show when={shown().length} fallback={<EmptyState title={props.books.length ? "没有符合条件的书籍" : "书库还是空的"}>可调整筛选，或先向书库添加书籍。</EmptyState>}>
-          <ToggleChip selected={shown().length > 0 && shown().every(b => selected().includes(b.book_id))} onClick={() => setSelected(current => shown().every(b => current.includes(b.book_id)) ? current.filter(id => !shown().some(b => b.book_id === id)) : [...new Set([...current, ...shown().map(b => b.book_id)])])}>全选本页</ToggleChip>
           <ul class="device-send-grid"><For each={shown()}>{book => <li data-transfer-book={book.book_id}><button type="button" class="device-send-book" aria-label={`选择 ${book.title}`} aria-pressed={selected().includes(book.book_id) ? "true" : "false"} onClick={() => toggleBook(book.book_id)}>
-            <BookCover compact book_id={book.book_id} title={book.title} author={book.author} cover_url={book.cover_url} />
-            <strong>{book.title}</strong><span class="kindle-small">{book.author}{book.read ? " · 已读" : ""}{onDevice().has(book.book_id) ? " · 已在设备" : ""}</span>
+            <span class="device-send-cover"><BookCover book_id={book.book_id} title={book.title} author={book.author} cover_url={book.cover_url} /><Show when={selected().includes(book.book_id)}><span class="device-send-check" aria-hidden="true"><Icon name="check" size={14} /></span></Show></span>
+            <strong>{book.title}</strong><span class="sr-only">{book.author}{book.read ? " · 已读" : ""}{onDevice().has(book.book_id) ? " · 已在设备" : ""}</span>
           </button></li>}</For></ul>
         </Show>
-        <Pagination page={currentPage()} total={visible().length} shown={shown().length} perPage={24} unit="本" label="书库分页" onPage={setPage} />
+        <Show when={totalPages() > 1}><Pagination page={currentPage()} perPage={24} total={visible().length} unit="本" label="书库分页" onPage={setPage} /></Show>
         <Show when={!deviceId() || !k.inventory()}><p class="notice">{!k.ready() ? "检测中…" : !deviceId() ? "请先连接并授权设备。" : "正在读取设备清单，完成后显示设备已有书籍。"} <Link href="/devices/connect">连接与切换设备</Link></p></Show>
-        <Show when={chosen().length}><p>已选 {chosen().length} 本</p></Show>
+        <p class="sr-only" role="status">已选 {chosen().length} 本</p>
       </section>
-      <aside aria-label="传输" class="kindle-aside">
-        <h2>设置</h2>
-        <div class="form-stack">
-          <div class="kindle-target" data-transfer-target>
-            <div><span class="kindle-small">目标设备</span><span class="kindle-target-name"><strong>{target() || "尚未连接设备"}</strong><Show when={target()}><span aria-hidden="true" class={`kindle-dot ${deviceId() ? "connected" : ""}`} /><span class={`kindle-small ${deviceId() ? "is-connected" : "is-offline"}`}>{targetStatus()}</span></Show></span></div>
-            <Link class="kindle-target-link" href="/devices/connect">{deviceId() ? "切换设备" : target() ? "重新连接" : "连接设备"}</Link>
-          </div>
+      <div class="device-send-footer">
+        <h2 class="sr-only">设置</h2>
+        <div class="kindle-target" data-transfer-target>
+          <div><span class="kindle-small">目标设备</span><span class="kindle-target-name"><strong>{target() || "尚未连接设备"}</strong><Show when={target()}><span aria-hidden="true" class={`kindle-dot ${deviceId() ? "connected" : ""}`} /><span class={`kindle-small ${deviceId() ? "is-connected" : "is-offline"}`}>{targetStatus()}</span></Show></span></div>
+          <Link class="kindle-target-link" href="/devices/connect">{deviceId() ? "切换设备" : target() ? "重新连接" : "连接设备"}</Link>
+        </div>
+        <div class="device-send-actions">
           <SelectPill label="排版方案" value={profile()} disabled={!deviceId() || profilesBusy()} options={[...profiles().map(p => ({ value: p.id, label: p.name })), { value: "edit", label: "编辑排版方案…" }]} onChange={id => {
             if (id === "edit") { navigate(`/devices/preview${chosen()[0] ? `?book=${encodeURIComponent(chosen()[0]!.book_id)}` : ""}`); return; }
             setProfile(id);
@@ -188,34 +200,16 @@ export function DeviceTransferPage(props: { books: DeviceLibraryBook[]; preselec
             setDeviceReading(value);
             void api.save(device, kind(), value).catch(error => { if (device === deviceId()) setProfileError(error instanceof Error ? error.message : "排版方案保存失败"); });
           }} />
-          <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
-          <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId())}>重试</Button></p></Show>
-          <Link class="kindle-preview-link" href="/devices/preview">排版<Icon name="chevron-right" size={14} class="ui-icon-inline" />编辑排版方案…</Link>
-          <div class="kindle-check-group">
-            <Show when={kindle()}><p class="kindle-small">写入封面缩略图（有封面时自动写入）</p></Show>
-            <ToggleChip aria-label="覆盖设备上的同名书" selected={overwrite()} onClick={() => setOverwrite(!overwrite())}>覆盖同名</ToggleChip>
-          </div>
-          <p class="kindle-small">{kindle() ? "覆盖仅替换 Bindery 记录的同一本书，保留原文件名与 .sdr 阅读记录。" : "覆盖仅替换 Bindery 记录的同一本书。"}其他来源或不同书籍的同名文件会另存副本。</p>
+          <ToggleChip aria-label="覆盖设备上的同名书" selected={overwrite()} onClick={() => setOverwrite(!overwrite())}>覆盖同名</ToggleChip>
           <div class="kindle-start">
             <Button class="kindle-start-transfer" variant={canStart() ? "primary" : "secondary"} disabled={!canStart()} onClick={start}>{chosen().length ? `发送 ${chosen().length} 本` : "发送"}</Button>
-            <Show when={startHint()}><p class="kindle-small" data-start-hint>{startHint()}</p></Show>
           </div>
         </div>
-        <section class="kindle-queue" aria-label="传输队列">
-          <div class="kindle-section-heading">
-            <h2>队列</h2>
-            <div class="kindle-queue-actions">
-              <Show when={active().length}><Button class="kindle-text-button" variant="quiet" onClick={() => active().forEach(i => k.cancel(i.id))}>全部取消</Button></Show>
-              <Show when={finished()}><Button class="kindle-text-button" variant="quiet" onClick={k.clearFinished}>清除已结束</Button></Show>
-            </div>
-          </div>
-          <Show when={k.items().length}><p class="kindle-small kindle-queue-summary" data-queue-summary>{queueSummary(k.items())}</p></Show>
-          <DeviceTransferQueueProgress items={k.items()} title={title} deviceName={id => k.remembered().find(d => d.id === id)?.identity.name || id} currentDeviceId={k.state().device?.identity.id} cancel={k.cancel} retry={k.retry} />
-        </section>
-        <p class="kindle-small">传输时请保持页面打开。切换标签页不影响，刷新或关闭网页会中断传输。</p>
-        <Show when={kindle()}><p class="kindle-small">EPUB 在浏览器内由 boko 转换为 KFX。<Link href="#boko-license">boko 许可证与对应源码</Link></p></Show>
-      </aside>
-    </div>
+        <Show when={profileSummary()}><p class="kindle-small" data-profile-summary>{profileSummary()}</p></Show>
+        <Show when={profileError()}><p class="field-error" role="alert">{profileError()} <Button variant="quiet" size="sm" onClick={() => reloadProfiles(deviceId())}>重试</Button></p></Show>
+        <Show when={startHint()}><p class="kindle-small" data-start-hint>{startHint()}</p></Show>
+      </div>
+    </aside>
     <Show when={kindle()}><BokoLicense /></Show>
   </SideSheet>;
 }

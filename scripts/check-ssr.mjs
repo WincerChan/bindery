@@ -183,7 +183,7 @@ try {
   const devicesHtml = await devicesPage.text();
   assert.match(devicesHtml, /排版与预览/);
   const phoneDevices = devicesHtml.match(/class="kindle-mobile-note"[\s\S]*?<div\b[^>]*class="kindle-page/)[0];
-  for (const text of ["阅读器要在电脑上连接。", "Chrome 或 Edge", "把书库里的书发到阅读器", "给阅读器装字体", "同步阅读进度和生词", "回书库"]) assert.ok(phoneDevices.includes(text), text);
+  for (const text of ["阅读器要在", "电脑上连接。", "Chrome 或 Edge", "把书库里的书发到阅读器", "给阅读器装字体", "同步阅读进度和生词", "回书库"]) assert.ok(phoneDevices.includes(text), text);
   assert.match(phoneDevices, /href="\/vocabulary"/);
   assert.doesNotMatch(devicesHtml, /href="\/devices\/vocabulary"/);
   for (const [legacy, target] of [["/kindle", "/devices"], ["/kindle/preview?book=a", "/devices/preview?book=a"], ["/kindle/transfer", "/devices/transfer"]]) {
