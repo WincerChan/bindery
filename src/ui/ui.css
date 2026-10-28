@@ -110,22 +110,24 @@ details[open] > summary .ui-summary-chevron { transform: rotate(180deg); }
 .ui-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--intro-action-gap); margin-top: var(--intro-actions-offset); min-width: 0; }
 .ui-page-note { min-width: 0; }
 .ui-page-visual { display: flex; flex: 0 1 var(--intro-visual-width); align-items: center; justify-content: center; align-self: center; min-width: 0; max-width: var(--intro-visual-width); }
-.ui-page-intro-visual-cover { --intro-visual-width: var(--intro-visual-cover); --intro-title-tracking: var(--intro-cover-title-tracking); }
+.ui-page-intro-visual-cover { --intro-visual-width: var(--intro-visual-cover); }
 .ui-page-intro-visual-page { --intro-visual-width: var(--intro-visual-page); }
 .ui-page-intro-visual-reading { --intro-visual-width: var(--intro-visual-reading); }
-.ui-page-intro-visual-vocabulary { --intro-visual-width: var(--intro-visual-vocabulary); --intro-lead-max: var(--intro-wide-lead); --intro-text-basis: var(--intro-vocabulary-basis); --intro-actions-offset: 0px; }
+.ui-page-intro-visual-vocabulary { --intro-visual-width: var(--intro-visual-vocabulary); --intro-lead-max: var(--intro-wide-lead); --intro-text-basis: var(--intro-vocabulary-basis); }
 .ui-page-intro-visual-vocabulary .ui-page-visual { margin: var(--intro-vocabulary-visual-offset) var(--intro-vocabulary-inset) 0 0; }
 /* Vocabulary's desktop status and controls share a centered, wrapping row. */
 .ui-page-intro-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--intro-status-gap); min-width: 0; }
+/* Vocabulary puts status and actions in one structural row; the action wrapper adds no second stack step. */
+.ui-page-intro-controls > .ui-page-actions { margin-top: 0; }
 .ui-page-intro-visual-device { --intro-visual-width: var(--intro-visual-device); }
 .ui-page-intro-visual-device .ui-page-visual { margin-inline-end: var(--intro-device-inset); }
 .ui-page-intro-visual-cover .ui-page-visual { padding: var(--intro-cover-pad); }
 .ui-page-intro-visual-reading .ui-page-visual { padding: var(--intro-reading-pad); }
-.ui-page-intro-subpage { --intro-pad-top: var(--intro-subpage-pad); --intro-stack-gap: var(--intro-subpage-stack); --intro-gap-next: var(--intro-subpage-next); --intro-lead-max: var(--intro-wide-lead); }
+.ui-page-intro-subpage { --intro-pad-top: var(--intro-subpage-pad); --intro-gap-next: var(--intro-subpage-next); --intro-lead-max: var(--intro-wide-lead); }
 .ui-page-intro-split { --intro-pad-top: var(--intro-subpage-pad); --intro-back-gap: var(--intro-stack-gap); --intro-gap-next: 0px; }
-.ui-page-intro-guide { --intro-stack-gap: var(--intro-guide-stack); --intro-gap-next: var(--intro-guide-next); --intro-actions-offset: 0px; --intro-action-gap: var(--intro-guide-actions); --intro-text-basis: var(--intro-guide-basis); }
+.ui-page-intro-guide { --intro-gap-next: var(--intro-guide-next); --intro-text-basis: var(--intro-guide-basis); }
 .ui-page-intro-title-only { --intro-gap-next: var(--intro-title-only-next); }
-.ui-page-intro-book { --intro-pad-top: var(--intro-subpage-pad); --intro-back-gap: var(--intro-book-back); --intro-stack-gap: var(--intro-book-stack); --intro-gap-next: var(--intro-book-next); --intro-lead-max: var(--intro-book-lead); --intro-lead-line: var(--intro-book-line); --intro-visual-width: var(--intro-book-column); --intro-title-tracking: normal; --intro-actions-offset: var(--intro-book-actions); --intro-status-offset: var(--intro-book-status); }
+.ui-page-intro-book { --intro-pad-top: var(--intro-subpage-pad); --intro-back-gap: var(--intro-book-back); --intro-gap-next: var(--intro-book-next); --intro-lead-max: var(--intro-book-lead); --intro-visual-width: var(--intro-book-column); }
 .ui-page-intro-book .ui-page-intro-row { display: grid; grid-template-columns: var(--intro-book-column) minmax(0, 1fr); gap: var(--intro-book-row); }
 .ui-page-intro-book .ui-page-intro-text { grid-column: 2; grid-row: 1; padding-top: var(--intro-book-text-pad); }
 .ui-page-intro-book .ui-page-visual { grid-column: 1; grid-row: 1; align-self: start; }
@@ -137,7 +139,6 @@ details[open] > summary .ui-summary-chevron { transform: rotate(180deg); }
 .ui-page-intro-topbar .ui-page-actions { display: contents; }
 .ui-page-intro-compact { padding-top: var(--intro-subpage-pad); margin-bottom: var(--intro-title-only-next); gap: 0; }
 .ui-page-intro-editor { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; padding-top: 0; margin-bottom: var(--intro-topbar-next); }
-.ui-page-intro-editor h1 { font-size: var(--intro-editor-title); line-height: var(--intro-editor-line); }
 .ui-page-intro-editor .ui-page-actions { margin: 0; }
 /* The cover variant places the small phone cover beside the title, as on MobileLibrary. */
 .ui-page-intro-cover-grid { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--intro-row-gap); min-width: 0; }
@@ -307,7 +308,6 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
   .ui-page-intro-visual-cover .ui-page-intro-cover-text > .ui-page-intro-text { grid-column: 1; grid-row: 2; }
   .ui-page-intro-visual-cover .ui-page-intro-cover-text > .ui-page-intro-tail { grid-column: 1 / -1; grid-row: 3; }
   .ui-page-intro-visual-cover .ui-page-visual { grid-column: 2; grid-row: 2; width: auto; max-width: var(--intro-cover-column); align-self: start; }
-  .ui-page-intro-visual-cover .ui-page-intro-lead { gap: var(--intro-cover-lead-gap); }
   .ui-page-intro-visual-reading { --intro-visual-gap: var(--space-section); }
   .ui-page-intro-visual-reading .ui-page-visual { max-width: none; }
   .ui-page-intro-visual-vocabulary .ui-page-visual { max-width: none; }

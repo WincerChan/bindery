@@ -108,6 +108,12 @@ describe("v2 render contracts", () => {
     expect(css).toMatch(/\.ui-page-intro-lead \{(?![^}]*display: contents)[^}]*flex-direction: column;[^}]*gap: var\(--intro-stack-gap\)/);
     expect(css).toMatch(/\.ui-page-actions \{[^}]*margin-top: var\(--intro-actions-offset\)/);
     expect(css).toMatch(/\.ui-page-visual \{[^}]*align-self: center/);
+    // Variants may change structure, never the shared stack, action offset or title/lead type.
+    for (const name of ["stack-gap", "actions-offset", "action-gap", "status-offset", "title-line", "title-tracking", "lead-line"]) {
+      expect(css, name).not.toMatch(new RegExp(`--intro-${name}\\s*:`));
+    }
+    expect(tokens).toContain("--intro-topbar-title: 30px");
+    expect(tokens).not.toMatch(/--intro-(?:book|cover|editor)-(?:line|title|tracking)[a-z-]*\s*:/);
   });
   it("renders exactly one heading in each board-backed variant, including the compact device masthead", () => {
     const html = server.markup("intros").replace(/<!--.*?-->/g, "");

@@ -1,17 +1,32 @@
-# Page intro ownership and independent verification
+# Page intro rhythm and structure
 
 ## Contract and scope
 
-`PageIntro` owns the introductory header, its one h1, back link slot, text stack,
-actions/status slots, visual-slot placement, and gap to the next block.
-`src/styles.css` owns numeric intro values; `src/ui/ui.css` selects semantic
-variants and consumes tokens. Feature styles may style **content** (book artwork,
-device shells, progress bars, controls), not the shared slots, their typography,
-or `--intro-*` assignments. An intro class is not permission to override h1.
+`PageIntro` owns the introductory header: its one h1, back-link slot, text stack,
+status/action slots, visual-slot placement and gap to the next block. `src/styles.css`
+owns numeric intro values; `src/ui/ui.css` selects semantic variants and consumes
+tokens. Feature styles may style **content** (book artwork, device shells, progress
+bars, controls), not the shared slots, their typography, or `--intro-*` assignments.
+An intro class is not permission to override h1.
 
-This is not a claim that every page must have the same outline or height. Main
-pages share a rhythm; back-linked subpages, the connection instructions, book
-metadata and the preview toolbar have different structures drawn in the boards.
+There is **one text rhythm for every page intro at every breakpoint**:
+
+- Desktop: `--intro-stack-gap` 22px for eyebrow → title → lead, and the same 22px
+  between lead content and an intervening status/content row. The action row adds
+  `--intro-actions-offset` 6px, so it sits 28px below the previous stack item.
+- Phone: `--intro-stack-gap` 16px with no extra action offset.
+- `PageIntro` variants and page classes may change **structure** only: a back link
+  above the stack (with smaller top padding), title-only, the preview topbar
+  (30px title row), visual-slot size/placement, a cover beside the title, or a
+  steps list instead of a lead. They must not change the stack gap, the action
+  offset, or the eyebrow/title/lead type.
+- Structural spacing stays with its structure: shell/back-link top padding, the
+  back-link-to-stack gap, the text/visual row gap, the book cover column, and the
+  gap to the next block (`--intro-gap-next`).
+
+The topbar is the one explicit type exception: the typeset preview keeps its
+30px title in a horizontal row. The title-only and editor rows keep their
+structural layouts but use the shared intro title type.
 
 Routes audited:
 
@@ -30,69 +45,61 @@ Routes audited:
   authentication form, outside the editorial shell in README §3.2/3.3. The reader,
   error/not-found views and dialog headings are not editorial page intros.
 
-## Independent token provenance
+## Shared rhythm tokens
 
 Sources: [README §3.2/3.3/3.5](README.md), §2.2 typography, §2.4 page whitespace,
-and the **actual inline styles** in `prototype/*.dc.html`, not the earlier audit.
-Names below omit `--intro-`. Values are desktop → phone unless stated otherwise.
-Zero resets, `normal`, flex growth/shrink factors, and grid placement are structural,
-not additional spacing scales.
+and the corrected intro spacing in `prototype/*.dc.html`. Names below omit
+`--intro-`. Values are desktop → phone unless stated otherwise.
 
 | Tokens / structure | Values | Evidence / rationale |
 | --- | --- | --- |
-| `pad-top`, `stack-gap`, `actions-offset` | 40/22/6 → 0/16/0 | Main, Ingest, Tracker; MobileIngest/Tracker/Vocabulary. Shell already supplies top 40/28. |
-| `title-size/weight/line` | `text-hero` = 46/600/1.25 → 30/600/1.3 | Main h1 and phone h1; README §2.2. |
-| `title-tracking`, `cover-title-tracking` | .01em → normal | Main explicitly tracks its title; that is the shared desktop intro value. Phone boards inherit normal. |
-| `eyebrow-size/tracking/line` | 14/.08em/normal → 13/.08em/normal | Main/phone small statistics. Their boards inherit normal, not the app body's1.5; measured20/19px line boxes with Noto Sans. |
-| `lead-size/line/max` | 15/1.85/520 → 15/1.8/520 | Main and MobileLibrary paragraphs. |
-| `action-gap`, `status-gap/offset` | 12 → 10; 8px 14px / 0 | Main/MobileLibrary controls; Vocabulary status paragraph. |
-| `text-basis`, `row-gap`, `visual-gap` | 380 / 56 / stack-gap | Main text flex-basis and section gap; phone single-column stack. Tracker uses section-gap before its reading visual on phone. |
-| `gap-next` | section = 48 → 32 | README page-whitespace rule; main mobile boards. Some desktop boards draw 52: normalized deliberately, not falsely described as an exact match. |
-| `visual-cover/page/reading` | 420/580/440 | Main/Ingest/Tracker outer visual flex bases. Fallback visual uses cover size. |
-| `cover-pad`, `reading-pad` | 12px 0 → 6px 0 0 / 0 | Main/Tracker visual padding; MobileLibrary cover top inset. |
-| `cover-column`, `cover-lead-gap` | 92; stack-gap → 12 | MobileLibrary explicitly nests title/description at 12, inside an outer 16 stack. |
-| `visual-vocabulary`, `vocabulary-basis/inset/visual-offset` | 561; 360/24/0 → 360/0/12 | Vocabulary: 520 content + 40 left padding + 1 rule = 561 border-box; right margin24. MobileVocabulary quote inset12. Phone visual spans full width. |
-| `wide-lead` | 560 | Vocabulary and SettingsRules/Themes max-width. |
-| `visual-device`, `device-inset` | 300 / 40 → 300 / 0 | Devices and DevicesConnect figure width300 plus right margin40. Margin belongs to the shared slot, not a feature override. |
-| `empty-pad/lead` | no separate variant; `/ingest` uses main 40/520 → 0/520 | The board's IngestEmpty hero uses 52/600, but both ingest states now use the main variant so they align with Main/library at both widths. |
-| `subpage-pad/stack/next`, `back-gap` | 24/16/36; 16 → 0/16/32; 16 | SettingsRules and SettingsThemes sections and main gap. Their stack is **16**, not22. |
-| `title-only-next` | 40 → 32 | SettingsHub main gap; MobileSettings. |
-| `split` | subpage-pad; shared stack/back-gap22 →16; next0 | SettingsSecurity's back/title/paragraph stack22. Its keys panel is beside the intro; the parent owns the 48px column gap and phone32px row gap. |
-| `guide-stack/next/actions/basis` | 28/56/16/420 →16/32/16/420 | DevicesConnect left stack, main gap, controls and text flex-basis. `/devices/connect` additionally retains its functional back link. |
-| `book-back/stack/row/column/text-pad` | 28/20/64/268/8 →20/14/20/268/0 | BookDetail outer/back/text stacks. Cover column is 260 + 8 inset. MobileBookDetail stack14, not16 or22; actual phone artwork168 remains content-owned. |
-| `book-next/lead/line/status/actions` | 56/620/1.9/10/8 →32/620/1.85/6/8 | BookDetail/MobileBookDetail paragraph and status/action margins. Status and metadata are intervening rows, not unexplained lead/action spacing. |
-| `topbar-gap/title/line/title-margin/next` | 10/30/normal/`0 12px 0 14px`/32 | DevicesPreview topbar. `topbar-back-pad`8 matches its back link. Controls share its flex wrapping context (`display: contents` only on the nonsemantic action wrapper). Phone shows MobileDevices instead. |
-| `editor-title/line` | text-heading26/1.3 | No standalone editor board. Retains the existing form-toolbar typography and44px controls, consistent with README §2.2 and control specification. No invented large hero. |
-| `compact` | subpage-pad24; title-only-next40; visually hidden h1 | DevicesFonts deliberately collapses the hero to a status masthead. Added an accessible h1 and font-management h2 without changing the board's visible structure. |
-| `action-dock-inset/pad/layer` | 69 / 12px 16px / 25 | Retains staged ingest's existing phone action dock above the 69px navigation bar. Exposed as `mobileActions="dock"`, not an alias that lets feature CSS position a shared action slot. This functional exception differs from MobileIngest's inline controls. |
+| `stack-gap` | 22 → 16 | One value for every eyebrow/title/lead/status/content/action stack. Main, subpages, guide, book and phone boards all draw it. |
+| `actions-offset` | 6 → 0 | Every separate action row adds exactly 6px on desktop, none on phone. The vocabulary status+actions row is structural and has no second stack step. |
+| `action-gap` | 12 → 10 | Horizontal gap inside an action row; not a stack gap. |
+| `status-gap`, `status-offset` | 8px 14px / 0 | Status rows use the shared stack, with no per-page extra offset. |
+| `pad-top`, `back-gap`, `gap-next` | 40/16/section → 0/16/32 | Main intro shell; back-link gap and README section spacing are structural. |
+| `title-size/weight/line/tracking` | `text-hero` = 46/600/1.25/.01em → 30/600/1.3/normal | Shared intro title type. Topbar keeps its explicit 30px row. |
+| `eyebrow-size/tracking/line` | 14/.08em/normal → 13/.08em/normal | Shared eyebrow type. Boards inherit `normal`, not the app body's 1.5. |
+| `lead-size/line` | 15/1.85 → 15/1.8 | Shared lead type. Book/guide/subpage intros do not get a different line-height. |
+| `lead-max` | 520 main; 560 subpage/vocabulary; 620 book | Text-column measures, not type or rhythm. They only bound line length. |
+| `text-basis`, `row-gap`, `visual-gap` | 380 / 56 / stack-gap | Main text basis and desktop text/visual gap; phone single-column stack. Tracker uses section-gap before its reading visual on phone. |
+| `visual-cover/page/reading/vocabulary/device` | 420/580/440/561/300 | Visual-slot sizes are structural and may differ by page. |
+| `cover-pad`, `reading-pad`, `device-inset` | 12px 0 → 6px 0 0 / 0; 40 → 0 | Padding/margin belonging to the visual slot, not the text stack. |
+| `cover-column` | 92 | MobileLibrary/BookDetail cover-beside-title column. |
+| `subpage-pad/next` | 24/36 → 0/32 | SettingsRules/Themes back-link structure and next-block gap. Their old 16px stack is gone. |
+| `title-only-next` | 40 → 32 | SettingsHub/MobileSettings next-block gap; no stack content. |
+| `split` | subpage-pad; back-gap stack-gap; next 0 | SettingsSecurity's back/title/paragraph stack uses the shared 22 → 16 rhythm. |
+| `guide-next/basis` | 56/420 → 32/420 | DevicesConnect next-block gap and text basis. The steps list is structural; its stack/action rhythm is shared. |
+| `book-back/row/column/text-pad` | 28/64/268/8 → 20/20/268/0 | Back-link gap, cover column and cover/text row are structural. Book text uses the shared 22 → 16 stack and shared lead type. |
+| `book-next` | 56 → 32 | BookDetail/MobileBookDetail next-block gap. No book-only status/action offsets. |
+| `topbar-gap/title/line/title-margin/back-pad/next` | 10/30/normal/`0 12px 0 14px`/8/32 | DevicesPreview's structural 30px row; controls share its wrapping context. Phone shows MobileDevices instead. |
+| `compact` | subpage-pad; title-only-next; visually hidden h1 | DevicesFonts deliberately collapses the hero to a status masthead. |
+| `action-dock-inset/pad/layer` | 69 / 12px 16px / 25 | Staged ingest's functional phone action dock above navigation. Exposed as `mobileActions="dock"`. |
 
-Book layout ignores the cover-size modifier: otherwise MobileLibrary's 12px lead
-gap and grid row-gap leak into MobileBookDetail and override its14/20px stacks.
+The book layout ignores the cover-size modifier, so the mobile cover grid cannot
+leak its cover column or gaps into the book text stack. Book/guide/subpage no
+longer carry their own stack, status or action spacing tokens.
 
-## Refuted claims and fixes
+## Removed rhythm/type drift
 
-The earlier “no feature overrides / all boards use22 desktop and16 phone” claim
-was false. Feature custom-property assignments (empty ingest, tracker, library,
-vocabulary, security, connect), direct visual-slot overrides and preview h1 rules
-survived the original selector test. The editor also still authored its own h1.
-These were removed/migrated, not merely renamed as intro overrides.
+The earlier “restore board-specific intro rhythms” change treated drawing drift
+as intent. Removed from production tokens/CSS:
 
-Fixed rules/themes16, guide28, book20/14, library phone nested12, security back22,
-preview30px type and wrapping, vocabulary's desktop shared status/control row,
-and shared desktop title tracking. `/ingest` empty now uses the main intro instead
-of the board-specific empty padding/lead, so its text starts and flows with `/`
-at both widths. Board normal line-height was restored for eyebrow/preview rather than assuming1.5. Added compact-fonts semantics and fixed preview's h1→h3 skip. AX-tree checks also exposed a hidden desktop transfer modal making the phone intro inert; the transfer sheet now closes below768px, including on resize. Artwork selectors
-now target their own content (e.g. `.library-hero-cover`), not `.ui-page-visual`.
+- subpage stack 16, guide stack 28, book stack 20/14, MobileLibrary title→lead 12;
+- book status/action offsets 10/8 and 6/8, guide/vocabulary action offsets 0,
+  guide action gap 16;
+- book lead line-height 1.9/1.85 and title tracking `normal`, cover-only title
+  tracking, editor title 26px/1.3.
 
-Populated quote/reading fixtures also exposed desktop visual flex bases becoming
-fixed **phone heights** (561px vocabulary / 580px ingest). Shared phone slots now
-reset `flex: none`; content determines height and the column stretches its children
-rather than shrink-wrapping grid artwork. The staged-ingest action dock was
-another hidden alias override and now belongs to the shared API/CSS/tokens.
+All of these now use the shared values above. The only remaining variant type
+exception is the preview topbar's 30px row; all other variants keep the shared
+intro title and lead type.
 
-Regression tests cover numeric token ownership, feature aliases/custom-property
-bypasses, actual board-style provenance, isolated book/cover structures, preview
-wrap ownership and exactly one h1 per rendered variant.
+Feature custom-property assignments, direct visual-slot overrides and preview h1
+rules were already removed/migrated, not merely renamed. Regression tests cover
+numeric token ownership, feature aliases/custom-property bypasses, actual board
+spacing, isolated book/cover structures, preview wrap ownership and exactly one
+h1 per rendered variant.
 
 ## Verification limits and deliberate differences
 
@@ -100,28 +107,19 @@ wrap ownership and exactly one h1 per rendered variant.
   intentional unification. Desktop boards often vertically center text against
   the artwork, so their absolute text y can differ. Typography and local stack
   distances must not change with artwork height. Desktop board screenshots also
-  include32px presentation framing and36px main padding, versus the app's40px
+  include 32px presentation framing and 36px main padding, versus the app's 40px
   shell padding: compare normalized coordinates, not raw screenshot y values.
-- Section48 is the README standard even where a particular desktop board uses52.
-  Real structural exceptions (rules36, hub40, guide/book56, preview32) are preserved.
+- Section 48 is the README standard even where a particular desktop board uses 52.
+  Structural next-block exceptions (rules 36, hub 40, guide/book 56, preview 32)
+  are preserved.
 - Real library titles, descriptions, vocabulary configuration/status and preview
   picker contents differ from the boards' fixed sample copy. These change wrapping
   and block height, not the shared rhythm. Staged phone ingest retains its functional
   fixed action dock above navigation; its lead-to-action distance depends on viewport
-  height, not a 491px CSS gap. It is not a pixel match for MobileIngest's inline controls.
+  height, not a CSS stack gap. It is not a pixel match for MobileIngest's inline controls.
 - Board-comparison captures inject the boards' Noto Sans/Serif web fonts into the
-  test page only; production still uses its existing system-font stacks. A separate
-  unmodified-font run checks all routes too, but `fc-list :lang=zh` confirms this
-  environment has no installed CJK fonts: native captures cannot prove glyph fidelity.
-  `normal` line boxes and wrapping vary
-  with the installed fallback; comparison coordinates are not universal OS values.
-- Screenshot files were captured for app and boards. **This model's image reader
-  reported that images cannot be displayed. No visual/pixel-perfect sign-off is
-  claimed.** Geometry, computed styles, line counts and accessibility DOM were
-  checked independently in Chromium, including the accessibility tree. The desktop
-  transfer modal intentionally exposes its named h2/dialog rather than the inert
-  underlying main/h1. Human screenshot inspection remains required.
+  test page only; production still uses its existing system-font stacks. Native
+  captures cannot prove glyph fidelity where CJK fonts are unavailable.
 - Device-connected measurements use an isolated OPFS-backed directory with a
   Kindle identity and empty inventory, not physical hardware. Disconnected and
   phone states are also measured. No production device/library is modified.
-
