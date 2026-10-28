@@ -28,9 +28,12 @@
 .tracker-row-heading { display: flex; align-items: flex-start; gap: 4px; min-width: 0; }
 .tracker-cover-link { display: block; }
 .tracker-title-block { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; padding-top: 2px; }
-.tracker-title, .tracker-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tracker-title { font: 600 var(--text-title)/1.5 var(--font-display); }
-.tracker-meta { font-size: var(--text-meta); line-height: 1.5; color: var(--color-ink-2); }
+.tracker-title { font: 600 var(--text-title)/1.5 var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tracker-meta { display: flex; align-items: center; min-width: 0; font-size: var(--text-meta); line-height: 1.5; color: var(--color-ink-2); }
+.tracker-row-state { display: inline-flex; flex: none; align-items: center; gap: 6px; }
+.tracker-row-state-note { color: var(--color-ink-3); }
+.tracker-meta-tail { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tracker-meta-separator { color: var(--color-ink-3); }
 .tracker-meta-secondary { color: var(--color-ink-3); }
 .tracker-row-menu { flex: none; margin: -8px -10px 0 0; }
 .tracker-row-menu .ui-menu-trigger { width: var(--size-control); height: var(--size-control); min-height: var(--size-control); padding: 0; justify-content: center; border-radius: 999px; color: var(--color-ink-3); }

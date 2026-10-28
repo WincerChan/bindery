@@ -140,7 +140,12 @@ a{color:#A24832}a:hover{color:#202923}
               <span style="display: flex; align-items: flex-start; gap: 4px; min-width: 0">
                 <span style="display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; padding-top: 2px">
                   <span style="font-family: 'Noto Serif SC', serif; font-weight: 600; font-size: 17px; color: #202923; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{r.title}}</span>
-                  <span style="font-size: 13px; color: #4B554E; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{r.author}}<span style="color: #656D66">{{r.meta}}</span></span>
+                  <span style="display: flex; align-items: center; min-width: 0; font-size: 13px; line-height: 1.5; color: #4B554E">
+                    <span style="display: inline-flex; flex: none; align-items: center; gap: 6px"><span aria-hidden="true" style="box-sizing: border-box; width: 8px; height: 8px; border-radius: 999px; background: {{r.stateColor}}; border: {{r.stateBorder}}"></span>{{r.read}}<sc-if value="{{r.notInLib}}"><span style="color: #656D66"> · 未入库</span></sc-if></span>
+                    <sc-if value="{{r.hasTail}}">
+                      <span style="flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><span style="color: #656D66"> · </span><sc-if value="{{r.author}}" hint-placeholder-val="{{false}}">{{r.author}}</sc-if><sc-if value="{{r.metaText}}" hint-placeholder-val="{{false}}"><span style="color: #656D66">{{r.authorSep}}{{r.metaText}}</span></sc-if></span>
+                    </sc-if>
+                  </span>
                 </span>
                 <button type="button" class="book-more" aria-label="《{{r.title}}》的操作" title="更多操作" aria-haspopup="menu" aria-expanded="{{r.expanded}}" onClick="{{r.toggle}}" style="display: flex; flex: 0 0 44px; width: 44px; height: 44px; margin: -8px -10px 0 0; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: transparent; color: #656D66; cursor: pointer">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5.5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="12" cy="18.5" r="1.7"></circle></svg>
@@ -148,9 +153,6 @@ a{color:#A24832}a:hover{color:#202923}
               </span>
               <sc-if value="{{r.open}}" hint-placeholder-val="{{false}}">
                 <div role="menu" aria-label="《{{r.title}}》" style="position: absolute; right: -10px; top: 46px; z-index: 5; width: 232px; box-sizing: border-box; padding: 8px; border-radius: 18px; background: #FBFAF6; box-shadow: 0 1px 2px rgba(32,41,35,0.08), 0 24px 48px -18px rgba(32,41,35,0.45); display: flex; flex-direction: column; gap: 2px">
-                  <sc-if value="{{r.hasNote}}" hint-placeholder-val="{{false}}">
-                    <p style="margin: 0 0 4px; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: 12px; background: {{r.noteBg}}; font-size: 13px; color: {{r.noteColor}}"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 999px; background: currentColor"></span>{{r.note}}</p>
-                  </sc-if>
                   <sc-if value="{{r.lib}}" hint-placeholder-val="{{true}}">
                     <a href="#" role="menuitem" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 12px; color: #202923; text-decoration: none; font-size: 14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color: #4B554E"><path d="M5 5h5.5a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H5zM19 5h-5.5a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2H19z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>在书库中打开</a>
                   </sc-if>
@@ -213,21 +215,26 @@ class Component extends DCLogic {
       { title: '儒林外史', author: '吴敬梓', serial: 'completed', tags: '讽刺', read: 'unread', lib: true, bg: '#D9CDB4', fg: '#3A3326', rating: null, updated: '08-28' }
     ];
     var serialText = { ongoing: '更新中', hiatus: '已断更', completed: '' };
-    var readText = { reading: '在读', read: '已读', unread: '' };
+    var readText = { reading: '在读', read: '已读', unread: '未读' };
     var rows = data.map(function (d) {
       var parts = [serialText[d.serial], d.tags].filter(Boolean);
+      var metaText = parts.join(' · ');
       var stars = [1, 2, 3, 4, 5].map(function (n) { return { fill: d.rating == null ? 'transparent' : (n <= d.rating ? accent : '#DEDDD2') }; });
       var hint = [readText[d.read], d.lib ? '' : '未入库'].filter(Boolean).join(' · ');
       var open = self.state.open === d.title;
-      var noteText = [readText[d.read], d.lib ? '' : '未入库'].filter(Boolean).join(' · ');
-      var tone = d.read === 'read' ? { color: '#35674C', bg: '#E8EEE8' } : d.read === 'reading' ? { color: '#A24832', bg: '#F4ECE4' } : { color: '#656D66', bg: '#ECEAE2' };
       return {
         open: open, expanded: open ? 'true' : 'false',
         toggle: function () { self.setState({ open: open ? null : d.title }); },
-        lib: d.lib, hasNote: !!noteText, note: noteText, noteColor: tone.color, noteBg: tone.bg,
+        lib: d.lib,
         title: d.title,
         author: d.author,
-        meta: parts.length ? ' · ' + parts.join(' · ') : '',
+        read: readText[d.read],
+        notInLib: !d.lib,
+        stateColor: d.read === 'read' ? '#35674C' : d.read === 'reading' ? accent : 'transparent',
+        stateBorder: d.read === 'unread' ? '1.5px solid #92998F' : '0',
+        metaText: metaText,
+        authorSep: d.author && metaText ? ' · ' : '',
+        hasTail: !!(d.author || metaText),
         bg: d.lib ? 'linear-gradient(90deg, rgba(0,0,0,0.18) 0, rgba(255,255,255,0.08) 4px, rgba(0,0,0,0) 9px), ' + d.bg : '#ECEAE2',
         fg: d.lib ? d.fg : '#656D66',
         border: d.lib ? '0' : '1.5px solid #C8C8BB',

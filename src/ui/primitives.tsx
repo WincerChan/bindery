@@ -28,8 +28,8 @@ export function CountBadge(props: { children: JSX.Element; accent?: boolean }) {
 export function BackgroundActivityPill(props: ButtonProps & { count: JSX.Element }) {
   return <Button {...props} variant="secondary" class={`ui-activity ${props.class || ""}`}><span class="ui-activity-dot" aria-hidden="true" />{props.children}</Button>;
 }
-export function StatusDot(props: { label: string; tone?: "ok" | "danger" | "empty" | "accent" }) {
-  return <span role="img" aria-label={props.label} title={props.label} class={`ui-status-dot ui-status-${props.tone || "empty"}`} />;
+export function StatusDot(props: { label: string; tone?: "ok" | "danger" | "empty" | "accent"; decorative?: boolean }) {
+  return <span role={props.decorative ? undefined : "img"} aria-label={props.decorative ? undefined : props.label} title={props.decorative ? undefined : props.label} aria-hidden={props.decorative ? "true" : undefined} class={`ui-status-dot ui-status-${props.tone || "empty"}`} />;
 }
 export function ProgressBar(props: { label: string; value?: number; secondary?: boolean; class?: string }) {
   const value = () => Math.max(0, Math.min(100, props.value ?? 0));

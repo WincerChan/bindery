@@ -5,6 +5,8 @@ export const trackerReadOptions = [{ value: "unread", label: "未读" }, { value
 export const trackerStatusOptions = [{ value: "ongoing", label: "更新中" }, { value: "hiatus", label: "已断更" }, { value: "completed", label: "已完结" }];
 export const trackerBookHref = (wish: TrackerItem, next: string) => `/book/${wish.library_book_id}?return_to=${encodeURIComponent(next)}`;
 export const trackerState = (wish: TrackerItem) => [wish.read_status_label, !wish.exists_in_library && "未入库"].filter(Boolean).join(" · ");
+export const trackerStateTone = (wish: TrackerItem) => wish.read_status === "read" ? "ok" as const : wish.read_status === "reading" ? "accent" as const : "empty" as const;
+export const trackerRowMeta = (wish: TrackerItem) => [wish.book_status === "completed" ? "" : wish.book_status_label, wish.tags.join("、")].filter(Boolean).join(" · ");
 
 /** Tracker can be both read and not in the library; keep that composition here. */
 export function TrackerCover(props: { wish?: TrackerItem; title?: string; author?: string; compact?: boolean; large?: boolean }) {
