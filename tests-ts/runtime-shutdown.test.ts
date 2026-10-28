@@ -14,6 +14,8 @@ let root: string, control: Int32Array;
 let runtime: typeof import("../src/server/runtime");
 let lifecycle: typeof import("../src/server/ingest/lifecycle");
 let library: LibraryStorage;
+let holdStartup: boolean, launched: Worker[];
+let starting: Promise<Worker>, onStarting: (worker: Worker) => void;
 const bookId = "d".repeat(32);
 beforeEach(async () => {
   vi.resetModules();
@@ -24,13 +26,19 @@ beforeEach(async () => {
   vi.stubEnv("BINDERY_LIBRARY_DIR", join(root, "library"));
   vi.stubEnv("BINDERY_DB_PATH", join(root, "data.db"));
   vi.stubEnv("BINDERY_TEMPLATE_DIR", join(root, "templates"));
-  control = new Int32Array(new SharedArrayBuffer(8));
+  control = new Int32Array(new SharedArrayBuffer(12));
+  holdStartup = false;
+  launched = [];
+  starting = new Promise(resolve => { onStarting = resolve; });
   vi.doMock("../src/server/ingest/executor", () => ({
     launchWorker(storage: LibraryStorage, stopSignal: Int32Array) {
-      return new Worker(pathToFileURL(resolve("tests-ts/fixtures/shutdown/worker.mjs")), {
+      const worker = new Worker(pathToFileURL(resolve("tests-ts/fixtures/shutdown/worker.mjs")), {
         execArgv: ["--experimental-transform-types"],
-        workerData: { binderyIngest: true, module: pathToFileURL(resolve("src/server/ingest/executor.ts")).href, base: storage.base, database: storage.db.path, stopSignal, control },
+        workerData: { binderyIngest: true, module: pathToFileURL(resolve("src/server/ingest/executor.ts")).href, base: storage.base, database: storage.db.path, stopSignal, control, holdStartup },
       });
+      launched.push(worker);
+      worker.once("message", message => { if (message === "starting") onStarting(worker); });
+      return worker;
     },
   }));
   runtime = await import("../src/server/runtime");
@@ -44,6 +52,8 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   Atomics.store(control, 1, 1);
+  Atomics.store(control, 2, 1);
+  Atomics.notify(control, 2);
   await runtime.shutdownRuntime().catch(() => {});
   vi.doUnmock("../src/server/ingest/executor");
   vi.unstubAllEnvs();
@@ -105,7 +115,32 @@ it("terminates on timeout and recovers the interrupted job while preserving queu
   database.close();
 });
 
-it("waits for lazy startup, clears archive caches, closes DB handles, and permits immediate removal", async () => {
+it("cancels a worker blocked in bootstrap before job admission and awaits its exit", async () => {
+  holdStartup = true;
+  const { enqueueEditWriteback } = await import("../src/server/jobs");
+  const { job } = enqueueEditWriteback({ book_id: bookId, cover_bytes: null, cover_name: null, cover_url: "", strip_original_css: false, strip_fonts: false }, library);
+  lifecycle.startJobWorker(library);
+  const worker = await starting;
+  const pending = runtime.shutdownRuntime();
+  expect(runtime.shutdownRuntime()).toBe(pending);
+  await pending;
+  // Bootstrap was never released: completing shutdown requires cancellation,
+  // not waiting for a guessed startup duration or abandoning a live thread.
+  expect(Atomics.load(control, 2)).toBe(0);
+  expect(worker.threadId).toBe(-1);
+  expect(existsSync(join(library.base, ".ingest-queue", ".consumer"))).toBe(false);
+  expect(() => library.db.listJobs()).toThrow("Database is closed");
+  const database = new BinderyDatabase(library.db.path);
+  try {
+    expect(database.getJob(job.id)).toMatchObject({ status: "running", stage: "排队中" });
+    expect(existsSync(join(library.base, ".ingest-queue", job.id, "task.json"))).toBe(true);
+    holdStartup = false;
+    await restart(database, job.id);
+    expect(database.get("PRAGMA integrity_check")).toEqual({ integrity_check: "ok" });
+  } finally { database.close(); }
+});
+
+it("cancels pending lazy launch, clears archive caches, closes DB handles, and permits immediate removal", async () => {
   const { readerArchives } = await import("../src/server/reader/archive");
   expect(readerArchives.get(epubPath(library.base, bookId))).toBeDefined();
   let handle: import("node:sqlite").DatabaseSync | undefined;
@@ -115,6 +150,7 @@ it("waits for lazy startup, clears archive caches, closes DB handles, and permit
   const pending = runtime.shutdownRuntime();
   expect(runtime.shutdownRuntime()).toBe(pending);
   await pending;
+  expect(launched).toHaveLength(0);
   expect(readerArchives.size).toBe(0);
   expect(() => runtime.getLibrary()).toThrow("Runtime is shutting down");
   expect(() => library.db.init()).toThrow("Database is closed");

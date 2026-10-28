@@ -2,10 +2,11 @@ import type { Worker } from "node:worker_threads";
 import type { LibraryStorage } from "../storage";
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { WorkerState } from "./worker-state";
 
 interface Consumer {
   signal: Int32Array;
-  worker: Promise<Worker>;
+  worker: Promise<Worker | undefined>;
   stopping?: Promise<void>;
 }
 const workers = new Map<string, Consumer>();
@@ -18,6 +19,10 @@ export function startJobWorker(library: LibraryStorage): void {
   if (shuttingDown || workers.has(key)) return;
   const signal = new Int32Array(new SharedArrayBuffer(4));
   const consumer: Consumer = { signal, worker: import("./executor").then(({ launchWorker }) => {
+    if (Atomics.load(signal, 0) === WorkerState.Stopping) {
+      if (workers.get(key) === consumer) workers.delete(key);
+      return;
+    }
     const worker = launchWorker(library, signal);
     worker.unref();
     worker.on("error", error => console.error("ingest worker:", error));
@@ -41,12 +46,19 @@ export function stopJobWorker(library: LibraryStorage, { timeoutMs = 5000 } = {}
 
 function stopConsumer(consumer: Consumer, timeoutMs: number): Promise<void> {
   if (consumer.stopping) return consumer.stopping;
-  // A message alone cannot interrupt a drain loop of synchronous jobs/microtasks.
-  Atomics.store(consumer.signal, 0, 1);
+  // A message cannot interrupt module loading or a synchronous drain loop.
+  // If stop wins before admission, no job/DB work can have started: cancel
+  // bootstrap rather than spending the grace period loading unused modules.
+  const cancelStartup = Atomics.exchange(consumer.signal, 0, WorkerState.Stopping) === WorkerState.Starting;
   consumer.stopping = (async () => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stopped = consumer.worker.then(async worker => {
-      if (worker.threadId === -1) return;
+      if (!worker || worker.threadId === -1) return;
+      if (cancelStartup) {
+        worker.ref();
+        await worker.terminate();
+        return;
+      }
       await new Promise<void>(resolve => {
         worker.once("exit", () => resolve());
         worker.ref();
@@ -61,7 +73,7 @@ function stopConsumer(consumer: Consumer, timeoutMs: number): Promise<void> {
       // Await thread exit before callers may remove the library. SQLite rolls
       // back interrupted transactions; recoverJobs handles the durable job row.
       const worker = await consumer.worker;
-      if (worker.threadId !== -1) await worker.terminate();
+      if (worker && worker.threadId !== -1) await worker.terminate();
       throw error;
     } finally { clearTimeout(timer); }
   })();
