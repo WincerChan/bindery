@@ -1,6 +1,7 @@
 import TablerAlignLeft from "~icons/tabler/align-left";
 import TablerLock from "~icons/tabler/lock";
 import TablerPalette from "~icons/tabler/palette";
+import TablerLetterR from "~icons/tabler/letter-r";
 import TablerVocabulary from "~icons/tabler/vocabulary";
 import TablerChevronRight from "~icons/tabler/chevron-right";
 import TablerDeviceTablet from "~icons/tabler/device-tablet";
@@ -21,11 +22,11 @@ export function relativeLastUse(value: string | null, now: number): string {
   if (elapsed < 7 * 86_400_000) return `${Math.floor(elapsed / 86_400_000)} 天前用过`;
   return `${value.slice(5, 10)} 用过`;
 }
-function SettingsRow(props: { href: string; title: string; status: string; icon: IconComponent; connected?: boolean }) {
+function SettingsRow(props: { href: string; title: string; status: string; icon: IconComponent; mobileIcon?: IconComponent; connected?: boolean }) {
   return <Link class="settings-row" href={props.href}>
-    <span class="settings-row-icon" aria-hidden="true"><Icon icon={props.icon} size={20} /></span>
+    <span class="settings-row-icon" aria-hidden="true">{props.mobileIcon ? <><span class="settings-only-desktop"><Icon icon={props.icon} size={20} /></span><span class="settings-only-mobile"><Icon icon={props.mobileIcon} size={20} /></span></> : <Icon icon={props.icon} size={20} />}</span>
     <span class="settings-row-copy"><span class="settings-row-title">{props.title}</span><span class="settings-row-status">{props.connected ? <StatusDot label="已配置" tone="ok" /> : null}{props.status}</span></span>
-    <span aria-hidden="true"><Icon icon={TablerChevronRight} size={18} /></span>
+    <span class="settings-row-chevron" aria-hidden="true"><Icon icon={TablerChevronRight} size={18} /></span>
   </Link>;
 }
 export function SettingsHub(props: { summary: SettingsSummary; now: number }) {
@@ -35,7 +36,7 @@ export function SettingsHub(props: { summary: SettingsSummary; now: number }) {
     <div class="settings-groups">
       <section aria-labelledby="settings-books"><SectionTitle id="settings-books">书怎么做出来</SectionTitle>
         <SettingsRow href="/rules" title="切章规则" icon={TablerAlignLeft} status={`${rules().count} 条${rules().recently_modified ? ` · 最近改过「${rules().recently_modified!.name}」` : " · 尚未添加规则"}`} />
-        <SettingsRow href="/themes" title="主题" icon={TablerPalette} status={`${themes().count} 个${themes().ingest_default ? ` · 入库默认用「${themes().ingest_default!.name} v${themes().ingest_default!.version}」` : " · 尚未添加主题"}`} />
+        <SettingsRow href="/themes" title="主题" icon={TablerPalette} mobileIcon={TablerLetterR} status={`${themes().count} 个${themes().ingest_default ? ` · 入库默认用「${themes().ingest_default!.name} v${themes().ingest_default!.version}」` : " · 尚未添加主题"}`} />
       </section>
       <section aria-labelledby="settings-account"><SectionTitle id="settings-account">账号与连接</SectionTitle>
         <SettingsRow href="/security" title="安全" icon={TablerLock} status={`${security().passkey_count} 个通行密钥 · ${relativeLastUse(security().last_used_at, props.now)}`} />

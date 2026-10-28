@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useMatches } from "@tanstack/solid-router";
-import { For, Show } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
 import { Link } from "../shared/spa-link";
 import { Icon } from "../ui";
 import { PwaInstallProvider } from "../features/settings/install-app";
@@ -8,7 +8,8 @@ import "./shell.css";
 
 export function AppShell() {
   const location = useLocation(), matches = useMatches();
-  const readerLayout = () => matches().some(match => match.staticData.readerLayout);
+  // Loader refreshes replace matches; only a real layout change should replace the Outlet.
+  const readerLayout = createMemo(() => matches().some(match => match.staticData.readerLayout));
   const active = (href: string) => navActive(location().pathname, href);
   return <PwaInstallProvider>
     <a class="skip-link" href="#app-content">跳到正文</a>

@@ -32,6 +32,10 @@ function browserGlobals() {
     if (!styles.has(this)) styles.set(this, { setProperty(name: string, value: string) { (this as Record<string, unknown>)[name] = value; }, removeProperty(name: string) { delete (this as Record<string, unknown>)[name]; } });
     return styles.get(this);
   } });
+  // Minimal focus support; real-browser checks verify mounted-input focus as well.
+  Object.defineProperty(Object.getPrototypeOf(body), "focus", { configurable: true, writable: true, value(this: Element) {
+    Object.defineProperty(document, "activeElement", { configurable: true, value: this });
+  } });
   document.addEventListener = vi.fn(); document.removeEventListener = vi.fn();
   body.dispatchEvent = vi.fn(() => true); Object.defineProperty(document, "body", { configurable: true, value: body });
   vi.stubGlobal("document", document);
@@ -358,6 +362,21 @@ it("renders a link-only rail, five phone tabs, and active settings for child pag
   expect(css(node, "a", "shell-back")).toHaveLength(0);
 });
 
+it.each([true, false])("preserves the settings editor through shell route invalidation (hydration=%s)", async hydrating => {
+  const node = root(hydrating ? await ssr.routedMarkup(library([]), "/rules") : undefined);
+  const mounted = await ui.routedLibrary(node, library([]), "/rules", hydrating); disposers.push(mounted.dispose);
+  await settle(); mounted.flush();
+  const code = byName(node, "config_json") as HTMLTextAreaElement;
+  const sample = byName(node, "sample") as HTMLTextAreaElement;
+  code.value = '{"name":"草稿"}'; fire(code, "input"); mounted.flush();
+  sample.value = "第一章 开始";
+  await mounted.invalidate(); await settle(); mounted.flush();
+  expect(byName(node, "config_json")).toBe(code);
+  expect(byName(node, "sample")).toBe(sample);
+  expect(code.value).toBe('{"name":"草稿"}');
+  expect(sample.value).toBe("第一章 开始");
+});
+
 it.each([true, false])("navigates both settings links instead of opening a menu (hydration=%s)", async hydrating => {
   const node = root(hydrating ? await ssr.routedMarkup(library([]), "/rules") : undefined);
   const mounted = await ui.routedLibrary(node, library([]), "/rules", hydrating); disposers.push(mounted.dispose); await settle();
@@ -398,10 +417,12 @@ it("shows the settings install entry for prompt-capable and iOS states, not for 
   const mounted = mount("install", { mode: null });
   expect(elements(mounted.root, "button")).toHaveLength(0);
   mounted.update({ mode: "prompt" });
-  expect(elements(mounted.root, "button").map(element => element.textContent)).toEqual(["安装"]);
+  const button = elements(mounted.root, "button")[0]!;
+  expect(css(button, "span", "settings-only-desktop")[0]!.textContent).toBe("安装");
+  expect(css(button, "span", "settings-only-mobile")[0]!.textContent).toBe("添加");
   mounted.update({ mode: "ios" });
   expect(elements(mounted.root, "button").map(element => element.getAttribute("type"))).toEqual(["button"]);
-  expect(mounted.root.textContent).toBe("安装");
+  expect(css(mounted.root, "span", "settings-only-mobile")[0]!.textContent).toBe("添加");
   mounted.update({ mode: null });
   expect(elements(mounted.root, "button")).toHaveLength(0);
 });
@@ -541,6 +562,36 @@ it("switches rule/theme navigation and keyed editors", () => {
   mounted.update({ ...initial, rules: [], editor: null });
   expect(allByRole(byRole(mounted.root, "navigation", "规则列表"), "link")).toHaveLength(0);
   expect(mounted.root.textContent).toContain("暂无规则模板");
+});
+
+it("preserves the rule sample, preview and unsaved draft across same-template loader refreshes", async () => {
+  vi.stubGlobal("FormData", class extends FormData { constructor(form?: Element) {
+    super();
+    if (form) for (const input of [...elements(form, "input"), ...elements(form, "textarea")]) {
+      const name = input.getAttribute("name"); if (name) this.set(name, (input as HTMLInputElement).value);
+    }
+  } });
+  const initial: Cases["rules"] = { rules: [editor("custom")], themes: [], tab: "parsing", ruleId: "custom", themeId: "default", error: "", editor: editor("custom") };
+  const mounted = mount("rules", initial);
+  await settle(); mounted.flush();
+  const code = byName(mounted.root, "config_json") as HTMLTextAreaElement;
+  const sample = byName(mounted.root, "sample") as HTMLTextAreaElement;
+  code.value = '{"name":"未保存"}'; fire(code, "input"); mounted.flush();
+  sample.value = "第一章 开始\n正文";
+  vi.stubGlobal("__binderyTestMutation", vi.fn(async () => {
+    mounted.update({ ...initial, editor: { ...initial.editor! } });
+    return { volumes: 0, chapters: 1, toc: ["第一章 开始"] };
+  }));
+  fire(formFor(sample), "submit"); await settle(); mounted.flush();
+  expect(byName(mounted.root, "config_json")).toBe(code);
+  expect(byName(mounted.root, "sample")).toBe(sample);
+  expect(code.value).toBe('{"name":"未保存"}');
+  expect(sample.value).toBe("第一章 开始\n正文");
+  expect(mounted.root.textContent).toContain("有修改");
+  expect(elements(byAttribute(mounted.root, "id", "rule-test-preview"), "li").map(el => el.textContent)).toEqual(["第一章 开始"]);
+  mounted.update({ ...initial, editor: editor("other"), ruleId: "other" });
+  expect(byName(mounted.root, "config_json")).not.toBe(code);
+  expect((byName(mounted.root, "config_json") as HTMLTextAreaElement).value).toBe("{}");
 });
 
 it.each(["rules", "themes"] as const)("formats/restores %s and submits naming validation without losing the draft", async kind => {
@@ -740,6 +791,7 @@ it("switches security enrollment between first password setup, passkey reauth an
   const addForm = () => formFor(byRole(node, "button", /验证.*添加$/)),
     password = () => elements(addForm(), "input").find(input => input.getAttribute("type") === "password"),
     buttons = () => elements(addForm(), "button").map(button => button.textContent);
+  expect(document.activeElement).toBe(byName(addForm(), "name"));
   expect(node.textContent).toContain("首次添加需要先验证密码。");
   expect(password()).toBeDefined(); expect(buttons()).toEqual(["验证密码并添加"]);
   passkeys = [{ credential_id: "old-key", name: "旧名称", device_type: "multi_device", backed_up: 1, created_at: "2026-10-20", last_used_at: null }];

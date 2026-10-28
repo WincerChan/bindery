@@ -86,7 +86,7 @@ export function Editor(props: { data: EditorData; kind: "rules" | "themes"; usag
     <div class="catalog-columns">
       <form id={formId()} action={`/${props.kind}/${encodeURIComponent(props.data.id)}/editor`} method="post" onSubmit={save} class="catalog-pane">
         <div class="catalog-pane-head"><label for={`${formId()}-code`}>{props.kind === "rules" ? "规则 JSON" : "主题 CSS"}</label><div class="catalog-pane-actions"><Button variant="quiet" disabled={mutation.busy() || !dirty()} onClick={() => { setRaw(saved()); setMessage(""); }}>还原</Button><Button variant="quiet" onClick={format} disabled={mutation.busy()}>格式化</Button></div></div>
-        <textarea id={`${formId()}-code`} class="catalog-code" name={props.kind === "rules" ? "config_json" : "css"} value={raw()} onInput={event => setRaw(event.currentTarget.value)} spellcheck={false} wrap="off" disabled={mutation.busy()} />
+        <textarea id={`${formId()}-code`} class="catalog-code" name={props.kind === "rules" ? "config_json" : "css"} value={raw()} onInput={event => setRaw(event.currentTarget.value)} spellcheck={false} wrap="soft" rows={Math.min(24, Math.max(8, raw().split("\n").length))} disabled={mutation.busy()} />
       </form>
       <Show when={props.kind === "rules"} fallback={<section class="catalog-pane"><div class="catalog-pane-head"><h3>预览</h3><span class="muted">随编辑实时更新，未保存也能看</span></div><iframe title="主题 CSS 实时预览" sandbox="" referrerpolicy="no-referrer" srcdoc={themePreviewDocument(raw(), previewTokens())} /></section>}>
         <section class="catalog-pane"><div class="catalog-pane-head"><label for={`${formId()}-sample`}>试切</label><span class="muted">粘贴一段 TXT，输入后自动运行</span></div>

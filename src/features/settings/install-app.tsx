@@ -22,7 +22,7 @@ export function PwaInstallProvider(props: { children: JSX.Element }) {
   return <InstallContext value={controller}>{props.children}</InstallContext>;
 }
 export function InstallAppButton(props: { mode: InstallMode | null; onInstall: () => void }) {
-  return <Show when={props.mode}><Button variant="secondary" class="settings-install-button" onClick={props.onInstall}>安装</Button></Show>;
+  return <Show when={props.mode}><Button variant="secondary" class="settings-install-button" onClick={props.onInstall}><span class="settings-only-desktop">安装</span><span class="settings-only-mobile">添加</span></Button></Show>;
 }
 export function InstallApp() {
   const { state, prompt } = useContext(InstallContext) ?? createInstallController();
