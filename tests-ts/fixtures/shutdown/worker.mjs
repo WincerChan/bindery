@@ -1,5 +1,5 @@
 import { registerHooks } from "node:module";
-import { workerData } from "node:worker_threads";
+import { parentPort, workerData } from "node:worker_threads";
 import { setTimeout } from "node:timers/promises";
 
 // Execute the real executor/queue/processor. Only the external cover transport is
@@ -21,4 +21,10 @@ globalThis.fetch = async () => {
   while (!Atomics.load(workerData.control, 1)) await setTimeout(5);
   return new Response(Buffer.from("89504e470d0a1a0a", "hex"));
 };
+// Hold bootstrap before executor evaluation, like a slow module import. A
+// message handler cannot run here; shutdown must cancel pre-admission startup.
+if (workerData.holdStartup) {
+  parentPort.postMessage("starting");
+  Atomics.wait(workerData.control, 2, 0);
+}
 await import(workerData.module);
