@@ -75,9 +75,21 @@ describe("book detail and edit SSR", () => {
     expect(byRole(root, "link", "下载 EPUB").getAttribute("href")).toBe(`/book/${"a".repeat(32)}/download`);
     expect(byRole(root, "link", "开始阅读").getAttribute("href")).toContain("/preview/0?resume=1&return_to=");
     expect(byRole(root, "heading", "示例书<&>")).toBeDefined();
-    expect(byRole(root, "img").getAttribute("aria-label")).toContain("已读");
+    expect(byRole(root, "img", /已读/).getAttribute("aria-label")).toContain("已读");
     expect(byRole(root, "button", "标记未读")).toBeDefined(); expect(byRole(root, "link", "编辑书目信息")).toBeDefined();
     expect(byRole(root, "link", "书库").getAttribute("href")).toBe("/?q=书&page=2");
+  });
+  it("names the rating separately from the cover and preserves zero versus missing ratings", () => {
+    const value = page();
+    for (const rating of [0, 3, 5]) {
+      value.book.rating = rating;
+      const root = parseHtml(ui.detail(value)), stars = byRole(root, "img", `${rating} 星`);
+      expect(stars.getElementsByTagName("svg")).toHaveLength(5);
+      expect(allByAttribute(stars, "class").filter(icon => icon.getAttribute("class")?.split(" ").includes("ui-star-filled"))).toHaveLength(rating);
+      expect(byRole(root, "img", /已读/)).toBeDefined();
+    }
+    value.book.rating = null;
+    expect(allByRole(parseHtml(ui.detail(value)), "img")).toHaveLength(1);
   });
   it("shows specifications, dates and description without cover controls or identifier", () => {
     const html = ui.detail(page());

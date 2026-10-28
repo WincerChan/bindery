@@ -1,6 +1,4 @@
 import TablerCheck from "~icons/tabler/check";
-import TablerStar from "~icons/tabler/star";
-import TablerStarFilled from "~icons/tabler/star-filled";
 import TablerX from "~icons/tabler/x";
 import TablerArrowUpRight from "~icons/tabler/arrow-up-right";
 import TablerChevronDown from "~icons/tabler/chevron-down";
@@ -12,7 +10,7 @@ import { createSignal, For, Show } from "solid-js";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
 import { mutateBook } from "./mutations";
-import { BackLink, BookCover, Button, ConfirmDialog, Icon, LocalTime, ProgressBar, RelativeTime, SectionTitle, SelectPill } from "../../ui";
+import { BackLink, BookCover, Button, ConfirmDialog, Icon, LocalTime, ProgressBar, RelativeTime, SectionTitle, SelectPill, StarRating } from "../../ui";
 import type { BookPage } from "../../server/books/service";
 import { BookEditor } from "./book-editor";
 import { sectionUrl } from "../reader/model";
@@ -72,7 +70,7 @@ export function BookDetail(props: { page: BookPage }) {
               <Show when={book().author}><span class="books-author">{book().author}</span></Show>
               <Show when={book().author && book().language}><span class="books-separator" aria-hidden="true">·</span></Show>
               <Show when={book().language}><span>{languageLabel(book().language!)}</span></Show>
-              <Show when={book().rating !== null}><Show when={book().author || book().language}><span class="books-separator" aria-hidden="true">·</span></Show><span class="books-stars" aria-label={`评分 ${book().rating} 星`}><For each={[1, 2, 3, 4, 5]}>{n => <Icon icon={n <= book().rating! ? TablerStarFilled : TablerStar} size={15} />}</For></span></Show>
+              <Show when={book().rating !== null}><Show when={book().author || book().language}><span class="books-separator" aria-hidden="true">·</span></Show><StarRating rating={book().rating!} /></Show>
             </div>
           </header>
           <Show when={book().description}><p class="books-description">{book().description}</p></Show>
@@ -104,7 +102,7 @@ export function BookDetail(props: { page: BookPage }) {
             <Button type="submit" variant="secondary" disabled={mutation.busy()}>重新生成</Button>
           </form>
         </section></Show>
-        <section class="books-management-row"><div><h2>归档</h2><p>从书库里收起来，随时可以在「已归档」里恢复。</p></div>
+        <section class="books-management-row"><div><h2>归档</h2><p><span class="books-desktop-copy">从书库里收起来，随时可以在「已归档」里恢复。</span><span class="books-phone-copy">从书库里收起来，随时可以恢复。</span></p></div>
           <form ref={archiveForm} action={`/book/${book().book_id}/archive`} method="post" onSubmit={event => { event.preventDefault(); setArchiving(true); }}><input type="hidden" name="next" value={nav().return_to} /><Button type="submit" variant="secondary" disabled={mutation.busy()}>归档</Button></form>
         </section>
         <section class="books-management-row"><div><h2 class="books-danger">永久删除</h2><p>源文件、EPUB 和全部记录一起删掉，无法恢复。</p></div>
