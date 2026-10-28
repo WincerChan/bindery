@@ -40,9 +40,21 @@ describe("shared page intro CSS ownership", () => {
     const css = readFileSync("src/ui/ui.css", "utf8"), source = readFileSync("src/ui/primitives.tsx", "utf8");
     expect(css).toContain(".ui-page-intro-topbar .ui-page-actions { display: contents; }");
     expect(source).toContain('props.visualSize && props.variant !== "book"');
-    expect(css).toContain("--intro-stack-gap: var(--intro-subpage-stack)");
-    expect(css).toContain("--intro-stack-gap: var(--intro-book-stack)");
-    expect(css).toContain("--intro-stack-gap: var(--intro-guide-stack)");
+    expect(css).not.toMatch(/--intro-(?:subpage|guide|book)-stack\s*:/);
+  });
+  it("keeps one stack rhythm and one intro type scale across every variant", () => {
+    const css = readFileSync("src/ui/ui.css", "utf8"), tokens = readFileSync("src/styles.css", "utf8");
+    for (const name of ["stack-gap", "actions-offset", "action-gap", "status-offset", "title-size", "title-line", "title-tracking", "lead-size", "lead-line"]) {
+      expect(css, name).not.toMatch(new RegExp(`--intro-${name}\\s*:`));
+    }
+    expect(css).not.toMatch(/--intro-(?:book|cover|editor)-(?:line|title|tracking)[a-z-]*\s*:/);
+    expect(css).toContain(".ui-page-intro-controls > .ui-page-actions { margin-top: 0; }");
+    const desktop = tokens.slice(tokens.indexOf(":root {"), tokens.indexOf("@media (max-width: 767px)"));
+    const phone = tokens.slice(tokens.indexOf("@media (max-width: 767px)"), tokens.indexOf("@layer base"));
+    expect(desktop).toContain("--intro-stack-gap: 22px");
+    expect(desktop).toContain("--intro-actions-offset: 6px");
+    expect(phone).toContain("--intro-stack-gap: 16px");
+    expect(phone).toContain("--intro-actions-offset: 0px");
   });
   it("routes feature page headings through the shared primitive and preserves adjacent heading order", () => {
     for (const path of readdirSync("src/features", { recursive: true }).filter(path => typeof path === "string" && path.endsWith(".tsx"))) {
