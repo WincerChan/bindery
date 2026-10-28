@@ -1,93 +1,196 @@
 .ingest-page, .ingest-layout { min-width: 0; }
 .ingest-layout.is-dragging { outline: 2px dashed var(--color-accent); outline-offset: 8px; }
-.ingest-page .ui-page-intro-text { flex: 1 1 380px; }
-.ingest-page .ui-page-visual { display: block; flex: 1 1 480px; min-width: 0; max-width: none; }
-.ingest-picker { position: relative; overflow: hidden; cursor: pointer; }
-.ingest-picker .ingest-file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.ingest-file-input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.ingest-picker { position: relative; gap: 10px; padding: 0 26px; overflow: hidden; cursor: pointer; }
 .ingest-picker:focus-within { outline: 2px solid var(--color-accent); outline-offset: 3px; }
-.ingest-first-page { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1fr); height: 380px; margin: 0; background: var(--color-surface); border-radius: var(--radius-cover); box-shadow: var(--shadow-cover-lg); transform: rotate(-1.5deg); overflow: hidden; }
-.ingest-first-page figcaption { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; padding: 24px; text-align: center; border-right: 1px solid var(--color-line-soft); }
-.ingest-first-page figcaption span { color: var(--color-ink-3); font-size: var(--text-min); letter-spacing: .2em; }
-.ingest-first-page figcaption strong { font-family: var(--font-display); font-size: var(--text-heading); overflow-wrap: anywhere; }
-.ingest-first-page iframe { border: 0; width: 100%; height: 100%; min-width: 0; background: var(--color-surface); }
+.ingest-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ingest-hero-actions .btn-lg { min-height: var(--size-control-lg); font-size: var(--text-body); }
+.ingest-hero-actions .ingest-hero-submit { gap: 10px; padding-inline: 28px; }
+.ingest-hero-actions .ingest-hero-clear { min-height: var(--size-control-lg); padding-inline: 18px; font-size: var(--text-body); }
+.ingest-hero-actions .ingest-jobs-hero { min-height: var(--size-control-lg); padding-inline: 22px; }
+.ingest-hero-actions .ingest-hero-submit .btn-count { color: inherit; font-size: inherit; font-weight: 400; opacity: .7; }
+
+.ingest-page .ui-page-intro { flex-wrap: wrap; gap: 56px; }
+.ingest-page .ui-page-intro-text { flex: 1 1 380px; }
+.ingest-page .ui-page-visual { display: block; flex: 0 1 580px; min-width: 0; max-width: none; }
+.ingest-page .ui-page-intro h1 { font-weight: 600; line-height: 1.25; }
+.ingest-page .ui-page-eyebrow { margin-bottom: 22px; font-size: var(--text-control); letter-spacing: .08em; }
+.ingest-page .ui-page-description { max-width: 520px; margin-top: 22px; line-height: 1.85; }
+.ingest-page .ui-page-actions { margin-top: 28px; }
+.ingest-page .ingest-intro-empty { padding-top: 52px; }
+.ingest-page .ingest-intro-empty .ui-page-description { max-width: 600px; }
+
+.ingest-first-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 380px; margin: 0; background: var(--color-surface); border-radius: 4px; box-shadow: 0 2px 4px rgba(32,41,35,.1), 0 40px 60px -30px rgba(32,41,35,.5); transform: rotate(-1.5deg); overflow: hidden; }
+.ingest-first-page figcaption { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; padding: 48px 32px; text-align: center; background: linear-gradient(270deg, rgba(32,41,35,.12) 0, rgba(32,41,35,0) 28px), var(--color-surface); }
+.ingest-first-page figcaption span { color: var(--color-ink-4); font-size: var(--text-min); letter-spacing: .4em; }
+.ingest-first-page figcaption strong { font-family: var(--font-display); font-size: 28px; font-weight: 600; line-height: 1.3; letter-spacing: .2em; overflow-wrap: anywhere; }
+.ingest-first-page-rule { display: block; flex: none; width: 28px; height: 1px; background: var(--color-accent); }
+.ingest-first-page iframe { border: 0; width: 100%; height: 100%; min-width: 0; background: linear-gradient(90deg, rgba(32,41,35,.1) 0, rgba(32,41,35,0) 24px), var(--color-surface); }
 .ingest-first-page > p { grid-column: 1 / -1; align-self: center; padding: 32px; text-align: center; font-size: var(--text-body); color: var(--color-ink-3); }
 .ingest-first-page > p span { display: block; margin-top: 12px; }
-.ingest-toolbar-row { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; }
+
+.ingest-toolbar-row { display: flex; align-items: center; gap: 16px; margin-bottom: 36px; }
+.ingest-toolbar-row[data-empty="true"] { display: none; }
 .ingest-toolbar-row .ui-toolbar { justify-content: flex-start; min-width: 0; margin: 0; }
-.ingest-toolbar-row > .ui-activity { margin-left: auto; flex-shrink: 0; }
+.ingest-toolbar-row .ui-toolbar-controls { gap: 10px; padding: 0; scrollbar-width: none; }
+.ingest-toolbar-row .ui-toolbar-controls::-webkit-scrollbar { display: none; }
+.ingest-toolbar-row .ingest-select-pill { padding-left: 18px; }
+.ingest-toolbar-row .ui-select-value { font-weight: 500; }
+.ingest-toolbar-row .ingest-css-chip { gap: 8px; padding: 0 18px; }
+.ingest-toolbar-row > .ingest-jobs-trigger { margin-left: auto; flex-shrink: 0; gap: 10px; font-size: var(--text-control); }
+.ingest-jobs-trigger .ui-activity-dot { margin-right: 0; }
+.ingest-toolbar-row .ingest-jobs-count { color: var(--color-ink-3); font-size: var(--text-control); font-weight: 400; font-variant-numeric: tabular-nums; }
+.ingest-toolbar-row .ingest-jobs-chevron { display: none; }
+.ingest-fallback-submit { display: none !important; }
+.ingest-status { margin-block: 24px; color: var(--color-ink-3); font-size: var(--text-meta); }
 .ingest-css { margin-bottom: 24px; }
 .ingest-css:not([open]) { margin-bottom: 0; }
 .ingest-layout[data-enhanced="true"] .ingest-css:not([open]) > summary { position: absolute; width: 1px; height: 1px; min-height: 0; overflow: hidden; clip-path: inset(50%); }
 .ingest-layout[data-enhanced="true"] .ingest-css:not([open]) > summary:focus-visible { position: static; width: auto; height: auto; min-height: var(--size-control); clip-path: none; }
 .ingest-css textarea { font-family: var(--font-mono); font-size: var(--text-control); border-radius: var(--radius-field); background: var(--color-control); }
 .ingest-page details summary { min-height: var(--size-control); display: flex; align-items: center; cursor: pointer; color: var(--color-ink-3); font-size: var(--text-control); }
+
 .ingest-cover-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 44px 32px; align-items: start; }
 .ingest-ghost-cover { aspect-ratio: 2 / 3; border-radius: var(--radius-cover); background: var(--color-control); }
 .ingest-book { min-width: 0; }
 .ingest-cover-trigger { display: block; width: 100%; padding: 0; border: 0; background: transparent; border-radius: var(--radius-cover); }
-.ingest-book-caption { display: flex; flex-direction: column; gap: 6px; width: 100%; min-height: var(--size-control); margin-top: 14px; padding: 4px 2px; border: 0; background: transparent; text-align: left; color: var(--color-ink); border-radius: var(--radius-row); overflow-wrap: anywhere; }
-.ingest-book-caption:hover { background: var(--color-hover); }
-.ingest-book-caption strong { font-family: var(--font-display); font-size: var(--text-title); font-weight: 600; }
-.ingest-book-caption > span { color: var(--color-ink-2); font-size: var(--text-meta); }
-.ingest-book-caption strong span { color: var(--color-ink-3); font-size: var(--text-meta); }
+.ingest-book-caption { display: flex; flex-direction: column; gap: 6px; width: 100%; min-height: 0; margin-top: 14px; padding: 0 2px; border: 0; border-radius: 0; background: transparent; text-align: left; color: var(--color-ink); overflow-wrap: anywhere; }
+.ingest-book-caption:hover { background: transparent; }
+.ingest-book-caption strong { font-family: var(--font-display); font-size: var(--text-title); font-weight: 600; line-height: 1.35; }
+.ingest-book-caption > span { color: var(--color-ink-2); font-size: var(--text-meta); line-height: 1.5; }
+.ingest-book-caption .ingest-book-dupe { display: none; }
+.ingest-book-caption .ingest-book-error { display: none; color: var(--color-danger); }
+.ingest-book.is-error .ingest-book-caption strong { font-family: var(--font-sans); font-size: var(--text-body); font-weight: 400; color: var(--color-ink-3); }
+
 .ingest-book-dialog { width: min(880px, calc(100% - 32px)); }
-.ingest-book-detail { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-section); align-items: start; padding-top: 16px; }
-.ingest-detail-cover .cover-large { width: 100%; }
-.ingest-book-fields { min-width: 0; display: grid; gap: 24px; overflow-wrap: anywhere; }
+.ingest-book-detail { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-section); align-items: start; padding-top: 0; }
+.ingest-detail-cover .cover { width: 100%; border-radius: 4px 10px 10px 4px; box-shadow: 0 2px 3px rgba(32,41,35,.18), 0 34px 50px -18px rgba(32,41,35,.55); }
+.ingest-book-fields { min-width: 0; display: grid; gap: 28px; overflow-wrap: anywhere; }
+.ingest-book-heading { display: grid; gap: 10px; }
+.ingest-detail-title { margin: 0; font: 600 30px/1.3 var(--font-display); }
 .ingest-book-fields p { margin: 0; color: var(--color-ink-2); font-size: var(--text-body); line-height: 1.8; }
-.ingest-book-fields .field-error, .ingest-book-caption .ingest-book-error { color: var(--color-danger); }
+.ingest-book-fields .field-error { display: grid; gap: 6px; color: var(--color-danger); }
+.ingest-book-fields .field-error p { color: var(--color-ink-2); }
 .ingest-duplicate { display: grid; gap: 14px; }
 .ingest-duplicate .segmented { justify-self: start; }
+.ingest-duplicate a { color: var(--color-accent); font-family: var(--font-display); font-weight: 600; text-decoration: none; }
 .ingest-fields { display: grid; gap: 16px; }
 .ingest-fields input { border-radius: var(--radius-field); background: var(--color-control); }
-.ingest-toc { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; font-family: var(--font-display); font-size: var(--text-body); }
+.ingest-field-title { margin: 0 0 14px; color: var(--color-ink-3); font: 400 var(--text-control) var(--font-sans); letter-spacing: .08em; }
+.ingest-toc { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 32px; font-family: var(--font-display); font-size: var(--text-body); line-height: 1.5; }
+.ingest-toc-more { color: var(--color-ink-3); }
 .ingest-file-details dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; font-size: var(--text-meta); }
 .ingest-file-details dt { color: var(--color-ink-3); }
 .ingest-file-details dd { margin: 0; }
-.ingest-book-dialog > .dialog-actions { justify-content: space-between; }
-.ingest-status { color: var(--color-ink-3); font-size: var(--text-meta); margin-block: 24px; }
-.ingest-submit { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 24px; }
-.ingest-jobs-sheet { width: min(560px, 100%); }
-.ingest-jobs-section { min-width: 0; }
-.ingest-job-tabs { display: flex; margin-bottom: 24px; }
-.ingest-job-tabs a { flex: 1; }
-.ingest-jobs-list { list-style: none; margin: 0; padding: 0; }
-.ingest-jobs-list > li { padding-block: 16px; border-bottom: 1px solid var(--color-line-hair); }
+.ingest-book-dialog > .dialog-actions { justify-content: space-between; margin-top: 40px; padding-top: 0; }
+
+.ingest-jobs-sheet { width: min(520px, 100%); }
+.ingest-jobs-section { min-width: 0; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.ingest-job-tabs { display: flex; align-self: flex-start; margin-bottom: 0; }
+.ingest-jobs-list { list-style: none; margin: 12px 0 0; padding: 20px 0; display: flex; flex-direction: column; gap: 32px; flex: 1; min-height: 0; overflow: auto; }
+.ingest-jobs-list > li { padding: 0; border: 0; }
 .ingest-job { overflow-wrap: anywhere; }
 .ingest-job-heading { display: flex; align-items: center; gap: 20px; }
-.ingest-job-heading > .cover { flex: 0 0 56px; width: 56px; height: 84px; }
+.ingest-job-heading > .cover { flex: 0 0 56px; width: 56px; height: 84px; box-shadow: 0 10px 14px -10px rgba(32,41,35,.5); border-radius: 2px 5px 5px 2px; }
 .ingest-job-identity { min-width: 0; flex: 1; }
 .ingest-job-identity strong { font-family: var(--font-display); font-size: var(--text-title); font-weight: 600; }
 .ingest-job-identity a { color: var(--color-ink); text-decoration: none; }
 .ingest-job-identity p { margin: 6px 0 0; color: var(--color-ink-3); font-size: var(--text-meta); }
 .ingest-job-identity .ingest-job-error { color: var(--color-danger); }
+.ingest-job-retry { background: transparent; border: 1px solid var(--color-line); }
+.ingest-job-heading .cover-failed .cover-retry { display: none; }
+.ingest-job-open { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: var(--color-ink-4); text-decoration: none; flex: none; }
 .ingest-job-log { margin-left: 76px; font-size: var(--text-meta); color: var(--color-ink-2); }
 .ingest-job-id, .ingest-job-log pre { font-family: var(--font-mono); font-size: var(--text-min); }
 .ingest-job-log pre { white-space: pre-wrap; max-height: 280px; overflow: auto; padding: 16px; border-radius: var(--radius-field); background: var(--color-control); }
 .ingest-job-output { display: inline-flex; align-items: center; min-height: var(--size-control); }
-.ingest-jobs-section > .pagination { margin-top: 24px; }
+.ingest-jobs-section > .pagination { margin: 0; padding: 20px 0 32px; flex: none; gap: 16px; }
+.ingest-jobs-section .pagination-summary { display: none; }
+.ingest-jobs-section .pagination-controls { width: 100%; margin-left: 0; gap: 10px; }
+.ingest-jobs-section .pagination-page-total { margin-right: auto; font-size: var(--text-meta); }
+.ingest-jobs-section .pagination-page-number { font-weight: 600; }
+.ingest-jobs-section .pagination-control { background: transparent; border: 1px solid var(--color-line); color: var(--color-ink); }
+.ingest-jobs-section .pagination-control[aria-disabled] { border-color: var(--color-line-soft); color: var(--color-ink-4); opacity: 1; }
+.ingest-jobs-section > .pagination:not(:has(.pagination-controls)) { display: none; }
+
+@media (min-width: 768px) {
+  .ingest-book-dialog { padding: 48px; }
+  .ingest-book-dialog > .dialog-heading { position: absolute; top: 20px; right: 20px; margin: 0; }
+  .ingest-book-dialog > .dialog-heading > div { display: none; }
+  .ingest-book-dialog > .dialog-body { padding: 0; overflow: visible; }
+  .ingest-jobs-sheet { padding: 40px 40px 0; border-radius: 28px 0 0 28px; box-shadow: -30px 0 60px -30px rgba(32,41,35,.45); }
+  .ingest-jobs-sheet > .dialog-heading { margin-bottom: 24px; }
+  .ingest-jobs-sheet > .dialog-heading h2 { font-weight: 600; }
+  .ingest-jobs-sheet > .dialog-body { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+}
+
 @media (max-width: 767px) {
   .ingest-page { padding-bottom: 100px; }
-  .ingest-page .ui-page-intro { flex-direction: column; align-items: stretch; padding-top: 0; }
+  .ingest-page .ui-page-intro { flex-direction: column; align-items: stretch; padding-top: 0; gap: 16px; }
   .ingest-page .ui-page-intro-text, .ingest-page .ui-page-visual { flex: none; }
-  .ingest-picker { flex: 1; }
-  .ingest-first-page { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 360px; margin: 12px 8px 0; }
-  .ingest-first-page figcaption { gap: 8px; padding: 16px 24px; border: 0; }
-  .ingest-first-page figcaption strong { font-size: var(--text-title); }
-  .ingest-toolbar-row { flex-direction: column; align-items: stretch; gap: 18px; }
-  .ingest-toolbar-row > .ui-activity { margin-left: 0; justify-content: flex-start; }
-  .ingest-cover-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 14px; }
+  .ingest-page .ui-page-intro h1 { font-size: var(--text-hero); font-weight: 600; line-height: 1.3; }
+  .ingest-page .ui-page-eyebrow { margin-bottom: 16px; font-size: var(--text-meta); letter-spacing: .08em; }
+  .ingest-page .ui-page-description { margin-top: 16px; max-width: none; line-height: 1.8; }
+  .ingest-page .ui-page-actions { margin-top: 0; }
+  .ingest-page .ui-page-actions:has(.ingest-hero-actions[data-staged="true"]) { position: fixed; inset-inline: 0; bottom: calc(69px + env(safe-area-inset-bottom)); z-index: 25; margin: 0; padding: 12px 16px; background: var(--color-bg); border-top: 1px solid var(--color-line-faint); justify-content: flex-end; gap: 10px; }
+  .ingest-page .ui-page-actions:has(.ingest-hero-actions[data-staged="true"]) .ingest-hero-actions { width: 100%; flex-wrap: nowrap; gap: 10px; }
+  .ingest-hero-actions[data-staged="true"] .ingest-hero-clear { order: 1; }
+  .ingest-hero-actions[data-staged="true"] .ingest-hero-submit { order: 2; flex: 1; justify-content: center; }
+  .ingest-hero-actions[data-staged="false"] { flex-wrap: nowrap; }
+  .ingest-hero-actions[data-staged="false"] .ingest-picker { flex: 1; justify-content: center; }
+  .ingest-hero-actions[data-staged="false"] .ingest-jobs-hero { flex: none; }
+  .ingest-picker { flex: none; }
+
+  .ingest-first-page { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 285px; margin: 12px 8px 0; transform: rotate(-1.2deg); box-shadow: 0 2px 4px rgba(32,41,35,.1), 0 30px 44px -24px rgba(32,41,35,.5); }
+  .ingest-first-page figcaption { display: none; }
+  .ingest-first-page iframe { background: linear-gradient(90deg, rgba(32,41,35,.08) 0, rgba(32,41,35,0) 18px), var(--color-surface); }
+
+  .ingest-toolbar-row { flex-direction: column; align-items: stretch; gap: 18px; margin-bottom: 18px; }
+  .ingest-toolbar-row .ui-toolbar-controls { margin: 0 -16px; padding: 0 16px; gap: 8px; }
+  .ingest-toolbar-row .ingest-select-pill { padding: 0 14px 0 16px; }
+  .ingest-toolbar-row .ingest-css-chip { padding: 0 16px; }
+  .ingest-toolbar-row > .ingest-jobs-trigger { margin-left: 0; justify-content: flex-start; width: 100%; min-height: var(--size-control-lg); padding: 0 18px; gap: 10px; }
+  .ingest-toolbar-row .ingest-jobs-chevron { display: inline-flex; margin-left: auto; color: var(--color-ink-3); }
+
+  .ingest-cover-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 14px; padding-top: 10px; }
   .ingest-ghost-cover:nth-last-child(-n+3) { display: none; }
-  .ingest-book-caption { margin-top: 10px; }
-  .ingest-book-caption strong { font-size: var(--text-body); }
+  .ingest-cover-wall .cover { border-radius: 3px 7px 7px 3px; box-shadow: 0 1px 2px rgba(32,41,35,.16), 0 18px 24px -14px rgba(32,41,35,.45); }
+  .ingest-cover-wall .cover-gen-title { font-size: 18px; }
+  .ingest-cover-wall .cover-duplicate .cover-marker { width: 28px; height: 28px; }
+  .ingest-cover-wall .cover-duplicate .cover-marker svg { width: 14px; height: 14px; }
+  .ingest-cover-wall .cover-unparseable .cover-marker { width: 40px; height: 40px; }
+  .ingest-cover-wall .cover-unparseable .cover-marker svg { width: 20px; height: 20px; }
+  .cover-add-tile { gap: 10px; }
+  .cover-add { border-radius: 3px 7px 7px 3px; }
+  .cover-add-label { font-size: var(--text-control); }
+  .ingest-book-caption { gap: 3px; margin-top: 10px; }
+  .ingest-book-caption strong { font-size: var(--text-body); font-weight: 600; }
   .ingest-book-caption > span { font-size: var(--text-min); }
-  .ingest-book-dialog, .ingest-jobs-sheet { width: 100%; }
+  .ingest-book-caption .ingest-book-meta[data-duplicate="true"] { display: none; }
+  .ingest-book-caption .ingest-book-dupe { display: inline; }
+  .ingest-book-caption .ingest-book-error { display: inline; }
+  .ingest-book.is-error .ingest-book-caption strong { font-size: var(--text-meta); }
+
+  .ingest-book-dialog { width: 100%; }
   .ingest-book-detail { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .ingest-detail-cover { width: 168px; margin-inline: auto; }
+  .ingest-detail-title { display: none; }
+  .ingest-book-fields { gap: 24px; }
   .ingest-toc { grid-template-columns: minmax(0, 1fr); }
-  .ingest-submit[data-active="true"] { position: fixed; inset-inline: 0; bottom: calc(69px + env(safe-area-inset-bottom)); z-index: 25; margin: 0; padding: 12px 16px; background: var(--color-bg); border-top: 1px solid var(--color-line-faint); }
-  .ingest-submit > .btn-primary { flex: 1; }
+  .ingest-book-dialog > .dialog-actions { justify-content: space-between; margin-top: auto; }
+
+  .ingest-jobs-sheet { width: 100%; }
+  .ingest-jobs-sheet .dialog-handle { margin-bottom: 14px; }
+  .ingest-jobs-sheet > .dialog-heading { margin-bottom: 16px; }
+  .ingest-jobs-sheet > .dialog-heading h2 { font-weight: 600; }
+  .ingest-jobs-sheet > .dialog-body { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .ingest-job-tabs { align-self: stretch; }
+  .ingest-job-tabs a { flex: 1; }
+  .ingest-jobs-list { padding: 16px 0; gap: 22px; margin-top: 8px; }
   .ingest-job-heading { gap: 16px; }
   .ingest-job-heading > .cover { flex-basis: 44px; width: 44px; height: 66px; }
+  .ingest-job-identity p { margin-top: 4px; }
   .ingest-job-log { margin-left: 60px; }
+  .ingest-jobs-section > .pagination { padding: 12px 0 34px; border-top: 1px solid var(--color-line-faint); }
+  .ingest-jobs-section .pagination-page-number { font-size: var(--text-tab); font-weight: 600; }
 }

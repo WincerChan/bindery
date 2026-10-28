@@ -54,11 +54,11 @@ export function SegmentedControl(props: { label: string; value: string; options:
 }
 export type LinkTab = { value: string; label: string; href: string; count?: number };
 /** URL navigation uses anchors; local state changes use SegmentedControl. */
-export function LinkTabs(props: { label: string; value: string; tabs: readonly LinkTab[]; class?: string; replace?: boolean; resetScroll?: boolean; hashScrollIntoView?: boolean; onNavigate?: (value: string) => void }) {
+export function LinkTabs(props: { label: string; value: string; tabs: readonly LinkTab[]; class?: string; replace?: boolean; resetScroll?: boolean; hashScrollIntoView?: boolean; countSeparator?: string; accentCounts?: boolean; onNavigate?: (value: string) => void }) {
   return <nav aria-label={props.label} class={`segmented ui-link-tabs ${props.class || ""}`}><For each={props.tabs}>{tab =>
     <Link href={tab.href} replace={props.replace} resetScroll={props.resetScroll} hashScrollIntoView={props.hashScrollIntoView} aria-current={props.value === tab.value ? "page" : undefined}
       onClick={event => { if (props.onNavigate && !event.defaultPrevented && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); props.onNavigate(tab.value); } }}>
-      {tab.label}<Show when={tab.count !== undefined}> · <CountBadge accent={props.value === tab.value}>{tab.count}</CountBadge></Show>
+      {tab.label}<Show when={tab.count !== undefined}>{props.countSeparator ?? " · "}<CountBadge accent={props.accentCounts || props.value === tab.value}>{tab.count}</CountBadge></Show>
     </Link>
   }</For></nav>;
 }
