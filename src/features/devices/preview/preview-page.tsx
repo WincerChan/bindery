@@ -1,6 +1,6 @@
-import TablerCheck from "~icons/tabler/check";
 import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { errorMessage } from "../../../client/devices/fs";
+import { showToast } from "../../../client/toast";
 import { deviceKindLabel, kindleModelInfo, koboModelInfo, modelShortName, type DeviceKind } from "../../../client/devices/models";
 import { defaultProfile, DEFAULT_PROFILE_ID, EMPTY_SETTINGS, generateProfileCss, profileSettings, type ProfileSettings, type TypesettingProfile } from "../../../client/devices/profiles";
 import {
@@ -10,7 +10,7 @@ import {
 import type { PairedDevice } from "../../../client/devices/identity";
 import type { FontFamily } from "../../../client/devices/fonts";
 import { validateCss } from "../../../core/css";
-import { BackLink, Button, CenterDialog, ConfirmDialog, Icon, PageIntro, SelectPill, Slider, StatusDot, Stepper, Textarea, TextField, ToggleChip } from "../../../ui";
+import { BackLink, Button, CenterDialog, ConfirmDialog, PageIntro, SelectPill, Slider, StatusDot, Stepper, Textarea, TextField, ToggleChip } from "../../../ui";
 import { Link } from "../../../shared/spa-link";
 import { DeviceProvider, useOptionalDevice } from "../context";
 import type { DeviceManager } from "../../../client/devices/device";
@@ -64,7 +64,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const [fonts, setFonts] = createSignal<FontFamily[]>([]);
   const [previewFont, setPreviewFont] = createSignal(props.initialFont ?? "");
   const [busy, setBusy] = createSignal(false), [loading, setLoading] = createSignal(false);
-  const [error, setError] = createSignal(""), [notice, setNotice] = createSignal(""), [switchNotice, setSwitchNotice] = createSignal<Target | null>(null);
+  const [error, setError] = createSignal(""), [switchNotice, setSwitchNotice] = createSignal<Target | null>(null);
   const [saveAs, setSaveAs] = createSignal(false), [saveName, setSaveName] = createSignal(""), [deleting, setDeleting] = createSignal(false);
   const [bookId, setBookId] = createSignal(props.data.bookId), [sections, setSections] = createSignal(props.data.sections), [chapter, setChapter] = createSignal(firstTextChapter(props.data.sections)), [chapterStart, setChapterStart] = createSignal({ page: 1 });
   const [chapterLoading, setChapterLoading] = createSignal(false), [chapterError, setChapterError] = createSignal(props.data.error);
@@ -127,7 +127,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
     ...profiles().map(profile => ({ value: profile.id, label: profile.builtIn ? defaultProfile().name : profile.name })),
   ];
   function openChapter(index: number, page = 1) { setChapter(index); setChapterStart({ page }); }
-  function selectProfile(profile: TypesettingProfile) { const selected = copyProfile(profile); setDraft(selected); setBaseline(JSON.stringify(selected)); setSent(null); setError(""); setNotice(""); }
+  function selectProfile(profile: TypesettingProfile) { const selected = copyProfile(profile); setDraft(selected); setBaseline(JSON.stringify(selected)); setSent(null); setError(""); }
   function resolveProfileId(id: string) { return id === DEFAULT_PROFILE_ID || profiles().some(profile => profile.id === id) ? id : DEFAULT_PROFILE_ID; }
   function applyRememberedProfile(value: DeviceReadingSettings) {
     if (!profilesReady() || blockerDirty() || !target()?.id) return;
@@ -175,7 +175,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
       const current = draft(), value = settings(), input = { name: asNew ? saveName() : current.name, settings: value };
       const saved = asNew ? await props.profiles.create(input) : await props.profiles.update({ ...input, id: current.id });
       if (disposed) return;
-      setProfiles(items => [...items.filter(item => item.id !== saved.id), saved]); selectProfile(saved); setSaveAs(false); setNotice("排版方案已保存，所有设备共用。");
+      setProfiles(items => [...items.filter(item => item.id !== saved.id), saved]); selectProfile(saved); setSaveAs(false); showToast("排版方案已保存，所有设备共用。");
     } catch (error) { if (!disposed) setError(errorMessage(error)); }
     finally { if (!disposed) setBusy(false); }
   }
@@ -188,7 +188,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
       if (disposed) return;
       setProfiles(items => items.filter(item => item.id !== current.id));
       if (reading().profileId === current.id) setReading(value => ({ ...value, profileId: DEFAULT_PROFILE_ID }));
-      selectProfile(defaultProfile()); setNotice("排版方案已删除。");
+      selectProfile(defaultProfile()); showToast("排版方案已删除。");
     } catch (error) { if (!disposed) setError(errorMessage(error)); }
     finally { if (!disposed) setBusy(false); }
   }
@@ -284,7 +284,6 @@ function DevicePreviewPageInner(props: PreviewProps) {
       </div>
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
       <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
-      <Show when={notice()}><p role="status" class="kt-success-note"><Icon icon={TablerCheck} size={16} /> {notice()}</p></Show>
       <Show when={switchNotice()}>{pending => <p role="status" class="notice">已连接「{pending().name}」，当前排版有未保存的修改。<Button variant="quiet" disabled={busy()} onClick={switchToPendingGrant}>切换到 {pending().name}</Button></p>}</Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={previewFont() && !family() && !previewFontError()}><p class="muted">所选字体当前预览设备不可用，预览暂用替代字体。</p></Show>

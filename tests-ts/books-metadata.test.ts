@@ -53,6 +53,29 @@ describe("offline metadata parsing and legacy parity", () => {
       "完整简介第一段。\n\n完整简介第二段。\n换行继续。",
     );
   });
+  it("reads Douban's full book intro despite omitted table end tags elsewhere on the page", () => {
+    const html = readFileSync(resolve("tests-ts/fixtures/books/douban-1077528.html"), "utf8");
+    expect(parseDoubanSubjectHtml(html)).toMatchObject({
+      title: "通往奴役之路",
+      isbn: "9787500421368",
+      description: "书籍完整简介第一段，保留内容简介结构。\n\n书籍完整简介第二段，不能混入作者简介或网页推荐文案。",
+    });
+  });
+  it("prefers the expanded book intro independent of class order and short-intro position", () => {
+    const html = `<div id="link-report">
+      <span class="hidden all"><div class="content intro"><p>完整简介。</p><p>第二段。<br>继续。</p></div></span>
+      <span class="short"><div class="intro"><p>截断简介...</p></div></span>
+    </div><div class="intro"><p>作者简介，不应采用。</p></div>`;
+    expect(parseDoubanSubjectHtml(html).description).toBe("完整简介。\n\n第二段。\n继续。");
+  });
+  it.each([
+    ['<script type="application/ld+json">{"@type":"Book","description":"结构化简介。"}</script><meta property="og:description" content="分享摘要...">', "结构化简介。"],
+    ['<meta property="og:description" content="分享摘要...">', "分享摘要..."],
+    ["", null],
+  ])("falls back to book descriptions without using Douban's SEO boilerplate (%#)", (content, expected) => {
+    const html = `<meta name="description" content="图书示例书 介绍、书评、论坛及推荐 ">${content}`;
+    expect(parseDoubanSubjectHtml(html).description).toBe(expected);
+  });
   it("prefers nbg href over OpenGraph and retains publisher spaces", () => {
     expect(parsed[4].cover_url).toContain("s7654321");
     expect(parsed[5].cover_url).toContain("s1234567");

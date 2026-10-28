@@ -1,4 +1,4 @@
-import { createContext, createSignal, onSettled, useContext } from "solid-js";
+import { createContext, createMemo, createSignal, onSettled, useContext } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { DeviceManager, assertReachable, deviceInventory, errorMessage, getTransferQueue, type DeviceInventory, type DeviceState, type RememberedDevice, type TransferItem, type TransferQueue, type TransferRequestOptions } from "../../client/devices";
 import type { DeviceKind } from "../../client/devices/models";
@@ -26,7 +26,8 @@ function createDeviceContext(manager: DeviceManager, queue: () => TransferQueue,
   const [error, setError] = createSignal(""), [busy, setBusy] = createSignal(false);
   const [syncSummary, setSyncSummary] = createSignal(""), [syncError, setSyncError] = createSignal("");
   let alive = true, revision = 0, observed = neutral(), syncKey = "", syncRunning = false, syncQueued = false;
-  const kind = (): DeviceKind => state().device?.identity.kind ?? state().detected?.kind ?? "kindle";
+  // Connection heartbeats must not invalidate kind-dependent book/cover matching.
+  const kind = createMemo<DeviceKind>(() => state().device?.identity.kind ?? state().detected?.kind ?? "kindle");
   /**
    * Pick the device to restore without ever prompting for permission.
    * - exactly one currently connected device wins;

@@ -273,10 +273,12 @@ it("edits the built-in default as an unsaved draft and saves it as a new global 
   expect(profiles.create).toHaveBeenCalledWith({ name: "大字正文", settings: expect.objectContaining({ marginX: 2.5, marginXUnit: "percent" }) });
   fire(button(mounted.root, "增大首行缩进（em）"), "click"); ui.flush(); fire(button(mounted.root, "保存方案"), "click"); await settle();
   expect(profiles.update).toHaveBeenCalledWith(expect.objectContaining({ id: "new-profile", name: "大字正文", settings: expect.objectContaining({ textIndent: 2.5 }) }));
-  expect(mounted.root.textContent).toContain("排版方案已保存，所有设备共用。");
+  expect(mounted.root.textContent).not.toContain("排版方案已保存，所有设备共用。");
+  expect(document.body.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "bindery:toast", detail: { message: "排版方案已保存，所有设备共用。", kind: "success" } }));
   fire(button(mounted.root, "删除"), "click"); ui.flush();
   fire(button(elements(mounted.root, "dialog")[1]!, "确认"), "click"); await settle();
   expect(profiles.delete).toHaveBeenCalledWith("new-profile");
+  expect(document.body.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "bindery:toast", detail: { message: "排版方案已删除。", kind: "success" } }));
   expect(input(mounted.root, "kt-marginX").hasAttribute("disabled")).toBe(false);
 });
 

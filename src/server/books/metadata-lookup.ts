@@ -1,6 +1,13 @@
 import { quoteComponent } from "../../features/books/navigation";
-import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
-import type { Element } from "@xmldom/xmldom";
+import {
+  parse,
+  parseFragment,
+  serializeOuter,
+  type DefaultTreeAdapterMap,
+} from "parse5";
+
+type HtmlNode = DefaultTreeAdapterMap["node"];
+type Element = DefaultTreeAdapterMap["element"];
 
 export const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
@@ -43,17 +50,12 @@ export function lookupMetadata(
     ...values,
   };
 }
-function document(raw: string) {
-  return new DOMParser({ onError: () => {} }).parseFromString(
-    `<html>${raw.replace(/<!doctype[^>]*>/gi, "")}</html>`,
-    "text/html",
-  );
+function textContent(node: HtmlNode): string {
+  if ("value" in node) return node.value;
+  return "childNodes" in node ? node.childNodes.map(textContent).join("") : "";
 }
 function unescape(raw: string) {
-  return (
-    document(`<span>${raw.replaceAll("<", "&lt;")}</span>`).documentElement
-      ?.textContent || ""
-  );
+  return textContent(parseFragment(raw.replaceAll("<", "&lt;")));
 }
 export function cleanText(raw: unknown): string | null {
   return typeof raw === "string"
@@ -124,18 +126,30 @@ function ldObjects(html: string): Record<string, unknown>[] {
   });
 }
 function elements(html: string): Element[] {
-  try {
-    return Array.from(document(html).getElementsByTagName("*"));
-  } catch {
-    // Like lxml's ParserError/ValueError fallback, keep regex/JSON-LD metadata.
-    return [];
+  // Remote pages are HTML, including optional end tags that an XML parser rejects.
+  const found: Element[] = [], pending: HtmlNode[] = [parse(html)];
+  while (pending.length) {
+    const node = pending.pop()!;
+    if ("tagName" in node) found.push(node);
+    if ("childNodes" in node)
+      for (let i = node.childNodes.length - 1; i >= 0; i--)
+        pending.push(node.childNodes[i]);
   }
+  return found;
+}
+function attribute(node: Element, name: string): string | null {
+  return node.attrs.find(attr => attr.name === name)?.value ?? null;
+}
+function hasClass(node: Element, name: string): boolean {
+  return (attribute(node, "class") || "").split(/\s+/u).includes(name);
+}
+function hasAncestor(node: Element, matches: (parent: Element) => boolean): boolean {
+  for (let parent = node.parentNode; parent; parent = "parentNode" in parent ? parent.parentNode : null)
+    if ("tagName" in parent && matches(parent)) return true;
+  return false;
 }
 function within(node: Element, id: string): boolean {
-  for (let p = node.parentNode; p; p = p.parentNode)
-    if (p.nodeType === 1 && (p as Element).getAttribute("id") === id)
-      return true;
-  return false;
+  return hasAncestor(node, parent => attribute(parent, "id") === id);
 }
 function metaContent(html: string, attr: string, key: string): string | null {
   // Preserve the reference's attribute-order-dependent fallback.
@@ -196,14 +210,12 @@ export function parseDoubanSubjectHtml(html: string): LookupMetadata {
   const intros = elements(html).filter(
     (n) =>
       n.tagName.toLowerCase() === "div" &&
-      n.getAttribute("class") === "intro" &&
+      hasClass(n, "intro") &&
       within(n, "link-report"),
   );
-  if (intros.length)
-    meta.description =
-      htmlFragmentToMarkdownish(
-        new XMLSerializer().serializeToString(intros.at(-1)!),
-      ) || meta.description;
+  const intro = intros.find(n => hasAncestor(n, parent => hasClass(parent, "all"))) || intros.at(-1);
+  if (intro)
+    meta.description = htmlFragmentToMarkdownish(serializeOuter(intro)) || meta.description;
   let nbgCover: string | null = null;
   for (const match of html.matchAll(/<a\b([^>]*)>/gis)) {
     const cls = match[1].match(/class=["']([^"']*)["']/is)?.[1];
@@ -241,7 +253,10 @@ export function parseDoubanSubjectHtml(html: string): LookupMetadata {
     : criteriaTags.length
       ? criteriaTags
       : keywords;
-  meta.description ||= cleanText(metaContent(html, "name", "description"));
+  meta.description ||= cleanText(metaContent(html, "property", "og:description"));
+  const description = cleanText(metaContent(html, "name", "description"));
+  if (!meta.description && description && !/^图书.*介绍、书评、论坛及推荐$/u.test(description))
+    meta.description = description;
   const text = cleanText(html) || "";
   meta.publisher ||= cleanText(
     text.match(
@@ -298,20 +313,18 @@ export function parseAmazonProductHtml(html: string): LookupMetadata {
         (n) =>
           within(n, "bookDescription_feature_div") &&
           n.tagName.toLowerCase() === "span" &&
-          (n.getAttribute("class") || "").includes(
-            "a-expander-partial-collapse-content",
-          ),
+          hasClass(n, "a-expander-partial-collapse-content"),
       ),
       all.filter(
         (n) =>
           within(n, "bookDescription_feature_div") &&
           n.tagName.toLowerCase() === "div" &&
-          (n.getAttribute("class") || "").includes("a-expander-content"),
+          hasClass(n, "a-expander-content"),
       ),
-      all.filter((n) => n.getAttribute("id") === "bookDescription_feature_div"),
+      all.filter((n) => attribute(n, "id") === "bookDescription_feature_div"),
     ])
       for (const node of group) {
-        const text = cleanText(node.textContent);
+        const text = cleanText(textContent(node));
         if (
           text &&
           [...text].length >= 40 &&
@@ -330,9 +343,9 @@ export function parseAmazonProductHtml(html: string): LookupMetadata {
             (n) =>
               within(n, "feature-bullets") &&
               n.tagName.toLowerCase() === "span" &&
-              (n.getAttribute("class") || "").includes("a-list-item"),
+              hasClass(n, "a-list-item"),
           )
-          .map((n) => cleanText(n.textContent))
+          .map((n) => cleanText(textContent(n)))
           .filter((t) => t && [...t].length >= 12),
       );
       meta.description =

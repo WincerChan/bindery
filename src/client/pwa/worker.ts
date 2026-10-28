@@ -7,18 +7,30 @@ const { version, precache } = __PWA_BUILD__;
 const scope = worker.registration.scope;
 const cacheName = cachePrefix(scope) + version;
 const absolute = (path: string) => new URL(path, scope).href;
+const precacheConcurrency = 4;
 
 worker.addEventListener("install", event => {
   event.waitUntil((async () => {
     try {
       const cache = await worker.caches.open(cacheName);
       // Validate every response: an auth redirect or HTML error must fail installation.
-      await Promise.all(precache.map(async path => {
-        const request = new Request(absolute(path), { credentials: "omit", cache: "reload", redirect: "error" });
-        const response = await fetch(request);
-        if (!canCacheResponse(request, response, scope, precache)) throw new Error(`Invalid PWA asset: ${path}`);
-        await cache.put(request, response);
+      // Keep the install from competing with the page for every connection at once.
+      // Drain active downloads before deleting a failed generation's partial cache.
+      let next = 0, failure: Error | undefined;
+      await Promise.all(Array.from({ length: Math.min(precacheConcurrency, precache.length) }, async () => {
+        while (!failure && next < precache.length) {
+          const path = precache[next++];
+          try {
+            const request = new Request(absolute(path), { credentials: "omit", cache: "reload", redirect: "error" });
+            const response = await fetch(request);
+            if (!canCacheResponse(request, response, scope, precache)) throw new Error(`Invalid PWA asset: ${path}`);
+            await cache.put(request, response);
+          } catch (error) {
+            failure ??= new Error(`Failed to precache ${absolute(path)}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+          }
+        }
       }));
+      if (failure) throw failure;
     } catch (error) {
       await worker.caches.delete(cacheName);
       throw error;

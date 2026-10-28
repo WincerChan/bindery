@@ -86,6 +86,39 @@ describe.runIf(built)("generated PWA worker", () => {
     await expect(h.dispatch("install")).rejects.toThrow("Invalid PWA asset");
     expect(h.stores.size).toBe(0); expect(h.skipWaiting).not.toHaveBeenCalled();
   });
+  it("bounds concurrent precache downloads instead of fetching the whole build at once", async () => {
+    const h = workerHarness();
+    let active = 0, peak = 0;
+    h.fetcher.mockImplementation(async request => {
+      active++; peak = Math.max(peak, active);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      active--;
+      return new Response("static asset", { headers: { "Content-Type": mime(request.url) } });
+    });
+    await h.dispatch("install");
+    expect(peak).toBeGreaterThan(1); expect(peak).toBeLessThanOrEqual(4);
+    expect(h.fetcher).toHaveBeenCalledTimes(buildInfo().precache.length);
+  });
+  it("waits for in-flight downloads before removing a failed cache and reports the failed URL", async () => {
+    const h = workerHarness(), previous = cachePrefix(scope) + "previous";
+    await h.caches.open(previous);
+    let release!: () => void, finished = false;
+    const delayed = new Promise<void>(resolve => { release = resolve; });
+    h.fetcher.mockImplementationOnce(async () => { throw new TypeError("Failed to fetch"); });
+    h.fetcher.mockImplementationOnce(async request => {
+      await delayed;
+      return new Response("static asset", { headers: { "Content-Type": mime(request.url) } });
+    });
+    const installation = h.dispatch("install").finally(() => { finished = true; });
+    const failure = expect(installation).rejects.toThrow(buildInfo().precache[0]);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(finished).toBe(false); expect(h.caches.delete).not.toHaveBeenCalled();
+      expect(h.fetcher.mock.calls.length).toBeLessThanOrEqual(4);
+    } finally { release(); await failure; }
+    expect([...h.stores.keys()]).toEqual([previous]);
+    expect(h.skipWaiting).not.toHaveBeenCalled();
+  });
   it("cleans old app generations on activation and preserves other caches", async () => {
     const h = workerHarness(), current = cachePrefix(scope) + buildInfo().version;
     await h.caches.open(current); await h.caches.open(cachePrefix(scope) + "old");

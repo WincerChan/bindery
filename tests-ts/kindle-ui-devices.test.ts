@@ -420,6 +420,21 @@ it("filters device books using library metadata and filename fallback, including
   search.value = "不存在"; fire(search, "input"); m.flush(); expect(allByAttribute(m.root, "data-device-book")).toHaveLength(0); expect(text(m)).toContain("没有符合条件的书籍");
 });
 
+it("keeps Kobo cover elements mounted while connection probes update device timestamps", async () => {
+  const c = await connectedKobo(["Bindery/书库甲.kepub.epub", "Bindery/书库乙.kepub.epub"]);
+  c.input.books = c.input.books.map(book => ({ ...book, cover_url: `/book/${book.book_id}/cover?v=1` }));
+  const m = mount("books", c.input); await settle(m);
+  const covers = () => allByAttribute(m.root, "data-device-book").map(card => elements(card, "img")[0]);
+  const original = covers();
+  expect(original).toHaveLength(2); expect(original.every(Boolean)).toBe(true);
+  for (let i = 0; i < 3; i++) {
+    await c.manager.probe(); m.flush();
+    expect(covers()).toEqual(original);
+    await settle(m);
+    covers().forEach((cover, index) => expect(cover).toBe(original[index]));
+  }
+});
+
 it("confirms selected deletion, removes the matching sidecar/record/thumbnail, and refreshes usage", async () => {
   const r = record("a", "a.kfx"); r.thumbnail = "thumbnail_id_a_EBOK_portrait.jpg";
   const c = await connected([r]); await c.fs.write("documents/a.sdr/reading-position", "position"); await c.fs.write(`system/thumbnails/${r.thumbnail}`, "jpeg"); await c.fs.write("documents/other.txt", "other");
