@@ -27,11 +27,11 @@ export function SettingsHub(props: { summary: SettingsSummary; now: number }) {
     <h1 id="settings-title" class="page-title">设置</h1>
     <div class="settings-groups">
       <section aria-labelledby="settings-books"><SectionTitle id="settings-books">书怎么做出来</SectionTitle>
-        <SettingsRow href="/rules" title="切章规则" icon="list-details" status={`${rules().count} 条${rules().recently_modified ? ` · 最近改过「${rules().recently_modified!.name}」` : " · 尚未添加规则"}`} />
+        <SettingsRow href="/rules" title="切章规则" icon="align-left" status={`${rules().count} 条${rules().recently_modified ? ` · 最近改过「${rules().recently_modified!.name}」` : " · 尚未添加规则"}`} />
         <SettingsRow href="/themes" title="主题" icon="palette" status={`${themes().count} 个${themes().ingest_default ? ` · 入库默认用「${themes().ingest_default!.name} v${themes().ingest_default!.version}」` : " · 尚未添加主题"}`} />
       </section>
       <section aria-labelledby="settings-account"><SectionTitle id="settings-account">账号与连接</SectionTitle>
-        <SettingsRow href="/security" title="安全" icon="shield-check" status={`${security().passkey_count} 个通行密钥 · ${relativeLastUse(security().last_used_at, props.now)}`} />
+        <SettingsRow href="/security" title="安全" icon="lock" status={`${security().passkey_count} 个通行密钥 · ${relativeLastUse(security().last_used_at, props.now)}`} />
         <SettingsRow href="/vocabulary?settings=lexitrace#lexitrace-settings" title="LexiTrace" connected={lexi().configured} icon="vocabulary" status={lexi().configured ? `已配置 · ${lexi().enabled ? "生词自动推送" : "自动推送已关闭"}` : "未配置 · 连接后可自动推送生词"} />
         <InstallApp />
       </section>

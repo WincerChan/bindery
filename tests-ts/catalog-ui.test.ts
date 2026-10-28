@@ -26,11 +26,11 @@ describe("catalog UI SSR and accessible controls", () => {
     for (const action of ["/rules/default/editor", "/rules/test"]) expect(byAttribute(root, "action", action)).toBeDefined();
     expect(byName(root, "rule_template").getAttribute("value")).toBe("default");
     expect(byRole(root, "button", "格式化")).toBeDefined();
-    for (const copy of ["用已保存的规则，输入后自动运行", "粘贴一段文本后"]) expect(root.textContent).toContain(copy);
+    for (const copy of ["粘贴一段 TXT，输入后自动运行", "粘贴一段文本后"]) expect(root.textContent).toContain(copy);
     expect(allByAttribute(root, "action", "/rules/default/delete")).toHaveLength(0);
     expect(byName(root, "config_json").textContent).toContain("<script>"); expect(root.getElementsByTagName("script").length).toBe(0);
     expect(byLabel(root, "规则 JSON")).toBe(byName(root, "config_json"));
-    expect(byLabel(root, "测试文本")).toBe(byName(root, "sample"));
+    expect(byLabel(root, "试切")).toBe(byName(root, "sample"));
     expect(byRole(root, "button", "保存").getAttribute("type")).toBe("submit");
     // A server-rendered form must remain submittable before hydration / without JavaScript.
     expect(byRole(root, "button", "保存").hasAttribute("disabled")).toBe(false);
@@ -58,20 +58,21 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(byRole(root, "alert").textContent).toBe("引用错误"); expect(allByRole(root, "link", "主题")).toHaveLength(0);
     expect(byRole(themes, "heading", "主题")).toBeDefined();
     expect(byRole(byRole(themes, "navigation", "主题列表"), "link", /默认样式/).getAttribute("href")).toBe("/themes?theme_id=default");
-    expect(themes.textContent).toContain("v1 · 0 本在用 · 内置");
+    expect(themes.textContent).toContain("v1 · 内置 · 入库默认");
     expect(byAttribute(themes, "action", "/themes/new")).toBeDefined(); expect(byName(themes, "scope").getAttribute("value")).toBe("themes");
   });
   it("disables deletion for active and archived use and retains naming, restore and test actions", () => {
     for (const [book_count, archived_count] of [[3, 0], [1, 1], [0, 1]]) {
       const custom = { ...editor, id: "custom", name: "自定义" };
       const root = parseHtml(ui.rules({ rules: [{ ...custom, book_count: book_count!, archived_count: archived_count! }], themes: [], tab: "parsing", ruleId: "custom", themeId: "default", error: "", editor: custom }));
-      expect(byRole(byAttribute(root, "action", "/rules/custom/delete"), "button", "删除").hasAttribute("disabled")).toBe(true);
+      expect(byRole(byAttribute(root, "action", "/rules/custom/delete"), "button", "删除这条规则").hasAttribute("disabled")).toBe(true);
       expect(root.textContent).toContain("在库或已归档的书仍在使用，不能删除。");
-      for (const name of ["另存为", "重命名", "还原", "格式化", "测试"]) expect(byRole(root, "button", name)).toBeDefined();
+      for (const name of ["另存为", "重命名", "还原", "格式化"]) expect(byRole(root, "button", name)).toBeDefined();
+      expect(byRole(root, "button", "删除这条规则")).toBeDefined();
     }
     const custom = { ...editor, id: "unused" };
     const root = parseHtml(ui.rules({ rules: [{ ...custom, book_count: 0, archived_count: 0 }], themes: [], tab: "parsing", ruleId: "unused", themeId: "default", error: "", editor: custom }));
-    expect(byRole(byAttribute(root, "action", "/rules/unused/delete"), "button", "删除").hasAttribute("disabled")).toBe(false);
+    expect(byRole(byAttribute(root, "action", "/rules/unused/delete"), "button", "删除这条规则").hasAttribute("disabled")).toBe(false);
   });
   it("preserves theme selection, flash and fragment in the legacy permanent redirect", () => {
     const href = "/rules?tab=themes&theme_id=theme-a&error=used#theme-editor";
@@ -83,7 +84,7 @@ describe("catalog UI SSR and accessible controls", () => {
   it("renders escaped TOC counts and empty results", () => {
     expect(ui.preview(null)).toContain("粘贴一段文本后");
     const root = parseHtml(ui.preview({ volumes: 1, chapters: 2, toc: ["<img src=x>", "第二章"] }));
-    expect(root.textContent).toContain("识别出 1 卷 · 2 章");
+    expect(root.textContent).toContain("识别出 1 卷 2 章");
     expect(allByRole(root, "listitem").map(item => item.textContent)).toEqual(["<img src=x>", "第二章"]); expect(allByRole(root, "img")).toHaveLength(0);
   });
   it("renders tracker filtering, export, detail return URL, edit/delete and pagination", () => {

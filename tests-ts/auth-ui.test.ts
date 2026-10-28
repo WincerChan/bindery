@@ -22,8 +22,8 @@ describe("security settings SSR", () => {
     expect(byRole(root, "link", "设置").getAttribute("href")).toBe("/settings");
     expect(byRole(root, "heading", "安全")).toBeDefined();
     expect(byRole(root, "heading", "我的电脑")).toBeDefined();
-    expect(root.textContent).toContain("已同步 · 创建 2025-10-01 · 最近使用 2025-10-20");
-    expect(root.textContent).toContain("仅此设备 · 创建 2025-09-01 · 最近使用 从未");
+    expect(root.textContent).toContain("已同步 · 10-01 添加 · 10-20 用过");
+    expect(root.textContent).toContain("仅此设备 · 09-01 添加 · 尚未用过");
     expect(allByRole(root, "button", "重命名")).toHaveLength(2);
     expect(byAttribute(root, "action", "/security/passkeys/local/delete").getAttribute("method")).toBe("post");
     expect(byRole(root, "button", "删除通行密钥 备用密钥")).toBeDefined();

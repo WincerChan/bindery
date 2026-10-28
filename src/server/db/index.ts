@@ -267,7 +267,7 @@ export class BinderyDatabase extends Connection {
     this.run("DELETE FROM wishlist WHERE id = ?", id);
   }
   listPasskeys(): Passkey[] {
-    return this.all("SELECT * FROM passkeys ORDER BY created_at, credential_id");
+    return this.all("SELECT * FROM passkeys ORDER BY created_at DESC, credential_id");
   }
   getPasskey(id: string): Passkey | null {
     return this.get("SELECT * FROM passkeys WHERE credential_id = ?", id);
