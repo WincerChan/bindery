@@ -139,10 +139,11 @@ it.each([true, false])("opens a book menu with keyboard, navigates items, closes
   for (const target of [trigger, ...elements(dialog, "a"), ...elements(dialog, "button")]) (target as HTMLElement).focus = () => { for (const owner of [document, dialog.ownerDocument]) Object.defineProperty(owner, "activeElement", { configurable: true, value: target }); };
   trigger.focus(); fire(trigger, "keydown", { key: "ArrowDown" }); mounted.flush();
   expect(dialog.open).toBe(true); expect(trigger.getAttribute("aria-expanded")).toBe("true");
-  const read = byRole(dialog, "menuitem", "阅读"), download = byRole(dialog, "menuitem", "下载");
-  expect(document.activeElement).toBe(read);
+  const phoneDetail = byRole(dialog, "menuitem", "详情"), read = byRole(dialog, "menuitem", "阅读"), download = byRole(dialog, "menuitem", "下载");
+  expect(document.activeElement).toBe(phoneDetail);
   fire(dialog, "keydown", { key: "End" }); expect(document.activeElement).toBe(byRole(dialog, "menuitem", "归档"));
-  fire(dialog, "keydown", { key: "Home" }); expect(document.activeElement).toBe(read);
+  fire(dialog, "keydown", { key: "Home" }); expect(document.activeElement).toBe(phoneDetail);
+  fire(dialog, "keydown", { key: "ArrowDown" }); expect(document.activeElement).toBe(read);
   fire(dialog, "keydown", { key: "ArrowDown" }); expect(document.activeElement).toBe(byRole(dialog, "menuitem", "设备预览"));
   fire(dialog, "keydown", { key: "Escape" }); mounted.flush(); expect(dialog.open).toBe(false); expect(document.activeElement).toBe(trigger);
   fire(trigger, "click"); mounted.flush(); expect(dialog.open).toBe(true);
@@ -566,8 +567,9 @@ it("updates pagination summaries, non-link current pages and link/in-place contr
   const current = elements(mounted.root, "span").find(el => el.getAttribute("aria-current") === "page")!;
   expect(current.textContent).toBe("06"); expect(css(mounted.root, "a", "pagination-control").some(el => el.getAttribute("aria-current") === "page")).toBe(false);
   mounted.update({ page: 1, total: 1, perPage: 10, href: "/" });
-  expect(elements(mounted.root, "nav")).toHaveLength(1); expect(css(mounted.root, "div", "pagination-controls")).toHaveLength(0);
+  expect(elements(mounted.root, "nav")).toHaveLength(1); expect(css(mounted.root, "div", "pagination-controls")).toHaveLength(1);
   expect(css(mounted.root, "span", "pagination-summary")[0]!.textContent).toBe("1–1 条 · 共 1 条");
+  expect(elements(mounted.root, "span").filter(el => el.getAttribute("aria-disabled") === "true").map(el => el.getAttribute("aria-label"))).toEqual(["上一页", "下一页"]);
   const onPage = vi.fn(), local = mount("pagination", { page: 2, total: 50, perPage: 10, onPage });
   fire(elements(local.root, "button").find(el => el.getAttribute("aria-label") === "下一页")!, "click");
   fire(elements(local.root, "button").find(el => el.getAttribute("aria-label") === "上一页")!, "click");

@@ -48,10 +48,10 @@ export function Pagination(props: PaginationProps) {
   const padded = (value: number) => String(value).padStart(2, "0");
   return <nav class="pagination" aria-label={props.label ?? "分页"}>
     <span class="pagination-summary"><strong>{shown() ? `${start()}–${end()}` : "0"}</strong> {props.unit ?? "条"} · 共 <span data-pagination-total>{total()}</span> {props.unit ?? "条"}</span>
-    <Show when={pages() > 1}><div class="pagination-controls">
-      <span class="pagination-page-number" aria-current="page" aria-label={`第 ${current()} 页，当前页`}>{padded(current())}</span><span class="pagination-page-total">/ {padded(pages())} 页<span class="pagination-phone-total"> · 共 {total()} {props.unit ?? "条"}</span></span>
+    <div class="pagination-controls">
+      <span class="pagination-pages"><span class="pagination-page-number" aria-current="page" aria-label={`第 ${current()} 页，当前页`}>{padded(current())}</span><span class="pagination-page-total">/ {padded(pages())} 页<span class="pagination-phone-total"> · 共 {total()} {props.unit ?? "条"}</span></span></span>
       <Show when={current() > 1} fallback={<span class="pagination-control" aria-disabled="true" aria-label="上一页"><Icon name="arrow-left" size={18} /></span>}><PageControl {...props} page={current() - 1} label="上一页" icon="arrow-left" /></Show>
       <Show when={current() < pages()} fallback={<span class="pagination-control" aria-disabled="true" aria-label="下一页"><Icon name="arrow-right" size={18} /></span>}><PageControl {...props} page={current() + 1} label="下一页" icon="arrow-right" /></Show>
-    </div></Show>
+    </div>
   </nav>;
 }

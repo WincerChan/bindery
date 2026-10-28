@@ -89,9 +89,9 @@ describe("book detail and edit SSR", () => {
       "ISBN",
       "标签",
       "来源",
-      "规则模板",
+      "切章",
       "状态",
-      "入库时间",
+      "入库",
       "更新时间",
       "关于这本书",
     ])
@@ -125,7 +125,9 @@ describe("book detail and edit SSR", () => {
     expect(html).not.toContain("网页阅读器");
     expect(html).toContain("Libra 2");
     expect(html).not.toContain("第二章 重逢");
-    expect(html).toContain("第三章 再见 · 70%");
+    expect(html).toContain("在Libra 2上读到");
+    expect(html).toContain("第三章 再见");
+    expect(html).toContain("70%");
     // The label comes from the real chapter title; the section index is only the link target.
     const continueLink = byRole(root, "link", "从第三章接着读");
     expect(continueLink.getAttribute("href")).toContain("/preview/2?");
@@ -137,11 +139,11 @@ describe("book detail and edit SSR", () => {
     expect(new URL(continueLink.getAttribute("href")!, "https://bindery.test").searchParams.get("return_to")).toBe("/?q=书&page=2");
     expect(byRole(root, "progressbar", "全书阅读进度").getAttribute("aria-valuenow")).toBe("70");
     expect(html).not.toContain("目录");
-    // The server renders UTC; the browser switches the <time> to the reader's own zone after mounting.
-    expect(byAttribute(root, "datetime", "2026-10-22T13:11:20Z").textContent).toBe("2026-10-22 13:11");
-    expect(root.textContent).toContain("上次阅读");
-    expect(html).toContain("用时 约 2 分钟");
-    expect(html).toContain("剩余 约 3 小时");
+    // RelativeTime renders a deterministic MM-DD fallback on the server; the browser switches to relative time.
+    expect(byAttribute(root, "datetime", "2026-10-22T13:11:20Z").textContent).toBe("10-22");
+    expect(root.textContent).not.toContain("上次阅读");
+    expect(html).not.toContain("用时");
+    expect(html).not.toContain("剩余");
     expect(html).not.toContain("最新");
     expect(allByRole(parseHtml(ui.detail(page())), "region", "阅读进度")).toHaveLength(0);
   });

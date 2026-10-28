@@ -21,6 +21,10 @@ export function introduction(title: string, reading = true) {
 }
 export function page(empty = false) { return renderToString(() => <LibraryPage data={data(empty)} regenerate={async () => ({ queued: 0, failed: 0, skipped: 0 })} />); }
 export function section() { return renderToString(() => <LibrarySection data={data()} view="list" selecting selected={[book().book_id]} />); }
+export function singlePage() {
+  const current: LibraryPageData = { ...data(), page: 1, total_books: 1, total_pages: 1, has_prev: false, has_next: false, books: [book()] };
+  return renderToString(() => <LibraryPage data={current} regenerate={async () => ({ queued: 0, failed: 0, skipped: 0 })} />);
+}
 export function archive(empty = false, view: "grid" | "list" = "grid") {
   const current: LibraryPageData = { ...data(empty), scope: "archived", read_filter: "all", books: empty ? [] : [{ ...book("00", "/private-cover"), archived: true }], return_to: libraryReturnTo({ scope: "archived", page: 2 }) };
   return renderToString(() => <LibraryPage data={current} initialView={view} restore={async () => {}} refresh={async () => {}} regenerate={async () => ({ queued: 0, failed: 0, skipped: 0 })} />);

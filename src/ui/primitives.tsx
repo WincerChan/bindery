@@ -1,7 +1,7 @@
 import { createUniqueId, For, omit, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Link } from "../shared/spa-link";
-import { Icon } from "./icon";
+import { Icon, type IconName } from "./icon";
 import { Button, TextField } from "./controls";
 import type { ButtonProps } from "./controls";
 
@@ -48,9 +48,9 @@ export function Stepper(props: { label: string; value: number; min: number; max:
 export function ToggleSwitch(props: { label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void; describedBy?: string }) {
   return <button type="button" class="ui-switch" role="switch" aria-label={props.label} aria-describedby={props.describedBy} aria-checked={props.checked ? "true" : "false"} disabled={props.disabled} onClick={() => props.onChange(!props.checked)}><span aria-hidden="true" /></button>;
 }
-export type ControlOption = { value: string; label: string; disabled?: boolean };
+export type ControlOption = { value: string; label: string; icon?: IconName; disabled?: boolean };
 export function SegmentedControl(props: { label: string; value: string; options: readonly ControlOption[]; onChange: (value: string) => void; disabled?: boolean; class?: string }) {
-  return <div role="group" aria-label={props.label} class={`segmented ${props.class || ""}`}><For each={props.options}>{option => <button type="button" aria-pressed={props.value === option.value ? "true" : "false"} disabled={props.disabled || option.disabled} onClick={() => props.onChange(option.value)}>{option.label}</button>}</For></div>;
+  return <div role="group" aria-label={props.label} class={`segmented ${props.class || ""}`}><For each={props.options}>{option => <button type="button" class={option.icon ? "is-icon" : undefined} aria-label={option.icon ? option.label : undefined} aria-pressed={props.value === option.value ? "true" : "false"} disabled={props.disabled || option.disabled} onClick={() => props.onChange(option.value)}>{option.icon ? <Icon name={option.icon} size={18} /> : option.label}</button>}</For></div>;
 }
 export type LinkTab = { value: string; label: string; href: string; count?: number };
 /** URL navigation uses anchors; local state changes use SegmentedControl. */
@@ -65,9 +65,9 @@ export function LinkTabs(props: { label: string; value: string; tabs: readonly L
 export function ToggleChip(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { selected: boolean }) {
   return <button {...omit(props, "selected", "class")} type={props.type || "button"} class={`chip ${props.selected ? "is-selected" : ""} ${props.class || ""}`} aria-pressed={props.selected ? "true" : "false"} />;
 }
-export function SelectPill(props: { label: string; value: string; options: readonly ControlOption[]; onChange: (value: string) => void; name?: string; disabled?: boolean; class?: string }) {
+export function SelectPill(props: { label: string; value: string; options: readonly ControlOption[]; onChange: (value: string) => void; name?: string; disabled?: boolean; class?: string; icon?: IconName }) {
   const id = createUniqueId();
-  return <label for={id} class={`ui-select-pill ${props.class || ""}`}><span>{props.label}</span><span class="ui-select-value" aria-hidden="true">{props.options.find(option => option.value === props.value)?.label ?? props.value}</span><span aria-hidden="true"><Icon name="chevron-down" size={14} /></span>
+  return <label for={id} class={`ui-select-pill ${props.icon ? "has-icon" : ""} ${props.class || ""}`}><Show when={props.icon}>{icon => <span class="ui-select-icon" aria-hidden="true"><Icon name={icon()} size={16} /></span>}</Show><span class="ui-select-label">{props.label}</span><span class="ui-select-value" aria-hidden="true">{props.options.find(option => option.value === props.value)?.label ?? props.value}</span><span class="ui-select-chevron" aria-hidden="true"><Icon name="chevron-down" size={14} /></span>
     <select id={id} name={props.name} aria-label={props.label} value={props.value} disabled={props.disabled} onChange={event => props.onChange(event.currentTarget.value)}><For each={props.options}>{option => <option value={option.value} disabled={option.disabled}>{option.label}</option>}</For></select>
   </label>;
 }
@@ -75,7 +75,7 @@ export function SearchPill(props: JSX.InputHTMLAttributes<HTMLInputElement> & { 
   return <TextField {...omit(props, "class")} type="search" labelHidden class={`search-field ui-search-pill ${props.class || ""}`} />;
 }
 export function PageIntro(props: { eyebrow: JSX.Element; title: JSX.Element; description?: JSX.Element; actions?: JSX.Element; visual?: JSX.Element; class?: string }) {
-  return <header class={`ui-page-intro ${props.class || ""}`}><div class="ui-page-intro-text"><p class="ui-page-eyebrow">{props.eyebrow}</p><h1>{props.title}</h1><Show when={props.description}><p class="ui-page-description">{props.description}</p></Show><Show when={props.actions}><div class="ui-page-actions">{props.actions}</div></Show></div><Show when={props.visual}><div class="ui-page-visual">{props.visual}</div></Show></header>;
+  return <header class={`ui-page-intro ${props.class || ""}`}><div class="ui-page-intro-text"><p class="ui-page-eyebrow">{props.eyebrow}</p><div class="ui-page-intro-lead"><h1>{props.title}</h1><Show when={props.description}><p class="ui-page-description">{props.description}</p></Show></div><Show when={props.actions}><div class="ui-page-actions">{props.actions}</div></Show></div><Show when={props.visual}><div class="ui-page-visual">{props.visual}</div></Show></header>;
 }
 export function PageTabs(props: { label: string; value: string; tabs: readonly { value: string; label: string; count?: number; href?: string }[]; onChange?: (value: string) => void }) {
   return <nav class="ui-page-tabs" aria-label={props.label}><For each={props.tabs}>{tab => {

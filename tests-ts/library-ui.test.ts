@@ -18,7 +18,7 @@ describe("library SSR behavior", () => {
     expect(byRole(root, "heading", "最近阅读的，是《浮生六记》。")).toBeDefined();
     expect(byRole(root, "link", "在库51")).toBeDefined(); expect(byRole(root, "link", "已归档7")).toBeDefined();
     expect(byRole(root, "link", "继续阅读").getAttribute("href")).toContain("/preview/0?resume=1");
-    expect(byRole(root, "link", "设备预览").getAttribute("href")).toContain("/devices/preview?book=");
+    expect(byRole(root, "link", /在设备排版中预览/).getAttribute("href")).toContain("/devices/preview?book=");
     const long = parseHtml(ui.introduction("这是一本名字确实超过十二个字的书"));
     expect(byRole(long, "heading", "最近阅读的是这本。")).toBeDefined();
     expect(byRole(parseHtml(ui.introduction("新书", false)), "heading", "最近放进来的，是《新书》。")).toBeDefined();
@@ -36,12 +36,19 @@ describe("library SSR behavior", () => {
     const root = parseHtml(html);
     expect(allByAttribute(root, "data-book-card")).toHaveLength(1);
     const menu = byRole(root, "menu"), links = allByRole(root, "link"), hrefs = allByRole(menu, "menuitem").map(link => link.getAttribute("href") || "");
-    expect(byRole(root, "button", /长安.*的荔枝.*马伯庸/).getAttribute("aria-haspopup")).toBe("menu");
+    const trigger = byRole(root, "button", "《长安<&>的荔枝》的操作（已读）");
+    expect(trigger.getAttribute("aria-haspopup")).toBe("menu"); expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger.textContent?.trim()).toBe("");
+    expect(allByRole(menu, "menuitem", "发送到设备")).toHaveLength(0);
+    expect(allByRole(menu, "menuitem", "详情")).toHaveLength(1);
     expect(allByAttribute(root, "data-book-detail-link")).toHaveLength(1);
     expect(allByRole(menu, "menuitem", "归档")).toHaveLength(1);
     // Read links skip the /preview entry redirect and open the reader at the saved position.
     expect(hrefs.filter(href => href.includes("/preview/0?resume=1&return_to="))).toHaveLength(1);
-    expect(hrefs.filter(href => href.endsWith("/download"))).toHaveLength(1);
+    const downloads = allByRole(menu, "menuitem", /^下载/);
+    expect(downloads).toHaveLength(2);
+    expect(downloads.map(item => item.getAttribute("class") || "").join(" ")).toContain("library-phone-action");
+    expect(hrefs.filter(href => href.endsWith("/download"))).toHaveLength(2);
     // Only non-default parameters: the default sort and page size stay out of the return URL.
     expect(byName(menu, "next").getAttribute("value")).toBe("/?q=%E9%95%BF%E5%AE%89&read_filter=unread&page=2"); expect(html).not.toContain("per_page=");
     // Independent links remain operable; no anchor may contain another anchor.
@@ -67,6 +74,11 @@ describe("library SSR behavior", () => {
     expect(html).toContain("归档后可在书库「已归档」中恢复"); expect(html).toContain("重新生成"); expect(byRole(byRole(root, "navigation", "阅读状态"), "link", "未读").getAttribute("aria-current")).toBe("page"); expect(byAttribute(root, "data-pagination-total").textContent).toBe("49");
     const pager = byRole(root, "navigation", "分页");
     for (const name of ["上一页", "下一页"]) expect(byRole(pager, "link", name)).toBeDefined();
+    const single = byRole(parseHtml(ui.singlePage()), "navigation", "分页");
+    expect(single.textContent).toContain("/ 01 页");
+    for (const name of ["上一页", "下一页"]) expect(byAttribute(single, "aria-label", name).getAttribute("aria-disabled")).toBe("true");
+    const views = byRole(root, "group", "显示方式");
+    for (const name of ["封面墙", "列表"]) expect(byRole(views, "button", name)).toBeDefined();
     expect(pager.textContent).toContain("共 49 册");
     expect(html).not.toContain('action="/upload'); expect(html).not.toContain('action="/ingest"'); expect(html).not.toContain("书库共有");
   });
