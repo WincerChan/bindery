@@ -224,7 +224,7 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
     </div>
     <footer class="reader-status" aria-label="阅读位置">
       <p class="reader-folio" role="status">
-        <span class="reader-folio-desktop">{pageLabel()}<span class="reader-folio-desktop-percent"> · {roundedPercent()}%</span></span>
+        <span class="reader-folio-desktop"><span class="sr-only">{pageLabel()} · {roundedPercent()}%</span><span aria-hidden="true">{position().page * 2 - 1}</span><span aria-hidden="true">{position().page * 2}</span></span>
         <span class="reader-folio-phone"><span aria-hidden="true">{position().page}</span><span class="sr-only">第 {position().page} 页，共 {position().pageCount} 页</span></span>
         <span class="reader-folio-percent" aria-hidden="true">{roundedPercent()}%</span>
       </p>

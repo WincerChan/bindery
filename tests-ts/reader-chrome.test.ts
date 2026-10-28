@@ -111,6 +111,9 @@ it("hydrates isolated frames, chapter/global position and boundary controls", ()
   expect(button("上一页").disabled).toBe(true); expect(button("下一页").disabled).toBe(false);
   ui.frames.publish({ section: 1, page: 2, pageCount: 4, frame: 1 }); mounted!.flush();
   expect(status()).toContain("2 / 4 跨页 · 67%");
+  const folios = all(root, "span").find(el => el.getAttribute("class") === "reader-folio-desktop")!;
+  expect(all(folios, "span").filter(el => el.getAttribute("aria-hidden") === "true").map(el => el.textContent)).toEqual(["3", "4"]);
+  expect(all(folios, "span").find(el => el.getAttribute("class") === "sr-only")?.textContent).toBe("2 / 4 跨页 · 67%");
   expect(all(named("nav", "章节目录"), "a").map(el => el.getAttribute("aria-current"))).toEqual([null, "page"]);
   expect(all(root, "iframe").map(el => el.getAttribute("aria-hidden"))).toEqual(["true", "false", "true"]);
   expect(ui.writer.positions.at(-1)).toEqual({ section: 1, page: 2, count: 4 });
