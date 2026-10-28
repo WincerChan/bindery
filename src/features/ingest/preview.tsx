@@ -25,12 +25,12 @@ function UploadBook(props: { item: Preview; disabled?: boolean; onRemove?: () =>
     <CenterDialog id={id} class="ingest-book-dialog" open={open()} title={title()} closeLabel="关闭解析结果" onClose={() => setOpen(false)} actions={<><Show when={props.onRemove}><Button variant="quiet" disabled={props.disabled} aria-label={`移除 ${props.item.filename}`} onClick={() => { setOpen(false); props.onRemove?.(); }}>移除这本</Button></Show><Button size="lg" onClick={() => setOpen(false)}>完成</Button></>}>
       <div class="ingest-book-detail"><div class="ingest-detail-cover">{cover(true)}</div><div class="ingest-book-fields">
         <div class="ingest-book-heading"><h2 class="ingest-detail-title">{title()}</h2>
-          <Show when={!props.item.error}><p>{props.item.author}{props.item.author ? " · " : ""}{props.item.format === "TXT" ? `${props.item.volumes} 卷 · ` : ""}{props.item.chapters} 章</p></Show>
+          <Show when={!props.item.error}><p>{props.item.author}{props.item.author ? " · " : ""}{props.item.format === "TXT" && props.item.volumes > 0 ? `${props.item.volumes} 卷 · ` : ""}{props.item.chapters} 章</p></Show>
         </div>
         <Show when={props.item.error}><div class="field-error"><p role="alert">{props.item.error}</p><p>这本不会入库，可以移除后重新选择文件。</p></div></Show>
         <Show when={!props.item.error && props.item.duplicates.length}><div class="ingest-duplicate"><p>书库里已经有<Show when={props.item.duplicates.length === 1} fallback="：">一本 </Show><For each={props.item.duplicates}>{(duplicate, index) => <>{index() ? "、" : ""}<Link href={`/book/${duplicate.book_id}`}>《{duplicate.title}》{duplicate.author ? `（${duplicate.author}）` : ""}</Link></>}</For>。</p><SegmentedControl label="重复书籍的处理方式" value={keep()} options={[{ value: "normalize", label: "归入已有" }, { value: "keep", label: "新建一本" }]} disabled={props.disabled} onChange={setKeep} /></div></Show>
         {props.override}
-        <Show when={props.item.toc.length}><section class="ingest-toc-section"><h3 class="ingest-field-title">目录</h3><ol class="ingest-toc"><For each={props.item.toc.slice(0, 10)}>{title => <li>{title}</li>}</For><Show when={props.item.toc.length > 10}><li class="ingest-toc-more">…… 共 {props.item.chapters} 章</li></Show></ol></section></Show>
+        <Show when={props.item.toc.length}><section class="ingest-toc-section"><h3 class="ingest-field-title">目录</h3><ol class="ingest-toc"><For each={props.item.toc.slice(0, 6)}>{title => <li>{title}</li>}</For><Show when={props.item.chapters > 6}><li class="ingest-toc-more">…… 共 {props.item.chapters} 章</li></Show></ol></section></Show>
         <details class="ingest-file-details"><summary>文件信息<Icon icon={TablerChevronDown} size={16} class="ui-summary-chevron" /></summary><dl><dt>格式</dt><dd>{props.item.format}</dd><dt>文件名</dt><dd>{props.item.filename}</dd><Show when={props.item.output}><dt>输出文件</dt><dd>{props.item.output}</dd></Show></dl></details>
       </div></div>
     </CenterDialog>
