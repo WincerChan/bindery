@@ -95,10 +95,12 @@ describe("生词本 client flows", () => {
     expect(root.textContent).toContain("没有符合条件的生词");
     fire(allByRole(root, "button", "清除筛选")[0]!, "click"); mounted.flush();
     expect(allByRole(list, "listitem")).toHaveLength(3);
-    const state = byLabel(root, "精确推送状态") as HTMLSelectElement;
-    state.value = "conflict"; fire(state, "change"); mounted.flush();
+    const statusGroup = byRole(root, "group", "推送状态");
+    fire(byRole(statusGroup, "button", "未推送"), "click"); mounted.flush();
     expect(allByRole(list, "listitem")).toHaveLength(1);
-    expect(list.textContent).toContain("spleen");
+    expect(list.textContent).toContain("brag");
+    fire(byRole(statusGroup, "button", "失败"), "click"); mounted.flush();
+    expect(allByRole(list, "listitem")).toHaveLength(2);
     const book = byLabel(root, "书") as HTMLSelectElement;
     book.value = "missing"; fire(book, "change"); mounted.flush();
     expect(allByRole(list, "listitem")).toHaveLength(0);
@@ -113,7 +115,7 @@ describe("生词本 client flows", () => {
     expect(dialog.getAttribute("data-presentation")).toBe(phone ? "bottom-sheet" : "sheet");
     const token = byLabel(dialog, /^访问令牌/) as HTMLInputElement;
     token.value = "new-secret"; fire(token, "input");
-    const url = byLabel(dialog, /^LexiTrace 地址/) as HTMLInputElement;
+    const url = byLabel(dialog, /^地址/) as HTMLInputElement;
     url.value = "https://new.example"; fire(url, "input"); mounted.flush();
     fire(byRole(dialog, "button", "测试连接"), "click"); await settle(); mounted.flush();
     expect(api.testConnection).toHaveBeenCalledWith({ baseUrl: "https://new.example", token: "new-secret" });
@@ -178,7 +180,7 @@ describe("生词本 UI", () => {
     expect(text).toContain("冲突");
     expect(text).toContain("失败");
     expect(text).toContain("HTTP 503");
-    expect(text).toContain("已保存令牌");
+    expect(text).toContain("已保存");
     const token = byLabel(root, /^访问令牌/);
     expect(token.getAttribute("type")).toBe("password"); expect(token.getAttribute("value") ?? "").toBe("");
     expect(html).not.toContain("secret-token");
@@ -201,7 +203,10 @@ describe("生词本 UI", () => {
     const root = parseHtml(ui.page([item()], settings, summary));
     expect(byRole(root, "heading", "这个月查了 38 个词。")).toBeDefined();
     expect(root.textContent).toContain("生词本 · 从 Kindle 和 Kobo 同步 · 共 124 个");
-    expect(root.textContent).toContain("多半来自《Holes》。");
+    expect(root.textContent).toContain("多半来自 Holes。");
+    expect(root.textContent).toContain("右边是最近查的一个，连同查词时读到的那句话。");
+    const cjk = { ...summary, month: { ...summary.month, top_source: { title: "规训与惩罚", book_id: bookId("a"), count: 1 } } };
+    expect(parseHtml(ui.page([item()], settings, cjk)).textContent).toContain("多半来自《规训与惩罚》。");
     expect(root.textContent).toContain("LexiTrace 已推送 120 个");
     expect(root.textContent).toContain("2 个失败");
     expect(byAttribute(root, "aria-label", "最近查的").localName).toBe("figure");

@@ -100,8 +100,8 @@ details[open] > summary .ui-summary-chevron { transform: rotate(180deg); }
 .ui-page-intro { display: flex; align-items: center; justify-content: space-between; gap: 48px; padding-top: 40px; margin-bottom: var(--space-section); }
 .ui-page-intro-text { min-width: 0; }
 .ui-page-intro-lead { display: contents; }
-.ui-page-eyebrow { margin: 0 0 20px; color: var(--color-ink-3); font-size: var(--text-meta); }
-.ui-page-intro h1 { margin: 0; font: 500 var(--text-hero)/1.4 var(--font-display); overflow-wrap: anywhere; }
+.ui-page-eyebrow { margin: 0 0 20px; color: var(--color-ink-3); font-size: var(--text-control); }
+.ui-page-intro h1 { margin: 0; font: 600 var(--text-hero)/1.25 var(--font-display); overflow-wrap: anywhere; }
 .ui-page-description { margin: 20px 0 0; color: var(--color-ink-2); font-size: var(--text-body); line-height: 1.8; }
 .ui-page-actions { display: flex; align-items: center; gap: 12px; margin-top: 28px; }
 .ui-page-visual { flex: 0 0 240px; max-width: 32%; }
@@ -134,7 +134,7 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
 .dialog-sheet { inset: 0 0 0 auto; width: min(560px, 100%); height: 100dvh; max-height: 100dvh; margin: 0; border-radius: var(--radius-shell) 0 0 var(--radius-shell); }
 .dialog-left { inset: 0 auto 0 0; border-radius: 0 var(--radius-shell) var(--radius-shell) 0; background: var(--color-surface); }
 .dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-shrink: 0; }
-.dialog-heading h2 { margin: 0; font: 400 30px/1.5 var(--font-display); }
+.dialog-heading h2 { margin: 0; font: 600 30px/1.5 var(--font-display); }
 .dialog-heading p { margin: 4px 0 0; color: var(--color-ink-3); font-size: var(--text-meta); }
 .dialog-body { min-height: 0; overflow-y: auto; overflow-wrap: anywhere; padding: 3px; }
 .dialog-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 16px; flex-shrink: 0; }
@@ -251,7 +251,7 @@ a.pagination-control:hover, button.pagination-control:hover { background: var(--
 @media (max-width: 767px) {
   .page-header { margin-bottom: 24px; }
   .ui-page-intro { gap: 16px; padding-top: 24px; }
-  .ui-page-eyebrow { margin-bottom: 16px; }
+  .ui-page-eyebrow { margin-bottom: 16px; font-size: var(--text-meta); }
   .ui-page-description { margin-top: 16px; }
   .ui-page-actions { margin-top: 16px; }
   .ui-page-actions > .btn:not(.btn-icon) { flex: 1; }

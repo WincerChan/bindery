@@ -34,6 +34,10 @@ export function HighlightedSentence(props: { sentence: string; raw: string; word
 export function SourceTitle(props: { title: string }) {
   return <span class={/[A-Za-z]/.test(props.title) ? "vocab-latin-title" : undefined}>{props.title}</span>;
 }
+/** CJK titles take 「《…》」; Latin titles stay plain and are set in the Latin serif. */
+export function BookTitle(props: { title: string }) {
+  return <Show when={/[\u3400-\u9fff]/.test(props.title)} fallback={<>{' '}<SourceTitle title={props.title} /></>}>《{props.title}》</Show>;
+}
 export function WordSource(props: { item: Pick<VocabularyItem, "book_title" | "device_name" | "looked_up_at"> }) {
   return <span class="vocab-source"><Show when={props.item.book_title}><SourceTitle title={props.item.book_title} /></Show><Show when={props.item.book_title && props.item.device_name}> · </Show>{props.item.device_name}<Show when={props.item.looked_up_at}><Show when={props.item.book_title || props.item.device_name}> · </Show><RelativeTime value={props.item.looked_up_at} /></Show></span>;
 }
