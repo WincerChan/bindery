@@ -1,5 +1,4 @@
 import TablerCheck from "~icons/tabler/check";
-import TablerChevronDown from "~icons/tabler/chevron-down";
 import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
 import { errorMessage } from "../../../client/devices/fs";
 import { deviceKindLabel, kindleModelInfo, koboModelInfo, modelShortName, type DeviceKind } from "../../../client/devices/models";
@@ -11,7 +10,7 @@ import {
 import type { PairedDevice } from "../../../client/devices/identity";
 import type { FontFamily } from "../../../client/devices/fonts";
 import { validateCss } from "../../../core/css";
-import { BackLink, Button, CenterDialog, ConfirmDialog, Icon, PageIntro, SegmentedControl, Select, SelectPill, Slider, Stepper, Textarea, TextField, ToggleChip } from "../../../ui";
+import { BackLink, Button, CenterDialog, ConfirmDialog, Icon, PageIntro, SelectPill, Slider, StatusDot, Stepper, Textarea, TextField, ToggleChip } from "../../../ui";
 import { Link } from "../../../shared/spa-link";
 import { DeviceProvider, useOptionalDevice } from "../context";
 import type { DeviceManager } from "../../../client/devices/device";
@@ -123,6 +122,10 @@ function DevicePreviewPageInner(props: PreviewProps) {
   const previewOptions = () => [
     ...available().map(identity => ({ value: identity.id, label: `${modelShortName(identity.kind, identity.model)} · ${identity.name}` })),
     ...previewModels,
+  ];
+  const profileOptions = () => [
+    ...(!profiles().some(profile => profile.id === draft().id) ? [{ value: draft().id, label: draft().name }] : []),
+    ...profiles().map(profile => ({ value: profile.id, label: profile.builtIn ? defaultProfile().name : profile.name })),
   ];
   function openChapter(index: number, page = 1) { setChapter(index); setChapterStart({ page }); }
   function selectProfile(profile: TypesettingProfile) { const selected = copyProfile(profile); setDraft(selected); setBaseline(JSON.stringify(selected)); setSent(null); setError(""); setNotice(""); }
@@ -269,17 +272,17 @@ function DevicePreviewPageInner(props: PreviewProps) {
       </details>
     </section><section class="kt-editor" aria-label="排版方案编辑器">
       <div class="kt-profile-block">
-        <p class="kt-profile-label">排版方案</p>
-        <div class="kt-profile-row"><div class="kt-profile-controls"><Select class="kt-profile-select" label="方案" value={draft().id} disabled={busy() || loading()} onChange={event => {
-          const selected = profiles().find(profile => profile.id === event.currentTarget.value);
-          if (selected && (!dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？"))) { selectProfile(selected); rememberProfile(selected.id); }
-          event.currentTarget.value = draft().id;
-        }}>
-          <Show when={!profiles().some(profile => profile.id === draft().id)}><option value={draft().id}>{draft().name}{dirty() ? " · 已调整（未保存）" : ""}</option></Show>
-          <For each={profiles()}>{profile => <option value={profile.id}>{(profile.builtIn ? defaultProfile().name : profile.name) + (profile.id === draft().id && dirty() ? " · 已调整（未保存）" : "")}</option>}</For>
-        </Select><Icon icon={TablerChevronDown} size={16} class="kt-profile-chevron" /></div>
-        <Show when={dirty()}><p role="status" class="kt-dirty-note"><span aria-hidden="true" />有修改<span class="sr-only">有未保存的修改</span></p></Show></div>
-        <p class="kt-profile-description">所有设备共用；发送时写进设备上的副本，书库里的书不变。调整后可直接发送，不必保存为方案。</p>
+        <div class="kt-editor-pair">
+          <div class="kt-profile-picker">
+            <SelectPill label="方案" value={draft().id} disabled={locked()} options={profileOptions()} onChange={value => {
+              const selected = profiles().find(profile => profile.id === value);
+              if (selected && (!dirty() || window.confirm("当前排版有未保存的修改，确定放弃吗？"))) { selectProfile(selected); rememberProfile(selected.id); }
+            }} />
+            <Show when={dirty()}><span role="status" class="kt-dirty-note" title="有未保存的修改"><span aria-hidden="true"><StatusDot label="有未保存的修改" tone="accent" /></span><span class="sr-only">有未保存的修改</span></span></Show>
+          </div>
+          <SelectPill label="字体" value={previewFont()} disabled={locked()} options={fontOptions()} onChange={value => { if (!locked()) setPreviewFont(value); }} />
+        </div>
+        <p class="kt-profile-description">所有设备共用；发送时写进设备上的副本，书库里的书不变。</p>
       </div>
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show>
       <Show when={settingsError() && !cssError()}><p role="alert" class="field-error">{settingsError()}</p></Show>
@@ -287,15 +290,13 @@ function DevicePreviewPageInner(props: PreviewProps) {
       <Show when={switchNotice()}>{pending => <p role="status" class="notice">已连接「{pending().name}」，当前排版有未保存的修改。<Button variant="quiet" disabled={busy()} onClick={switchToPendingGrant}>切换到 {pending().name}</Button></p>}</Show>
       <Show when={loading()}><p role="status">正在读取方案…</p></Show>
       <Show when={previewFont() && !family() && !previewFontError()}><p class="muted">所选字体当前预览设备不可用，预览暂用替代字体。</p></Show>
-      <SelectPill label="字体" value={previewFont()} disabled={locked()} options={fontOptions()} onChange={value => { if (!locked()) setPreviewFont(value); }} />
       <Show when={previewFontError()}><p class="field-error" role="alert">{previewFontError()}</p></Show>
-      <p class="muted">字体仅用于预览，不写入排版方案或传书副本。</p>
-      <For each={ranges}>{range => <div class="kt-range">
+      <div class="kt-ranges"><For each={ranges}>{range => <div class={`kt-range ${range.key === "marginX" || range.key === "lineHeight" ? "kt-range-slider" : ""}`}>
         <div class="kt-range-head"><span class="kt-stepper-label">{range.label}</span><span class="kt-range-value"><output aria-label={`${range.label}当前值`} class={draft().settings[range.key] === null ? "is-inherited" : undefined} title={range.key === "marginX" && draft().settings.marginX !== null && draft().settings.marginXUnit === "em" ? "旧方案单位，随字号缩放；拖动后改用 %" : undefined}>{range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${draft().settings[range.key]}${range.unit}`}</output><button class="quiet kt-range-reset" type="button" aria-label={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} title={range.key === "marginX" ? "恢复默认" : "恢复沿用书籍"} hidden={draft().settings[range.key] === null} disabled={locked() || draft().settings[range.key] === null} onClick={() => { if (range.key === "marginX") editMargin(null); else edit(range.key, null); }}>↺</button></span></div>
         <Show when={range.key === "paragraphSpacing" || range.key === "textIndent"} fallback={<Slider label={`${range.label}${range.unit ? `（${range.unit}）` : ""}`} min={range.key === "marginX" ? marginMin() : range.min} max={range.key === "marginX" ? marginMax() : range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} formatValue={value => range.key === "marginX" ? marginText() : draft().settings[range.key] === null ? "书籍" : `${value}${range.unit}`} onChange={value => { if (range.key === "marginX") editMargin(value); else edit(range.key, value); }} />}>
           <Stepper label={`${range.label}（${range.unit}）`} min={range.min} max={range.max} step={range.step} value={rangeValue(range.key) ?? range.fallback} disabled={locked()} onChange={value => edit(range.key, Number(value.toFixed(2)))} />
         </Show>
-      </div>}</For>
+      </div>}</For></div>
       <fieldset class="kt-checkboxes"><legend>去掉书里自带的</legend><div class="kt-actions">
         <For each={[["stripFonts", "字体"], ["stripImages", "图片"], ["stripPageMargins", "页边距"], ["stripLineHeight", "行高"], ["stripParagraphSpacing", "段间距"]] as const}>{([key, label]) => <ToggleChip aria-label={key === "stripImages" ? "去掉所有图片" : `去掉书籍自带${label}`} selected={draft().settings[key]} disabled={locked()} onClick={() => edit(key, !draft().settings[key])}>{label}</ToggleChip>}</For>
       </div></fieldset>
@@ -310,7 +311,7 @@ function DevicePreviewPageInner(props: PreviewProps) {
         <Show when={!draft().builtIn && draft().id !== "draft"}><Button aria-label="保存方案" disabled={!canStore()} onClick={() => save()}>保存</Button></Show></div>
       <SendToDevice bookId={bookId()} bookTitle={props.data.books.find(book => book.id === bookId())?.title} profileId={draft().id} options={{ settings: settingsError() ? EMPTY_SETTINGS : settings(), ...(draft().id === DEFAULT_PROFILE_ID ? {} : { profileName: draft().name }) }} onSent={() => setSent(JSON.stringify(draft()))} blocked={sendBlocked()} />
     </section></div>
-    <CenterDialog open={saveAs()} title={draft().builtIn ? "新建排版方案" : "另存为排版方案"} onClose={() => { if (!busy()) setSaveAs(false); }}><form class="form-stack" onSubmit={event => { event.preventDefault(); void save(true); }}>
+    <CenterDialog class="kt-profile-dialog" open={saveAs()} title={draft().builtIn ? "新建排版方案" : "另存为排版方案"} onClose={() => { if (!busy()) setSaveAs(false); }}><form class="form-stack" onSubmit={event => { event.preventDefault(); void save(true); }}>
       <TextField label="新方案名称" value={saveName()} maxlength={100} required disabled={busy()} onInput={event => setSaveName(event.currentTarget.value)} /><p class="muted">排版方案由所有设备共用。默认方案始终保留。</p>
       <Show when={error()}><p role="alert" class="field-error">{error()}</p></Show><div class="form-actions"><Button variant="quiet" disabled={busy()} onClick={() => setSaveAs(false)}>取消</Button><Button type="submit" disabled={!canStore() || !saveName().trim()}>保存新方案</Button></div>
     </form></CenterDialog>

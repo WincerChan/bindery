@@ -26,22 +26,23 @@ export function TextField(props: JSX.InputHTMLAttributes<HTMLInputElement> & Fie
     <FieldHelp {...props} id={id()} />
   </label>;
 }
-export function Select(props: JSX.SelectHTMLAttributes<HTMLSelectElement> & FieldProps) {
-  const generated = createUniqueId(), id = () => props.id || generated;
-  let select!: HTMLSelectElement;
+export function observeSelectOptions(select: HTMLSelectElement, value: () => unknown) {
   // A controlled select must keep showing `value` when its options are rebuilt (e.g. a list refreshed
   // with new objects): removing the selected <option> makes the browser fall back to the first one,
   // and an unchanged `value` prop is never re-applied.
-  onSettled(() => {
-    if (typeof MutationObserver === "undefined") return;
-    const sync = () => {
-      const value = props.value;
-      if (value !== undefined && value !== null && select.value !== String(value)) select.value = String(value);
-    };
-    const observer = new MutationObserver(sync);
-    observer.observe(select, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  });
+  if (typeof MutationObserver === "undefined") return;
+  const sync = () => {
+    const current = value();
+    if (current !== undefined && current !== null && select.value !== String(current)) select.value = String(current);
+  };
+  const observer = new MutationObserver(sync);
+  observer.observe(select, { childList: true, subtree: true });
+  return () => observer.disconnect();
+}
+export function Select(props: JSX.SelectHTMLAttributes<HTMLSelectElement> & FieldProps) {
+  const generated = createUniqueId(), id = () => props.id || generated;
+  let select!: HTMLSelectElement;
+  onSettled(() => observeSelectOptions(select, () => props.value));
   return <label class={`field ${props.class || ""}`} for={id()}><span>{props.label}</span>
     <select {...omit(props, "label", "hint", "error", "class")} ref={select} id={id()} aria-invalid={props.error ? "true" : undefined} aria-describedby={descriptionId(id(), props)} />
     <FieldHelp {...props} id={id()} />

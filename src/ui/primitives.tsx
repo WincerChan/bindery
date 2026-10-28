@@ -3,11 +3,11 @@ import TablerChevronDown from "~icons/tabler/chevron-down";
 import TablerMinus from "~icons/tabler/minus";
 import TablerPlus from "~icons/tabler/plus";
 import TablerX from "~icons/tabler/x";
-import { createUniqueId, For, Match, omit, Show, Switch } from "solid-js";
+import { createUniqueId, For, Match, omit, onSettled, Show, Switch } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { Link } from "../shared/spa-link";
 import { Icon, type IconComponent } from "./icon";
-import { Button, TextField } from "./controls";
+import { Button, observeSelectOptions, TextField } from "./controls";
 import type { ButtonProps } from "./controls";
 
 export function IconButton(props: Omit<ButtonProps, "variant"> & { "aria-label": string; title: string }) {
@@ -72,8 +72,10 @@ export function ToggleChip(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & 
 }
 export function SelectPill(props: { label: string; value: string; options: readonly ControlOption[]; onChange: (value: string) => void; name?: string; disabled?: boolean; class?: string; icon?: IconComponent; showValue?: boolean }) {
   const id = createUniqueId();
+  let select!: HTMLSelectElement;
+  onSettled(() => observeSelectOptions(select, () => props.value));
   return <label for={id} class={`ui-select-pill ${props.icon ? "has-icon" : ""} ${props.showValue === false ? "is-label-only" : ""} ${props.class || ""}`}><Show when={props.icon}>{icon => <span class="ui-select-icon" aria-hidden="true"><Icon icon={icon()} size={16} /></span>}</Show><span class="ui-select-label">{props.label}</span><Show when={props.showValue !== false}><span class="ui-select-value" aria-hidden="true">{props.options.find(option => option.value === props.value)?.label ?? props.value}</span></Show><span class="ui-select-chevron" aria-hidden="true"><Icon icon={TablerChevronDown} size={14} /></span>
-    <select id={id} name={props.name} aria-label={props.label} value={props.value} disabled={props.disabled} onChange={event => props.onChange(event.currentTarget.value)}><For each={props.options}>{option => <option value={option.value} disabled={option.disabled}>{option.label}</option>}</For></select>
+    <select ref={select} id={id} name={props.name} aria-label={props.label} value={props.value} disabled={props.disabled} onChange={event => { props.onChange(event.currentTarget.value); event.currentTarget.value = props.value; }}><For each={props.options}>{option => <option value={option.value} disabled={option.disabled}>{option.label}</option>}</For></select>
   </label>;
 }
 export function SearchPill(props: JSX.InputHTMLAttributes<HTMLInputElement> & { label: string; placeholder: string; class?: string }) {

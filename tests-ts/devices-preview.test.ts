@@ -169,7 +169,8 @@ it("renders one neutral page with both kinds available, no profile-owning device
   expect(input(root, "kt-marginX").hasAttribute("disabled")).toBe(false);
   expect(elements(root, "button").filter(node => node.textContent === "保存方案" || node.textContent === "删除")).toHaveLength(0);
   expect(elements(withClass(root, "kt-profile-actions"), "button").map(node => node.textContent)).toEqual(["还原", "另存为"]);
-  expect(root.textContent).toContain("调整后可直接发送，不必保存为方案");
+  expect(root.textContent).not.toContain("调整后可直接发送，不必保存为方案");
+  expect(root.textContent).not.toContain("字体仅用于预览，不写入排版方案或传书副本");
   expect(root.textContent).not.toContain("要调整边距、行高等，请新建方案");
   expect(withClass(root, "kt-preview-sticky")).toBeDefined();
   expect(withClass(root, "kt-device-space").parentElement).toBe(withClass(root, "kt-frame-wrap"));
@@ -257,7 +258,9 @@ it("edits the built-in default as an unsaved draft and saves it as a new global 
   expect(margin.disabled).toBe(false);
   setValue(margin, "2.5");
   expect(mounted.root.textContent).toContain("有未保存的修改");
-  expect(elements(labels(mounted.root, "select", "方案"), "option").map(option => option.textContent)).toContain("默认 · 已调整（未保存）");
+  expect(elements(labels(mounted.root, "select", "方案"), "option").map(option => option.textContent)).toContain("默认");
+  expect(elements(labels(mounted.root, "select", "方案"), "option").some(option => option.textContent?.includes("未保存"))).toBe(false);
+  expect(withClass(mounted.root, "kt-dirty-note").getAttribute("title")).toBe("有未保存的修改");
   expect(profiles.create).not.toHaveBeenCalled(); expect(profiles.update).not.toHaveBeenCalled();
   fire(button(mounted.root, "另存为方案"), "click"); ui.flush();
   const saveDialog = elements(mounted.root, "dialog")[0]!, saveForm = elements(saveDialog, "form")[0]!;
