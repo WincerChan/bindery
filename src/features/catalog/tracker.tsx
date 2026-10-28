@@ -46,6 +46,7 @@ function TagInput(props: { value?: string }) {
       <For each={tags()}>{tag => <span class="tracker-tag">{tag}<button type="button" class="tracker-tag-remove" aria-label={`移除标签 ${tag}`} onClick={() => setTags(tags().filter(value => value !== tag))}><Icon icon={TablerX} size={12} /></button></span>}</For>
       <input ref={input} id={id} class="tracker-tag-input" type="text" aria-label="添加标签" placeholder="添加标签，回车确认"
         onKeyDown={event => {
+          if (event.isComposing || event.keyCode === 229) return;
           if (event.key === "Enter" || event.key === "，" || event.key === ",") { event.preventDefault(); commit(); }
           else if (event.key === "Backspace" && !input.value && tags().length) setTags(tags().slice(0, -1));
         }}
@@ -156,12 +157,12 @@ export function TrackerPage(props: { data: TrackerPageData }) {
     </form>
     <ul class="tracker-list" aria-label="追踪列表">
       <For each={props.data.wishes}>{wish => {
-        const state = trackerState(wish), meta = () => [wish.author, wish.book_status === "completed" ? "" : wish.book_status_label, wish.tags.join("、")].filter(Boolean).join(" · ");
+        const state = trackerState(wish), meta = () => [wish.book_status === "completed" ? "" : wish.book_status_label, wish.tags.join("、")].filter(Boolean).join(" · ");
         return <li class="tracker-row" id={`wish-row-${wish.id}`}>
           <Show when={wish.library_book_id} fallback={<span class="tracker-row-cover" aria-label={`${wish.title}（${state}）`}><TrackerCover wish={wish} compact /></span>}><Link class="tracker-row-cover tracker-cover-link" href={trackerBookHref(wish, props.data.current_url)} aria-label={`打开《${wish.title}》详情（${state}）`}><TrackerCover wish={wish} compact /></Link></Show>
           <div class="tracker-row-body">
             <div class="tracker-row-heading">
-              <span class="tracker-title-block"><span class="tracker-title">{wish.title}</span><span class="tracker-meta">{meta()}</span></span>
+              <span class="tracker-title-block"><span class="tracker-title">{wish.title}</span><Show when={wish.author || meta()}><span class="tracker-meta">{wish.author}<Show when={meta()}><span class="tracker-meta-secondary">{wish.author ? " · " : ""}{meta()}</span></Show></span></Show></span>
               <Menu title={wish.title} subtitle={[wish.author, wish.book_status === "completed" ? "" : wish.book_status_label].filter(Boolean).join(" · ")} class="tracker-row-menu" align="end" chevron={false} triggerLabel={`《${wish.title}》的操作${state ? `（${state}）` : ""}`}
                 status={state || undefined} statusTone={state ? menuTone(wish) : undefined}
                 trigger={<Icon icon={TablerDotsVertical} size={18} />}

@@ -130,6 +130,15 @@ describe("catalog UI SSR and accessible controls", () => {
     expect(allByRole(empty, "region", "正在读")).toHaveLength(0);
     expect(empty.textContent).toContain("还没有追踪的书籍");
   });
+  it("separates secondary tracker metadata without empty author separators or blank rows", () => {
+    const wishes = [wish, { ...wish, id: "manual", author: "", tags: ["奇幻"], book_status: "ongoing", book_status_label: "更新中" }, { ...wish, id: "empty", author: "", tags: [] }];
+    const root = parseHtml(ui.tracker({ ...tracker, wishes }));
+    const rows = allByRole(byRole(root, "list", "追踪列表"), "listitem");
+    expect(byAttribute(rows[0]!, "class", "tracker-meta").textContent).toBe("作者 · 科幻");
+    expect(byAttribute(rows[0]!, "class", "tracker-meta-secondary").textContent).toBe(" · 科幻");
+    expect(byAttribute(rows[1]!, "class", "tracker-meta-secondary").textContent).toBe("更新中 · 奇幻");
+    expect(allByAttribute(rows[2]!, "class", "tracker-meta")).toHaveLength(0);
+  });
   it("renders all tracker form fields, completed/unread defaults and immutable linked identity", () => {
     const html = ui.form();
     for (const field of ["title", "author", "tags", "rating", "comment", "library_book_id", "read_status", "book_status", "next"]) expect(byName(parseHtml(html), field)).toBeDefined();

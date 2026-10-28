@@ -8,7 +8,7 @@ export const trackerState = (wish: TrackerItem) => [wish.read_status_label, !wis
 
 /** Tracker can be both read and not in the library; keep that composition here. */
 export function TrackerCover(props: { wish?: TrackerItem; title?: string; author?: string; compact?: boolean; large?: boolean }) {
-  return <div role="img" aria-label={`${props.title ?? props.wish?.title ?? "书名"}（${props.wish ? trackerState(props.wish) : "未入库"}）`}><div aria-hidden="true"><GeneratedCover book_id={props.wish?.library_book_id || props.wish?.id || "tracker-new"} title={props.title ?? props.wish?.title ?? "书名"} author={props.author ?? props.wish?.author}
+  return <div class={Array.from(props.title ?? props.wish?.title ?? "书名").length > 4 ? "tracker-cover-long-title" : undefined} role="img" aria-label={`${props.title ?? props.wish?.title ?? "书名"}（${props.wish ? trackerState(props.wish) : "未入库"}）`}><div aria-hidden="true"><GeneratedCover book_id={props.wish?.library_book_id || props.wish?.id || "tracker-new"} title={props.title ?? props.wish?.title ?? "书名"} author={props.author ?? props.wish?.author}
     dynasty={props.wish?.book_status === "ongoing" ? "连载" : undefined} compact={props.compact} large={props.large}
     state={props.wish?.read_status === "read" ? "read" : props.wish?.read_status === "reading" ? "reading" : !props.wish?.exists_in_library ? "not-in-library" : undefined}
     class={!props.wish?.exists_in_library ? "cover-not-in-library" : undefined} /></div></div>;

@@ -503,6 +503,19 @@ it("edits tracker tags as chips through the hidden comma-separated field", async
   expect(byName(mounted.root, "tags").getAttribute("value")).toBe("志怪,短篇");
 });
 
+it("keeps tracker tag drafts intact while confirming Chinese IME composition", async () => {
+  const mounted = mount("trackerForm", { next: "/tracker", onClose() {} }); await settle(); mounted.flush();
+  const input = byLabel(mounted.root, "添加标签") as HTMLInputElement;
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    input.value = "古典"; fire(input, "keydown", { key: "Enter", ...composition }); mounted.flush();
+    expect(input.value).toBe("古典");
+    expect(byName(mounted.root, "tags").getAttribute("value")).toBe("");
+  }
+  fire(input, "keydown", { key: "Enter" }); mounted.flush();
+  expect(byName(mounted.root, "tags").getAttribute("value")).toBe("古典");
+  expect(input.value).toBe("");
+});
+
 it("blocks tracker duplicates and exposes the existing entry without submitting", async () => {
   const rpc = vi.fn(async (_name: string) => ({ exists: true, matches: [], blocking_matches: [{ id: "existing", title: "同名书", author: "作者" }] }));
   vi.stubGlobal("__binderyTestMutation", rpc);
