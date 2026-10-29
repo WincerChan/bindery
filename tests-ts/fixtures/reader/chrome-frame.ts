@@ -10,8 +10,9 @@ export class ReaderFrames {
   keys: string[] = [];
   opens: { section: number; page: number; find: string; fraction?: number | null }[] = [];
   destroyed = false;
+  returns = 0;
   location: ReaderLocation;
-  constructor(readonly data: ReaderData, readonly elements: HTMLIFrameElement[], initial: { section: number; page: number }, readonly change: (value: ReaderLocation) => void, readonly busy: (value: boolean) => void, readonly error: (value: string) => void, readonly interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean) {
+  constructor(readonly data: ReaderData, readonly elements: HTMLIFrameElement[], initial: { section: number; page: number }, readonly change: (value: ReaderLocation) => void, readonly busy: (value: boolean) => void, readonly error: (value: string) => void, readonly interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean, readonly options: { onReturnAvailableChange?: (available: boolean) => void } = {}) {
     frames = this;
     this.location = { ...initial, pageCount: 3, frame: 0 };
     this.publish(this.location);
@@ -20,6 +21,8 @@ export class ReaderFrames {
   configure(value: ReaderSettings) { this.configurations.push({ ...value }); }
   open(section: number, page = 1, find = "", _hash = "", fraction: number | null = null) { this.opens.push({ section, page, find, fraction }); this.publish({ ...this.location, section, page, frame: 1 }); }
   turn(direction: -1 | 1) { this.turns.push(direction); }
+  goBack() { this.returns++; this.clearReturnHistory(); this.publish({ section: 0, page: 2, pageCount: 3, frame: 0 }); return true; }
+  clearReturnHistory() { this.options.onReturnAvailableChange?.(false); }
   key(event: KeyboardEvent) { this.keys.push(event.key); }
   retry() { this.error(""); }
   destroy() { this.destroyed = true; }

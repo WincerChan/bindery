@@ -32,6 +32,7 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
   const [scrub, setScrub] = createSignal<number | null>(null);
   const [panel, setPanel] = createSignal<Panel | null>(null);
   const [chapterFocusPending, setChapterFocusPending] = createSignal(false);
+  const [canReturn, setCanReturn] = createSignal(false);
   const [busy, setBusy] = createSignal(true), [error, setError] = createSignal(""), [progressError, setProgressError] = createSignal(""), [saveNotice, setSaveNotice] = createSignal("");
   const [query, setQuery] = createSignal(untrack(() => props.query.get("find") || "")), [results, setResults] = createSignal<SearchResults | null>(null), [searchBusy, setSearchBusy] = createSignal(false), [searchError, setSearchError] = createSignal("");
   const id = createUniqueId();
@@ -83,10 +84,15 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
     const value = scrub(); setScrub(null);
     if (value === null) return;
     const target = readerProgressTarget(value, props.data.sections.length);
+    controller?.clearReturnHistory();
     controller?.open(target.section, 1, "", "", target.fraction);
   }
   function openSection(section: number, page = 1, find = "") {
+    controller?.clearReturnHistory();
     setChapterFocusPending(true); controller?.open(section, page, find); closePanel();
+  }
+  function returnToReading() {
+    setChapterFocusPending(true); controller?.goBack(); revealChrome();
   }
   onSettled(() => {
     if (typeof window === "undefined" || disposed || controller) return;
@@ -111,7 +117,7 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
       if (panel()) { if (panel() === "settings" && kind === "tap") closePanel(); return false; }
       if (kind === "toggle") setChromeVisible(value => !value); else if (kind === "activity" || kind === "tap" && !phone()) revealChrome();
       return true;
-    });
+    }, { onReturnAvailableChange: setCanReturn });
     controller.configure(settings());
     if (props.query.get("find")) controller.open(initial.section, initial.page, props.query.get("find")!);
     const key = (event: KeyboardEvent) => {
@@ -243,6 +249,7 @@ export function Reader(props: { data: ReaderData; query: URLSearchParams }) {
     <IconButton class="reader-page-turn reader-page-previous" disabled={previousDisabled()} aria-label="上一页" title="上一页（← / PageUp / Backspace）" hidden={panel() !== null} onClick={() => controller?.turn(-1)}><Icon icon={TablerChevronLeft} size={20} /></IconButton>
     <IconButton class="reader-page-turn reader-page-next" disabled={nextDisabled()} aria-label="下一页" title="下一页（→ / PageDown / 空格）" hidden={panel() !== null} onClick={() => controller?.turn(1)}><Icon icon={TablerChevronRight} size={20} /></IconButton>
     <Button variant="quiet" class="reader-chrome-toggle" aria-label={chromeVisible() ? "隐藏工具栏" : "显示工具栏"} aria-expanded={chromeVisible() ? "true" : "false"} onClick={() => setChromeVisible(value => !value)}>工具栏</Button>
+    <Show when={canReturn()}><Button variant="secondary" class="reader-return" hidden={panel() !== null} disabled={busy()} onClick={returnToReading}><Icon icon={TablerChevronLeft} size={16} />返回原处</Button></Show>
     <Show when={saveNotice()}><p role="status" class="reader-save-notice">{saveNotice()}</p></Show>
     <SideSheet id={`${id}-contents`} open={sheetOpen()} side="left" class="reader-contents" title="目录与检索" closeLabel="关闭目录与检索" heading={false} onClose={closePanel}>
       <div ref={contents} class="reader-sheet-panel" data-panel={panel()}>

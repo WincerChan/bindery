@@ -249,3 +249,19 @@ it("forwards page controls and shortcuts, blocks them while a panel is open, and
   expect(ui.frames.destroyed).toBe(true); expect(ui.writer.destroyed).toBe(true);
   expect([...windowListeners.values()].every(set => set.size === 0)).toBe(true); expect([...documentListeners.values()].every(set => set.size === 0)).toBe(true);
 });
+
+it.each([false, true])("offers return only after a book link, including with hidden chrome (phone=%s)", mobile => {
+  phone = mobile; mount();
+  expect(button("返回原处")).toBeUndefined();
+  ui.frames.options.onReturnAvailableChange!(true); mounted!.flush();
+  expect(button("返回原处").hidden).toBe(false);
+  ui.frames.busy(true); mounted!.flush(); expect(button("返回原处").disabled).toBe(true);
+  ui.frames.busy(false); mounted!.flush();
+  click("目录与检索"); expect(button("返回原处").hidden).toBe(true); click("关闭目录与检索");
+  click("返回原处");
+  expect(ui.frames.returns).toBe(1); expect(button("返回原处")).toBeUndefined();
+  expect(document.activeElement).toBe(all(root, "iframe")[0]);
+  expect(ui.writer.positions.at(-1)).toEqual({ section: 0, page: 2, count: 3 });
+  ui.frames.options.onReturnAvailableChange!(true); mounted!.flush(); click("下一章");
+  expect(button("返回原处")).toBeUndefined();
+});

@@ -101,7 +101,7 @@ function inlineStyle() {
 }
 
 /** Geometry inputs stand in for layout; this DOM does not claim to render CSS. */
-function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, columns = 3, desktop = false, interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean, staged = false) {
+function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, columns = 3, desktop = false, interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean, staged = false, onReturnAvailableChange?: (available: boolean) => void) {
   const doc = clientDocument(), create = doc.createElement.bind(doc);
   const viewportBox = { width: viewport, marginX, paddingX, columns, rawRight: undefined as number | undefined };
   const width = () => Math.round(viewportBox.width - 2 * viewportBox.marginX - 2 * viewportBox.paddingX);
@@ -135,7 +135,7 @@ function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, co
   doc.documentElement.appendChild(head); doc.documentElement.appendChild(body);
   Object.defineProperties(doc, {
     head: { value: head }, body: { value: body }, fonts: { value: { ready: Promise.resolve() } },
-    URL: { value: staged ? "about:srcdoc" : "https://reader.test/book/id/epub/one.xhtml" }, readyState: { value: "complete" }, contentType: { value: "text/html" },
+    URL: { configurable: true, value: staged ? "about:srcdoc" : "https://reader.test/book/id/epub/one.xhtml" }, baseURI: { value: "https://reader.test/book/id/epub/one.xhtml" }, readyState: { value: "complete" }, contentType: { value: "text/html" },
   });
   doc.createTreeWalker = (() => ({ nextNode: () => null })) as unknown as typeof doc.createTreeWalker;
   const listeners = new Map<string, EventListener>();
@@ -147,10 +147,17 @@ function frameFixture(viewport = 598, marginX = viewport * .01, paddingX = 8, co
   vi.stubGlobal("requestAnimationFrame", () => 1); vi.stubGlobal("cancelAnimationFrame", () => {});
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
   const changes: ReaderLocation[] = [], errors: string[] = [];
-  const frames = new ReaderFrames(staged ? { html: "<p>staged chapter</p>", sections: [data.sections[0]!] } : data, [frame, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement], { section: 0, page: 1 }, value => changes.push(value), () => {}, error => { if (error) errors.push(error); }, interaction, staged ? { columns: 1 } : undefined);
+  const elements = [frame, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement, Object.assign(new EventTarget(), { src: "" }) as HTMLIFrameElement];
+  const frames = new ReaderFrames(staged ? { html: "<p>staged chapter</p>", sections: [data.sections[0]!] } : data, elements, { section: 0, page: 1 }, value => changes.push(value), () => {}, error => { if (error) errors.push(error); }, interaction, { ...(staged ? { columns: 1 as const } : {}), onReturnAvailableChange });
   expect(errors).toEqual([]);
   const vars = doc.documentElement.style;
-  return { frames, doc, body, vars, changes, viewportBox, width, listeners,
+  return { frames, elements, errors, doc, body, vars, changes, viewportBox, width, listeners,
+    link(href: string) {
+      const anchor = doc.createElement("a"); anchor.setAttribute("href", href);
+      const preventDefault = vi.fn();
+      listeners.get("click")?.({ target: { closest: () => anchor }, preventDefault } as unknown as Event);
+      expect(preventDefault).toHaveBeenCalled();
+    },
     gesture(type: string, x: number, y = 10, interactive = false) { listeners.get(type)?.({ clientX: x, clientY: y, target: { closest: () => interactive ? body : null } } as unknown as Event); },
     scroller: doc.getElementById("bindery-reader-scroller") as HTMLDivElement,
     pages: doc.getElementById("bindery-reader-pages") as HTMLDivElement,
@@ -355,6 +362,75 @@ describe("iframe style and pagination parity", () => {
   });
 });
 
+
+describe("reader link return history", () => {
+  it("returns through nested same-chapter links to the actual source pages without requiring noteref markup", () => {
+    const available = vi.fn(), f = frameFixture(400, 0, 0, 9, false, undefined, false, available);
+    const note = f.doc.createElement("aside"); note.id = "注1";
+    note.getBoundingClientRect = () => ({ left: 6 * f.width() - f.scroller.scrollLeft } as DOMRect);
+    f.pages.appendChild(note);
+    f.frames.open(0, 3); f.link("#%E6%B3%A81");
+    expect(f.changes.at(-1)).toMatchObject({ section: 0, page: 7 });
+    expect(available).toHaveBeenLastCalledWith(true);
+    f.link("#missing"); expect(f.changes.at(-1)?.page).toBe(1);
+    expect(f.frames.goBack()).toBe(true); expect(f.changes.at(-1)?.page).toBe(7);
+    expect(available).toHaveBeenLastCalledWith(true);
+    expect(f.frames.goBack()).toBe(true); expect(f.changes.at(-1)?.page).toBe(3);
+    expect(available).toHaveBeenLastCalledWith(false);
+    expect(f.frames.goBack()).toBe(false);
+    f.frames.destroy();
+  });
+  it("returns from a loaded cross-chapter note and retains the return point after a failed load", () => {
+    const available = vi.fn(), f = frameFixture(400, 0, 0, 9, false, undefined, false, available);
+    f.frames.open(0, 5); f.link("two.xhtml#note");
+    const destination = f.elements.find(frame => frame.src.endsWith("two.xhtml"))!;
+    destination.dispatchEvent(new Event("load")); // Failed response; source is still usable.
+    expect(f.errors).toHaveLength(1);
+    expect(f.frames.goBack()).toBe(true); expect(f.changes.at(-1)).toMatchObject({ section: 0, page: 5 });
+    f.link("two.xhtml#note");
+    const note = frameFixture(400, 0, 0, 3); note.frames.destroy(); note.body.textContent = "";
+    Object.defineProperty(note.doc, "URL", { value: "https://reader.test/book/id/epub/two.xhtml" });
+    Object.assign(destination, { contentDocument: note.doc }); destination.dispatchEvent(new Event("load"));
+    expect(f.changes.at(-1)).toMatchObject({ section: 1, page: 1 });
+    f.frames.turn(1);
+    expect(f.frames.goBack()).toBe(true); expect(f.changes.at(-1)).toMatchObject({ section: 0, page: 5 });
+    expect(available).toHaveBeenLastCalledWith(false);
+    f.frames.destroy();
+  });
+  it("does not track external links, can discard stale history, and leaves history disabled by default", () => {
+    const available = vi.fn(), f = frameFixture(400, 0, 0, 5, false, undefined, false, available);
+    f.link("https://example.org/book/id/epub/one.xhtml#note");
+    expect(available).not.toHaveBeenCalled(); expect(f.frames.goBack()).toBe(false);
+    f.link("#note"); f.frames.clearReturnHistory();
+    expect(available).toHaveBeenLastCalledWith(false); expect(f.frames.goBack()).toBe(false);
+    f.frames.destroy();
+    const preview = frameFixture(); preview.link("#note");
+    expect(preview.frames.goBack()).toBe(false); preview.frames.destroy();
+  });
+  it("restores the original text after repagination and replacement of its DOM node", () => {
+    const f = frameFixture(400, 0, 0, 10, false, undefined, false, () => {});
+    const paragraph = f.doc.createElement("p"); paragraph.textContent = "x".repeat(1000); f.pages.appendChild(paragraph);
+    let charactersPerPage = 100;
+    f.pages.contains = node => node === paragraph.firstChild;
+    Object.assign(f.doc, { caretPositionFromPoint: () => ({ offsetNode: paragraph.firstChild, offset: Math.floor(f.scroller.scrollLeft / f.width()) * charactersPerPage }) });
+    f.doc.createTreeWalker = (() => {
+      let visited = false;
+      return { currentNode: paragraph.firstChild, nextNode() { if (visited) return null; visited = true; return this.currentNode; } };
+    }) as unknown as typeof f.doc.createTreeWalker;
+    f.doc.createRange = (() => {
+      let offset = 0;
+      return { setStart(_node: Node, start: number) { offset = start; }, setEnd() {}, getBoundingClientRect: () => ({ left: Math.floor(offset / charactersPerPage) * f.width() - f.scroller.scrollLeft }) };
+    }) as unknown as typeof f.doc.createRange;
+    f.frames.open(0, 3); // First visible character is 200.
+    f.link("#note");
+    paragraph.textContent = "x".repeat(1000); // The saved Text node is now detached.
+    charactersPerPage = 60; f.viewportBox.columns = 17;
+    f.frames.configure({ ...defaultSettings, fontSize: 26 });
+    f.frames.goBack();
+    expect(f.changes.at(-1)).toMatchObject({ section: 0, page: 4 }); // Character 200, not old page 3 or fraction page 5.
+    f.frames.destroy();
+  });
+});
 
 describe("staged reader documents", () => {
   it("paginates srcdoc in one column on desktop, preserves book typography and stops at the chapter end", () => {

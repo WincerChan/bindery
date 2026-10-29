@@ -2,6 +2,8 @@ import { contentUrl, defaultSettings, fractionPage, pageEpsilon, pageMetrics, re
 import { readerPaper } from "./reader-presentation";
 type ReaderFrameData = { sections: ReaderData["sections"] } & ({ book: Pick<ReaderData["book"], "book_id"> } | { html: string });
 interface Anchor { node: Text; offset: number }
+interface ReturnPosition { section: number; page: number; fraction: number; find: string; textOffset?: number }
+interface NavigationTarget { section: number; page: number; find: string; hash: string; fraction: number | null; returnTo?: ReturnPosition }
 const typographyProperties = ["font-family", "font-size", "line-height", "text-align", "text-justify"] as const;
 interface FrameState { frame: HTMLIFrameElement; section: number; ready: boolean; step?: number; scroller?: HTMLDivElement; pages?: HTMLDivElement; tail?: HTMLDivElement; style?: HTMLStyleElement; bookTypography?: { value: string; priority: string }[]; observer?: ResizeObserver; cleanup?: () => void; anchor?: Anchor; page: number }
 export interface ReaderLocation { section: number; page: number; pageCount: number; frame: number }
@@ -10,13 +12,14 @@ export interface ReaderLocation { section: number; page: number; pageCount: numb
 export class ReaderFrames {
   private frames: FrameState[];
   private active = -1;
-  private desired: { section: number; page: number; find: string; hash: string; fraction: number | null };
+  private desired: NavigationTarget;
+  private returnHistory: ReturnPosition[] = [];
   private settings: ReaderSettings = defaultSettings;
   private disposed = false;
   private animation = 0;
   private searchText = "";
   private removeListeners: (() => void)[] = [];
-  constructor(private data: ReaderFrameData, elements: HTMLIFrameElement[], position: { section: number; page: number; fraction?: number }, private change: (value: ReaderLocation) => void, private busy: (value: boolean) => void, private error: (value: string) => void, private interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean, private options: { columns?: 1 | 2 } = {}) {
+  constructor(private data: ReaderFrameData, elements: HTMLIFrameElement[], position: { section: number; page: number; fraction?: number }, private change: (value: ReaderLocation) => void, private busy: (value: boolean) => void, private error: (value: string) => void, private interaction?: (kind: "toggle" | "activity" | "turn" | "tap") => boolean, private options: { columns?: 1 | 2; onReturnAvailableChange?: (available: boolean) => void } = {}) {
     this.desired = { ...position, fraction: position.fraction ?? null, find: "", hash: "" };
     this.frames = elements.map((frame, index) => ({ frame, section: index === 0 ? position.section : -1, ready: false, page: 1 }));
     this.frames.forEach((state, index) => {
@@ -37,8 +40,22 @@ export class ReaderFrames {
     });
   }
   open(section: number, page = 1, find = "", hash = "", fraction: number | null = null) {
+    this.navigate({ section, page, find, hash, fraction });
+  }
+  goBack() {
+    const returnTo = this.returnHistory.at(-1);
+    if (!returnTo || this.disposed) return false;
+    this.navigate({ ...returnTo, hash: "", returnTo });
+    return true;
+  }
+  clearReturnHistory() {
+    this.returnHistory = [];
+    this.options.onReturnAvailableChange?.(false);
+  }
+  private navigate(target: NavigationTarget) {
+    const { section } = target;
     if (section < 0 || section >= this.data.sections.length || this.disposed) return;
-    this.desired = { section, page, find, hash, fraction };
+    this.desired = target;
     this.busy(true); this.error("");
     const cached = this.frames.findIndex(state => state.section === section);
     if (cached >= 0) { if (this.frames[cached].ready) this.activate(cached); return; }
@@ -104,11 +121,22 @@ export class ReaderFrames {
         const anchor = (event.target as Element | null)?.closest("a");
         if (!anchor) return;
         event.preventDefault();
+        if (index !== this.active || this.busySection()) return;
         const href = anchor.getAttribute("href");
         if (!href) return;
         const url = new URL(href, doc.baseURI);
         const section = this.data.sections.findIndex((_item, section) => new URL(this.contentUrl(section), window.location.href).pathname === url.pathname);
-        if (url.origin === window.location.origin && section >= 0) this.open(section, 1, "", url.hash.slice(1));
+        if (url.origin === window.location.origin && section >= 0) {
+          // Opted in by Reader only. Track all book links because older EPUBs
+          // often omit epub:type/role on footnote references.
+          if (this.options.onReturnAvailableChange) {
+            const metrics = this.metrics(state);
+            this.returnHistory.push({ section: state.section, page: metrics.page, fraction: metrics.count > 1 ? (metrics.page - 1) / (metrics.count - 1) : 0, find: this.searchText, textOffset: this.captureTextOffset(state) });
+            if (this.returnHistory.length > 50) this.returnHistory.shift();
+            this.options.onReturnAvailableChange(true);
+          }
+          this.open(section, 1, "", url.hash.slice(1));
+        }
       };
       let pointer: { x: number; y: number } | undefined;
       const down = (event: PointerEvent) => { pointer = { x: event.clientX, y: event.clientY }; };
@@ -149,8 +177,16 @@ export class ReaderFrames {
     this.frames.forEach((item, i) => { item.frame.inert = i !== index; });
     this.searchText = this.desired.find;
     this.highlight(state, this.searchText);
-    this.refresh(state, this.desired.page);
-    if (this.desired.hash) {
+    const returnTo = this.desired.returnTo;
+    const anchor = returnTo?.textOffset === undefined ? undefined : this.restoreTextOffset(state, returnTo.textOffset);
+    if (anchor) this.desired.fraction = null;
+    this.refresh(state, this.desired.page, anchor);
+    if (returnTo) {
+      // Keep the origin until restoration succeeds, including across a retry.
+      if (this.returnHistory.at(-1) === returnTo) this.returnHistory.pop();
+      this.desired.returnTo = undefined;
+      this.options.onReturnAvailableChange?.(this.returnHistory.length > 0);
+    } else if (this.desired.hash) {
       let id = this.desired.hash;
       try { id = decodeURIComponent(id); } catch { /* malformed fragment is ignored */ }
       const target = state.frame.contentDocument!.getElementById(id);
@@ -298,6 +334,26 @@ export class ReaderFrames {
         }
         return { node: text, offset: low };
       }
+    }
+  }
+  // A character offset survives iframe eviction and search-highlight wrappers;
+  // a live DOM Range alone would point into a discarded chapter after prefetch.
+  private captureTextOffset(state: FrameState) {
+    const anchor = this.capture(state);
+    if (!anchor) return;
+    const walker = state.frame.contentDocument!.createTreeWalker(state.pages!, 4);
+    let offset = 0;
+    while (walker.nextNode()) {
+      if (walker.currentNode === anchor.node) return offset + anchor.offset;
+      offset += (walker.currentNode as Text).length;
+    }
+  }
+  private restoreTextOffset(state: FrameState, offset: number): Anchor | undefined {
+    const walker = state.frame.contentDocument!.createTreeWalker(state.pages!, 4);
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      if (offset < node.length) return { node, offset };
+      offset -= node.length;
     }
   }
   private emit(state: FrameState) {
