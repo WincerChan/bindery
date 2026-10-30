@@ -462,7 +462,7 @@ it("matches a foreign-id device record by fingerprint across the books and trans
   const transfer = vi.fn(async () => { throw new Error("测试队列尚未接入转换服务"); }); c.input.queue = new TransferQueue({ transferBook: transfer });
   const m = mount("books", c.input); await settle(m);
   expect(text(m)).toContain(libraryTitle);
-  expect(byAttribute(m.root, "data-device-progress").textContent).toContain("读到：第一章");
+  expect(byAttribute(m.root, "class", "device-book-cover").getAttribute("title")).toContain("读到：第一章");
   expect(button(m.root, `预览 ${libraryTitle}`)).toBeDefined();
   const resend = button(m.root, `重新传入 ${libraryTitle}`); expect(resend.hasAttribute("disabled")).toBe(false);
   fire(resend, "click"); await settle(m);
@@ -666,21 +666,29 @@ it("auto-syncs Kindle reading once per connection and again after re-detection",
   expect(sync).toHaveBeenCalledTimes(2);
 });
 
-it("shows Kindle reading progress and never calls a full position finished", async () => {
+it("keeps Kindle reading progress on the cover and out of the action menu without calling a full position finished", async () => {
   const c = await connected([record("a", "a.kfx", "content_a")]), { data, positions } = await miniKfx();
   await c.fs.write("documents/a.kfx", data);
   const last = positions.chapters.at(-1)!, location = positionString([...last.eids][0]!, 0, positions.totalPid - 1);
   await c.fs.write("documents/a.sdr/a673205bd7b6c0394b1593a9fbced79ec.yjf", lprStore(location, 1_792_748_847_039n));
   c.input.chapters = vi.fn(async () => ({ a: "第三章 全景敞视主义" }));
   const m = mount("books", c.input); await settle(m);
-  const cells = allByAttribute(m.root, "data-device-progress"), progress = cells.map(node => node.textContent);
-  expect(progress).toHaveLength(1);
-  expect(progress[0]).toMatch(/^在读 \d+% · /);
-  expect(progress[0]).not.toContain("已读完");
-  // The synced chapter is click-reachable in the book menu, not hover-only.
+  const row = byAttribute(m.root, "data-device-book", "a.kfx"), cover = byAttribute(row, "class", "device-book-cover");
+  expect(cover.getAttribute("title")).toMatch(/^在读 \d+% · /);
+  expect(cover.getAttribute("title")).not.toContain("已读完");
   expect(c.input.chapters).toHaveBeenCalledWith(c.device.identity.id);
-  expect(cells[0]!.textContent).toContain("读到：第三章 全景敞视主义");
-  expect(byRole(m.root, "progressbar")).toBeDefined();
+  expect(cover.getAttribute("title")).toContain("读到：第三章 全景敞视主义");
+  expect(byRole(cover, "progressbar").getAttribute("aria-label")).toContain("读到：第三章 全景敞视主义");
+  expect(byRole(cover, "link").getAttribute("aria-label")).toContain("读到：第三章 全景敞视主义");
+  const trigger = byRole(row, "button", "《书库甲》的操作");
+  fire(trigger, "click"); m.flush();
+  const menu = byRole(row, "dialog");
+  expect(allByRole(menu, "status")).toHaveLength(0);
+  expect(menu.textContent).not.toContain("在读");
+  expect(menu.textContent).not.toContain("读到：");
+  expect(byRole(menu, "menuitem", "预览 书库甲")).toBeDefined();
+  expect(byRole(menu, "menuitem", "重新传入 书库甲")).toBeDefined();
+  expect(byRole(menu, "menuitem", "从设备删除 书库甲")).toBeDefined();
 });
 
 it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs", async () => {

@@ -4,18 +4,31 @@
   --device-button: #3E4144;
   --device-idle: #C9CBC2;
   --device-paper: #EDEBE4;
+  --device-grip: 3.25rem;
+  --device-key-width: .5rem;
+  --device-key-height: 2rem;
   position: relative;
   background: var(--device-body);
   border-radius: 20px;
   box-shadow: var(--shadow-cover-lg);
 }
-.device-shell { width: 212px; padding: 14px 14px 40px; }
+.device-shell {
+  --device-width: 13.25rem;
+  --device-grip-width: 15.25rem;
+  --device-aspect: .72;
+  --device-edge: .875rem;
+  --device-top: var(--device-edge);
+  --device-bottom: 2.5rem;
+  width: var(--device-width);
+  max-width: 100%;
+  padding: var(--device-top) var(--device-edge) var(--device-bottom);
+}
 .device-shell-paper { aspect-ratio: 3 / 4; background: var(--device-paper); color: var(--color-ink); padding: 16px 12px; overflow: hidden; font: 14px/1.8 var(--font-display); }
 .device-shell-paper p { margin: 0 0 12px; }
 .device-page-sample { position: relative; width: 160px; height: 216px; pointer-events: none; }
 .device-page-sample iframe { position: absolute; inset: 0; transform-origin: top left; border: 0; background: var(--device-paper); }
-.device-shell.device-shell-grip { width: 244px; padding: 14px 52px 14px 14px; }
-.device-shell-grip::before, .device-shell-grip::after { content: ""; position: absolute; right: 18px; top: 35%; width: 8px; height: 32px; border-radius: 999px; background: var(--device-button); }
+.device-shell.device-shell-grip { --device-aspect: .89; width: var(--device-grip-width); padding: var(--device-edge) var(--device-grip) var(--device-edge) var(--device-edge); }
+.device-shell-grip::before, .device-shell-grip::after { content: ""; position: absolute; right: calc((var(--device-grip) - var(--device-key-width)) / 2); top: 35%; width: var(--device-key-width); height: var(--device-key-height); border-radius: 999px; background: var(--device-button); }
 .device-shell-grip::after { top: 57%; }
 .device-shell-idle { background: var(--device-idle); }
 .device-shell-compact { width: 48px; height: 66px; padding: 6px 5px 12px; border-radius: 8px; box-shadow: none; background: var(--device-body); flex: none; }
@@ -42,14 +55,9 @@
 .kindle-device-content .ui-page-tabs { margin-bottom: 28px; }
 .device-book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 36px 28px; margin-block: 28px; }
 .device-book-grid article { min-width: 0; display: grid; align-content: start; gap: 12px; }
-.device-book-grid article > a { display: block; }
 .device-book-grid .kindle-book-cover { width: 100%; height: auto; aspect-ratio: 2 / 3; }
-.device-book-grid .ui-menu { max-width: 100%; }
-.device-book-grid .ui-menu-trigger { width: 100%; text-align: left; justify-content: space-between; }
-.device-book-grid .ui-menu-trigger > span { min-width: 0; }
 .device-book-grid strong { display: block; font-size: var(--text-title); overflow-wrap: anywhere; }
 .device-book-author { display: block; font-size: var(--text-meta); color: var(--color-ink-3); margin-top: 4px; }
-.device-book-grid .ui-progress { height: 4px; }
 .device-send-sheet { width: min(560px, 100vw); }
 .device-send-sheet .kindle-transfer { display: grid; gap: 24px; }
 .device-send-sheet .kindle-toolbar { display: grid; gap: 16px; }
@@ -93,7 +101,7 @@
 .device-connect-details summary { display: flex; align-items: center; min-height: var(--size-control); cursor: pointer; }
 .device-connect-details p { margin: 0 0 12px; font-size: var(--text-meta); line-height: 1.7; }
 .connect-device { margin: 0; display: flex; justify-content: center; }
-.connect-device .device-shell { width: 240px; aspect-ratio: .72; padding: 20px 16px 40px; border-radius: 22px; transform: rotate(-2deg); }
+.connect-device .device-shell { --device-width: 15rem; --device-grip-width: 17.25rem; --device-edge: 1rem; --device-top: 1.25rem; --device-bottom: 2.5rem; --device-grip: 3.5rem; aspect-ratio: var(--device-aspect); border-radius: 22px; transform: rotate(-2deg); }
 .connect-device .device-shell-paper, .device-intro-visual .device-shell-paper { height: 100%; aspect-ratio: auto; }
 .connect-device .device-shell-paper { display: grid; place-items: center; padding: 0; color: var(--color-ink-4); }
 .device-remembered { display: grid; gap: 20px; }
@@ -121,7 +129,7 @@
 .device-usage-legend .other { background: var(--color-line); }
 .device-intro-visual { margin: 0; }
 .device-intro-visual > a { display: block; border-radius: 22px; text-decoration: none; }
-.device-intro-visual .device-shell { width: 260px; aspect-ratio: .72; padding: 22px 18px 44px; border-radius: 22px; transform: rotate(-2deg); transition: transform 180ms ease, box-shadow 180ms ease; }
+.device-intro-visual .device-shell { --device-width: 16.25rem; --device-grip-width: 18.75rem; --device-edge: 1.125rem; --device-top: 1.375rem; --device-bottom: 2.75rem; --device-grip: 3.75rem; aspect-ratio: var(--device-aspect); border-radius: 22px; transform: rotate(-2deg); transition: transform 180ms ease, box-shadow 180ms ease; }
 .device-intro-visual > a:hover .device-shell, .device-intro-visual > a:focus-visible .device-shell { transform: rotate(0deg) translateY(-6px); box-shadow: 0 2px 4px rgba(32,41,35,.2), 0 52px 70px -26px rgba(32,41,35,.65); }
 .device-intro-visual .device-shell-paper { padding: 22px 20px 14px; }
 .device-intro-visual figcaption { margin-top: 16px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: var(--text-meta); color: var(--color-ink-3); text-align: center; }
@@ -136,18 +144,19 @@
 .device-shelf-head .ui-toolbar { margin: 0 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .device-shelf-head .ui-toolbar-search { width: 220px; min-width: 0; }
 .device-shelf-head .ui-toolbar-controls { gap: 10px; padding: 0; }
-.device-book-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 44px 32px; margin-block: 0; }
-.device-book-grid article { gap: 14px; }
+.device-book-grid { --device-book-gap: .875rem; --device-book-title-leading: 1.35; --device-book-progress-height: 3px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 44px 32px; margin-block: 0; }
+.device-book-grid article { gap: var(--device-book-gap); }
+.device-book-cover { position: relative; }
+.device-book-cover > a { display: block; }
+.device-book-cover .ui-progress { position: absolute; inset-inline: 0; bottom: calc((var(--device-book-gap) + var(--device-book-progress-height)) / -2); height: var(--device-book-progress-height); }
 .device-book-grid .kindle-book-cover { display: block; }
 .device-book-head { display: flex; align-items: flex-start; gap: 4px; padding: 0 2px; min-width: 0; }
-.device-book-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.device-book-grid strong { font: 600 var(--text-title)/1.35 var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-book-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.device-book-grid strong { font: 600 var(--text-title)/var(--device-book-title-leading) var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .device-book-author { display: block; font-size: var(--text-meta); color: var(--color-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.device-book-menu { flex: none; }
-.device-book-menu .ui-menu-trigger { width: var(--size-control); min-height: var(--size-control); padding: 0; justify-content: center; border-radius: 999px; color: var(--color-ink-3); }
+.device-book-menu { flex: 0 0 var(--size-control); width: var(--size-control); margin-top: calc((var(--text-title) * var(--device-book-title-leading) - var(--size-control)) / 2); }
+.device-book-menu > .ui-menu-trigger { width: var(--size-control); height: var(--size-control); padding: 0; justify-content: center; border-radius: 999px; color: var(--color-ink-3); }
 .device-book-menu .ui-menu-trigger:hover, .device-book-menu .ui-menu-trigger[aria-expanded="true"] { background: var(--color-hover); }
-.device-book-menu .ui-menu-chevron { display: none; }
-.device-book-grid .ui-progress { height: 3px; }
 @media (max-width: 767px) {
   .device-shelf-head { align-items: stretch; }
   .device-shelf-head .ui-toolbar { margin-left: 0; width: 100%; flex-direction: column; align-items: stretch; }

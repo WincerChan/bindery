@@ -44,7 +44,7 @@ const progressLabel = (book: DeviceBook, kind: string) => {
   return `在读 ${Math.round(progress.percent)}%${time ? ` · ${time}` : ""}`;
 };
 
-/** `chapters`: the chapter each book was last read at on a device, as synced to the server (shown in the book menu). */
+/** `chapters`: the chapter each book was last read at on a device, as synced to the server (shown in the cover hint). */
 export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: (deviceId: string) => Promise<Record<string, string>> }) {
   const navigate = useDeviceNavigation(), [batch, setBatch] = createSignal(false);
   const k = useDevice(), [source, setSource] = createSignal("全部"), [query, setQuery] = createSignal("");
@@ -73,6 +73,7 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
     return () => { current = false; };
   });
   const chapterTitle = (book: DeviceBook) => { const id = resolvedId(book), chapter = book.progress && id ? chapters()[id] : undefined; return chapter ? `读到：${chapter}` : undefined; };
+  const readingHint = (book: DeviceBook) => [progressLabel(book, kind()), chapterTitle(book), book.source === "Bindery" ? "来自 Bindery" : "其他来源"].filter(Boolean).join(" · ");
   const library = createMemo(() => new Map(props.books.map(b => [b.book_id, b])));
   const koboFallback = createMemo(() => {
     const groups = new Map<string, DeviceLibraryBook[]>();
@@ -130,9 +131,11 @@ export function DeviceBooksPage(props: { books: DeviceLibraryBook[]; chapters?: 
       </details>
     </Show>
     <div class="device-book-grid" role="region" aria-label="设备书籍列表"><Show when={connected() && k.inventory()}><For each={visible()}>{book => <article data-device-book={book.filename}>
-      <Show when={resolvedId(book)} fallback={<DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} />}><Link href={`/book/${encodeURIComponent(resolvedId(book)!)}`} aria-label={`打开《${title(book)}》详情（${progressLabel(book, kind())}）`}><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} libraryId={resolvedId(book)} /></Link></Show>
-      <Show when={book.progress && (book.progress.percent ?? 0) > 0 && (book.progress.percent ?? 0) < 100}><ProgressBar label={`${title(book)}：${progressLabel(book, kind())}`} value={book.progress!.percent} /></Show>
-      <div class="device-book-head"><div><strong>{title(book)}</strong><span class="device-book-author">{metadata(book)?.author}</span></div><Menu class="device-book-menu" title={title(book)} trigger={<><span class="sr-only">《{title(book)}》的操作</span><Icon icon={TablerDotsVertical} size={18} /></>} status={<span data-device-progress>{progressLabel(book, kind())}{chapterTitle(book) ? ` · ${chapterTitle(book)}` : ""} · {book.source === "Bindery" ? "来自 Bindery" : "其他来源"}</span>} items={[
+      <div class="device-book-cover" title={readingHint(book)}>
+        <Show when={resolvedId(book)} fallback={<DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} />}><Link href={`/book/${encodeURIComponent(resolvedId(book)!)}`} aria-label={`打开《${title(book)}》详情（${readingHint(book)}）`}><DeviceCover book={book} title={title(book)} author={metadata(book)?.author || null} libraryCover={metadata(book)?.cover_url} libraryId={resolvedId(book)} /></Link></Show>
+        <Show when={book.progress && (book.progress.percent ?? 0) > 0 && (book.progress.percent ?? 0) < 100}><ProgressBar label={`${title(book)}：${readingHint(book)}`} value={book.progress!.percent} /></Show>
+      </div>
+      <div class="device-book-head"><div class="device-book-info"><strong>{title(book)}</strong><span class="device-book-author">{metadata(book)?.author}</span></div><Menu class="device-book-menu" title={title(book)} triggerLabel={`《${title(book)}》的操作`} align="end" chevron={false} trigger={<Icon icon={TablerDotsVertical} size={18} />} items={[
         ...(resolvedId(book) ? [{ label: `预览 ${title(book)}`, onSelect: () => navigate(`/devices/preview?book=${encodeURIComponent(resolvedId(book)!)}`) }] : []),
         ...(book.record ? [{ label: `重新传入 ${title(book)}`, disabled: k.busy() || !resolvedId(book) || !metadata(book), onSelect: () => resend(book) }] : []),
         { label: `从设备删除 ${title(book)}`, destructive: true, disabled: k.busy() || !deletable(book), onSelect: () => confirm([book]) },
