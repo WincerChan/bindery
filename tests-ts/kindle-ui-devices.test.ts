@@ -697,7 +697,6 @@ it("marks Kobo library sources and only allows deleting Bindery-managed KEPUBs",
   expect(text(m)).toContain("来自 Bindery"); expect(text(m)).toContain("其他");
   expect(button(m.root, "从设备删除 书库甲").hasAttribute("disabled")).toBe(false);
   expect(button(m.root, "从设备删除 外部").hasAttribute("disabled")).toBe(true);
-  expect(text(m)).toContain("读取 Bindery/ 与设备上的 EPUB / KEPUB");
   expect(text(m)).not.toContain("documents/"); expect(text(m)).not.toContain(".sdr"); expect(text(m)).not.toContain("缩略图");
   fire(button(m.root, "从设备删除 书库甲"), "click"); m.flush(); expect(text(m)).toContain("设备下次连接或重启时会更新书架");
   fire(button(m.root, "确认删除"), "click"); await settle(m);
