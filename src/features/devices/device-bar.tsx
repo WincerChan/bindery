@@ -24,7 +24,6 @@ export function DeviceBar(props: { compact?: boolean; loadPage?: LoadDevicePageS
   const current = () => [...k.inventory()?.books ?? []].filter(book => book.progress?.last_read_at || book.progress?.percent).sort((a, b) => String(b.progress?.last_read_at ?? "").localeCompare(String(a.progress?.last_read_at ?? "")))[0];
   const currentId = () => current()?.book_id ?? current()?.record?.book_id;
   const preview = () => `/devices/preview${currentId() ? `?book=${encodeURIComponent(currentId()!)}` : ""}`;
-  const specifications = () => device() ? (device()!.identity.kind === "kindle" ? kindleModelInfo : koboModelInfo)(device()!.identity.model) : null;
   const width = (n: number) => `${usage()?.total ? n / usage()!.total * 100 : 0}%`;
   const readingCaption = () => {
     const book = current();
@@ -61,7 +60,6 @@ export function DeviceBar(props: { compact?: boolean; loadPage?: LoadDevicePageS
       visual={<figure class="device-intro-visual"><Link href={preview()} aria-label="打开设备排版预览"><DeviceShell kind={k.kind()} model={device()?.identity.model ?? "KPW3"} idle={!device()}>
         <Show when={current() && device()} fallback={<p>还没有可用的阅读位置。<br />点开预览，选一本书。</p>}><ReadingPage deviceId={device()!.identity.id} book={current()!} kind={k.kind()} model={device()!.identity.model} revision={k.syncSummary()} load={props.loadPage} onSample={value => setSampleTitle(value?.title ?? null)} /></Show>
       </DeviceShell></Link><figcaption><span>{readingCaption()}</span><Link href={preview()}>点开机身看排版<Icon icon={TablerArrowRight} size={13} class="ui-icon-inline" /></Link></figcaption></figure>} />
-    <Show when={device()}><details class="kindle-small"><summary>设备信息</summary><p>{model()}{specifications()?.width ? ` · ${specifications()!.width}×${specifications()!.height} · ${specifications()!.ppi} ppi` : ""}{firmware() ? ` · 固件 ${firmware()}` : ""}</p><p>文件统计不代表设备总容量或剩余空间。</p><p>{k.kind() === "kobo" ? "读取 Bindery/ 与设备上的 EPUB / KEPUB；Bindery 传的书标为「来自 Bindery」" : "读取 documents/，删除时一并清理对应的 .sdr 阅读记录"}</p><Link href="/devices/connect">连接与管理记住的设备</Link></details></Show>
     <Show when={k.ready() && !k.supported()}><p class="kindle-small">请在 Windows 的 Edge 或 Chrome 桌面版中通过 HTTPS 或 localhost 打开。</p></Show>
     <Show when={k.syncSummary()}><p class="sr-only" role="status" data-reading-sync>{k.syncSummary()}</p></Show>
     <Show when={k.syncError()}><p class="field-error" role="alert" data-reading-sync>{k.syncError()}</p></Show>

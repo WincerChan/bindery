@@ -124,7 +124,7 @@
 .kt-device-bezel.device-shell-grip::before { top: 35%; }
 .kt-device-bezel.device-shell-grip::after { top: 57%; }
 .kt-page-controls { gap: 18px; justify-content: center; }
-.kt-page-turn { width: var(--size-control); min-height: var(--size-control); padding: 0; border-radius: 999px; font-size: 0; }
+.kt-page-controls .kt-page-turn { width: var(--size-control); min-height: var(--size-control); padding: 0; border-radius: 999px; gap: 0; }
 .kt-page-number { display: inline-flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
 .kt-page-number b { font: 600 26px/1.2 var(--font-display); color: var(--color-accent); }
 .kt-page-number > span { font-size: var(--text-meta); color: var(--color-ink-3); }
@@ -178,7 +178,6 @@
   .kt-device-bezel.device-shell-grip { --kt-bezel-inline: 1.125rem; --kt-bezel-grip: 3.25rem; }
   .kt-preview-caption { font-size: var(--text-meta); }
 }
-.kt-page-controls .kt-page-turn { font-size: 0; overflow: hidden; gap: 0; }
 .device-fonts-page { gap: 32px; }
 .device-fonts-page > .device-shelf-head { margin-bottom: 0; }
 .device-shelf-head .device-font-toolbar { margin-left: auto; }

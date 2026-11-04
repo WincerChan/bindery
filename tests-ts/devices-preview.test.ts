@@ -686,7 +686,14 @@ it("hydrates neutral page controls in place and turns pages, chapter boundaries 
   let originalControls!: Element, originalScreen!: Element, originalButtons!: Element[];
   const mounted = mount(null, { data: bookData }, root => {
     originalControls = withClass(root, "kt-page-controls"); originalScreen = withClass(root, "kt-screen"); originalButtons = elements(originalControls, "button");
-    expect(originalControls.textContent).toBe("上一页正在分页…下一页");
+    expect(originalControls.textContent).toBe("正在分页…");
+    expect(originalButtons.map(button => button.getAttribute("aria-label"))).toEqual(["上一页", "下一页"]);
+    for (const button of originalButtons) {
+      expect(button.textContent).toBe("");
+      expect(button.getAttribute("title")).toBe(button.getAttribute("aria-label"));
+      expect(elements(button, "svg")).toHaveLength(1);
+      expect(elements(button, "path").length).toBeGreaterThan(0);
+    }
     expect(originalButtons.every(button => button.hasAttribute("disabled"))).toBe(true);
     expect(elements(originalControls, "span")[0]!.getAttribute("aria-live")).toBe("polite"); expect(originalScreen.getAttribute("tabindex")).toBe("0");
     Object.defineProperty(frame(root), "contentDocument", { configurable: true, get: () => current.document });
