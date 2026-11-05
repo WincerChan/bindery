@@ -169,7 +169,7 @@ describe("vocabulary summary", () => {
     expect(page.summary.latest).toEqual({
       id: latest.id, word: latest.word, raw_word: latest.raw_word, book_title: latest.source_title, book_id,
       device_name: "Paperwhite", looked_up_at: latest.looked_up_at,
-      context: { sentence: "The latest word.", previous: ["Before."], following: ["After."] },
+      context: { sentence: "The latest word.", previous: ["Before."], following: ["After."] }, context_state: latest.context_state,
     });
     expect(page.summary.latest!.context).toEqual(page.items.find(item => item.id === latest.id)!.context);
     for (const context_json of [null, "broken JSON", "null", "{}"]) {
@@ -195,7 +195,7 @@ describe("vocabulary summary", () => {
     expect(item.book_title).toBe("Resolved library title");
     expect(page.summary.latest).toEqual({
       id: item.id, word: item.word, raw_word: item.raw_word, book_title: item.book_title, book_id: item.book_id,
-      device_name: item.device_name, looked_up_at: item.looked_up_at, context: item.context,
+      device_name: item.device_name, looked_up_at: item.looked_up_at, context: item.context, context_state: item.context_state,
     });
     expect(metadata).toHaveBeenCalledTimes(1);
     expect(listVocabularyPage(library, { month_start, query: "no-match" }).summary.latest).toEqual(page.summary.latest);

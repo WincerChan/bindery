@@ -10,6 +10,8 @@ export interface VocabularySyncResult {
   synced: number;
   unchanged: number;
   skipped: number;
+  /** Lookups the reader deleted from the vocabulary page; the device still has them. */
+  deleted: number;
   context_found: number;
   context_not_found: number;
   context_pending: number;
@@ -27,11 +29,13 @@ function storedContext(word: VocabularyWord): { json: string | null; state: stri
 
 export function syncVocabulary(library: LibraryStorage, value: unknown): VocabularySyncResult {
   const { device, words } = vocabularyInput(value), now = nowIso();
-  const result: VocabularySyncResult = { synced: 0, unchanged: 0, skipped: 0, context_found: 0, context_not_found: 0, context_pending: 0 };
+  const result: VocabularySyncResult = { synced: 0, unchanged: 0, skipped: 0, deleted: 0, context_found: 0, context_not_found: 0, context_pending: 0 };
   const ids: string[] = [], bookIds: string[] = [];
   for (const word of words) {
     try {
-      const id = vocabularyId(device.id, word.raw_word, word.looked_up_at, word.lookup_id), existing = library.db.getVocabulary(id);
+      const id = vocabularyId(device.id, word.raw_word, word.looked_up_at, word.lookup_id);
+      if (library.db.isVocabularyDeleted(id)) { result.deleted++; continue; }
+      const existing = library.db.getVocabulary(id);
       const context = storedContext(word);
       const row: VocabularyRow = {
         id,

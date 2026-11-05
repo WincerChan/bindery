@@ -36,3 +36,9 @@ export const retryVocabularyPush = createServerFn({ method: "POST" }).middleware
     const retried = (await import("./push")).retryVocabularyPush(context.library, ids);
     return { retried, page: (await import("./query")).listVocabularyPage(context.library) };
   });
+
+export const deleteVocabulary = createServerFn({ method: "POST" }).middleware([authenticated]).validator((value: unknown) => {
+  const ids = value !== null && typeof value === "object" && !Array.isArray(value) ? (value as { ids?: unknown }).ids : undefined;
+  if (!Array.isArray(ids) || !ids.length || ids.length > 50000 || !ids.every((id): id is string => typeof id === "string" && /^[0-9a-f-]{36}$/.test(id))) throw new Error("生词参数错误");
+  return { ids };
+}).handler(async ({ context, data }) => ({ deleted: context.library.db.deleteVocabulary(data.ids) }));

@@ -53,7 +53,7 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 async function mountPage(options: { phone?: boolean; open?: boolean; api?: Partial<VocabularyApi>; items?: VocabularyItem[] } = {}) {
   browserGlobals(options.phone);
   const data = client.dataFor(options.items ?? [item(), item({ id: "failed", word: "mortify", raw_word: "mortified", push_state: "error" }), item({ id: "conflict", word: "spleen", push_state: "conflict" })]);
-  const api: VocabularyApi = { list: vi.fn(async () => data), retry: vi.fn(async () => ({ retried: 2, page: data })), saveSettings: vi.fn(async () => settings), testConnection: vi.fn(async () => ({ ok: true, status: 200, latencyMs: 12 })), ...options.api };
+  const api: VocabularyApi = { list: vi.fn(async () => data), retry: vi.fn(async () => ({ retried: 2, page: data })), saveSettings: vi.fn(async () => settings), testConnection: vi.fn(async () => ({ ok: true, status: 200, latencyMs: 12 })), remove: vi.fn(async () => ({ deleted: 1 })), ...options.api };
   const root = document.createElement("div"); document.body.appendChild(root);
   const mounted = client.mount(root, data, settings, api, options.open);
   disposers.push(mounted.dispose);
@@ -143,6 +143,17 @@ describe("生词本 client flows", () => {
     expect(api.saveSettings).not.toHaveBeenCalled(); expect(token.value).toBe("");
     mounted.setSettingsOpen(false); mounted.flush(); mounted.setSettingsOpen(true); mounted.flush();
     expect(dialog.open).toBe(true);
+  });
+
+  it("deletes one word after confirmation and reloads the list", async () => {
+    const mounted = await mountPage(), { root, api } = mounted;
+    fire(byRole(root, "button", "删除 mortify"), "click"); mounted.flush();
+    const dialog = byRole(root, "dialog", "删除生词");
+    expect(dialog.textContent).toContain("「mortify」");
+    fire(byRole(dialog, "button", "删除"), "click"); await settle(); await settle(); mounted.flush();
+    expect(api.remove).toHaveBeenCalledWith(["failed"]);
+    expect(api.list).toHaveBeenCalledTimes(2);
+    expect(root.textContent).toContain("已删除「mortify」");
   });
 
   it("keeps retry and settings errors visible and permits another attempt", async () => {
@@ -240,6 +251,11 @@ describe("生词本 UI", () => {
     expect(ui.vocabularyMonthQuery()).toEqual({});
   });
 
+  it("explains why a word has no sentence", () => {
+    expect(ui.missingSentenceHint({ book_id: null, context_state: "pending" })).toBe("书不在书库中，取不到例句");
+    expect(ui.missingSentenceHint({ book_id: "b".repeat(32), context_state: "pending" })).toBe("例句将在下次同步时补上");
+    expect(ui.missingSentenceHint({ book_id: "b".repeat(32), context_state: "not_found" })).toBe("书中未找到例句");
+  });
   it("highlights actual inflections safely without matching Latin substrings", () => {
     expect(ui.sentenceParts("Mortified, not mortify.", "mortified,", "mortify").filter(part => part.highlighted).map(part => part.text)).toEqual(["Mortified"]);
     expect(ui.sentenceParts("The theme", "he", "he").some(part => part.highlighted)).toBe(false);

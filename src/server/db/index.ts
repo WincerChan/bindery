@@ -216,6 +216,19 @@ export class BinderyDatabase extends Connection {
   updateVocabularyPush(id: string, pushState: string, pushStatusJson: string | null, pushedAt: string | null, updatedAt: string): void {
     this.run("UPDATE vocabulary SET push_state = ?, push_status_json = ?, pushed_at = ?, updated_at = ? WHERE id = ?", pushState, pushStatusJson, pushedAt, updatedAt, id);
   }
+  /** Removes lookups and remembers their ids so a later device sync does not bring them back. */
+  deleteVocabulary(ids: readonly string[], date = new Date()): number {
+    if (!ids.length) return 0;
+    return this.withConnection(conn => transaction(conn, () => {
+      const remember = conn.prepare("INSERT OR IGNORE INTO vocabulary_deleted(id, deleted_at) VALUES (?, ?)"), remove = conn.prepare("DELETE FROM vocabulary WHERE id = ?");
+      let removed = 0;
+      for (const id of new Set(ids)) { remember.run(id, nowIso(date)); removed += Number(remove.run(id).changes); }
+      return removed;
+    }));
+  }
+  isVocabularyDeleted(id: string): boolean {
+    return Boolean(this.get("SELECT 1 AS deleted FROM vocabulary_deleted WHERE id = ?", id));
+  }
   resetVocabularyPush(ids?: string[]): number {
     if (ids && !ids.length) return 0;
     return ids ? this.run(`UPDATE vocabulary SET push_state = 'pending', push_status_json = NULL, pushed_at = NULL WHERE id IN (${ids.map(() => "?").join(", ")})`, ...ids)

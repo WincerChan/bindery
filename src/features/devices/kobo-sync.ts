@@ -15,6 +15,6 @@ export const syncKoboDevice: KoboReadingSync = async device => {
     : { synced: 0, skipped: 0, marked_read: 0, unchanged: 0, kept: 0 };
   const pushed = vocabulary.words.length
     ? await vocabularyApi.syncVocabulary({ data: { device: { id: device.identity.id, kind: "kobo", name: device.identity.name }, words: vocabulary.words } })
-    : { synced: 0, unchanged: 0, skipped: 0, context_found: 0, context_not_found: 0, context_pending: 0 };
+    : { synced: 0, unchanged: 0, skipped: 0, deleted: 0, context_found: 0, context_not_found: 0, context_pending: 0 };
   return { ...result, lagged: reading.wal, unmatched: reading.unmatched, vocabulary: pushed.synced + pushed.unchanged, vocabulary_skipped: vocabulary.skipped + pushed.skipped };
 };

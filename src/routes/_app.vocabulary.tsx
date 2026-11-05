@@ -2,7 +2,7 @@ import { DeviceBodySkeleton } from "../ui/skeleton";
 import { createFileRoute } from "@tanstack/solid-router";
 import { VocabularyPage } from "../features/vocabulary/vocabulary";
 import { vocabularyMonthQuery } from "../features/vocabulary/display";
-import { getLexiTraceSettings, listVocabulary, retryVocabularyPush, saveLexiTraceSettings, testLexiTraceConnection } from "../server/vocabulary/functions";
+import { deleteVocabulary, getLexiTraceSettings, listVocabulary, retryVocabularyPush, saveLexiTraceSettings, testLexiTraceConnection } from "../server/vocabulary/functions";
 
 export const Route = createFileRoute("/_app/vocabulary")({
   validateSearch: (search: Record<string, unknown>) => ({ settings: search.settings === "lexitrace" ? "lexitrace" : undefined }),
@@ -22,5 +22,6 @@ function VocabularyRoute() {
     retry: ids => retryVocabularyPush({ data: ids ? { ids } : {} }),
     saveSettings: input => saveLexiTraceSettings({ data: input }),
     testConnection: input => testLexiTraceConnection({ data: input }),
+    remove: ids => deleteVocabulary({ data: { ids } }),
   }} />;
 }

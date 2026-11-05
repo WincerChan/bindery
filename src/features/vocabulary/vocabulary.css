@@ -34,9 +34,14 @@
 .vocab-word-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
 .vocab-word-heading h2 { margin: 0; font: italic 600 var(--text-tab)/1.1 var(--font-latin-serif); }
 .vocab-word-heading > .ui-status-dot { margin-left: auto; align-self: center; flex-shrink: 0; }
+.vocab-word-heading > .vocab-delete { flex: none; align-self: center; margin: calc((var(--text-tab) * 1.1 - var(--size-control)) / 2) 0 calc((var(--text-tab) * 1.1 - var(--size-control)) / 2) auto; background: transparent; color: var(--color-ink-3); }
+.vocab-word-heading > .ui-status-dot + .vocab-delete { margin-left: 0; }
+.vocab-word-heading > .vocab-delete:not(:disabled):hover { color: var(--color-danger); }
 .vocab-raw { font: 400 16px/1.4 var(--font-latin-serif); color: var(--color-ink-3); }
-.vocab-sentence, .vocab-full-sentence { font: 400 var(--text-title)/1.6 var(--font-latin-serif); }
+.vocab-sentence { font: 400 var(--text-title)/1.6 var(--font-latin-serif); }
 .vocab-sentence { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* Opening the details shows the whole sentence in place instead of repeating it below. */
+.vocab-directory > li:has(.vocab-word-details[open]) .vocab-sentence { display: block; overflow: visible; }
 .vocab-word-details { color: var(--color-ink-2); font-size: var(--text-meta); margin-top: auto; }
 .vocab-word-details > p { margin-bottom: 12px; }
 .vocab-settings-form { display: grid; gap: 26px; line-height: normal; }

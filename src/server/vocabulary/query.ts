@@ -29,7 +29,7 @@ export interface VocabularySummary {
   total: number;
   month: { since: string; count: number; top_source: { title: string; book_id: string | null; count: number } | null };
   push: { pushed: number; failed: number; pending: number };
-  latest: Pick<VocabularyItem, "id" | "word" | "raw_word" | "book_title" | "book_id" | "device_name" | "looked_up_at" | "context"> | null;
+  latest: Pick<VocabularyItem, "id" | "word" | "raw_word" | "book_title" | "book_id" | "device_name" | "looked_up_at" | "context" | "context_state"> | null;
 }
 export interface VocabularyPage {
   summary: VocabularySummary;
@@ -165,6 +165,7 @@ function vocabularySummary(library: LibraryStorage, titles: Map<string, string>,
       device_name: latest.device_name,
       looked_up_at: latest.looked_up_at,
       context: latest.context,
+      context_state: latest.context_state,
     } : null,
   };
 }

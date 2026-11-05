@@ -2,7 +2,7 @@ import { render, renderToString } from "@solidjs/web";
 import { createSignal, flush } from "solid-js";
 import { VocabularyPage, filterVocabularyItems, pushStatusLabel } from "../../../src/features/vocabulary/vocabulary";
 import type { VocabularyApi } from "../../../src/features/vocabulary/vocabulary";
-export { sentenceParts, vocabularyMonthQuery } from "../../../src/features/vocabulary/display";
+export { missingSentenceHint, sentenceParts, vocabularyMonthQuery } from "../../../src/features/vocabulary/display";
 export { relativeTimeLabel as relativeLookupTime } from "../../../src/ui/relative-time";
 import type { VocabularyItem, VocabularyPage as PageData } from "../../../src/server/vocabulary/query";
 import type { LexiTraceSettingsView } from "../../../src/server/vocabulary/settings";
@@ -35,6 +35,7 @@ export function page(items: VocabularyItem[], settings: LexiTraceSettingsView, s
     retry: async () => ({ retried: 1, page: data }),
     saveSettings: async () => settings,
     testConnection: async () => ({ ok: true, status: 404, latencyMs: 12 }),
+    remove: async () => ({ deleted: 0 }),
   };
   return renderToString(() => <VocabularyPage initial={data} initialSettings={settings} api={api} />);
 }

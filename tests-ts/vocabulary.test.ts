@@ -143,6 +143,17 @@ describe("server vocabulary sync", () => {
     expect(library.db.getVocabulary(row.id)).toMatchObject({ context_json: JSON.stringify({ sentence: "He would brag.", previous: [], following: [] }), context_state: "found" });
   });
 
+  it("keeps deleted lookups out of later device syncs", () => {
+    const { library } = temporaryLibrary();
+    syncVocabulary(library, { device, words: [word(), word({ raw_word: "mortified", word: "mortify" })] });
+    const brag = vocabularyId(device.id, "brag,", "2026-10-23T16:58:54.000Z");
+    expect(library.db.deleteVocabulary([brag, brag])).toBe(1);
+    expect(library.db.listVocabulary().map(row => row.word)).toEqual(["mortify"]);
+    expect(syncVocabulary(library, { device, words: [word(), word({ raw_word: "mortified", word: "mortify" })] })).toMatchObject({ synced: 0, unchanged: 1, deleted: 1 });
+    expect(library.db.getVocabulary(brag)).toBeNull();
+    expect(library.db.deleteVocabulary([brag])).toBe(0);
+  });
+
   it("rejects malformed input and skips per-row identity problems", () => {
     const { library } = temporaryLibrary();
     expect(() => syncVocabulary(library, { device: { ...device, kind: "nope" }, words: [word()] })).toThrow("生词同步数据无效");

@@ -7,6 +7,12 @@ export function vocabularyMonthQuery(now = new Date()): { month_start?: string }
   return typeof window === "undefined" ? {} : { month_start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString() };
 }
 
+/** Why a word has no sentence: Kobo sentences come from the book's text in the library. */
+export function missingSentenceHint(item: Pick<VocabularyItem, "book_id" | "context_state">): string {
+  if (item.context_state !== "pending") return "书中未找到例句";
+  return item.book_id ? "例句将在下次同步时补上" : "书不在书库中，取不到例句";
+}
+
 export function sentenceParts(sentence: string, raw: string, word: string): { text: string; highlighted: boolean }[] {
   // Prefer the actual inflection, then the normalized word. Escape all user text;
   // Unicode boundaries avoid highlighting “he” inside “the” without excluding CJK.
