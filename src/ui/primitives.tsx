@@ -101,17 +101,15 @@ export function PageIntro(props: {
   id?: string;
   class?: string;
   mobileActions?: "dock";
-  controlsPlacement?: "below" | "aside";
 }) {
-  const aside = () => props.controlsPlacement === "aside";
-  const classes = () => ["ui-page-intro", props.variant && `ui-page-intro-${props.variant}`, props.visualSize && props.variant !== "book" && `ui-page-intro-visual-${props.visualSize}`, aside() && "ui-page-intro-side-controls", props.class].filter(Boolean).join(" ");
+  const classes = () => ["ui-page-intro", props.variant && `ui-page-intro-${props.variant}`, props.visualSize && props.variant !== "book" && `ui-page-intro-visual-${props.visualSize}`, props.class].filter(Boolean).join(" ");
   const actions = () => <Show when={props.actions}><div class={`ui-page-actions ${props.mobileActions === "dock" ? "ui-page-actions-docked" : ""}`}>{props.actions}</div></Show>;
   const controls = () => <>
     <Show when={props.status}><div class="ui-page-status">{props.status}</div></Show>
     {actions()}
   </>;
   const controlStack = () => <>
-    <Show when={props.visualSize === "vocabulary" || aside()} fallback={controls()}>
+    <Show when={props.visualSize === "vocabulary"} fallback={controls()}>
       <div class="ui-page-intro-controls">{controls()}</div>
     </Show>
     <Show when={props.note}><div class="ui-page-note">{props.note}</div></Show>
@@ -120,19 +118,18 @@ export function PageIntro(props: {
   const visual = () => <Show when={props.visual}><div class="ui-page-visual">{props.visual}</div></Show>;
   return <Switch fallback={<header id={props.id} class={classes()}>
     <Show when={props.back}><div class="ui-page-intro-back">{props.back}</div></Show>
-    <Show when={aside()}>{eyebrow()}</Show>
     <div class="ui-page-intro-row">
       <div class="ui-page-intro-text">
-        <Show when={!aside()}>{eyebrow()}</Show>
+        {eyebrow()}
         <div class="ui-page-intro-lead">
           <h1 id={props.titleId}>{props.title}</h1>
           <Show when={props.meta}><div class="ui-page-meta">{props.meta}</div></Show>
           <Show when={props.description}><p class="ui-page-description">{props.description}</p></Show>
           <Show when={props.content}>{props.content}</Show>
         </div>
-        <Show when={!aside()}>{controlStack()}</Show>
+        {controlStack()}
       </div>
-      <Show when={aside()} fallback={visual()}><div class="ui-page-intro-aside">{controlStack()}{visual()}</div></Show>
+      {visual()}
     </div>
   </header>}>
     <Match when={props.variant === "compact"}><header id={props.id} class={classes()}>

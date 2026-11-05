@@ -108,8 +108,12 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
     catch (e) { setTestResult({ text: e instanceof Error ? e.message : "测试连接失败", ok: false }); }
     finally { setTesting(false); }
   }
+  // Sits in the latest card's corner; without a latest word it joins the intro actions instead.
+  const settingsButton = () => <Button variant="icon" class="vocab-settings-button" aria-label="LexiTrace 设置" title="LexiTrace 设置" aria-haspopup="dialog" aria-expanded={settingsOpen() ? "true" : "false"} aria-controls="lexitrace-settings" onClick={() => setSettingsOpen(true)}>
+    <Icon icon={TablerSettings} size={20} class="vocab-settings-glyph" /><span class="vocab-settings-text">设置</span>
+  </Button>;
   return <section aria-label="生词本" class="vocab-page">
-    <PageIntro class="vocab-intro" visualSize="vocabulary" controlsPlacement="aside" eyebrow={<><span class="vocab-eyebrow-wide">生词本 · 从 Kindle 和 Kobo 同步 · 共 {page().summary.total} 个</span><span class="vocab-eyebrow-phone">生词本 · 共 {page().summary.total} 个</span></>}
+    <PageIntro class="vocab-intro" visualSize="vocabulary" eyebrow={<><span class="vocab-eyebrow-wide">生词本 · 从 Kindle 和 Kobo 同步 · 共 {page().summary.total} 个</span><span class="vocab-eyebrow-phone">生词本 · 共 {page().summary.total} 个</span></>}
       title={page().summary.month.count ? `这个月查了 ${page().summary.month.count} 个词。` : `已经记下 ${page().summary.total} 个词。`}
       description={<Show when={page().summary.month.top_source} fallback="把读到的生词，连同当时的句子留下来。">{source => <>
         多半来自<BookTitle title={source().title} />。<Show when={page().summary.latest}><span class="vocab-description-wide">右边是最近查的一个，连同查词时读到的那句话。</span><span class="vocab-description-phone">下面是最近查的一个，连同当时读到的那句话。</span></Show>
@@ -122,12 +126,10 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
         <Show when={settings().baseUrl && settings().hasToken && !settings().enabled}><p class="vocab-hint">LexiTrace 推送已暂停，生词仍会同步。</p></Show>
       </>}
       actions={<div class="vocab-action-row"><Show when={page().summary.push.failed}><Button variant="secondary" disabled={busy()} onClick={() => retry()}>{busy() ? "处理中…" : "全部重试"}</Button></Show>
-        <Button variant="icon" class="vocab-settings-button" aria-label="LexiTrace 设置" title="LexiTrace 设置" aria-haspopup="dialog" aria-expanded={settingsOpen() ? "true" : "false"} aria-controls="lexitrace-settings" onClick={() => setSettingsOpen(true)}>
-          <Icon icon={TablerSettings} size={20} class="vocab-settings-glyph" /><span class="vocab-settings-text">设置</span>
-        </Button>
+        <Show when={!page().summary.latest}>{settingsButton()}</Show>
       </div>}
       visual={page().summary.latest ? <Show when={page().summary.latest}>{latest => <figure class="vocab-latest" aria-label="最近查的">
-        <p class="vocab-section-label">最近查的</p><p class="vocab-latest-word">{latest().word}</p>
+        <div class="vocab-latest-head"><p class="vocab-section-label">最近查的</p>{settingsButton()}</div><p class="vocab-latest-word">{latest().word}</p>
         <Show when={latest().context.sentence} fallback={<p class="vocab-hint">{missingSentenceHint(latest())}</p>}><blockquote><HighlightedSentence sentence={latest().context.sentence} raw={latest().raw_word} word={latest().word} /></blockquote></Show>
         <figcaption><WordSource item={latest()} /></figcaption>
       </figure>}</Show> : undefined} />

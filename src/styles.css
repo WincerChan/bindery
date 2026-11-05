@@ -74,8 +74,6 @@
   --intro-guide-next: 56px;
   --intro-guide-basis: 420px;
   --intro-vocabulary-basis: 360px;
-  --intro-vocabulary-inset: 24px;
-  --intro-vocabulary-visual-offset: 0px;
   --intro-book-back: 28px;
   --intro-book-row: 64px;
   --intro-book-column: 268px;
@@ -138,8 +136,6 @@
     --intro-subpage-next: var(--space-section);
     --intro-title-only-next: var(--space-section);
     --intro-guide-next: var(--space-section);
-    --intro-vocabulary-inset: 0px;
-    --intro-vocabulary-visual-offset: 12px;
     --intro-book-back: 20px;
     --intro-book-row: 20px;
     --intro-book-text-pad: 0px;
