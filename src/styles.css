@@ -112,6 +112,8 @@
   --text-min: 12px;
   --size-control: 44px;
   --size-control-lg: 48px;
+  --size-menu-min: 160px;
+  --size-menu-max: 280px;
   --space-page: 56px;
   --space-section: 48px;
   --content-max: 96rem;

@@ -16,13 +16,14 @@ import TablerDownload from "~icons/tabler/download";
 import TablerKey from "~icons/tabler/key";
 import TablerSend from "~icons/tabler/send";
 import { createEffect, createSignal, For, isHydrating, onCleanup, onSettled, Show, untrack } from "solid-js";
-import { BookCover, Button, CloseButton, ConfirmDialog, EmptyState, GeneratedCover, Icon, Menu, LinkTabs, PageIntro, PageTabs, Pagination, SearchPill, SegmentedControl, SelectPill, ToggleChip, Toolbar, coverStateLabel, type CoverState } from "../../ui";
+import { BookCover, Button, CloseButton, ConfirmDialog, EmptyState, GeneratedCover, Icon, InlineActions, Menu, LinkTabs, PageIntro, PageTabs, Pagination, SearchPill, SegmentedControl, SelectPill, ToggleChip, Toolbar, coverStateLabel, type CoverState, type MenuItem } from "../../ui";
 import type { LibrarySummary } from "./summary";
 import { showToast } from "../../client/toast";
 import { browserSupportsWebAuthn } from "../../client/passkeys";
 import { Link } from "../../shared/spa-link";
 import { useMutation } from "../../shared/client-mutation";
 import { mutateLibrarySelection } from "./mutations";
+import { mutateBook } from "../books/mutations";
 import type { BookView } from "../../server/book-view";
 import type { LibraryPageData } from "../../server/library/queries";
 import { bookHref, devicePreviewHref, deviceTransferHref, gridColumnCount, gridPageSize, libraryReturnTo, rememberGridPageSize, type LibrarySearch } from "./search";
@@ -45,6 +46,20 @@ export function LibraryBook(props: { book: BookView; returnTo: string; view: Vie
   const menuLabel = () => `《${book().title}》的操作${
     state() === "failed" ? `（${coverStateLabel.failed}）` : state() === "generating" ? `（${coverStateLabel.generating}）` : book().read ? "（已读）" : ""
   }`;
+  const status = () => state() === "failed" ? "生成失败 · 点封面查看并重试" : book().read ? "已读" : undefined;
+  const items = (): MenuItem[] => book().archived ? [
+    { label: "恢复", icon: TablerRefresh, phoneIcon: TablerRefresh, action: `/book/${book().book_id}/restore`, fields: { next: props.returnTo }, onSubmit: event => { if (props.restoreBook) { event.preventDefault(); props.restoreBook(book().book_id); } } },
+    { label: "彻底删除", icon: TablerTrash, phoneIcon: TablerTrash, destructive: true, action: `/book/${book().book_id}/delete`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmDelete) { event.preventDefault(); props.confirmDelete(event.currentTarget); } } },
+  ] : [
+    { label: "详情", icon: TablerListDetails, phoneIcon: TablerBook, class: "library-phone-action", href: bookHref(book().book_id, props.returnTo) },
+    { label: "阅读", icon: TablerBook, phoneIcon: TablerArrowUpRight, href: bookHref(book().book_id, props.returnTo, true) },
+    { label: "设备预览", icon: TablerDeviceTablet, class: "library-desktop-action", href: devicePreviewHref(book().book_id) },
+    { label: "下载", icon: TablerDownload, class: "library-desktop-action", href: `/book/${book().book_id}/download`, native: true },
+    { label: "下载 EPUB", icon: TablerDownload, phoneIcon: TablerDownload, class: "library-phone-action", href: `/book/${book().book_id}/download`, native: true },
+          ...(state() === "generating" ? [{ label: "查看生成进度", icon: TablerRefresh, phoneIcon: TablerRefresh, href: "/ingest?jobs_tab=running#jobs" }] : []),
+    { label: "归档", icon: TablerArchive, phoneIcon: TablerArchive, separatorBefore: true, action: `/book/${book().book_id}/archive`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmArchive) { event.preventDefault(); props.confirmArchive(event.currentTarget); } } },
+    { label: "删除", icon: TablerTrash, phoneIcon: TablerTrash, destructive: true, action: `/book/${book().book_id}/delete`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmDelete) { event.preventDefault(); props.confirmDelete(event.currentTarget); } } },
+  ];
   return <article class={`library-book ${book().archived ? "is-archived" : ""} ${props.selected ? "is-selected" : ""}`} data-book-card data-book-id={book().book_id} data-book-layout={props.view}>
     <div class="library-cover">
       <Show when={book().archived} fallback={<BookCover {...book()} state={state()} compact={props.view === "list"} />}><GeneratedCover {...book()} state={state()} compact={props.view === "list"} /></Show>
@@ -54,21 +69,14 @@ export function LibraryBook(props: { book: BookView; returnTo: string; view: Vie
     </div>
     <Show when={props.selecting} fallback={<div class="library-book-row">
       <span class="library-book-info"><span class="library-title">{book().title}</span><Show when={book().author}><span class="library-author">{book().author}</span></Show></span>
+      <Show when={props.view === "list"}>
+        <Show when={status()}><span class={`ui-menu-status ui-menu-status-${state() === "failed" ? "danger" : "ok"} library-status`}>{status()}</span></Show>
+        <InlineActions class="library-inline-actions" label={menuLabel()} items={items().filter(item => !item.class?.includes("library-phone-action"))} />
+      </Show>
       <Menu title={book().title} subtitle={book().author || undefined} class="library-menu" dialogClass="library-book-menu" align="end" triggerLabel={menuLabel()} triggerTitle="更多操作" chevron={false}
-        statusTone={state() === "failed" ? "danger" : "ok"} status={state() === "failed" ? "生成失败 · 点封面查看并重试" : book().read ? "已读" : undefined}
+        statusTone={state() === "failed" ? "danger" : "ok"} status={status()}
         trigger={<Icon icon={TablerDotsVertical} size={18} />}
-        items={book().archived ? [
-          { label: "恢复", icon: TablerRefresh, phoneIcon: TablerRefresh, action: `/book/${book().book_id}/restore`, fields: { next: props.returnTo }, onSubmit: event => { if (props.restoreBook) { event.preventDefault(); props.restoreBook(book().book_id); } } },
-          { label: "彻底删除", icon: TablerTrash, phoneIcon: TablerTrash, destructive: true, action: `/book/${book().book_id}/delete`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmDelete) { event.preventDefault(); props.confirmDelete(event.currentTarget); } } },
-        ] : [
-          { label: "详情", icon: TablerListDetails, phoneIcon: TablerBook, class: "library-phone-action", href: bookHref(book().book_id, props.returnTo) },
-          { label: "阅读", icon: TablerBook, phoneIcon: TablerArrowUpRight, href: bookHref(book().book_id, props.returnTo, true) },
-          { label: "设备预览", icon: TablerDeviceTablet, class: "library-desktop-action", href: devicePreviewHref(book().book_id) },
-          { label: "下载", icon: TablerDownload, class: "library-desktop-action", href: `/book/${book().book_id}/download`, native: true },
-          { label: "下载 EPUB", icon: TablerDownload, phoneIcon: TablerDownload, class: "library-phone-action", href: `/book/${book().book_id}/download`, native: true },
-          ...(state() === "generating" ? [{ label: "查看生成进度", icon: TablerRefresh, phoneIcon: TablerRefresh, href: "/ingest?jobs_tab=running#jobs" }] : []),
-          { label: "归档", icon: TablerArchive, phoneIcon: TablerArchive, separatorBefore: true, action: `/book/${book().book_id}/archive`, fields: { next: props.returnTo }, onSubmit: event => { if (props.confirmArchive) { event.preventDefault(); props.confirmArchive(event.currentTarget); } } },
-        ]} />
+        items={items()} />
     </div>}>
       <ToggleChip class="library-select-title" selected={props.selected} onClick={props.toggle}>{book().title}</ToggleChip>
     </Show>
@@ -170,7 +178,13 @@ export function LibraryPage(props: {
     if (!form) return;
     const match = /\/book\/([^/]+)\//.exec(form.getAttribute("action") || "");
     const ids = match ? [match[1]!] : selected();
-    await mutation.run(() => mutateLibrarySelection({ data: { action, ids } }), async () => { setSelected([]); await refresh(); }, action === "archive" ? "已归档书籍" : "已永久删除书籍", true);
+    // The selection mutation only deletes archived books; a single book still on the shelf goes through the book mutation.
+    const run = async (): Promise<unknown> => {
+      if (action !== "delete" || !match || archived()) return mutateLibrarySelection({ data: { action, ids } });
+      const data = new FormData(); data.set("action", "delete"); data.set("book_id", ids[0]!);
+      return mutateBook({ data });
+    };
+    await mutation.run(run, async () => { setSelected([]); await refresh(); }, action === "archive" ? "已归档书籍" : "已永久删除书籍", true);
   }
   async function download(event: SubmitEvent) {
     event.preventDefault(); setBusy(true);

@@ -56,7 +56,12 @@ describe("library SSR behavior", () => {
     expect(downloads.map(item => item.getAttribute("class") || "").join(" ")).toContain("library-phone-action");
     expect(hrefs.filter(href => href.endsWith("/download"))).toHaveLength(2);
     // Only non-default parameters: the default sort and page size stay out of the return URL.
-    expect(byName(menu, "next").getAttribute("value")).toBe("/?q=%E9%95%BF%E5%AE%89&read_filter=unread&page=2"); expect(html).not.toContain("per_page=");
+    expect(allByAttribute(menu, "name", "next").map(field => field.getAttribute("value"))).toEqual(Array(2).fill("/?q=%E9%95%BF%E5%AE%89&read_filter=unread&page=2")); expect(html).not.toContain("per_page=");
+    expect(allByRole(menu, "menuitem", "删除")).toHaveLength(1);
+    // List rows lay the desktop actions out inline; grid cards keep them behind the menu only.
+    const inline = allByRole(root, "group", "《长安<&>的荔枝》的操作（已读）");
+    expect(inline).toHaveLength(view === "list" ? 1 : 0);
+    if (view === "list") expect([...allByRole(inline[0]!, "link"), ...allByRole(inline[0]!, "button")].map(control => control.textContent?.trim())).toEqual(["阅读", "设备预览", "下载", "归档", "删除"]);
     // Independent links remain operable; no anchor may contain another anchor.
     for (const link of links) expect(allByRole(link, "link")).toHaveLength(0);
     expect(html).not.toContain("/private/library"); expect(html).not.toContain("/regenerate"); expect(html).not.toContain("已写回元数据"); expect(html).toContain("已读");

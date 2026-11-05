@@ -76,10 +76,16 @@
 .library-collection[data-view="list"] .library-book-row { flex: 1; align-items: center; }
 .library-collection[data-view="list"] .library-book-info { padding-top: 0; }
 .library-collection[data-view="list"] .library-menu { margin: 0; }
+.library-status { flex: none; min-height: 32px; margin: 0; padding: 0 12px; border-radius: 999px; }
+.library-inline-actions { flex: none; }
+@media (min-width: 768px) {
+  .library-collection[data-view="list"] .library-menu { display: none; }
+}
 .library-page .pagination { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--color-line-faint); }
 @media (max-width: 767px) {
   .library-page .library-desktop-action { display: none; }
   .library-page .library-phone-action { display: inline-flex; }
+  .library-inline-actions, .library-status { display: none; }
   .library-book-menu [role="menuitem"].library-desktop-action, .ui-menu-native .library-desktop-action { display: none; }
   .library-book-menu [role="menuitem"].library-phone-action, .ui-menu-native .library-phone-action { display: flex; }
   .library-book-menu { padding-bottom: calc(34px + env(safe-area-inset-bottom)); }

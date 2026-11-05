@@ -146,7 +146,7 @@ it.each([true, false])("opens a book menu with keyboard, navigates items, closes
   expect(dialog.open).toBe(true); expect(trigger.getAttribute("aria-expanded")).toBe("true");
   const phoneDetail = byRole(dialog, "menuitem", "详情"), read = byRole(dialog, "menuitem", "阅读"), download = byRole(dialog, "menuitem", "下载");
   expect(document.activeElement).toBe(phoneDetail);
-  fire(dialog, "keydown", { key: "End" }); expect(document.activeElement).toBe(byRole(dialog, "menuitem", "归档"));
+  fire(dialog, "keydown", { key: "End" }); expect(document.activeElement).toBe(byRole(dialog, "menuitem", "删除"));
   fire(dialog, "keydown", { key: "Home" }); expect(document.activeElement).toBe(phoneDetail);
   fire(dialog, "keydown", { key: "ArrowDown" }); expect(document.activeElement).toBe(read);
   fire(dialog, "keydown", { key: "ArrowDown" }); expect(document.activeElement).toBe(byRole(dialog, "menuitem", "设备预览"));

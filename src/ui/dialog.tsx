@@ -82,6 +82,27 @@ export type MenuItem = MenuItemBase & (
   | { href: string; native?: boolean; onSelect?: never; action?: never }
   | { action: string; fields?: Readonly<Record<string, string>>; onSubmit?: JSX.EventHandler<HTMLFormElement, SubmitEvent>; href?: never; onSelect?: never }
 );
+/** The same items as a Menu, laid out as a row of quiet buttons for rows with room to show them. */
+export function InlineActions(props: { label: string; items: readonly MenuItem[]; class?: string }) {
+  const content = (item: MenuItem) => <><Show when={item.icon}>{icon => <Icon icon={icon()} size={16} />}</Show>{item.label}</>;
+  return <div class={`ui-inline-actions ${props.class || ""}`} role="group" aria-label={props.label}>
+    <For each={[...props.items.filter(item => !item.destructive), ...props.items.filter(item => item.destructive)]}>{item => {
+      const itemClass = `btn btn-sm ${item.destructive ? "btn-quiet-danger" : "btn-quiet"} ${item.class || ""}`;
+      return <><Show when={item.separatorBefore || item.destructive}><span class="ui-inline-actions-divider" aria-hidden="true" /></Show>{
+        item.href !== undefined
+          ? <Show when={!item.disabled} fallback={<span class={itemClass} aria-disabled="true">{content(item)}</span>}>
+            <Show when={!item.native} fallback={<a class={itemClass} href={item.href}>{content(item)}</a>}><Link class={itemClass} href={item.href}>{content(item)}</Link></Show>
+          </Show>
+          : item.action !== undefined
+            ? <form action={item.action} method="post" onSubmit={event => item.onSubmit?.(event)}>
+              <For each={Object.entries(item.fields || {})}>{([name, value]) => <input type="hidden" name={name} value={value} />}</For>
+              <button type="submit" class={itemClass} disabled={item.disabled}>{content(item)}</button>
+            </form>
+            : <button type="button" class={itemClass} disabled={item.disabled} onClick={() => item.onSelect()}>{content(item)}</button>
+      }</>;
+    }}</For>
+  </div>;
+}
 export function Menu(props: { title: string; trigger: JSX.Element; triggerLabel?: string; triggerTitle?: string; items: readonly MenuItem[]; subtitle?: string; status?: JSX.Element; statusTone?: "ok" | "accent" | "danger" | "neutral"; class?: string; dialogClass?: string; align?: "start" | "end"; chevron?: boolean }) {
   const [open, setOpen] = createSignal(false), [enhanced, setEnhanced] = createSignal(false);
   const id = createUniqueId();
