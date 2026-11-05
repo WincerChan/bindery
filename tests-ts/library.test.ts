@@ -146,7 +146,7 @@ describe("return navigation and responsive sizing", () => {
     expect(Object.fromEntries(archived.searchParams)).toEqual({ scope: "archived", q: "书", page: "3" });
     expect(libraryReturnTo({ scope: "active" })).not.toContain("scope=");
   });
-  it.each([[0, 4], [136, 4], [292, 8], [916, 24], [99999, 96]])("uses four rows at width %i", (width, size) => expect(gridPageSize(width)).toBe(size));
+  it.each([[0, 4], [1, 4], [2, 8], [8, 32], [9, 36], [99, 96]])("uses four full rows of %i columns", (columns, size) => expect(gridPageSize(columns)).toBe(size));
   it.each([[0, 4], [200, 96], ["garbage", 24]])("normalizes page size %s", (value, expected) => expect(normalizeSearch({ per_page: value }).per_page).toBe(expected));
   it("hands selected books to the device transfer page and drops anything that is not a book id", () => {
     const a = "a".repeat(32), b = "b".repeat(32);

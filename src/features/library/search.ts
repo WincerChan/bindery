@@ -61,7 +61,14 @@ export const devicePreviewHref = (id: string) => `/devices/preview?book=${encode
 export function transferSelection(value: unknown): string[] {
   return typeof value === "string" ? [...new Set(value.split(",").filter(id => /^[a-f0-9]{32}$/.test(id)))].slice(0, 500) : [];
 }
-export const gridPageSize = (width: number, gap = 20) => Math.max(4, Math.min(96, Math.max(1, Math.floor((width + gap) / (136 + gap))) * 4));
+/** Four full rows of the grid's rendered column count, so the last row is never half empty. */
+export const gridPageSize = (columns: number) => Math.max(4, Math.min(96, Math.max(1, Math.floor(columns)) * 4));
+/** Columns the CSS grid actually laid out; 0 when the element is not a laid-out grid. */
+export function gridColumnCount(grid: Element | null): number {
+  if (!grid) return 0;
+  const tracks = getComputedStyle(grid).gridTemplateColumns;
+  return tracks && tracks !== "none" ? tracks.trim().split(/\s+/).length : 0;
+}
 export function selectionInput(value: unknown): string[] | null {
   return Array.isArray(value) && value.every((id): id is string => typeof id === "string") ? value : null;
 }
