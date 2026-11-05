@@ -101,6 +101,21 @@ describe("LexiTrace push worker", () => {
     expect(JSON.parse(body).context.sentence.length).toBeGreaterThan(0);
   });
 
+  it("holds words back until their sentence is known", async () => {
+    const { library } = configured();
+    addWords(library, [word("waiting", 1, { context: null }), word("ready", 2)]);
+    const sent: string[] = [];
+    const fetcher = async (_url: string | URL | Request, init?: RequestInit) => { sent.push(JSON.parse(String(init!.body)).source_text); return jsonResponse(200); };
+    expect(await pushVocabulary(library, { fetcher })).toMatchObject({ attempted: 1, pushed: 1 });
+    expect(sent).toEqual(["ready"]);
+    const waiting = library.db.listVocabulary().find(row => row.word === "waiting")!;
+    expect(waiting).toMatchObject({ context_state: "pending", push_state: "pending" });
+    library.db.updateVocabularyContext(waiting.id, JSON.stringify({ sentence: "Still waiting here.", previous: [], following: [] }), "found", new Date().toISOString());
+    await pushVocabulary(library, { fetcher });
+    expect(sent).toEqual(["ready", "waiting"]);
+    expect(library.db.getVocabulary(waiting.id)).toMatchObject({ push_state: "pushed" });
+  });
+
   it("clamps overlong words while keeping a stable lookup id on replay", async () => {
     const { library } = configured();
     addWords(library, [word("w".repeat(600), 1)]);

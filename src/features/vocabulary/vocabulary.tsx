@@ -6,6 +6,7 @@ import { Button, ConfirmDialog, EmptyState, Icon, PageIntro, SearchPill, Segment
 import type { PushState, VocabularyChoice, VocabularyItem, VocabularyPage } from "../../server/vocabulary/query";
 import type { ConnectionTest, LexiTraceSettingsView } from "../../server/vocabulary/settings";
 import { BookTitle, HighlightedSentence, missingSentenceHint, vocabularyMonthQuery, WordSource } from "./display";
+import { showToast } from "../../client/toast";
 import "./vocabulary.css";
 
 export interface VocabularySettingsInput { baseUrl?: string; token?: string; clearToken?: boolean; enabled?: boolean }
@@ -46,7 +47,7 @@ function testMessage(result: ConnectionTest): string {
 export function VocabularyPage(props: { initial: VocabularyPage; initialSettings: LexiTraceSettingsView; settingsOpen?: boolean; api: VocabularyApi }) {
   const [page, setPage] = createSignal(props.initial), [settings, setSettings] = createSignal(props.initialSettings);
   const [device, setDevice] = createSignal("all"), [book, setBook] = createSignal("all"), [status, setStatus] = createSignal<VocabularyFilters["pushState"]>("all"), [query, setQuery] = createSignal("");
-  const [notice, setNotice] = createSignal(""), [error, setError] = createSignal(""), [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal(""), [busy, setBusy] = createSignal(false);
   const [baseUrl, setBaseUrl] = createSignal(props.initialSettings.baseUrl), [token, setToken] = createSignal("");
   const [enabled, setEnabled] = createSignal(props.initialSettings.enabled), [clearToken, setClearToken] = createSignal(false);
   const [saving, setSaving] = createSignal(false), [testing, setTesting] = createSignal(false);
@@ -68,11 +69,11 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
   }
   async function retry(ids?: string[]) {
     if (busy()) return;
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setError("");
     try {
       const result = await props.api.retry(ids);
       setPage({ ...result.page, summary: { ...result.page.summary, month: page().summary.month } });
-      setNotice(`已重新排队 ${result.retried} 个生词`);
+      showToast(`已重新排队 ${result.retried} 个生词`);
       // Retry's existing endpoint returns a server-local summary. Re-read with the browser month.
       setPage(await props.api.list(vocabularyMonthQuery()));
     } catch (e) { setError(e instanceof Error ? e.message : "重试推送失败"); }
@@ -80,9 +81,9 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
   }
   // Errors propagate so the confirm dialog stays open and shows them.
   async function remove(item: VocabularyItem) {
-    setError(""); setNotice("");
+    setError("");
     await props.api.remove([item.id]);
-    setNotice(`已删除「${item.word}」`);
+    showToast(`已删除「${item.word}」`);
     await refresh();
   }
   function closeSettings() {
@@ -130,7 +131,6 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
         <Show when={latest().context.sentence} fallback={<p class="vocab-hint">{missingSentenceHint(latest())}</p>}><blockquote><HighlightedSentence sentence={latest().context.sentence} raw={latest().raw_word} word={latest().word} /></blockquote></Show>
         <figcaption><WordSource item={latest()} /></figcaption>
       </figure>}</Show> : undefined} />
-    <Show when={notice()}><p class="vocab-message" role="status">{notice()}</p></Show>
     <Show when={error()}><div class="vocab-failure" role="alert">{error()} <Button variant="secondary" disabled={busy()} onClick={refresh}>重新加载</Button></div></Show>
     <Toolbar label="筛选生词" search={<SearchPill label="搜索生词、例句、书籍或设备" placeholder="搜索生词、例句" value={query()} onInput={event => setQuery(event.currentTarget.value)} />}>
       <SelectPill label="书" value={book()} options={choices(page().books)} onChange={setBook} />
@@ -138,7 +138,7 @@ export function VocabularyPage(props: { initial: VocabularyPage; initialSettings
       <SegmentedControl label="推送状态" value={status() === "error" || status() === "conflict" ? "failed" : status()} options={[{ value: "all", label: "全部" }, { value: "pending", label: "未推送" }, { value: "failed", label: "失败" }]} onChange={value => setStatus(value as VocabularyFilters["pushState"])} />
     </Toolbar>
     <ul class="vocab-directory" aria-label="生词列表" aria-busy={busy() ? "true" : "false"}><For each={visible()}>{item => <li>
-      <div class="vocab-word-heading"><h2>{item.word}</h2><Show when={item.raw_word !== item.word}><span class="vocab-raw">{item.raw_word}</span></Show><Show when={item.push_state !== "pushed"}><StatusDot label={failed(item) ? `${pushStatusLabel(item)}，可在详情中重试` : "未推送到 LexiTrace"} tone={failed(item) ? "danger" : "empty"} /></Show>
+      <div class="vocab-word-heading"><h2>{item.word}</h2><Show when={item.raw_word !== item.word}><span class="vocab-raw">{item.raw_word}</span></Show><Show when={item.push_state !== "pushed"}><StatusDot label={failed(item) ? `${pushStatusLabel(item)}，可在详情中重试` : item.context_state === "pending" ? "取到例句后再推送到 LexiTrace" : "未推送到 LexiTrace"} tone={failed(item) ? "danger" : "empty"} /></Show>
         <Button variant="icon" class="vocab-delete" aria-label={`删除 ${item.word}`} disabled={busy()} onClick={() => setRemoving(item)}><Icon icon={TablerTrash} size={18} /></Button></div>
       <p class="vocab-sentence"><Show when={item.context.sentence} fallback={<span class="vocab-hint">{missingSentenceHint(item)}</span>}><HighlightedSentence sentence={item.context.sentence} raw={item.raw_word} word={item.word} /></Show></p>
       <p class="vocab-source-line"><WordSource item={item} /></p>

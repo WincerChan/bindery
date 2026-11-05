@@ -208,7 +208,9 @@ export class BinderyDatabase extends Connection {
     return this.all<VocabularyRow>("SELECT * FROM vocabulary WHERE book_id = ? AND device_id = ? ORDER BY looked_up_at, id", bookId, deviceId);
   }
   listVocabularyForPush(): VocabularyRow[] {
-    return this.all<VocabularyRow>("SELECT * FROM vocabulary WHERE push_state IN ('pending', 'error') ORDER BY looked_up_at, id");
+    // A pending context means the sentence is not known yet (a Kobo book missing from the library). LexiTrace
+    // never receives a second push for the same lookup, so these wait until the context is resolved.
+    return this.all<VocabularyRow>("SELECT * FROM vocabulary WHERE push_state IN ('pending', 'error') AND context_state != 'pending' ORDER BY looked_up_at, id");
   }
   updateVocabularyContext(id: string, contextJson: string, contextState: string, updatedAt: string): void {
     this.run("UPDATE vocabulary SET context_json = ?, context_state = ?, updated_at = ? WHERE id = ?", contextJson, contextState, updatedAt, id);

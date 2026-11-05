@@ -10,7 +10,6 @@
 .vocab-settings-glyph { width: 14px; height: 14px; }
 .vocab-page .vocab-failure { color: var(--color-danger); }
 .vocab-page .vocab-hint { flex-basis: 100%; color: var(--color-ink-3); font-size: var(--text-meta); line-height: 1.8; }
-.vocab-message { padding-block: 16px; color: var(--color-ink-2); }
 .vocab-page .vocab-latest { display: grid; gap: 18px; padding-left: 40px; border-left: 1px solid var(--color-line-soft); overflow-wrap: anywhere; }
 .vocab-section-label { color: var(--color-ink-3); font-size: var(--text-control); line-height: normal; letter-spacing: .08em; }
 .vocab-latest-word { font: italic 600 64px/1 var(--font-latin-serif); }
