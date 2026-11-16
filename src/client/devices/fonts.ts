@@ -23,7 +23,7 @@ async function mapsCjk(file: File, offset: number, length: number): Promise<bool
   const head = new DataView(await file.slice(offset, offset + Math.min(length, 4 + 8 * 64)).arrayBuffer()), tables = Math.min(head.getUint16(2), 64);
   const records: { platform: number; encoding: number; at: number }[] = [];
   for (let i = 0; i < tables && 12 + i * 8 <= head.byteLength; i++) records.push({ platform: head.getUint16(4 + i * 8), encoding: head.getUint16(6 + i * 8), at: head.getUint32(8 + i * 8) });
-  const rank = (r: { platform: number; encoding: number }) => r.platform === 3 && r.encoding === 10 ? 0 : r.platform === 0 && r.encoding >= 4 ? 1 : r.platform === 3 && r.encoding === 1 ? 2 : r.platform === 0 ? 3 : 9;
+  const rank = (r: { platform: number; encoding: number }) => r.platform === 3 && r.encoding === 10 ? 0 : r.platform === 0 && r.encoding === 5 ? 9 : r.platform === 0 && r.encoding >= 4 ? 1 : r.platform === 3 && r.encoding === 1 ? 2 : r.platform === 0 ? 3 : 9;
   const best = records.filter(r => rank(r) < 9).sort((a, b) => rank(a) - rank(b))[0];
   if (!best || best.at + 8 > length) return null;
   const start = offset + best.at, sub = new DataView(await file.slice(start, start + 8).arrayBuffer()), format = sub.getUint16(0);
@@ -198,8 +198,35 @@ export async function readFont(root: KindleDirectory, filename: string) {
   entryName(filename); if (!isFontFile(filename)) throw new Error("只支持 TTF 和 OTF 字体文件");
   return entryOperation(root, `fonts/${filename}`, async () => readBytes(await root.getDirectoryHandle("fonts"), filename));
 }
+/**
+ * Browsers sanitize web fonts and reject the whole file for one bad Unicode Variation Sequences entry
+ * (cmap format 14, e.g. a sequence mapped to glyph 0), which e-readers ignore. Drops that subtable from
+ * the cmap header **in place** (callers pass bytes read for this preview only, so a 30 MB font is not
+ * copied); the base character map is untouched. Unreadable tables are left as they are.
+ */
+export function stripVariationSequences(bytes: Uint8Array): void {
+  try {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), tables = view.getUint16(4);
+    for (let i = 0; i < tables; i++) {
+      const at = 12 + i * 16;
+      if (view.getUint32(at) !== 0x636d6170) continue; // "cmap"
+      const cmap = view.getUint32(at + 8), count = view.getUint16(cmap + 2), kept: number[] = [];
+      for (let j = 0; j < count; j++) {
+        const record = cmap + 4 + j * 8;
+        if (view.getUint16(cmap + view.getUint32(record + 4)) !== 14) kept.push(record);
+      }
+      if (kept.length === count || !kept.length) return;
+      // Records only move toward the start, so copyWithin never overwrites one still to be moved.
+      kept.forEach((record, j) => bytes.copyWithin(cmap + 4 + j * 8, record, record + 8));
+      view.setUint16(cmap + 2, kept.length);
+      return;
+    }
+  } catch { /* Unreadable tables: let the browser report the font. */ }
+}
 /** Caller adds to document.fonts and removes it when the preview is disposed. */
 export async function loadPreviewFont(device: PairedDevice, font: DeviceFont, alias = font.family): Promise<FontFace> {
-  const face = new FontFace(alias, (await readFont(device.root, font.filename)).buffer, { weight: String(font.weight), style: font.italic ? "italic" : "normal" });
+  const bytes = await readFont(device.root, font.filename);
+  stripVariationSequences(bytes);
+  const face = new FontFace(alias, bytes, { weight: String(font.weight), style: font.italic ? "italic" : "normal" });
   return face.load();
 }

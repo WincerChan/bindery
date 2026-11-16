@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inspectFont, listFonts, matchesFontLanguage } from "../src/client/devices/fonts";
+import { inspectFont, listFonts, matchesFontLanguage, stripVariationSequences } from "../src/client/devices/fonts";
 import { fakeKindle } from "./support/fake-fs";
 
 const CJK = [0x7684, 0x4e00, 0x662f, 0x4e2d], LATIN = [0x41, 0x42, 0x61];
@@ -57,5 +57,30 @@ describe("Chinese / English font detection", () => {
     expect(names("all")).toEqual(["Bare", "Bookerly", "LXGW WenKai"]);
     expect(names("cjk")).toEqual(["LXGW WenKai"]);
     expect(names("latin")).toEqual(["Bare", "Bookerly"]);
+  });
+  it("drops only the variation-sequence subtable browsers reject, keeping the character map", async () => {
+    // A format 14 subtable (platform 0, encoding 5) beside the format 4 map, as in fonts Chrome refuses.
+    const base = cmap4([...LATIN, ...CJK]), uvs = new Uint8Array(10), records = 2, header = 4 + records * 8;
+    new DataView(uvs.buffer).setUint16(0, 14); new DataView(uvs.buffer).setUint32(2, uvs.length);
+    const table = new Uint8Array(header + uvs.length + base.length), view = new DataView(table.buffer);
+    view.setUint16(2, records);
+    [[0, 5, header], [3, 1, header + uvs.length]].forEach(([platform, encoding, at], i) => { view.setUint16(4 + i * 8, platform!); view.setUint16(6 + i * 8, encoding!); view.setUint32(8 + i * 8, at!); });
+    table.set(uvs, header); table.set(base, header + uvs.length);
+    // The character map skips the variation-sequence subtable even before it is stripped.
+    expect((await inspectFont(font("Song.otf", "Song", table))).cjk).toBe(true);
+    const original = new Uint8Array(await font("Song.otf", "Song", table).arrayBuffer()), bytes = original.slice();
+    stripVariationSequences(bytes);
+    const cmapAt = new DataView(bytes.buffer).getUint32(12 + 8), stripped = new DataView(bytes.buffer);
+    expect(stripped.getUint16(cmapAt + 2)).toBe(1);
+    expect([stripped.getUint16(cmapAt + 4), stripped.getUint16(cmapAt + 6)]).toEqual([3, 1]);
+    // Only the cmap header changed; the subtables and every other byte stay where they were.
+    expect(bytes.subarray(cmapAt + 12)).toEqual(original.subarray(cmapAt + 12));
+    expect(bytes.subarray(0, cmapAt)).toEqual(original.subarray(0, cmapAt));
+    expect((await inspectFont(new File([bytes], "Song.otf"))).cjk).toBe(true);
+    // Nothing to drop, or unreadable data: the bytes stay as they were.
+    const plain = new Uint8Array(await font("Book.ttf", "Book", cmapTable(cmap4(LATIN), 3, 1)).arrayBuffer()), plainCopy = plain.slice();
+    stripVariationSequences(plain); expect(plain).toEqual(plainCopy);
+    const junk = new Uint8Array([1, 2, 3]);
+    stripVariationSequences(junk); expect(junk).toEqual(new Uint8Array([1, 2, 3]));
   });
 });
