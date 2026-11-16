@@ -6,7 +6,7 @@ export { GeneratedCover, BookCover, AddCoverTile, coverTone, coverStateLabel } f
 export type { CoverProps, CoverState } from "./cover";
 export { Dialog, ConfirmDialog, InlineActions, Menu, SideSheet, CenterDialog, Popover } from "./dialog";
 export type { DialogProps, MenuItem } from "./dialog";
-export { IconButton, CloseButton, BackLink, SectionTitle, CountBadge, BackgroundActivityPill, StatusDot, ProgressBar, Slider, Stepper, ToggleSwitch, SegmentedControl, LinkTabs, ToggleChip, SelectPill, SearchPill, PageIntro, PageTabs, Toolbar } from "./primitives";
+export { IconButton, CloseButton, BackLink, SectionTitle, CountBadge, BackgroundActivityPill, StatusDot, ProgressBar, Slider, Stepper, ToggleSwitch, SegmentedControl, LinkTabs, ToggleChip, SelectPill, SearchPill, TextPill, PageIntro, PageTabs, Toolbar } from "./primitives";
 export type { ControlOption, LinkTab } from "./primitives";
 export { EmptyState } from "./empty-state";
 export { Pagination } from "./pagination";

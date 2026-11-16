@@ -81,6 +81,10 @@ export function SelectPill(props: { label: string; value: string; options: reado
 export function SearchPill(props: JSX.InputHTMLAttributes<HTMLInputElement> & { label: string; placeholder: string; class?: string }) {
   return <TextField {...omit(props, "class")} type="search" labelHidden class={`search-field ui-search-pill ${props.class || ""}`} />;
 }
+/** A pill-shaped text input with a visually hidden label, matching SearchPill without the search glyph. */
+export function TextPill(props: JSX.InputHTMLAttributes<HTMLInputElement> & { label: string; placeholder: string; class?: string }) {
+  return <TextField {...omit(props, "class")} type={props.type || "text"} labelHidden class={`ui-text-pill ${props.class || ""}`} />;
+}
 /** Board-backed structures; values and exceptions are catalogued in docs/design/page-intros.md. */
 export type PageIntroVariant = "main" | "guide" | "subpage" | "split" | "title-only" | "topbar" | "editor" | "compact" | "book";
 export type PageIntroVisualSize = "cover" | "page" | "reading" | "vocabulary" | "device";
