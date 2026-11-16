@@ -1,12 +1,12 @@
 import TablerDotsVertical from "~icons/tabler/dots-vertical";
 import TablerPlus from "~icons/tabler/plus";
 import TablerRefresh from "~icons/tabler/refresh";
-import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show } from "solid-js";
 import { deleteFontFamily, installFonts, type FontFamily, type FontInstallProgress } from "../../../client/kindle/fonts";
 import { deviceInventory } from "../../../client/kindle/inventory";
 import { errorMessage } from "../../../client/kindle/fs";
 import type { KindleDeviceManager } from "../../../client/kindle/device";
-import { Button, ConfirmDialog, Icon, IconButton, Menu, SegmentedControl } from "../../../ui";
+import { Button, ConfirmDialog, Icon, IconButton, Menu, SegmentedControl, TextPill } from "../../../ui";
 import { useDeviceNavigation } from "../../devices/navigation";
 import { useOptionalKindle } from "../context";
 import { usePageDevice } from "./device";
@@ -16,6 +16,8 @@ import { fileSize, inspectFontBatch } from "./model";
 import { matchesFontLanguage, type FontLanguage } from "../../devices/font-language";
 import { DeviceTabs } from "../../devices/tabs";
 import { byteProgressDetail } from "../devices/format";
+
+const SAMPLE_TEXT_KEY = "bindery-font-sample-text";
 
 function FontInstallQueueProgress(props: { progress: FontInstallProgress; active: boolean; cancelling: boolean; cancel: () => void }) {
   const indices = createMemo(() => props.progress.files.map((_, index) => index));
@@ -69,6 +71,13 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
   const [deleting, setDeleting] = createSignal<FontFamily | null>(null), [dragging, setDragging] = createSignal(false);
   const [installProgress, setInstallProgress] = createSignal<FontInstallProgress | null>(null);
   const [installing, setInstalling] = createSignal(false), [cancelling, setCancelling] = createSignal(false);
+  // The reader's own sample text, remembered in this browser only.
+  const [sampleText, setSampleText] = createSignal("");
+  onSettled(() => { try { setSampleText(localStorage.getItem(SAMPLE_TEXT_KEY) ?? ""); } catch { /* Storage may be disabled. */ } });
+  function changeSampleText(value: string) {
+    setSampleText(value);
+    try { if (value) localStorage.setItem(SAMPLE_TEXT_KEY, value); else localStorage.removeItem(SAMPLE_TEXT_KEY); } catch { /* The sample still updates without storage. */ }
+  }
   let installation: { controller: AbortController; interruption: string } | null = null;
   let input!: HTMLInputElement, generation = 0, selection = 0, disposed = false;
   const device = () => state()?.status === "granted" ? state()!.device : null;
@@ -142,6 +151,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
     onDrop={event => { event.preventDefault(); setDragging(false); if (event.dataTransfer) void choose(Array.from(event.dataTransfer.files)); }}>
     <h2 class="sr-only">字体管理</h2>
     <DeviceTabs value="fonts" toolbar={<div class="device-font-toolbar">
+      <TextPill class="device-font-sample-text" label="样张文字" maxlength={200} placeholder="输入文字预览字体" value={sampleText()} onInput={event => changeSampleText(event.currentTarget.value)} />
       <SegmentedControl label="语言" value={language()} options={[{ value: "all", label: "全部" }, { value: "cjk", label: "中文" }, { value: "latin", label: "西文" }]} onChange={value => setLanguage(value as FontLanguage)} />
       <Button variant="secondary" disabled={!device() || busy()} onClick={() => input.click()}><Icon icon={TablerPlus} size={16} />添加字体</Button>
       <IconButton aria-label="重新扫描" title="重新扫描" disabled={!device() || busy()} onClick={scan}><Icon icon={TablerRefresh} size={18} /></IconButton>
@@ -164,7 +174,7 @@ export function FontsPage(props: { manager: KindleDeviceManager | null; onPrevie
       ]} /></div>
       <Link class="device-font-preview" href={`/devices/preview?font=${encodeURIComponent(family.name)}`} aria-label={`用 ${family.name} 预览`} onClick={event => {
         if (props.onPreview && !event.defaultPrevented && !event.button && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); props.onPreview(family.name); }
-      }}><Show when={device()}>{current => <FontSample device={current()} family={family} />}</Show></Link>
+      }}><Show when={device()}>{current => <FontSample device={current()} family={family} text={sampleText()} />}</Show></Link>
       <div class="device-font-meta"><div><h3>{family.name}</h3><p>{family.name} · {family.fonts.some(font => font.cjk) ? "中文" : "西文"}</p><span class="sr-only">{family.fonts.map(font => font.filename).join(" · ")}</span></div>
         <p class="kt-coverage" role="img" aria-label={coverageLabel(family.coverage)}><For each={["R", "B", "I", "BI"] as const}>{code => <span class={family.coverage.includes(code) ? "" : "is-missing"} title={`${({ R: "常规", B: "粗体", I: "斜体", BI: "粗斜体" })[code]}${family.coverage.includes(code) ? "" : "（缺失）"}`}>{code}</span>}</For></p>
       </div>

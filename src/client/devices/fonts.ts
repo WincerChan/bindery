@@ -17,19 +17,26 @@ export const isFontFile = (name: string) => /\.(ttf|otf)$/i.test(name) && !name.
 const fontMagic = (head: Uint8Array) => head.length >= 12 && (new DataView(head.buffer, head.byteOffset, head.byteLength).getUint32(0) === 0x00010000 || new TextDecoder().decode(head.subarray(0, 4)) === "OTTO");
 // 的 一 是 中: any two present means the font is meant for Chinese text.
 const CJK_PROBES = [0x7684, 0x4e00, 0x662f, 0x4e2d];
-/** Reads only the cmap subtable (format 4 or 12) and checks the probe characters; null when it cannot tell. */
-async function mapsCjk(file: File, offset: number, length: number): Promise<boolean | null> {
+/** Font bytes read by range: a File reads only the slices it needs, bytes already in memory are viewed without copying. */
+interface ByteSource { size: number; read(offset: number, length: number): Promise<DataView> }
+const blobSource = (file: Blob): ByteSource => ({ size: file.size, read: async (offset, length) => new DataView(await file.slice(offset, offset + length).arrayBuffer()) });
+const bytesSource = (bytes: Uint8Array): ByteSource => ({
+  size: bytes.byteLength,
+  read: async (offset, length) => { const start = Math.min(offset, bytes.byteLength); return new DataView(bytes.buffer, bytes.byteOffset + start, Math.min(length, bytes.byteLength - start)); },
+});
+/** Reads only the best cmap subtable (format 4 or 12); null when there is none it can read. */
+async function characterLookup(file: ByteSource, offset: number, length: number): Promise<((code: number) => boolean) | null> {
   if (length < 4 || offset + length > file.size) return null;
-  const head = new DataView(await file.slice(offset, offset + Math.min(length, 4 + 8 * 64)).arrayBuffer()), tables = Math.min(head.getUint16(2), 64);
+  const head = await file.read(offset, Math.min(length, 4 + 8 * 64)), tables = Math.min(head.getUint16(2), 64);
   const records: { platform: number; encoding: number; at: number }[] = [];
   for (let i = 0; i < tables && 12 + i * 8 <= head.byteLength; i++) records.push({ platform: head.getUint16(4 + i * 8), encoding: head.getUint16(6 + i * 8), at: head.getUint32(8 + i * 8) });
   const rank = (r: { platform: number; encoding: number }) => r.platform === 3 && r.encoding === 10 ? 0 : r.platform === 0 && r.encoding === 5 ? 9 : r.platform === 0 && r.encoding >= 4 ? 1 : r.platform === 3 && r.encoding === 1 ? 2 : r.platform === 0 ? 3 : 9;
   const best = records.filter(r => rank(r) < 9).sort((a, b) => rank(a) - rank(b))[0];
   if (!best || best.at + 8 > length) return null;
-  const start = offset + best.at, sub = new DataView(await file.slice(start, start + 8).arrayBuffer()), format = sub.getUint16(0);
+  const start = offset + best.at, sub = await file.read(start, 8), format = sub.getUint16(0);
   const size = format === 12 ? sub.getUint32(4) : format === 4 ? sub.getUint16(2) : 0;
   if (!size || size > 16_777_216 || start + size > file.size) return null;
-  const data = new DataView(await file.slice(start, start + size).arrayBuffer());
+  const data = await file.read(start, size);
   const has = (code: number) => {
     if (format === 12) {
       for (let i = 0, groups = data.getUint32(12); i < groups && 16 + i * 12 + 12 <= size; i++) {
@@ -47,7 +54,27 @@ async function mapsCjk(file: File, offset: number, length: number): Promise<bool
     }
     return false;
   };
-  try { return CJK_PROBES.filter(has).length >= 2; } catch { return null; }
+  // Throws on a damaged table; callers decide what an unreadable entry means.
+  return code => format === 4 && code > 0xffff ? false : has(code);
+}
+async function mapsCjk(file: Blob, offset: number, length: number): Promise<boolean | null> {
+  const has = await characterLookup(blobSource(file), offset, length);
+  try { return has ? CJK_PROBES.filter(has).length >= 2 : null; } catch { return null; }
+}
+/** Which characters the font maps to a glyph; null when the file has no readable character map. In-memory bytes are not copied. */
+export async function fontCharacterMap(file: Blob | Uint8Array): Promise<((code: number) => boolean) | null> {
+  const source = file instanceof Uint8Array ? bytesSource(file) : blobSource(file), view = await source.read(0, Math.min(65548, source.size));
+  const header = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+  if (!fontMagic(header)) return null;
+  const count = Math.min(view.getUint16(4), Math.floor((header.length - 12) / 16));
+  for (let i = 0; i < count; i++) {
+    const at = 12 + i * 16;
+    if (new TextDecoder().decode(header.subarray(at, at + 4)) !== "cmap") continue;
+    const has = await characterLookup(source, view.getUint32(at + 8), view.getUint32(at + 12)).catch(() => null);
+    // A damaged entry cannot prove a glyph is missing.
+    return has && (code => { try { return has(code); } catch { return true; } });
+  }
+  return null;
 }
 async function fontNames(file: File): Promise<{ family?: string; style?: string; postscript?: string; cjk?: boolean }> {
   const header = new Uint8Array(await file.slice(0, 65548).arrayBuffer());
@@ -223,10 +250,8 @@ export function stripVariationSequences(bytes: Uint8Array): void {
     }
   } catch { /* Unreadable tables: let the browser report the font. */ }
 }
-/** Caller adds to document.fonts and removes it when the preview is disposed. */
-export async function loadPreviewFont(device: PairedDevice, font: DeviceFont, alias = font.family): Promise<FontFace> {
-  const bytes = await readFont(device.root, font.filename);
+/** Caller adds to document.fonts and removes it when the preview is disposed. Fixes `bytes` up in place. */
+export function previewFontFace(bytes: Uint8Array<ArrayBuffer>, font: DeviceFont, alias = font.family): Promise<FontFace> {
   stripVariationSequences(bytes);
-  const face = new FontFace(alias, bytes, { weight: String(font.weight), style: font.italic ? "italic" : "normal" });
-  return face.load();
+  return new FontFace(alias, bytes, { weight: String(font.weight), style: font.italic ? "italic" : "normal" }).load();
 }

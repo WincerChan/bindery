@@ -3,7 +3,7 @@ import TablerArrowRight from "~icons/tabler/arrow-right";
 import { createEffect, createMemo, createSignal, onCleanup, onSettled, Show } from "solid-js";
 import { errorMessage } from "../../../client/kindle/fs";
 import type { FontFamily, PairedDevice } from "../../../client/kindle";
-import { DocumentFonts, PreviewDocument, previewTurnKey } from "./frame";
+import { DocumentFonts, PreviewDocument, previewTurnKey, sampleFonts, sampleRuns } from "./frame";
 import type { PageGeometry } from "../../../client/devices/typeset";
 import { Button, Icon } from "../../../ui";
 import { hasSideGrip } from "../device-shell";
@@ -98,32 +98,80 @@ export function ChapterFrame(props: { src: string; geometry: PageGeometry; kind?
   </div>;
 }
 
+// Device fonts can be tens of megabytes each; a page of samples loads them a couple at a time.
+const SAMPLE_LOADS = 2;
+const sampleSlots = { active: 0, waiting: [] as (() => void)[] };
+async function withSampleSlot<T>(run: () => Promise<T>): Promise<T> {
+  if (sampleSlots.active >= SAMPLE_LOADS) await new Promise<void>(resolve => sampleSlots.waiting.push(resolve));
+  sampleSlots.active++;
+  try { return await run(); }
+  finally { sampleSlots.active--; sampleSlots.waiting.shift()?.(); }
+}
+
 /** Samples live in blank, script-free frames; no device FontFace enters the app's FontFaceSet. */
-export function FontSample(props: { device: PairedDevice; family: FontFamily }) {
-  let frame!: HTMLIFrameElement, registration: DocumentFonts | undefined, sampleDocument: Document | undefined, disposed = false;
-  const [error, setError] = createSignal("");
-  async function load() {
+export function FontSample(props: { device: PairedDevice; family: FontFamily; text?: string }) {
+  let frame!: HTMLIFrameElement, registration: DocumentFonts | undefined, sampleDocument: Document | undefined, phrase: HTMLSpanElement | undefined, disposed = false;
+  const [error, setError] = createSignal(""), [characters, setCharacters] = createSignal<((code: number) => boolean) | null>(null);
+  const cjk = () => props.family.fonts.some(font => font.cjk);
+  // The large glyph stays; the reader's text replaces only the phrase beside it.
+  function paint() {
+    if (!phrase) return;
+    const custom = props.text?.trim() ? props.text : "", doc = phrase.ownerDocument;
+    phrase.style.cssText = `font-size:30px; line-height:1; ${custom ? "" : cjk() ? "font-weight:500;" : "font-style:italic;"}`;
+    // Characters the font lacks would silently render in a fallback face; mark them instead.
+    phrase.replaceChildren(...sampleRuns(custom || (cjk() ? "书读百遍" : "Reading"), characters()).map(run => {
+      if (!run.missing) return doc.createTextNode(run.text);
+      const gap = doc.createElement("span");
+      gap.textContent = run.text;
+      gap.style.cssText = "color:var(--sample-missing); text-decoration:underline dashed; text-underline-offset:6px;";
+      return gap;
+    }));
+  }
+  // The frame's text appears at once; its font loads only once the sample is near the viewport.
+  let visible = typeof IntersectionObserver === "undefined", observer: IntersectionObserver | undefined, fontDocument: Document | undefined;
+  function load() {
     const doc = frame.contentDocument;
     if (!doc?.body || disposed || sampleDocument === doc) return;
     registration?.clear();
-    sampleDocument = doc;
-    const cjk = props.family.fonts.some(font => font.cjk), line = doc.createElement("p");
-    line.style.cssText = 'margin:0; display:flex; align-items:baseline; gap:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--sample-ink); font-family:"Bindery Device Sample", serif;';
+    sampleDocument = doc; setCharacters(null);
+    const line = doc.createElement("p");
+    line.style.cssText = 'margin:0; display:flex; align-items:baseline; gap:18px; white-space:nowrap; overflow:hidden; color:var(--sample-ink); font-family:"Bindery Device Sample", serif;';
     const specimen = doc.createElement("span");
-    specimen.textContent = cjk ? "永" : "Aa";
-    specimen.style.cssText = 'font-size:72px; line-height:1;';
-    const phrase = doc.createElement("span");
-    phrase.textContent = cjk ? "书读百遍" : "Reading";
-    phrase.style.cssText = cjk ? 'font-size:30px; line-height:1; font-weight:500;' : 'font-size:30px; line-height:1; font-style:italic;';
+    specimen.textContent = cjk() ? "永" : "Aa";
+    specimen.style.cssText = 'flex:none; font-size:72px; line-height:1;';
+    phrase = doc.createElement("span");
+    phrase.style.cssText = "min-width:0; overflow:hidden; text-overflow:ellipsis;";
     line.append(specimen, phrase);
     doc.body.replaceChildren(line); doc.body.style.margin = "0";
-    doc.documentElement.style.setProperty("--sample-ink", getComputedStyle(frame).color);
-    const fonts = new DocumentFonts(doc); registration = fonts;
-    try { await fonts.load(props.device, props.family, "Bindery Device Sample"); }
-    catch (error) { if (!disposed && registration === fonts) setError(errorMessage(error)); }
+    const style = getComputedStyle(frame);
+    doc.documentElement.style.setProperty("--sample-ink", style.color);
+    doc.documentElement.style.setProperty("--sample-missing", style.getPropertyValue("--color-ink-4") || style.color);
+    paint();
+    void loadFont();
   }
-  onSettled(() => { if (frame.contentDocument?.readyState === "complete") void load(); });
-  onCleanup(() => { disposed = true; registration?.clear(); });
+  async function loadFont() {
+    const doc = sampleDocument;
+    if (!doc || disposed || !visible || fontDocument === doc) return;
+    fontDocument = doc;
+    const fonts = new DocumentFonts(doc); registration = fonts;
+    try {
+      const map = await withSampleSlot(() => disposed || registration !== fonts ? Promise.resolve(null)
+        : fonts.load(props.device, props.family, "Bindery Device Sample", { fonts: sampleFonts(props.family), characters: true }));
+      if (!disposed && registration === fonts) setCharacters(() => map);
+    } catch (error) { if (!disposed && registration === fonts) setError(errorMessage(error)); }
+  }
+  createEffect(() => [props.text, characters()] as const, () => { paint(); });
+  onSettled(() => {
+    if (!visible) {
+      observer = new IntersectionObserver(entries => {
+        if (!entries.some(entry => entry.isIntersecting)) return;
+        visible = true; observer?.disconnect(); void loadFont();
+      }, { rootMargin: "200px" });
+      observer.observe(frame);
+    }
+    if (frame.contentDocument?.readyState === "complete") load();
+  });
+  onCleanup(() => { disposed = true; observer?.disconnect(); registration?.clear(); });
   return <div><iframe ref={frame} class="kt-font-sample" tabindex={-1} title={`${props.family.name} 字体样张`} sandbox="allow-same-origin" onLoad={load} />
     <Show when={error()}><span class="field-error">样张加载失败：{error()}</span></Show></div>;
 }

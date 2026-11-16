@@ -6,7 +6,7 @@ import { inventory } from "../src/client/kindle/inventory";
 import { readManifest, writeManifest, parseManifest, thumbnailName } from "../src/client/kindle/manifest";
 import { EMPTY_SETTINGS } from "../src/client/devices/profiles";
 import { deleteBook } from "../src/client/kindle/operations";
-import { deleteFontFamily, installFonts, inspectFont, listFonts, loadPreviewFont, readFont } from "../src/client/kindle/fonts";
+import { deleteFontFamily, installFonts, inspectFont, listFonts, previewFontFace, readFont } from "../src/client/kindle/fonts";
 import type { HandleRepository, RememberedDevice } from "../src/client/kindle/remembered";
 import { applyDevicePatches, recoverDevice, withDeviceLock } from "../src/client/kindle/transaction";
 
@@ -114,7 +114,7 @@ describe("inventory, fonts and safe device operations", () => {
     await expect(installFonts(device, [files[0]])).rejects.toThrow("已存在"); await expect(installFonts(device, [new File(["invalid"], "bad.ttf")])).rejects.toThrow("无效"); await expect(installFonts(device, [new File(["exe"], "bad.exe")])).rejects.toThrow("只支持");
     expect(await readFont(fs.root, "random.ttf")).toEqual(new Uint8Array(await files[0].arrayBuffer()));
     const faces: unknown[][] = []; vi.stubGlobal("FontFace", class { constructor(...args: unknown[]) { faces.push(args); } load() { return Promise.resolve(this); } });
-    try { await loadPreviewFont(device, families[0].fonts[0]); expect(faces[0][0]).toBe("Book Serif"); expect(faces[0][2]).toEqual({ weight: "300", style: "normal" }); } finally { vi.unstubAllGlobals(); }
+    try { await previewFontFace(await readFont(device.root, families[0].fonts[0].filename), families[0].fonts[0]); expect(faces[0][0]).toBe("Book Serif"); expect(faces[0][2]).toEqual({ weight: "300", style: "normal" }); } finally { vi.unstubAllGlobals(); }
     await deleteFontFamily(device, "Book Serif"); expect(await listFonts(fs.root)).toEqual([]); expect(await fs.text("fonts/Readme.txt")).toBe("keep"); expect(await fs.text("fonts/._random.ttf")).toBe("ignored");
     await expect(deleteBook(device, "../system/version.txt")).rejects.toThrow(); await expect(readFont(fs.root, "Readme.txt")).rejects.toThrow();
   });

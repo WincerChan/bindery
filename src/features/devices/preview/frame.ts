@@ -1,4 +1,4 @@
-import { loadPreviewFont, type FontFamily } from "../../../client/kindle/fonts";
+import { fontCharacterMap, previewFontFace, readFont, type DeviceFont, type FontFamily } from "../../../client/kindle/fonts";
 import type { PairedDevice } from "../../../client/kindle/identity";
 import { previewAnchorPage, previewPagination } from "./model";
 import { defaultReadingSettings, pageGeometry, previewTarget, type PageGeometry } from "../../../client/devices/typeset";
@@ -14,14 +14,40 @@ export class DocumentFonts {
     for (const face of this.faces) this.document.fonts.delete(face);
     this.faces = [];
   }
-  async load(device: PairedDevice, family: FontFamily, alias = family.name) {
+  /**
+   * Loads every style unless `fonts` names a subset (a sample needs only what it shows). With `characters`,
+   * also returns which characters the regular style maps, read from the same bytes (null when unreadable).
+   */
+  async load(device: PairedDevice, family: FontFamily, alias = family.name, options: { fonts?: readonly DeviceFont[]; characters?: boolean } = {}): Promise<((code: number) => boolean) | null> {
     this.clear();
     const generation = this.generation;
-    // All styles are loaded together, so bold/italic samples and EPUB emphasis use the real files.
-    const faces = await Promise.all(family.fonts.map(font => loadPreviewFont(device, font, alias)));
-    if (generation !== this.generation) return;
+    // By default all styles load together, so bold/italic and EPUB emphasis use the real files.
+    const files = await Promise.all((options.fonts ?? family.fonts).map(async font => ({ font, bytes: await readFont(device.root, font.filename) })));
+    if (generation !== this.generation) return null;
+    const faces = await Promise.all(files.map(file => previewFontFace(file.bytes, file.font, alias)));
+    const regular = files.find(file => file.font.coverage === "R") ?? files[0];
+    const characters = options.characters && regular ? await fontCharacterMap(regular.bytes) : null;
+    if (generation !== this.generation) return null;
     for (const face of faces) { this.document.fonts.add(face); this.faces.push(face); }
+    return characters;
   }
+}
+
+/** A sample shows the regular style; a Latin default sample also shows italic. Chinese families load one file. */
+export function sampleFonts(family: FontFamily): DeviceFont[] {
+  const regular = family.fonts.find(font => font.coverage === "R") ?? family.fonts.find(font => !font.italic) ?? family.fonts[0];
+  const italic = family.fonts.some(font => font.cjk) ? undefined : family.fonts.find(font => font.coverage === "I");
+  return [regular, italic].filter((font): font is DeviceFont => Boolean(font));
+}
+
+/** Splits sample text into runs the font maps and runs it lacks; whitespace never counts as missing. */
+export function sampleRuns(text: string, has: ((code: number) => boolean) | null): { text: string; missing: boolean }[] {
+  const runs: { text: string; missing: boolean }[] = [];
+  for (const char of text) {
+    const missing = Boolean(has) && !/\s/.test(char) && !has!(char.codePointAt(0)!), last = runs[runs.length - 1];
+    if (last && last.missing === missing) last.text += char; else runs.push({ text: char, missing });
+  }
+  return runs;
 }
 
 interface TextAnchor { node: Text; offset: number }

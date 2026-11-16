@@ -98,6 +98,7 @@
 .device-font-menu .ui-menu-trigger:hover, .device-font-menu .ui-menu-trigger[aria-expanded="true"] { background: var(--color-hover); }
 .device-font-menu .ui-menu-chevron { display: none; }
 .device-font-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.device-font-sample-text { flex: 1 1 200px; max-width: 320px; }
 .kt-font-help { display: block; font-size: var(--text-meta); line-height: 1.7; color: var(--color-ink-3); }
 .kt-font-help p { margin: 0; }
 

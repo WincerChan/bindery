@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { inspectFont, listFonts, matchesFontLanguage, stripVariationSequences } from "../src/client/devices/fonts";
+import { fontCharacterMap, inspectFont, listFonts, matchesFontLanguage, stripVariationSequences } from "../src/client/devices/fonts";
+import { sampleFonts, sampleRuns } from "../src/features/devices/preview/frame";
 import { fakeKindle } from "./support/fake-fs";
 
 const CJK = [0x7684, 0x4e00, 0x662f, 0x4e2d], LATIN = [0x41, 0x42, 0x61];
@@ -58,6 +59,17 @@ describe("Chinese / English font detection", () => {
     expect(names("cjk")).toEqual(["LXGW WenKai"]);
     expect(names("latin")).toEqual(["Bare", "Bookerly"]);
   });
+  it("tells which sample characters a font lacks", async () => {
+    const latin = await fontCharacterMap(font("Bookerly.ttf", "Bookerly", cmapTable(cmap4(LATIN), 3, 1)));
+    expect(sampleRuns("Ab 中a", latin)).toEqual([{ text: "A", missing: false }, { text: "b", missing: true }, { text: " ", missing: false }, { text: "中", missing: true }, { text: "a", missing: false }]);
+    // Format 12 covers characters beyond the BMP; format 4 never does.
+    const wide = await fontCharacterMap(font("Song.ttf", "Song", cmapTable(cmap12([...CJK, 0x20000]), 3, 10)));
+    expect(sampleRuns("一𠀀", wide)).toEqual([{ text: "一𠀀", missing: false }]);
+    expect(sampleRuns("𠀀", latin)).toEqual([{ text: "𠀀", missing: true }]);
+    // Without a readable map nothing is flagged.
+    expect(await fontCharacterMap(font("Bare.ttf", "Bare"))).toBeNull();
+    expect(sampleRuns("书读", null)).toEqual([{ text: "书读", missing: false }]);
+  });
   it("drops only the variation-sequence subtable browsers reject, keeping the character map", async () => {
     // A format 14 subtable (platform 0, encoding 5) beside the format 4 map, as in fonts Chrome refuses.
     const base = cmap4([...LATIN, ...CJK]), uvs = new Uint8Array(10), records = 2, header = 4 + records * 8;
@@ -66,21 +78,29 @@ describe("Chinese / English font detection", () => {
     view.setUint16(2, records);
     [[0, 5, header], [3, 1, header + uvs.length]].forEach(([platform, encoding, at], i) => { view.setUint16(4 + i * 8, platform!); view.setUint16(6 + i * 8, encoding!); view.setUint32(8 + i * 8, at!); });
     table.set(uvs, header); table.set(base, header + uvs.length);
-    // The character map skips the variation-sequence subtable even before it is stripped.
-    expect((await inspectFont(font("Song.otf", "Song", table))).cjk).toBe(true);
     const original = new Uint8Array(await font("Song.otf", "Song", table).arrayBuffer()), bytes = original.slice();
     stripVariationSequences(bytes);
-    const cmapAt = new DataView(bytes.buffer).getUint32(12 + 8), stripped = new DataView(bytes.buffer);
-    expect(stripped.getUint16(cmapAt + 2)).toBe(1);
-    expect([stripped.getUint16(cmapAt + 4), stripped.getUint16(cmapAt + 6)]).toEqual([3, 1]);
+    const cmapAt = new DataView(bytes.buffer).getUint32(12 + 8), view2 = new DataView(bytes.buffer);
+    expect(view2.getUint16(cmapAt + 2)).toBe(1);
+    expect([view2.getUint16(cmapAt + 4), view2.getUint16(cmapAt + 6)]).toEqual([3, 1]);
     // Only the cmap header changed; the subtables and every other byte stay where they were.
+    expect([...bytes].filter((byte, i) => byte !== original[i]).length).toBeGreaterThan(0);
     expect(bytes.subarray(cmapAt + 12)).toEqual(original.subarray(cmapAt + 12));
-    expect(bytes.subarray(0, cmapAt)).toEqual(original.subarray(0, cmapAt));
-    expect((await inspectFont(new File([bytes], "Song.otf"))).cjk).toBe(true);
+    expect(sampleRuns("A一", await fontCharacterMap(bytes))).toEqual([{ text: "A一", missing: false }]);
+    // The map skips the variation-sequence subtable even before it is stripped.
+    expect(sampleRuns("A一", await fontCharacterMap(original))).toEqual([{ text: "A一", missing: false }]);
     // Nothing to drop, or unreadable data: the bytes stay as they were.
     const plain = new Uint8Array(await font("Book.ttf", "Book", cmapTable(cmap4(LATIN), 3, 1)).arrayBuffer()), plainCopy = plain.slice();
     stripVariationSequences(plain); expect(plain).toEqual(plainCopy);
     const junk = new Uint8Array([1, 2, 3]);
     stripVariationSequences(junk); expect(junk).toEqual(new Uint8Array([1, 2, 3]));
+  });
+  it("loads only the styles a sample shows", () => {
+    const style = (coverage: string, patch: Record<string, unknown> = {}) => ({ filename: `${coverage}.otf`, family: "F", style: coverage, weight: coverage.includes("B") ? 700 : 400, italic: coverage.includes("I"), coverage, size: 1, ...patch });
+    const fonts = (patch: Record<string, unknown>) => ["B", "R", "I", "BI"].map(coverage => style(coverage, patch));
+    expect(sampleFonts({ name: "F", fonts: fonts({ cjk: true }), coverage: [], size: 4 }).map(font => font.coverage)).toEqual(["R"]);
+    expect(sampleFonts({ name: "F", fonts: fonts({ cjk: false }), coverage: [], size: 4 }).map(font => font.coverage)).toEqual(["R", "I"]);
+    // No regular file: the first upright style stands in.
+    expect(sampleFonts({ name: "F", fonts: [style("Light", { weight: 300 }), style("B")], coverage: [], size: 2 }).map(font => font.coverage)).toEqual(["Light"]);
   });
 });
